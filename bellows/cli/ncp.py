@@ -11,6 +11,7 @@ from .main import main
 @click.pass_context
 @util.async
 def config(ctx, config, all_):
+    """Get/set configuration on the NCP"""
     click.secho(
         "NOTE: Configuration changes do not persist across resets",
         fg='red'
@@ -70,6 +71,7 @@ def config(ctx, config, all_):
 @click.pass_context
 @util.async
 def info(ctx):
+    """Get NCP information"""
     s = yield from util.setup(ctx.obj['device'])
     yield from util.networkInit(s)
 

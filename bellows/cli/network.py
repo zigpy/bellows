@@ -22,6 +22,7 @@ LOGGER = logging.getLogger(__name__)
 @click.pass_context
 @util.async
 def form(ctx, channel, pan_id, extended_pan_id):
+    """Create a new ZigBee network"""
     s = yield from util.setup(ctx.obj['device'], util.print_cb, True)
 
     v = yield from util.networkInit(s)
@@ -94,6 +95,7 @@ def form(ctx, channel, pan_id, extended_pan_id):
 @click.pass_context
 @util.async
 def join(ctx, channels, pan_id, extended_pan_id):
+    """Join an existing ZigBee network as an end device"""
     def cb(fut, frame_name, response):
         if frame_name == 'stackStatusHandler':
             fut.set_result(response)
@@ -184,6 +186,7 @@ def join(ctx, channels, pan_id, extended_pan_id):
 @click.pass_context
 @util.async
 def leave(ctx):
+    """Leave the ZigBee network"""
     s = yield from util.setup(ctx.obj['device'], None, True, False)
     v = yield from util.networkInit(s)
     if v[0] == t.EmberStatus.EMBER_NOT_JOINED:
@@ -199,6 +202,7 @@ def leave(ctx):
 @opts.duration_s
 @util.async
 def permit(ctx, duration_s):
+    """Allow devices to join this ZigBee network"""
     s = yield from util.setup(ctx.obj['device'], util.print_cb, True)
 
     v = yield from util.networkInit(s)
@@ -233,6 +237,7 @@ def permit(ctx, duration_s):
 @click.pass_context
 @util.async
 def scan(ctx, channels, duration_ms, energy_scan):
+    """Scan for networks or radio interference"""
     s = yield from util.setup(ctx.obj['device'])
 
     channel_mask = util.channel_mask(channels)
