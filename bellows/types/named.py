@@ -35,8 +35,20 @@ class EmberMulticastId(basic.uint16_t):
 
 class EmberEUI64(basic.fixed_list(8, basic.uint8_t)):
     # EUI 64-bit ID (an IEEE address).
-    def __str__(self):
+    @classmethod
+    def deserialize(cls, data):
+        r, data = super().deserialize(data)
+        return cls(r[::-1]), data
+
+    def serialize(self):
+        assert self._length == len(self)
+        return b''.join([i.serialize() for i in self[::-1]])
+
+    def __repr__(self):
         return ':'.join('%02x' % i for i in self)
+
+    def __hash__(self):
+        return hash(repr(self))
 
 
 class EmberLibraryStatus(basic.uint8_t):
@@ -1100,7 +1112,7 @@ class EmberBindingType(basic.uint8_t, enum.Enum):
     EMBER_MULTICAST_BINDING = 0x03
 
 
-class EmberApsOption(basic.uint16_t, enum.Enum):
+class EmberApsOption(basic.uint16_t):
     # Options to use when sending a message.
 
     # No options.
