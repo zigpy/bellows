@@ -31,7 +31,7 @@ class uint32_t(uint_t):
     _size = 4
 
 
-class LVString(bytes):
+class LVBytes(bytes):
     def serialize(self):
         return bytes([
             len(self),

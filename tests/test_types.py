@@ -14,4 +14,4 @@ def test_multibyte():
 
 
 def test_length_value_string():
-    assert t.LVString.deserialize(b'\x0412345') == (b'1234', b'5')
+    assert t.LVBytes.deserialize(b'\x0412345') == (b'1234', b'5')
