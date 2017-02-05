@@ -35,13 +35,15 @@ def async(f):
 
 
 def app(f):
+    database_file = None
     loaded = False
 
     @asyncio.coroutine
     def async_inner(ctx, *args, **kwargs):
-        global loaded
+        global database_file, loaded
+        database_file = ctx.obj['database_file']
         app = yield from setup_application(ctx.obj['device'])
-        app.load('zigbee.db')
+        app.load(database_file)
         loaded = True
         ctx.obj['app'] = app
         yield from f(ctx, *args, **kwargs)
@@ -50,7 +52,7 @@ def app(f):
     def shutdown():
         if loaded:
             # Don't save the DB if we didn't fully load it
-            app.save('zigbee.db')
+            app.save(database_file)
         try:
             app._ezsp.close()
         except:

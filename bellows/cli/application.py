@@ -29,12 +29,13 @@ def permit(ctx, duration_s):
 
 
 @main.command()
+@opts.database_file
 @click.pass_context
-def devices(ctx):
+def devices(ctx, database):
     """Show device database"""
     ezsp = bellows.ezsp.EZSP()
     app = bellows.zigbee.application.ControllerApplication(ezsp)
-    app.load('zigbee.db')
+    app.load(database)
     for ieee, dev in app.devices.items():
         click.echo("Device:")
         click.echo("  NWK: 0x%04x" % (dev._nwk, ))
@@ -64,11 +65,13 @@ def devices(ctx):
 
 @main.group()
 @click.pass_context
+@opts.database_file
 @click.argument('node')
-def zdo(ctx, node):
+def zdo(ctx, node, database):
     """Perform ZDO operations against a device"""
     node = t.EmberEUI64([int(p, base=16) for p in node.split(':')])
     ctx.obj['node'] = node
+    ctx.obj['database_file'] = database
 
 
 @zdo.command()
@@ -130,12 +133,14 @@ def unbind(ctx, endpoint, cluster):
 
 @main.group()
 @click.pass_context
+@opts.database_file
 @click.argument('node')
 @click.argument('endpoint', type=click.IntRange(1, 255))
 @click.argument('cluster', type=click.IntRange(0, 65535))
-def zcl(ctx, node, cluster, endpoint):
+def zcl(ctx, database, node, cluster, endpoint):
     """Peform ZCL operations against a device"""
     node = t.EmberEUI64([int(p, base=16) for p in node.split(':')])
+    ctx.obj['database_file'] = database
     ctx.obj['node'] = node
     ctx.obj['endpoint'] = endpoint
     ctx.obj['cluster'] = cluster
@@ -172,7 +177,11 @@ def read_attribute(ctx, attribute):
 @click.argument('max_interval', type=click.IntRange(0, 65535))
 @click.argument('reportable_change', type=click.INT)
 @util.app
-def configure_reporting(ctx, attribute, min_interval, max_interval, reportable_change):
+def configure_reporting(ctx,
+                        attribute,
+                        min_interval,
+                        max_interval,
+                        reportable_change):
     app = ctx.obj['app']
     dev = app.devices[ctx.obj['node']]
     endpoint = ctx.obj['endpoint']

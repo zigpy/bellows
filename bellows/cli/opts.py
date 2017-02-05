@@ -1,3 +1,5 @@
+import os
+
 import click
 
 from . import util
@@ -27,6 +29,15 @@ device = click.option(
     ),
     envvar='EZSP_DEVICE',
     required=True,
+)
+
+database_file = click.option(
+    '-D', '--database',
+    type=click.Path(
+        dir_okay=False,
+        writable=True,
+    ),
+    default=os.path.join(click.get_app_dir("bellows"), "app.db"),
 )
 
 duration_ms = click.option(
