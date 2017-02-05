@@ -34,6 +34,45 @@ def async(f):
     return inner
 
 
+def app(f):
+    loaded = False
+
+    @asyncio.coroutine
+    def async_inner(ctx, *args, **kwargs):
+        global loaded
+        app = yield from setup_application(ctx.obj['device'])
+        app.load('zigbee.db')
+        loaded = True
+        ctx.obj['app'] = app
+        yield from f(ctx, *args, **kwargs)
+        yield from asyncio.sleep(0.5)
+
+    def shutdown():
+        if loaded:
+            # Don't save the DB if we didn't fully load it
+            app.save('zigbee.db')
+        try:
+            app._ezsp.close()
+        except:
+            pass
+
+    @functools.wraps(f)
+    def inner(*args, **kwargs):
+        loop = asyncio.get_event_loop()
+        try:
+            loop.run_until_complete(async_inner(*args, **kwargs))
+        except:
+            # It seems that often errors like a message send will try to send
+            # two messages, and not reading all of them will leave the NCP in
+            # a bad state. This seems to mitigate this somewhat. Better way?
+            loop.run_until_complete(asyncio.sleep(0.5))
+            raise
+        finally:
+            shutdown()
+
+    return inner
+
+
 def print_cb(frame_name, response):
     click.echo("Callback: %s %s" % (frame_name, response))
 
@@ -48,7 +87,7 @@ def channel_mask(channels):
 
 
 @asyncio.coroutine
-def setup(dev, cbh=None, configure=False, controller=True):
+def setup(dev, cbh=None, configure=True):
     s = bellows.ezsp.EZSP()
     if cbh:
         s.add_callback(cbh)
@@ -68,13 +107,18 @@ def setup(dev, cbh=None, configure=False, controller=True):
         yield from cfg(c.EZSP_CONFIG_STACK_PROFILE, 2)
         yield from cfg(c.EZSP_CONFIG_SECURITY_LEVEL, 5)
         yield from cfg(c.EZSP_CONFIG_SUPPORTED_NETWORKS, 1)
-        if controller:
-            yield from cfg(c.EZSP_CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2)
-            # TODO: Don't know if this needs to be increased.
-            # yield from cfg(c.EZSP_CONFIG_KEY_TABLE_SIZE, 2)
         yield from cfg(c.EZSP_CONFIG_PACKET_BUFFER_COUNT, 0xff)
 
     return s
+
+
+@asyncio.coroutine
+def setup_application(dev):
+    s = bellows.ezsp.EZSP()
+    yield from s.connect(dev)
+    app = bellows.zigbee.application.ControllerApplication(s)
+    yield from app.startup()
+    return app
 
 
 def zha_security(controller=False):

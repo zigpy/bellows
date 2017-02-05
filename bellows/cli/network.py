@@ -23,7 +23,7 @@ LOGGER = logging.getLogger(__name__)
 @util.async
 def form(ctx, channel, pan_id, extended_pan_id):
     """Create a new ZigBee network"""
-    s = yield from util.setup(ctx.obj['device'], util.print_cb, True)
+    s = yield from util.setup(ctx.obj['device'], util.print_cb)
 
     v = yield from util.networkInit(s)
     if v[0] == t.EmberStatus.EMBER_SUCCESS:
@@ -56,7 +56,7 @@ def form(ctx, channel, pan_id, extended_pan_id):
     parameters = t.EmberNetworkParameters()
     parameters.panId = pan_id
     parameters.extendedPanId = extended_pan_id
-    parameters.radioTxPower = t.uint8_t(3)
+    parameters.radioTxPower = t.uint8_t(8)
     parameters.radioChannel = channel
     parameters.joinMethod = t.EmberJoinMethod.EMBER_USE_MAC_ASSOCIATION
     parameters.nwkManagerId = t.EmberNodeId(0)
@@ -100,7 +100,7 @@ def join(ctx, channels, pan_id, extended_pan_id):
         if frame_name == 'stackStatusHandler':
             fut.set_result(response)
 
-    s = yield from util.setup(ctx.obj['device'], None, True, False)
+    s = yield from util.setup(ctx.obj['device'])
 
     channel = None
 
@@ -162,7 +162,7 @@ def join(ctx, channels, pan_id, extended_pan_id):
     parameters = t.EmberNetworkParameters()
     parameters.extendedPanId = extended_pan_id
     parameters.panId = pan_id
-    parameters.radioTxPower = t.uint8_t(3)
+    parameters.radioTxPower = t.uint8_t(8)
     parameters.radioChannel = t.uint8_t(channel)
     parameters.joinMethod = t.EmberJoinMethod.EMBER_USE_MAC_ASSOCIATION
     parameters.nwkManagerId = t.EmberNodeId(0)
@@ -187,7 +187,7 @@ def join(ctx, channels, pan_id, extended_pan_id):
 @util.async
 def leave(ctx):
     """Leave the ZigBee network"""
-    s = yield from util.setup(ctx.obj['device'], None, True, False)
+    s = yield from util.setup(ctx.obj['device'])
     v = yield from util.networkInit(s)
     if v[0] == t.EmberStatus.EMBER_NOT_JOINED:
         click.echo("Not joined, not leaving")
@@ -195,39 +195,6 @@ def leave(ctx):
 
     v = yield from s.leaveNetwork()
     util.check(v[0], "Failure leaving network: %s" % (v[0], ))
-
-
-@main.command()
-@click.pass_context
-@opts.duration_s
-@util.async
-def permit(ctx, duration_s):
-    """Allow devices to join this ZigBee network"""
-    s = yield from util.setup(ctx.obj['device'], util.print_cb, True)
-
-    v = yield from util.networkInit(s)
-    util.check(
-        v[0],
-        "Network init didn't respond success - no network: %s" % (v[0], ),
-    )
-
-    v = yield from s.getNetworkParameters()
-    util.check(v[0], "Get network parameters failed")
-    util.check(
-        v[1],
-        "Not a co-ordinator, cannot permit joins: %s" % (v[1], ),
-        t.EmberNodeType.EMBER_COORDINATOR,
-    )
-
-    yield from util.basic_tc_permits(s)
-
-    v = yield from s.permitJoining(duration_s)
-    util.check(v[0], "Permit joining command failed: %s" % (v[0], ))
-    click.echo("Joins are now permitted...")
-    yield from asyncio.sleep(duration_s + 1)
-    click.echo("Done")
-
-    s.close()
 
 
 @main.command()

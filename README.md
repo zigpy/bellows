@@ -12,16 +12,43 @@ Combo (HUSBZB-1)][HubZ] device to [Home Assistant][hass].
 
 ## Status
 
-This project is in early stages, so even items marked as implemented may be
-drastically changed, 
+This project is in early stages, so it is likely that APIs will change.
 
- * implemented: EZSP UART Gateway Protocol
- * implemented: EZSP application protocol
- * implemented: CLI wrapping basic ZigBee network operations (eg, scanning and
-   forming a network)
+Currently implemented features are:
 
-No work towards implementation of the application layers of ZigBee - that is,
-ZHA, ZLL or other application profiles is done yet.
+ * EZSP UART Gateway Protocol
+ * EZSP application protocol
+ * CLI wrapping basic ZigBee network operations (eg, scanning and forming a
+   network)
+ * Incomplete ZDO functionality (with CLI)
+ * Incomplete ZCL functionality (with CLI)
+
+The ZDO and ZCL functionality is currently very brittle -- errors and
+unexpected conditions are not well handled. The application framework is also
+not well set up for applications to build against it. For example, there's
+no way to register for callbacks on network or device events.
+
+An example use of the CLI:
+
+```
+$ bellows devices
+Device:
+  NWK: 0x1ee4
+  IEEE: 00:0d:6f:00:05:7d:2d:34
+  Endpoints:
+    1: profile=0x104, device_type=None, clusters=[0, 1, 3, 32, 1026, 1280, 2821]
+    2: profile=0xc2df, device_type=None, clusters=[0, 1, 3, 2821]
+Device:
+  NWK: 0x64a6
+  IEEE: d0:52:a8:00:e0:be:00:05
+  Endpoints:
+    1: profile=0x104, device_type=None, clusters=[0]
+    2: profile=0xfc01, device_type=None, clusters=[]
+$ bellows zdo 00:0d:6f:00:05:7d:2d:34 get_endpoint 1
+<SimpleDescriptor endpoint=1 profile=260 device_type=1026 device_version=0 input_clusters=[0, 1, 3, 32, 1026, 1280, 2821] output_clusters=[25]>
+$ bellows zcl 00:0d:6f:00:05:7d:2d:34 1 1026 read_attribute 0
+0=1806
+```
 
 ## Reference documentation
 
