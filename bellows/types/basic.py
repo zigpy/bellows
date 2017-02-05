@@ -1,3 +1,6 @@
+import struct
+
+
 class int_t(int):
     _signed = True
 
@@ -15,6 +18,34 @@ class int8s(int_t):
     _size = 1
 
 
+class int16s(int_t):
+    _size = 2
+
+
+class int24s(int_t):
+    _size = 3
+
+
+class int32s(int_t):
+    _size = 4
+
+
+class int40s(int_t):
+    _size = 5
+
+
+class int48s(int_t):
+    _size = 6
+
+
+class int56s(int_t):
+    _size = 7
+
+
+class int64s(int_t):
+    _size = 8
+
+
 class uint_t(int_t):
     _signed = False
 
@@ -27,11 +58,49 @@ class uint16_t(uint_t):
     _size = 2
 
 
+class uint24_t(uint_t):
+    _size = 3
+
+
 class uint32_t(uint_t):
     _size = 4
 
 
-class LVString(bytes):
+class uint40_t(uint_t):
+    _size = 5
+
+
+class uint48_t(uint_t):
+    _size = 6
+
+
+class uint56_t(uint_t):
+    _size = 7
+
+
+class uint64_t(uint_t):
+    _size = 8
+
+
+class Single(float):
+    def serialize(self):
+        return struct.pack('<f', self)
+
+    @classmethod
+    def deserialize(cls, data):
+        return struct.unpack('<f', data), data[4:]
+
+
+class Double(float):
+    def serialize(self):
+        return struct.pack('<d', self)
+
+    @classmethod
+    def deserialize(cls, data):
+        return struct.unpack('<d', data), data[8:]
+
+
+class LVBytes(bytes):
     def serialize(self):
         return bytes([
             len(self),
@@ -44,18 +113,63 @@ class LVString(bytes):
         return s, data[l + 1:]
 
 
-def fixed_list(length, itemtype):
-    class List(list):
-        def serialize(self):
-            assert len(self) == length
-            return b''.join([i.serialize() for i in self])
+class _List(list):
+    _length = None
 
-        @classmethod
-        def deserialize(cls, data):
-            r = cls()
-            for i in range(length):
-                item, data = itemtype.deserialize(data)
-                r.append(item)
-            return r, data
+    def serialize(self):
+        assert self._length is None or len(self) == self._length
+        return b''.join([i.serialize() for i in self])
 
+    @classmethod
+    def deserialize(cls, data):
+        r = cls()
+        while data:
+            item, data = r._itemtype.deserialize(data)
+            r.append(item)
+        return r, data
+
+
+class _LVList(_List):
+    def serialize(self):
+        head = len(self).to_bytes(1, 'little')
+        data = super().serialize()
+        return head + data
+
+    @classmethod
+    def deserialize(cls, data):
+        r = cls()
+        length, data = data[0], data[1:]
+        for i in range(length):
+            item, data = r._itemtype.deserialize(data)
+            r.append(item)
+        return r, data
+
+
+def List(itemtype):
+    class List(_List):
+        _itemtype = itemtype
     return List
+
+
+def LVList(itemtype):
+    class LVList(_LVList):
+        _itemtype = itemtype
+    return LVList
+
+
+class _FixedList(_List):
+    @classmethod
+    def deserialize(cls, data):
+        r = cls()
+        for i in range(r._length):
+            item, data = r._itemtype.deserialize(data)
+            r.append(item)
+        return r, data
+
+
+def fixed_list(length, itemtype):
+    class FixedList(_FixedList):
+        _length = length
+        _itemtype = itemtype
+
+    return FixedList

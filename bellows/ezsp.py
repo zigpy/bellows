@@ -2,7 +2,8 @@ import asyncio
 import functools
 import logging
 
-from bellows import uart
+import bellows.types as t
+import bellows.uart as uart
 from bellows.commands import COMMANDS
 
 
@@ -35,14 +36,15 @@ class EZSP:
 
     def _ezsp_frame(self, name, *args):
         c = self.COMMANDS[name]
-        d = b''.join(t(v).serialize() for t, v in zip(c[1], args))
+        data = t.serialize(args, c[1])
         return bytes([
             self._seq & 0xff,
             0,  # Frame control. TODO.
             c[0],  # Frame ID
-        ]) + d
+        ]) + data
 
     def _command(self, name, *args):
+        LOGGER.debug("Send command %s", name)
         data = self._ezsp_frame(name, *args)
         self._gw.data(data)
         c = self.COMMANDS[name]
@@ -111,13 +113,6 @@ class EZSP:
 
         return functools.partial(self._command, name)
 
-    def _deserialize_frame(self, schema, data):
-        result = []
-        for t in schema:
-            v, data = t.deserialize(data)
-            result.append(v)
-        return result, data
-
     def frame_received(self, data):
         """Handle a received EZSP frame
 
@@ -136,12 +131,12 @@ class EZSP:
         if sequence in self._awaiting:
             expected_id, schema, future = self._awaiting.pop(sequence)
             assert expected_id == frame_id
-            result, data = self._deserialize_frame(schema, data)
+            result, data = t.deserialize(data, schema)
             future.set_result(result)
         else:
             schema = self.COMMANDS_BY_ID[frame_id][2]
             frame_name = self.COMMANDS_BY_ID[frame_id][0]
-            result, data = self._deserialize_frame(schema, data)
+            result, data = t.deserialize(data, schema)
             self.handle_callback(frame_name, result)
 
     def add_callback(self, cb):
