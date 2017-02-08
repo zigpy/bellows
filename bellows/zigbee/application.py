@@ -138,7 +138,7 @@ class ControllerApplication:
         LOGGER.info("Device 0x%04x (%s) joined the network", nwk, ieee)
         dev = self.add_device(ieee, nwk)
         loop = asyncio.get_event_loop()
-        loop.call_soon(asyncio.ensure_future, dev.initialize())
+        loop.call_soon(asyncio.async, dev.initialize())
 
     def _handle_leave(self, nwk, ieee, *args):
         LOGGER.info("Device 0x%04x (%s) left the network", nwk, ieee)
