@@ -10,7 +10,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class ControllerApplication:
-    direct = t.EmberOutgoingMessageType.EMBER_OUTGOING_DIRECT
+    direct = t.EmberOutgoingMessageType.OUTGOING_DIRECT
 
     def __init__(self, ezsp):
         self._send_sequence = 0
@@ -26,24 +26,24 @@ class ControllerApplication:
         yield from e.version(4)
 
         c = t.EzspConfigId
-        yield from self._cfg(c.EZSP_CONFIG_STACK_PROFILE, 2)
-        yield from self._cfg(c.EZSP_CONFIG_SECURITY_LEVEL, 5)
-        yield from self._cfg(c.EZSP_CONFIG_SUPPORTED_NETWORKS, 1)
-        yield from self._cfg(c.EZSP_CONFIG_SUPPORTED_NETWORKS, 1)
+        yield from self._cfg(c.CONFIG_STACK_PROFILE, 2)
+        yield from self._cfg(c.CONFIG_SECURITY_LEVEL, 5)
+        yield from self._cfg(c.CONFIG_SUPPORTED_NETWORKS, 1)
+        yield from self._cfg(c.CONFIG_SUPPORTED_NETWORKS, 1)
         zdo = (
-            t.EmberZdoConfigurationFlags.EMBER_APP_RECEIVES_SUPPORTED_ZDO_REQUESTS |
-            t.EmberZdoConfigurationFlags.EMBER_APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
+            t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS |
+            t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
         )
-        yield from self._cfg(c.EZSP_CONFIG_APPLICATION_ZDO_FLAGS, zdo)
-        yield from self._cfg(c.EZSP_CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2)
-        yield from self._cfg(c.EZSP_CONFIG_PACKET_BUFFER_COUNT, 0xff)
+        yield from self._cfg(c.CONFIG_APPLICATION_ZDO_FLAGS, zdo)
+        yield from self._cfg(c.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2)
+        yield from self._cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xff)
 
         v = yield from e.networkInit()
         assert v[0] == 0  # TODO: Better check
 
         v = yield from e.getNetworkParameters()
         assert v[0] == 0  # TODO: Better check
-        if v[1] != t.EmberNodeType.EMBER_COORDINATOR:
+        if v[1] != t.EmberNodeType.COORDINATOR:
             raise Exception("Network not configured as coordinator")
 
         yield from self._policy()
@@ -64,18 +64,18 @@ class ControllerApplication:
         """Set up the policies for what the NCP should do"""
         e = self._ezsp
         v = yield from e.setPolicy(
-            t.EzspPolicyId.EZSP_TC_KEY_REQUEST_POLICY,
-            t.EzspDecisionId.EZSP_DENY_TC_KEY_REQUESTS,
+            t.EzspPolicyId.TC_KEY_REQUEST_POLICY,
+            t.EzspDecisionId.DENY_TC_KEY_REQUESTS,
         )
         assert v[0] == 0  # TODO: Better check
         v = yield from e.setPolicy(
-            t.EzspPolicyId.EZSP_APP_KEY_REQUEST_POLICY,
-            t.EzspDecisionId.EZSP_ALLOW_APP_KEY_REQUESTS,
+            t.EzspPolicyId.APP_KEY_REQUEST_POLICY,
+            t.EzspDecisionId.ALLOW_APP_KEY_REQUESTS,
         )
         assert v[0] == 0  # TODO: Better check
         v = yield from e.setPolicy(
-            t.EzspPolicyId.EZSP_TRUST_CENTER_POLICY,
-            t.EzspDecisionId.EZSP_ALLOW_PRECONFIGURED_KEY_JOINS,
+            t.EzspPolicyId.TRUST_CENTER_POLICY,
+            t.EzspDecisionId.ALLOW_PRECONFIGURED_KEY_JOINS,
         )
         assert v[0] == 0  # TODO: Better check
 
@@ -95,7 +95,7 @@ class ControllerApplication:
             if args[4] != 0:
                 self._handle_frame_failure(*args)
         elif frame_name == 'trustCenterJoinHandler':
-            if args[2] == t.EmberDeviceUpdate.EMBER_DEVICE_LEFT:
+            if args[2] == t.EmberDeviceUpdate.DEVICE_LEFT:
                 self._handle_leave(*args)
             else:
                 self._handle_join(*args)

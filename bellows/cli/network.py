@@ -26,7 +26,7 @@ def form(ctx, channel, pan_id, extended_pan_id):
     s = yield from util.setup(ctx.obj['device'], util.print_cb)
 
     v = yield from util.networkInit(s)
-    if v[0] == t.EmberStatus.EMBER_SUCCESS:
+    if v[0] == t.EmberStatus.SUCCESS:
         LOGGER.debug("Network was up, leaving...")
         v = yield from s.leaveNetwork()
         util.check(v[0], "Failure leaving network: %s" % (v[0], ))
@@ -58,7 +58,7 @@ def form(ctx, channel, pan_id, extended_pan_id):
     parameters.extendedPanId = extended_pan_id
     parameters.radioTxPower = t.uint8_t(8)
     parameters.radioChannel = channel
-    parameters.joinMethod = t.EmberJoinMethod.EMBER_USE_MAC_ASSOCIATION
+    parameters.joinMethod = t.EmberJoinMethod.USE_MAC_ASSOCIATION
     parameters.nwkManagerId = t.EmberNodeId(0)
     parameters.nwkUpdateId = t.uint8_t(0)
     parameters.channels = t.uint32_t(0)
@@ -79,10 +79,10 @@ def form(ctx, channel, pan_id, extended_pan_id):
     util.check(
         v[0],
         "Network didn't come up after form",
-        t.EmberStatus.EMBER_NETWORK_UP,
+        t.EmberStatus.NETWORK_UP,
     )
 
-    yield from s.setValue(t.EzspValueId.EZSP_VALUE_STACK_TOKEN_WRITING, 1)
+    yield from s.setValue(t.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
     yield from asyncio.sleep(0.1)
 
     s.close()
@@ -113,7 +113,7 @@ def join(ctx, channels, pan_id, extended_pan_id):
         channel = t.uint8_t(channels[0])
 
     if not (pan_id or extended_pan_id):
-        scan_type = t.EzspNetworkScanType.EZSP_ACTIVE_SCAN
+        scan_type = t.EzspNetworkScanType.ACTIVE_SCAN
         channel_mask = util.channel_mask(channels)
         click.echo("PAN not provided, scanning channels %s..." % (
             ' '.join(map(str, channels)),
@@ -149,7 +149,7 @@ def join(ctx, channels, pan_id, extended_pan_id):
 
     v = yield from util.networkInit(s)
 
-    if v[0] == t.EmberStatus.EMBER_SUCCESS:
+    if v[0] == t.EmberStatus.SUCCESS:
         LOGGER.debug("Network was up, leaving...")
         v = yield from s.leaveNetwork()
         util.check(v[0], "Failure leaving network: %s" % (v[0], ))
@@ -164,7 +164,7 @@ def join(ctx, channels, pan_id, extended_pan_id):
     parameters.panId = pan_id
     parameters.radioTxPower = t.uint8_t(8)
     parameters.radioChannel = t.uint8_t(channel)
-    parameters.joinMethod = t.EmberJoinMethod.EMBER_USE_MAC_ASSOCIATION
+    parameters.joinMethod = t.EmberJoinMethod.USE_MAC_ASSOCIATION
     parameters.nwkManagerId = t.EmberNodeId(0)
     parameters.nwkUpdateId = t.uint8_t(0)
     parameters.channels = t.uint32_t(0)
@@ -172,7 +172,7 @@ def join(ctx, channels, pan_id, extended_pan_id):
 
     fut = asyncio.Future()
     cbid = s.add_callback(functools.partial(cb, fut))
-    v = yield from s.joinNetwork(t.EmberNodeType.EMBER_END_DEVICE, parameters)
+    v = yield from s.joinNetwork(t.EmberNodeType.END_DEVICE, parameters)
     util.check(v[0], "Joining network failed: %s" % (v[0], ))
     v = yield from fut
     click.echo(v)
@@ -189,7 +189,7 @@ def leave(ctx):
     """Leave the ZigBee network"""
     s = yield from util.setup(ctx.obj['device'])
     v = yield from util.networkInit(s)
-    if v[0] == t.EmberStatus.EMBER_NOT_JOINED:
+    if v[0] == t.EmberStatus.NOT_JOINED:
         click.echo("Not joined, not leaving")
         return
 
@@ -220,9 +220,9 @@ def scan(ctx, channels, duration_ms, energy_scan):
         math.ceil(math.log(duration_symbols - 1, 2)),
     )
 
-    scan_type = t.EzspNetworkScanType.EZSP_ACTIVE_SCAN
+    scan_type = t.EzspNetworkScanType.ACTIVE_SCAN
     if energy_scan:
-        scan_type = t.EzspNetworkScanType.EZSP_ENERGY_SCAN
+        scan_type = t.EzspNetworkScanType.ENERGY_SCAN
 
     v = yield from s.startScan(scan_type, channel_mask, duration_symbol_exp)
     for network in v:

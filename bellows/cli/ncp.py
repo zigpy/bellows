@@ -27,7 +27,7 @@ def config(ctx, config, all_):
     if all_:
         for config in t.EzspConfigId:
             v = yield from s.getConfigurationValue(config)
-            if v[0] == t.EzspStatus.EZSP_ERROR_INVALID_ID:
+            if v[0] == t.EzspStatus.ERROR_INVALID_ID:
                 continue
             click.echo("%s=%s" % (config.name, v[1]))
         s.close()

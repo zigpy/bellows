@@ -61,8 +61,8 @@ class Device:
         f.sourceEndpoint = t.uint8_t(endpoint)
         f.destinationEndpoint = t.uint8_t(endpoint)
         f.options = t.EmberApsOption(
-            t.EmberApsOption.EMBER_APS_OPTION_RETRY |
-            t.EmberApsOption.EMBER_APS_OPTION_ENABLE_ROUTE_DISCOVERY
+            t.EmberApsOption.APS_OPTION_RETRY |
+            t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
         )
         f.groupId = t.uint16_t(0)
         f.sequence = t.uint8_t(self._application.get_sequence())

@@ -106,10 +106,10 @@ def setup(dev, cbh=None, configure=True):
 
     if configure:
         LOGGER.debug("Configuring...")
-        yield from cfg(c.EZSP_CONFIG_STACK_PROFILE, 2)
-        yield from cfg(c.EZSP_CONFIG_SECURITY_LEVEL, 5)
-        yield from cfg(c.EZSP_CONFIG_SUPPORTED_NETWORKS, 1)
-        yield from cfg(c.EZSP_CONFIG_PACKET_BUFFER_COUNT, 0xff)
+        yield from cfg(c.CONFIG_STACK_PROFILE, 2)
+        yield from cfg(c.CONFIG_SECURITY_LEVEL, 5)
+        yield from cfg(c.CONFIG_SUPPORTED_NETWORKS, 1)
+        yield from cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xff)
 
     return s
 
@@ -133,8 +133,8 @@ def zha_security(controller=False):
 
     isc = t.EmberInitialSecurityState()
     isc.bitmask = t.uint16_t(
-        t.EmberInitialSecurityBitmask.EMBER_HAVE_PRECONFIGURED_KEY |
-        t.EmberInitialSecurityBitmask.EMBER_REQUIRE_ENCRYPTED_KEY
+        t.EmberInitialSecurityBitmask.HAVE_PRECONFIGURED_KEY |
+        t.EmberInitialSecurityBitmask.REQUIRE_ENCRYPTED_KEY
     )
     isc.preconfiguredKey = zha_key
     isc.networkKey = empty_key_data
@@ -145,8 +145,8 @@ def zha_security(controller=False):
 
     if controller:
         isc.bitmask |= (
-            t.EmberInitialSecurityBitmask.EMBER_TRUST_CENTER_GLOBAL_LINK_KEY |
-            t.EmberInitialSecurityBitmask.EMBER_HAVE_NETWORK_KEY
+            t.EmberInitialSecurityBitmask.TRUST_CENTER_GLOBAL_LINK_KEY |
+            t.EmberInitialSecurityBitmask.HAVE_NETWORK_KEY
         )
         isc.bitmask = t.uint16_t(isc.bitmask)
         random_key = t.fixed_list(16, t.uint8_t)(
@@ -170,7 +170,7 @@ def networkInit(s):
     check(
         v[0],
         "Failure initializing network: %s" % (v[0], ),
-        [0, t.EmberStatus.EMBER_NOT_JOINED],
+        [0, t.EmberStatus.NOT_JOINED],
     )
     return v
 
@@ -191,14 +191,14 @@ def basic_tc_permits(s):
         ))
 
     yield from setPolicy(
-        t.EzspPolicyId.EZSP_TC_KEY_REQUEST_POLICY,
-        t.EzspDecisionId.EZSP_DENY_TC_KEY_REQUESTS,
+        t.EzspPolicyId.TC_KEY_REQUEST_POLICY,
+        t.EzspDecisionId.DENY_TC_KEY_REQUESTS,
     )
     yield from setPolicy(
-        t.EzspPolicyId.EZSP_APP_KEY_REQUEST_POLICY,
-        t.EzspDecisionId.EZSP_ALLOW_APP_KEY_REQUESTS,
+        t.EzspPolicyId.APP_KEY_REQUEST_POLICY,
+        t.EzspDecisionId.ALLOW_APP_KEY_REQUESTS,
     )
     yield from setPolicy(
-        t.EzspPolicyId.EZSP_TRUST_CENTER_POLICY,
-        t.EzspDecisionId.EZSP_ALLOW_PRECONFIGURED_KEY_JOINS,
+        t.EzspPolicyId.TRUST_CENTER_POLICY,
+        t.EzspDecisionId.ALLOW_PRECONFIGURED_KEY_JOINS,
     )

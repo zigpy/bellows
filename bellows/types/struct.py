@@ -46,18 +46,18 @@ class EmberNetworkParameters(EzspStruct):
         # The method used to initially join the network.
         ('joinMethod', named.EmberJoinMethod),
         # NWK Manager ID. The ID of the network manager in the current network.
-        # This may only be set at joining when using
-        # EMBER_USE_NWK_COMMISSIONING as the join method.
+        # This may only be set at joining when using USE_NWK_COMMISSIONING as
+        # the join method.
         ('nwkManagerId', named.EmberNodeId),
         # NWK Update ID. The value of the ZigBee nwkUpdateId known by the
         # stack. This is used to determine the newest instance of the network
         # after a PAN ID or channel change. This may only be set at joining
-        # when using EMBER_USE_NWK_COMMISSIONING as the join method.
+        # when using USE_NWK_COMMISSIONING as the join method.
         ('nwkUpdateId', basic.uint8_t),
         # NWK channel mask. The list of preferred channels that the NWK manager
         # has told this device to use when searching for the network. This may
-        # only be set at joining when using EMBER_USE_NWK_COMMISSIONING as the
-        # join method.
+        # only be set at joining when using USE_NWK_COMMISSIONING as the join
+        # method.
         ('channels', basic.uint32_t),
     ]
 
@@ -298,22 +298,21 @@ class EmberInitialSecurityState(EzspStruct):
         ('bitmask', named.EmberInitialSecurityBitmask),
         # The pre-configured Key data that should be used when forming or
         # joining the network. The security bitmask must be set with the
-        # EMBER_HAVE_PRECONFIGURED_KEY bit to indicate that the key contains
-        # valid data.
+        # HAVE_PRECONFIGURED_KEY bit to indicate that the key contains valid
+        # data.
         ('preconfiguredKey', EmberKeyData),
         # The Network Key that should be used by the Trust Center when it forms
         # the network, or the Network Key currently in use by a joined device.
-        # The security bitmask must be set with EMBER_HAVE_NETWORK_KEY to
-        # indicate that the key contains valid data.
+        # The security bitmask must be set with HAVE_NETWORK_KEY to indicate
+        # that the key contains valid data.
         ('networkKey', EmberKeyData),
         # The sequence number associated with the network key. This is only
-        # valid if the EMBER_HAVE_NETWORK_KEY has been set in the security
-        # bitmask.
+        # valid if the HAVE_NETWORK_KEY has been set in the security bitmask.
         ('networkKeySequenceNumber', basic.uint8_t),
         # This is the long address of the trust center on the network that will
         # be joined. It is usually NOT set prior to joining the network and
         # instead it is learned during the joining message exchange. This field
-        # is only examined if EMBER_HAVE_TRUST_CENTER_EUI64 is set in the
+        # is only examined if HAVE_TRUST_CENTER_EUI64 is set in the
         # EmberInitialSecurityState::bitmask. Most devices should clear that
         # bit and leave this field alone. This field must be set when using
         # commissioning mode.

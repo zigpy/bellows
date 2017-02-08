@@ -45,12 +45,12 @@ def _test_startup(app, nwk_type):
 
 
 def test_startup(app):
-    return _test_startup(app, t.EmberNodeType.EMBER_COORDINATOR)
+    return _test_startup(app, t.EmberNodeType.COORDINATOR)
 
 
 def test_startup_not_coordinator(app):
     with pytest.raises(Exception):
-        return _test_startup(app, t.EmberNodeType.EMBER_SLEEPY_END_DEVICE)
+        return _test_startup(app, t.EmberNodeType.SLEEPY_END_DEVICE)
 
 
 def _frame_handler(app, aps, ieee, endpoint, cluster=0, sender=3):
@@ -116,7 +116,7 @@ def test_leave_handler(app, ieee):
     app.devices[ieee] = mock.sentinel.device
     app.ezsp_callback_handler(
         'trustCenterJoinHandler',
-        [1, ieee, t.EmberDeviceUpdate.EMBER_DEVICE_LEFT, None, None]
+        [1, ieee, t.EmberDeviceUpdate.DEVICE_LEFT, None, None]
     )
     assert ieee not in app.devices
 
