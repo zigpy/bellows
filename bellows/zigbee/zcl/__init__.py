@@ -17,14 +17,14 @@ def deserialize(aps_frame, data):
         data = data[2:]
     tsn, command_id, data = data[0], data[1], data[2:]
 
-    is_reply = direction
+    is_reply = bool(direction)
 
     if frame_type == 1:
         # Cluster command
         if aps_frame.clusterId not in Cluster._registry:
             LOGGER.warning("Ignoring unknown cluster ID 0x%04x",
                            aps_frame.clusterId)
-            return tsn, command_id, direction, data
+            return tsn, command_id + 256, is_reply, data
         cluster = Cluster._registry[aps_frame.clusterId]
         # Cluster-specific command
 
@@ -38,18 +38,18 @@ def deserialize(aps_frame, data):
             is_reply = commands[command_id][2]
         except KeyError:
             LOGGER.warning("Unknown cluster-specific command %s", command_id)
-            return tsn, command_id, direction, data
+            return tsn, command_id + 256, is_reply, data
 
         # Bad hack to differentiate foundation vs cluster
-        command_id = (command_id + 1) << 8
+        command_id = command_id + 256
     else:
         # General command
         try:
             schema = foundation.COMMANDS[command_id][1]
             is_reply = foundation.COMMANDS[command_id][2]
-        except:
+        except KeyError:
             LOGGER.warning("Unknown foundation command %s", command_id)
-            return tsn, command_id, direction, data
+            return tsn, command_id, is_reply, data
 
     value, data = t.deserialize(data, schema)
     if data != b'':
@@ -105,7 +105,7 @@ class Cluster(metaclass=Registry):
                 self._attr_cache[attr.attrid] = attr.value.value
         elif command_id > 0xff:
             # Unencapsulate bad hack
-            command_id = (command_id >> 8) - 1
+            command_id -= 256
             self.handle_cluster_request(aps_frame, tsn, command_id, args)
         else:
             self.warn("No handler for general command %s", command_id)

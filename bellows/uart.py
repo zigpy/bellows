@@ -126,11 +126,6 @@ class Gateway(asyncio.Protocol):
         control = bytes([0b10000000 | (self._rec_seq & 0b00000111)])
         return self._frame(control, b'')
 
-    def _nak_frame(self):
-        raise NotImplementedError
-        control = None
-        return self._frame(control, b'')
-
     def _rst_frame(self):
         return self.CANCEL + self._frame(b'\xC0', b'')
 

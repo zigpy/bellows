@@ -79,6 +79,7 @@ class Device:
                 "Request for unknown endpoint %s",
                 aps_frame.destinationEndpoint,
             )
+            return
 
         return endpoint.handle_request(aps_frame, tsn, command_id, args)
 

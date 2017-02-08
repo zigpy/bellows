@@ -11,18 +11,19 @@ LOGGER = logging.getLogger(__name__)
 def deserialize(aps_frame, data):
     tsn, data = data[0], data[1:]
 
+    is_reply = bool(aps_frame.clusterId & 0x8000)
     try:
         cluster_details = types.CLUSTERS[aps_frame.clusterId]
     except KeyError:
         LOGGER.warning("Unknown ZDO cluster 0x%02x", aps_frame.clusterId)
-        is_reply = bool(aps_frame.clusterId & 0x8000)
         return tsn, aps_frame.clusterId, is_reply, data
 
     args, data = t.deserialize(data, cluster_details[2])
     if data != b'':
         # TODO: Seems sane to check, but what should we do?
         LOGGER.warning("Data remains after deserializing ZDO frame")
-    return tsn, aps_frame.clusterId, bool(aps_frame.clusterId & 0x8000), args
+
+    return tsn, aps_frame.clusterId, is_reply, args
 
 
 class ZDO:
@@ -67,9 +68,6 @@ class ZDO:
             response = (0x8006, 0, addr, [])
 
         self.reply(*response)
-
-    def handle_device_announce(self, addr, ieee, capability):
-        pass
 
     def bind(self, endpoint, cluster):
         dstaddr = types.MultiAddress()

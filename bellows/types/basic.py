@@ -88,7 +88,7 @@ class Single(float):
 
     @classmethod
     def deserialize(cls, data):
-        return struct.unpack('<f', data), data[4:]
+        return struct.unpack('<f', data)[0], data[4:]
 
 
 class Double(float):
@@ -97,7 +97,7 @@ class Double(float):
 
     @classmethod
     def deserialize(cls, data):
-        return struct.unpack('<d', data), data[8:]
+        return struct.unpack('<d', data)[0], data[8:]
 
 
 class LVBytes(bytes):

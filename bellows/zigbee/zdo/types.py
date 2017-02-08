@@ -31,29 +31,18 @@ class SizePrefixedSimpleDescriptor(SimpleDescriptor):
         return SimpleDescriptor.deserialize(data[1:])
 
 
-class NodeDescriptor:
-    @classmethod
-    def deserialize(cls, data):
-        r = cls()
-        byte1, byte2, data = data[0], data[1], data[2:]
-        r.logical_type = byte1 & 0x111
-        r.complex_descriptor_available = bool((byte1 & 0x1000) >> 3)
-        r.user_descriptor_available = bool((byte1 & 0x10000) >> 4)
-        r.aps_flags = byte2 & 0x111
-        r.frequency_band = (byte2 & 0x11111000) >> 3
-
-        r.mac_capability_flags, data = data[0], data[1:]
-        r.manufacturer_code, data = int.from_bytes(data[0:1], 'little'), data[2:]
-        r.maximum_buffer_size, data = data[0], data[1:]
-        r.maximum_incoming_transfer_size, data = int.from_bytes(data[0:1], 'little'), data[2:]
-        r.server_mask, data = int.from_bytes(data[0:1], 'little'), data[2:]
-        r.maximum_outgoing_transfer_size, data = int.from_bytes(data[0:1], 'little'), data[2:]
-        r.descriptor_capability_field, data = data[0], data[1:]
-
-        return r, data
-
-    def serialize(self):
-        raise NotImplementedError
+class NodeDescriptor(t.EzspStruct):
+    _fields = [
+        ('byte1', t.uint8_t),
+        ('byte2', t.uint8_t),
+        ('mac_capability_flags', t.uint8_t),
+        ('manufacturer_code', t.uint16_t),
+        ('maximum_buffer_size', t.uint8_t),
+        ('maximum_incoming_transfer_size', t.uint16_t),
+        ('server_mask', t.uint16_t),
+        ('maximum_outgoing_transfer_size', t.uint16_t),
+        ('descriptor_capability_field', t.uint8_t),
+    ]
 
 
 class MultiAddress:
@@ -77,7 +66,7 @@ class MultiAddress:
         else:
             raise ValueError("Invalid MultiAddress - unknown address mode")
 
-        return r
+        return r, data
 
     def serialize(self):
         if self.addrmode == 0x01:
@@ -89,7 +78,7 @@ class MultiAddress:
             return (
                 self.addrmode.to_bytes(1, 'little') +
                 self.ieee.serialize() +
-                self.endpoint.to_bytes(2, 'little')
+                self.endpoint.to_bytes(1, 'little')
             )
         else:
             raise ValueError("Invalid value for addrmode")

@@ -132,7 +132,12 @@ class ReadAttributeRecord():
         return r, data
 
     def serialize(self):
-        raise NotImplementedError
+        r = t.uint16_t(self.attrid).serialize()
+        r += t.uint8_t(self.status).serialize()
+        if self.status == 0:
+            r += self.value.serialize()
+
+        return r
 
     def __repr__(self):
         r = '<ReadAttributeRecord attrid=%s status=%s' % (self.attrid, self.status)
@@ -190,6 +195,8 @@ class AttributeReportingConfig:
             datatype = DATA_TYPES[self.datatype]
             if datatype[2] is Analog:
                 self.reportable_change, data = datatype[1].deserialize(data)
+
+        return self, data
 
 
 class ConfigureReportingResponseRecord(t.EzspStruct):

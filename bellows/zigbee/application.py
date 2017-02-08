@@ -102,8 +102,7 @@ class ControllerApplication:
 
     def _handle_frame(self, message_type, aps_frame, lqi, rssi, sender, binding_index, address_index, message):
         try:
-            device = self.get_device(nwk=sender)
-            device.radio_details(lqi, rssi)
+            self.get_device(nwk=sender).radio_details(lqi, rssi)
         except KeyError:
             pass
 
@@ -177,9 +176,6 @@ class ControllerApplication:
     def get_sequence(self):
         self._send_sequence = (self._send_sequence + 1) % 256
         return self._send_sequence
-
-    def __getstate__(self):
-        return {k: v for k, v in self.__dict__.items() if k != "_ezsp"}
 
     def get_device(self, ieee=None, nwk=None):
         if ieee is not None:
@@ -279,7 +275,4 @@ class ControllerApplication:
             ep.status = endpoint.Status(status)
 
         for (ieee, endpoint_id, cluster) in c.execute("SELECT * FROM clusters"):
-            try:
-                self.devices[ieee].endpoints[endpoint_id].add_cluster(cluster)
-            except:
-                LOGGER.warning("Unknown cluster %04x on device %s endpoint %02x", cluster, ieee, endpoint_id)
+            self.devices[ieee].endpoints[endpoint_id].add_cluster(cluster)

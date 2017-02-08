@@ -10,7 +10,6 @@ class Basic(Cluster):
     and enabling a device.
     """
     cluster_id = 0x0000
-    name = 'Basic'
     attributes = {
         # Basic Device Information
         0x0000: ('zcl_version', t.uint8_t),
@@ -101,7 +100,6 @@ class Identify(Cluster):
     """Attributes and commands for putting a device into
     Identification mode (e.g. flashing a light)"""
     cluster_id = 0x0003
-    name = 'Identify'
     attributes = {
         0x0000: ('identify_time', t.uint16_t),
         0x0001: ('identify_commission_state', t.uint8_t),  # bitmap8
@@ -122,7 +120,6 @@ class Groups(Cluster):
     """Attributes and commands for group configuration and
     manipulation."""
     cluster_id = 0x0004
-    name = 'Groups'
     attributes = {
         0x0000: ('name_support', t.uint8_t),  # bitmap8
     }
@@ -146,7 +143,6 @@ class Scenes(Cluster):
     """Attributes and commands for scene configuration and
     manipulation."""
     cluster_id = 0x0005
-    name = 'Scenes'
     attributes = {
         # Scene Management Information
         0x0000: ('count', t.uint8_t),
@@ -246,7 +242,6 @@ class Alarms(Cluster):
     """ Attributes and commands for sending notifications and
     configuring alarm functionality."""
     cluster_id = 0x0009
-    name = 'Alarms'
     attributes = {
         # Alarm Information
         0x0000: ('alarm_count', t.uint16_t),

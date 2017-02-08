@@ -1,10 +1,11 @@
 import bellows.zigbee.zcl as zcl
 
 
-def test_cluster_id():
+def test_registry():
     for cluster_id, cluster in zcl.Cluster._registry.items():
         assert 0 <= getattr(cluster, 'cluster_id', -1) <= 65535
         assert cluster_id == cluster.cluster_id
+        assert issubclass(cluster, zcl.Cluster)
 
 
 def test_attributes():
