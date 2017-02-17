@@ -56,7 +56,7 @@ def test_rst(gw):
 
 def test_data_frame(gw):
     expected = b'\x42\x21\xa8\x54\x2a'
-    assert gw._data_frame(b'\x00\x00\x00\x00\x00')[1:-3] == expected
+    assert gw._data_frame(b'\x00\x00\x00\x00\x00', 0, False)[1:-3] == expected
 
 
 def test_substitute_received(gw):
@@ -128,5 +128,24 @@ def test_reset_old(gw):
 
 
 def test_data(gw):
+    write_call_count = 0
+
+    def mockwrite(data):
+        nonlocal loop, write_call_count
+        if data == b'\x10 @\xda}^Z~':
+            print(write_call_count)
+            loop.call_soon(gw._handle_nak, gw._pending[0])
+        else:
+            loop.call_soon(gw._handle_ack, (gw._pending[0] + 1) % 8)
+        write_call_count += 1
+
+    gw.write = mockwrite
+
     gw.data(b'foo')
-    assert gw._transport.write.call_count == 1
+    gw.data(b'bar')
+    gw.data(b'baz')
+    gw._sendq.put_nowait(gw.Terminator)
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(gw._send_task())
+    assert write_call_count == 4

@@ -18,6 +18,8 @@ class Gateway(asyncio.Protocol):
 
     RESERVED = FLAG + ESCAPE + XON + XOFF + SUBSTITUTE + CANCEL
 
+    class Terminator: pass
+
     def __init__(self, application, connected_future=None):
         self._send_seq = 0
         self._rec_seq = 0
@@ -25,11 +27,14 @@ class Gateway(asyncio.Protocol):
         self._application = application
         self._reset_future = None
         self._connected_future = connected_future
+        self._sendq = asyncio.Queue()
+        self._pending = (-1, None)
 
     def connection_made(self, transport):
         self._transport = transport
         if self._connected_future is not None:
             self._connected_future.set_result(True)
+            asyncio.async(self._send_task())
 
     def data_received(self, data):
         # TODO: Fix this handling for multiple instances of the characters
@@ -75,13 +80,16 @@ class Gateway(asyncio.Protocol):
         seq = (data[0] & 0b01110000) >> 4
         self._rec_seq = (seq + 1) % 8
         self.write(self._ack_frame())
+        self._handle_ack(data[0])
         self._application.frame_received(self._randomize(data[1:-3]))
 
     def ack_frame_received(self, data):
         LOGGER.debug("ACK frame: %r", data)
+        self._handle_ack(data[0])
 
     def nak_frame_received(self, data):
         LOGGER.debug("NAK frame: %r", data)
+        self._handle_nak(data[0])
 
     def rst_frame_received(self, data):
         LOGGER.debug("RST frame: %r", data)
@@ -101,6 +109,7 @@ class Gateway(asyncio.Protocol):
         self._transport.write(data)
 
     def close(self):
+        self._sendq.put_nowait(self.Terminator)
         self._transport.close()
 
     def reset(self):
@@ -112,14 +121,42 @@ class Gateway(asyncio.Protocol):
         self._reset_future = asyncio.Future()
         return self._reset_future
 
-    def data(self, data):
-        self.write(self._data_frame(data))
-        self._send_seq = (self._send_seq + 1) % 8
+    @asyncio.coroutine
+    def _send_task(self):
+        while True:
+            item = yield from self._sendq.get()
+            if item is self.Terminator:
+                break
+            data, seq = item
+            success = False
+            rxmit = 0
+            while not success:
+                self._pending = (seq, asyncio.Future())
+                self.write(self._data_frame(data, seq, rxmit))
+                rxmit = 1
+                success = yield from self._pending[1]
 
-    def _data_frame(self, data):
-        control = (self._send_seq << 4) + self._rec_seq
-        data = self._randomize(data)
-        return self._frame(bytes([control]), data)
+    def _handle_ack(self, control):
+        ack = ((control & 0b00000111) - 1) % 8
+        if ack == self._pending[0]:
+            pending, self._pending = self._pending, (-1, None)
+            pending[1].set_result(True)
+
+    def _handle_nak(self, control):
+        nak = control & 0b00000111
+        if nak == self._pending[0]:
+            self._pending[1].set_result(False)
+
+    def data(self, data):
+        seq = self._send_seq
+        self._send_seq = (seq + 1) % 8
+        self._sendq.put_nowait((data, seq))
+
+    def _data_frame(self, data, seq, rxmit):
+        assert 0 <= seq <= 7
+        assert 0 <= rxmit <= 1
+        control = (seq << 4) | (rxmit << 3) | self._rec_seq
+        return self._frame(bytes([control]), self._randomize(data))
 
     def _ack_frame(self):
         assert 0 <= self._rec_seq < 8
