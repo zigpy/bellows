@@ -85,7 +85,7 @@ COMMANDS = {
     # 8. Messaging Frames
     'maximumPayloadLength': (0x33, (), (t.uint8_t, )),
     'sendUnicast': (0x34, (t.EmberOutgoingMessageType, t.EmberNodeId, t.EmberApsFrame, t.uint8_t, t.LVBytes), (t.EmberStatus, t.uint8_t)),
-    'sendBroadcast': (0x36, (t.EmberNodeId, t.EmberApsFrame, t.uint8_t, t.uint8_t, t.uint8_t, t.LVBytes), (t.EmberStatus, t.uint8_t)),
+    'sendBroadcast': (0x36, (t.EmberNodeId, t.EmberApsFrame, t.uint8_t, t.uint8_t, t.LVBytes), (t.EmberStatus, t.uint8_t)),
     'proxyBroadcast': (0x37, (t.EmberNodeId, t.EmberNodeId, t.uint8_t, t.EmberApsFrame, t.uint8_t, t.uint8_t, t.LVBytes), (t.EmberStatus, t.uint8_t)),
     'sendMulticast': (0x38, (t.EmberApsFrame, t.uint8_t, t.uint8_t, t.uint8_t, t.LVBytes), (t.EmberStatus, t.uint8_t)),
     'sendReply': (0x39, (t.EmberNodeId, t.EmberApsFrame, t.LVBytes), (t.EmberStatus, )),
