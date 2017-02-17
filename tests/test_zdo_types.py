@@ -62,3 +62,8 @@ def test_size_prefixed_simple_descriptor():
     sd2, data = types.SizePrefixedSimpleDescriptor.deserialize(ser)
     assert sd.input_clusters == sd2.input_clusters
     assert sd.output_clusters == sd2.output_clusters
+
+
+def test_empty_size_prefixed_simple_descriptor():
+    r = types.SizePrefixedSimpleDescriptor.deserialize(b'\x00')
+    assert r == (None, b'')

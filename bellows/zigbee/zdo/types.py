@@ -28,6 +28,8 @@ class SizePrefixedSimpleDescriptor(SimpleDescriptor):
 
     @classmethod
     def deserialize(cls, data):
+        if data[0] == 0:
+            return None, data[1:]
         return SimpleDescriptor.deserialize(data[1:])
 
 
