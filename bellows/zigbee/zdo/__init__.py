@@ -51,7 +51,7 @@ class ZDO:
         if command_id == 0x0000:  # NWK_addr_req
             if app._ieee == args[0]:
                 self.reply(0x8000, 0, app._ieee, app._nwk, 0, 0, [])
-        if command_id == 0x0001:  # IEEE_addr_req
+        elif command_id == 0x0001:  # IEEE_addr_req
             broadcast = (0xffff, 0xfffd, 0xfffc)
             if args[0] in broadcast or app._nwk == args[0]:
                 self.reply(0x8001, 0, app._ieee, app._nwk, 0, 0, [])

@@ -95,3 +95,7 @@ def test_handle_announce(zdo_f):
     aps = t.EmberApsFrame()
     zdo_f.handle_request(aps, 111, 0x0013, [0, dev._ieee, dev._nwk])
     assert dev._application.add_device.call_count == 1
+
+def test_handle_unsupported(zdo_f):
+    aps = t.EmberApsFrame()
+    zdo_f.handle_request(aps, 321, 0xffff, [])
