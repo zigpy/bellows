@@ -19,12 +19,12 @@ class IasZone(Cluster):
         0x0013: ('current_zone_sensitivity_level', t.uint8_t),
     }
     server_commands = {
-        0x0000: ('enroll_response', (), True),
+        0x0000: ('enroll_response', (t.uint8_t, t.uint8_t), True),
         0x0001: ('init_normal_op_mode', (), False),
         0x0002: ('init_test_mode', (), False),
     }
     client_commands = {
-        0x0000: ('status_change_notification', (), False),
+        0x0000: ('status_change_notification', (t.uint16_t, t.uint8_t, t.uint8_t, t.uint16_t), False),
         0x0001: ('enroll', (), False),
     }
 
