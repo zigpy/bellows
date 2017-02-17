@@ -2,7 +2,7 @@ import asyncio
 import enum
 import logging
 
-from bellows.zigbee import zcl, zha
+from bellows.zigbee import util, zcl, zha
 
 
 LOGGER = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ class Status(enum.IntEnum):
     ZDO_INIT = 1
 
 
-class Endpoint:
+class Endpoint(util.LocalLogMixin):
     """An endpoint on a device on the network"""
     def __init__(self, device, endpoint_id):
         self._device = device
@@ -82,15 +82,3 @@ class Endpoint:
         msg = '[0x%04x:%s] ' + msg
         args = (self._device._nwk, self._endpoint_id) + args
         return LOGGER.log(lvl, msg, *args)
-
-    def debug(self, msg, *args):
-        return self.log(logging.DEBUG, msg, *args)
-
-    def info(self, msg, *args):
-        return self.log(logging.INFO, msg, *args)
-
-    def warn(self, msg, *args):
-        return self.log(logging.WARNING, msg, *args)
-
-    def error(self, msg, *args):
-        return self.log(logging.ERROR, msg, *args)

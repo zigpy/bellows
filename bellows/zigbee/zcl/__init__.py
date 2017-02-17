@@ -2,7 +2,8 @@ import asyncio
 import logging
 
 import bellows.types as t
-from . import foundation
+from bellows.zigbee import util
+from bellows.zigbee.zcl import foundation
 
 
 LOGGER = logging.getLogger(__name__)
@@ -64,15 +65,20 @@ class Registry(type):
         super(Registry, cls).__init__(name, bases, nmspc)
         if hasattr(cls, 'cluster_id'):
             cls._registry[cls.cluster_id] = cls
+        if hasattr(cls, 'attributes'):
+            cls._attridx = {}
+            for attrid, (attrname, datatype) in cls.attributes.items():
+                cls._attridx[attrname] = attrid
 
 
-class Cluster(metaclass=Registry):
+class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
     """A cluster on an endpoint"""
     _registry = {}
 
     def __init__(self, endpoint):
         self._endpoint = endpoint
         self._attr_cache = {}
+        self._listeners = {}
 
     @classmethod
     def from_id(cls, endpoint, cluster_id):
@@ -96,17 +102,22 @@ class Cluster(metaclass=Registry):
         return self._endpoint._device.request(aps, data)
 
     def handle_request(self, aps_frame, tsn, command_id, args):
+        if command_id <= 0xff:
+            self.listener_event('zdo_command', aps_frame, tsn, command_id, args)
+        else:
+            # Unencapsulate bad hack
+            command_id -= 256
+            self.listener_event('cluster_command', aps_frame, tsn, command_id, args)
+            self.handle_cluster_request(aps_frame, tsn, command_id, args)
+            return
+
         if command_id == 0x0a:  # Report attributes
             valuestr = ", ".join([
                 "%s=%s" % (a.attrid, a.value.value) for a in args[0]
             ])
             self.debug("Attribute report received: %s", valuestr)
             for attr in args[0]:
-                self._attr_cache[attr.attrid] = attr.value.value
-        elif command_id > 0xff:
-            # Unencapsulate bad hack
-            command_id -= 256
-            self.handle_cluster_request(aps_frame, tsn, command_id, args)
+                self._update_attribute(attr.attrid, attr.value.value)
         else:
             self.warn("No handler for general command %s", command_id)
 
@@ -120,7 +131,7 @@ class Cluster(metaclass=Registry):
         v = yield from self.request(True, 0x00, schema, attributes)
         for record in v[0]:
             if record.status == 0:
-                self._attr_cache[record.attrid] = record.value.value
+                self._update_attribute(record.attrid, record.value.value)
         return v
 
     def write_attributes(self, attributes):
@@ -163,6 +174,10 @@ class Cluster(metaclass=Registry):
     def name(self):
         return self.__class__.__name__
 
+    def _update_attribute(self, attrid, value):
+        self._attr_cache[attrid] = value
+        self.listener_event('attribute_updated', attrid, value)
+
     def log(self, lvl, msg, *args):
         msg = '[0x%04x:%s:0x%04x] ' + msg
         args = (
@@ -171,18 +186,6 @@ class Cluster(metaclass=Registry):
             self.cluster_id,
         ) + args
         return LOGGER.log(lvl, msg, *args)
-
-    def debug(self, msg, *args):
-        return self.log(logging.DEBUG, msg, *args)
-
-    def info(self, msg, *args):
-        return self.log(logging.INFO, msg, *args)
-
-    def warn(self, msg, *args):
-        return self.log(logging.WARNING, msg, *args)
-
-    def error(self, msg, *args):
-        return self.log(logging.ERROR, msg, *args)
 
 # Import to populate the registry
 from . import clusters

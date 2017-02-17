@@ -4,12 +4,12 @@ import os
 import sqlite3
 
 import bellows.types as t
-from bellows.zigbee import device, endpoint, zcl, zdo
+from bellows.zigbee import device, endpoint, util, zcl, zdo
 
 LOGGER = logging.getLogger(__name__)
 
 
-class ControllerApplication:
+class ControllerApplication(util.ListenableMixin):
     direct = t.EmberOutgoingMessageType.OUTGOING_DIRECT
 
     def __init__(self, ezsp):
@@ -17,6 +17,7 @@ class ControllerApplication:
         self._ezsp = ezsp
         self.devices = {}
         self._pending = {}
+        self._listeners = {}
 
     @asyncio.coroutine
     def startup(self):
@@ -104,7 +105,7 @@ class ControllerApplication:
         try:
             self.get_device(nwk=sender).radio_details(lqi, rssi)
         except KeyError:
-            pass
+            LOGGER.debug("No such device %s", sender)
 
         if aps_frame.destinationEndpoint == 0:
             deserialize = zdo.deserialize
@@ -276,3 +277,7 @@ class ControllerApplication:
 
         for (ieee, endpoint_id, cluster) in c.execute("SELECT * FROM clusters"):
             self.devices[ieee].endpoints[endpoint_id].add_cluster(cluster)
+
+        for (ieee, nwk, status) in c.execute("SELECT * FROM devices"):
+            dev = self.get_device(ieee=ieee)
+            self.listener_event('device_resurrected', dev)

@@ -3,7 +3,7 @@ import enum
 import logging
 
 import bellows.types as t
-from bellows.zigbee import endpoint, zdo
+from bellows.zigbee import endpoint, util, zdo
 
 
 LOGGER = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ class Status(enum.IntEnum):
     ZDO_INIT = 1
 
 
-class Device:
+class Device(util.LocalLogMixin):
     """A device on the network"""
 
     def __init__(self, application, ieee, nwk):
@@ -48,6 +48,8 @@ class Device:
 
         for endpoint_id in epr[2]:
             yield from self.endpoints[endpoint_id].initialize()
+
+        self._application.listener_event('device_joined', self)
 
     def add_endpoint(self, endpoint_id):
         ep = endpoint.Endpoint(self, endpoint_id)
@@ -94,15 +96,3 @@ class Device:
         msg = '[0x%04x] ' + msg
         args = (self._nwk, ) + args
         return LOGGER.log(lvl, msg, *args)
-
-    def debug(self, msg, *args):
-        return self.log(logging.DEBUG, msg, *args)
-
-    def info(self, msg, *args):
-        return self.log(logging.INFO, msg, *args)
-
-    def warn(self, msg, *args):
-        return self.log(logging.WARNING, msg, *args)
-
-    def error(self, msg, *args):
-        return self.log(logging.ERROR, msg, *args)

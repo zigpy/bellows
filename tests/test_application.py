@@ -130,7 +130,15 @@ def test_database(app, tmpdir, ieee):
     ep = dev.add_endpoint(2)
     ep.add_cluster(0)
     app.save(db)
+
+    mock_listener = mock.MagicMock()
+    app.add_listener(mock_listener)
+    app.add_listener(mock_listener)
+    broken_listener = mock.MagicMock()
+    broken_listener.device_resurrected.side_effect = Exception()
+    app.add_listener(broken_listener)
     app.load(db)
+    assert mock_listener.device_resurrected.call_count == 2
 
     os.unlink(db)
     app.load(db)
