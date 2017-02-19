@@ -66,17 +66,17 @@ class Color(Cluster):
         0x400c: ('color_temp_physical_max', t.uint16_t),
     }
     server_commands = {
-        0x0000: ('move_to_hue', (), False),
-        0x0001: ('move_hue', (), False),
-        0x0002: ('step_hue', (), False),
-        0x0003: ('move_to_saturation', (), False),
-        0x0004: ('move_saturation', (), False),
-        0x0005: ('step_saturation', (), False),
-        0x0006: ('move_to_hue_and_saturation', (), False),
-        0x0007: ('move_to_color', (), False),
-        0x0008: ('move_color', (), False),
-        0x0009: ('step_color', (), False),
-        0x000a: ('move_to_color_temp', (), False),
+        0x0000: ('move_to_hue', (t.uint8_t, t.uint8_t, t.uint16_t), False),  # hue, direction, duration
+        0x0001: ('move_hue', (t.uint8_t, t.uint8_t), False),  # move mode, rate
+        0x0002: ('step_hue', (t.uint8_t, t.uint8_t, t.uint8_t), False),  # mode, size, duration
+        0x0003: ('move_to_saturation', (t.uint8_t, t.uint16_t), False),  # saturation, duration
+        0x0004: ('move_saturation', (t.uint8_t, t.uint8_t), False),  # mode, rate
+        0x0005: ('step_saturation', (t.uint8_t, t.uint8_t, t.uint8_t), False),  # mode, size, duration
+        0x0006: ('move_to_hue_and_saturation', (t.uint8_t, t.uint8_t, t.uint16_t), False),  # hue, saturation, duration
+        0x0007: ('move_to_color', (t.uint16_t, t.uint16_t, t.uint16_t), False),  # x, y, duration
+        0x0008: ('move_color', (t.uint16_t, t.uint16_t), False),  # ratex, ratey
+        0x0009: ('step_color', (t.uint16_t, t.uint16_t, t.uint16_t), False),  # stepx, stepy, duration
+        0x000a: ('move_to_color_temp', (t.uint16_t, t.uint16_t), False),  # temperature, duration
         0x0040: ('enhanced_move_to_hue', (), False),
         0x0041: ('enhanced_move_hue', (), False),
         0x0042: ('enhanced_step_hue', (), False),
