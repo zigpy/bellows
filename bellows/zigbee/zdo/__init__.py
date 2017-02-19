@@ -1,6 +1,7 @@
 import logging
 
 import bellows.types as t
+from bellows.zigbee import util
 
 from . import types
 
@@ -26,7 +27,7 @@ def deserialize(aps_frame, data):
     return tsn, aps_frame.clusterId, is_reply, args
 
 
-class ZDO:
+class ZDO(util.LocalLogMixin):
     """The ZDO endpoint of a device"""
     def __init__(self, device):
         self._device = device
@@ -47,6 +48,7 @@ class ZDO:
         return self._device.reply(aps, data)
 
     def handle_request(self, aps_frame, tsn, command_id, args):
+        self.debug("ZDO request 0x%04x: %s", command_id, args)
         app = self._device._application
         if command_id == 0x0000:  # NWK_addr_req
             if app._ieee == args[0]:
@@ -60,7 +62,7 @@ class ZDO:
         elif command_id == 0x0013:  # Device_annce
             app.add_device(args[1], args[2])
         else:
-            LOGGER.warning("Unsupported ZDO request 0x%04x", command_id)
+            self.warn("Unsupported ZDO request 0x%04x", command_id)
 
     def handle_match_desc(self, addr, profile, in_clusters, out_clusters):
         if profile == 260:
@@ -83,3 +85,10 @@ class ZDO:
         dstaddr.ieee = self._device._application._ieee
         dstaddr.endpoint = 1
         return self.request(0x0022, self._device._ieee, endpoint, cluster, dstaddr)
+
+    def log(self, lvl, msg, *args):
+        msg = '[0x%04x:zdo] ' + msg
+        args = (
+            self._device._nwk,
+        ) + args
+        return LOGGER.log(lvl, msg, *args)

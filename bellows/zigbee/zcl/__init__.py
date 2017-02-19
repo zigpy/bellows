@@ -102,6 +102,7 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         return self._endpoint._device.request(aps, data)
 
     def handle_request(self, aps_frame, tsn, command_id, args):
+        self.debug("ZCL request 0x%04x: %s", command_id, args)
         if command_id <= 0xff:
             self.listener_event('zdo_command', aps_frame, tsn, command_id, args)
         else:
