@@ -65,10 +65,11 @@ class ZDO(util.LocalLogMixin):
             self.warn("Unsupported ZDO request 0x%04x", command_id)
 
     def handle_match_desc(self, addr, profile, in_clusters, out_clusters):
+        local_addr = self._device._application._nwk
         if profile == 260:
-            response = (0x8006, 0, addr, [t.uint8_t(1)])
+            response = (0x8006, 0, local_addr, [t.uint8_t(1)])
         else:
-            response = (0x8006, 0, addr, [])
+            response = (0x8006, 0, local_addr, [])
 
         self.reply(*response)
 
