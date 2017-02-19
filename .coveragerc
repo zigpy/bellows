@@ -1,0 +1,3 @@
+[run]
+source = bellows
+omit = bellows/cli/*.py

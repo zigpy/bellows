@@ -1,6 +1,7 @@
 # bellows
 
 [![Build Status](https://travis-ci.org/rcloran/bellows.svg?branch=master)](https://travis-ci.org/rcloran/bellows)
+[![Coverage](https://coveralls.io/repos/github/rcloran/bellows/badge.svg?branch=master)](https://coveralls.io/github/rcloran/bellows?branch=master)
 
 `bellows` is a Python 3 project to implement ZigBee support for EmberZNet
 devices using the EZSP protocol.
