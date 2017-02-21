@@ -33,4 +33,3 @@ class LocalLogMixin:
 
     def error(self, msg, *args):
         return self.log(logging.ERROR, msg, *args)
-

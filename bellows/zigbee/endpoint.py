@@ -2,8 +2,10 @@ import asyncio
 import enum
 import logging
 
-from bellows.zigbee import util, zcl, zha
-
+import bellows.zigbee.appdb
+import bellows.zigbee.util
+import bellows.zigbee.zcl
+import bellows.zigbee.zha
 
 LOGGER = logging.getLogger(__name__)
 
@@ -16,7 +18,7 @@ class Status(enum.IntEnum):
     ZDO_INIT = 1
 
 
-class Endpoint(util.LocalLogMixin):
+class Endpoint(bellows.zigbee.util.LocalLogMixin):
     """An endpoint on a device on the network"""
     def __init__(self, device, endpoint_id):
         self._device = device
@@ -44,7 +46,7 @@ class Endpoint(util.LocalLogMixin):
         self.device_type = sd.device_type
         if self.profile_id == 260:
             try:
-                self.device_type = zha.DeviceType(self.device_type)
+                self.device_type = bellows.zigbee.zha.DeviceType(self.device_type)
             except:
                 pass
 
@@ -60,8 +62,13 @@ class Endpoint(util.LocalLogMixin):
 
         (a server cluster supported by the device)
         """
-        cluster = zcl.Cluster.from_id(self, cluster_id)
+        cluster = bellows.zigbee.zcl.Cluster.from_id(self, cluster_id)
         self.clusters[cluster_id] = cluster
+        listener = bellows.zigbee.appdb.ClusterPersistingListener(
+            self._device._application._dblistener,
+            cluster,
+        )
+        cluster.add_listener(listener)
         return cluster
 
     def get_aps(self, cluster):

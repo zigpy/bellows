@@ -1,23 +1,30 @@
 import asyncio
 import logging
-import os
-import sqlite3
 
 import bellows.types as t
-from bellows.zigbee import device, endpoint, util, zcl, zdo
+import bellows.zigbee.appdb
+import bellows.zigbee.device
+import bellows.zigbee.util
+import bellows.zigbee.zcl
+import bellows.zigbee.zdo
 
 LOGGER = logging.getLogger(__name__)
 
 
-class ControllerApplication(util.ListenableMixin):
+class ControllerApplication(bellows.zigbee.util.ListenableMixin):
     direct = t.EmberOutgoingMessageType.OUTGOING_DIRECT
 
-    def __init__(self, ezsp):
+    def __init__(self, ezsp, database_file=None):
         self._send_sequence = 0
         self._ezsp = ezsp
         self.devices = {}
         self._pending = {}
         self._listeners = {}
+
+        if database_file is not None:
+            self._dblistener = bellows.zigbee.appdb.PersistingListener(database_file, self)
+            self.add_listener(self._dblistener)
+            self._dblistener.load()
 
     @asyncio.coroutine
     def startup(self):
@@ -85,7 +92,7 @@ class ControllerApplication(util.ListenableMixin):
         if ieee in self.devices:
             # TODO: Check NWK?
             return self.devices[ieee]
-        dev = device.Device(self, ieee, nwk)
+        dev = bellows.zigbee.device.Device(self, ieee, nwk)
         self.devices[ieee] = dev
         return dev
 
@@ -108,9 +115,9 @@ class ControllerApplication(util.ListenableMixin):
             LOGGER.debug("No such device %s", sender)
 
         if aps_frame.destinationEndpoint == 0:
-            deserialize = zdo.deserialize
+            deserialize = bellows.zigbee.zdo.deserialize
         else:
-            deserialize = zcl.deserialize
+            deserialize = bellows.zigbee.zcl.deserialize
 
         tsn, command_id, is_reply, args = deserialize(aps_frame, message)
 
@@ -137,13 +144,20 @@ class ControllerApplication(util.ListenableMixin):
 
     def _handle_join(self, nwk, ieee, device_update, join_dec, parent_nwk):
         LOGGER.info("Device 0x%04x (%s) joined the network", nwk, ieee)
+        if ieee in self.devices and self.devices[ieee]._nwk == nwk:
+            LOGGER.debug("Skip initialization for existing device %s", ieee)
+            return
+
         dev = self.add_device(ieee, nwk)
+        self.listener_event('device_joined', dev)
         loop = asyncio.get_event_loop()
         loop.call_soon(asyncio.async, dev.initialize())
 
     def _handle_leave(self, nwk, ieee, *args):
         LOGGER.info("Device 0x%04x (%s) left the network", nwk, ieee)
-        self.devices.pop(ieee, None)
+        dev = self.devices.pop(ieee, None)
+        if dev is not None:
+            self.listener_event('device_left', dev)
 
     def _handle_frame_failure(self, message_type, destination, aps_frame, message_tag, status, message):
         try:
@@ -188,96 +202,3 @@ class ControllerApplication(util.ListenableMixin):
                 return dev
 
         raise KeyError
-
-    # Database operations
-    # These are not good, and need to be reworked. Maybe the best way would be
-    # to have a listener which updates the database as things change?
-    def _sqlite_adapters(self):
-        def adapt_ieee(eui64):
-            return repr(eui64)
-
-        def convert_ieee(s):
-            l = [t.uint8_t(p, base=16) for p in s.split(b':')]
-            return t.EmberEUI64(l)
-        sqlite3.register_adapter(t.EmberEUI64, adapt_ieee)
-        sqlite3.register_converter("ieee", convert_ieee)
-
-    def save(self, filename):
-        try:
-            os.unlink(filename)
-        except FileNotFoundError:
-            pass
-
-        self._sqlite_adapters()
-
-        db = sqlite3.connect(filename, detect_types=sqlite3.PARSE_DECLTYPES)
-        c = db.cursor()
-
-        c.execute("CREATE TABLE devices (ieee ieee, nwk, status)")
-        c.execute("CREATE TABLE endpoints (ieee ieee, endpoint_id, profile_id, device_type, status)")
-        c.execute("CREATE TABLE clusters (ieee ieee, endpoint_id, cluster)")
-
-        q = "INSERT INTO devices (ieee, nwk, status) VALUES (?, ?, ?)"
-        devices = [(ieee, dev._nwk, dev.status) for ieee, dev in self.devices.items()]
-        c.executemany(q, devices)
-
-        q = "INSERT INTO endpoints VALUES (?, ?, ?, ?, ?)"
-        for ieee, dev in self.devices.items():
-            endpoints = []
-            for epid, ep in dev.endpoints.items():
-                if epid == 0:
-                    continue  # Skip zdo
-                device_type = None
-                try:
-                    device_type = ep.device_type
-                    device_type = device_type.value
-                except:
-                    pass
-                eprow = (
-                    ieee,
-                    ep._endpoint_id,
-                    getattr(ep, 'profile_id', None),
-                    device_type,
-                    ep.status,
-                )
-                endpoints.append(eprow)
-            c.executemany(q, endpoints)
-
-        q = "INSERT INTO clusters VALUES (?, ?, ?)"
-        for ieee, dev in self.devices.items():
-            for epid, ep in dev.endpoints.items():
-                if epid == 0:
-                    continue
-                clusters = [(ieee, epid, cluster.cluster_id) for cluster in ep.clusters.values()]
-                c.executemany(q, clusters)
-        db.commit()
-
-    def load(self, filename):
-        self._sqlite_adapters()
-        db = sqlite3.connect(filename, detect_types=sqlite3.PARSE_DECLTYPES)
-        c = db.cursor()
-
-        try:
-            c.execute("SELECT COUNT(*) FROM devices")
-            c.execute("SELECT COUNT(*) FROM endpoints")
-            c.execute("SELECT COUNT(*) FROM clusters")
-        except Exception as e:
-            LOGGER.warn("Database error, aborting loading: %s", e)
-            return
-
-        for (ieee, nwk, status) in c.execute("SELECT * FROM devices"):
-            dev = self.add_device(ieee, nwk)
-            dev.status = device.Status(status)
-
-        for (ieee, endpoint_id, profile_id, device_type, status) in c.execute("SELECT * FROM endpoints"):
-            ep = self.devices[ieee].add_endpoint(endpoint_id)
-            ep.profile_id = profile_id
-            ep.device_type = device_type
-            ep.status = endpoint.Status(status)
-
-        for (ieee, endpoint_id, cluster) in c.execute("SELECT * FROM clusters"):
-            self.devices[ieee].endpoints[endpoint_id].add_cluster(cluster)
-
-        for (ieee, nwk, status) in c.execute("SELECT * FROM devices"):
-            dev = self.get_device(ieee=ieee)
-            self.listener_event('device_resurrected', dev)

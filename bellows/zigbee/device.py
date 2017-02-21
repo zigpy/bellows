@@ -3,7 +3,9 @@ import enum
 import logging
 
 import bellows.types as t
-from bellows.zigbee import endpoint, util, zdo
+import bellows.zigbee.endpoint
+import bellows.zigbee.util
+import bellows.zigbee.zdo
 
 
 LOGGER = logging.getLogger(__name__)
@@ -17,14 +19,14 @@ class Status(enum.IntEnum):
     ZDO_INIT = 1
 
 
-class Device(util.LocalLogMixin):
+class Device(bellows.zigbee.util.LocalLogMixin):
     """A device on the network"""
 
     def __init__(self, application, ieee, nwk):
         self._application = application
         self._ieee = ieee
         self._nwk = nwk
-        self.zdo = zdo.ZDO(self)
+        self.zdo = bellows.zigbee.zdo.ZDO(self)
         self.endpoints = {0: self.zdo}
         self.lqi = None
         self.rssi = None
@@ -49,10 +51,10 @@ class Device(util.LocalLogMixin):
         for endpoint_id in epr[2]:
             yield from self.endpoints[endpoint_id].initialize()
 
-        self._application.listener_event('device_joined', self)
+        self._application.listener_event('device_initialized', self)
 
     def add_endpoint(self, endpoint_id):
-        ep = endpoint.Endpoint(self, endpoint_id)
+        ep = bellows.zigbee.endpoint.Endpoint(self, endpoint_id)
         self.endpoints[endpoint_id] = ep
         return ep
 

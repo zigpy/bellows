@@ -14,18 +14,21 @@ from .main import main
 
 
 @main.command()
-@click.pass_context
+@opts.database_file
 @opts.duration_s
-@util.app
-def permit(ctx, duration_s):
+@click.pass_context
+def permit(ctx, database, duration_s):
     """Allow devices to join this ZigBee network"""
-    app = ctx.obj['app']
+    ctx.obj['database_file'] = database
+    def inner(ctx):
+        app = ctx.obj['app']
+        yield from app.permit(duration_s)
 
-    yield from app.permit(duration_s)
+        click.echo("Joins are permitted for the next %ss..." % (duration_s, ))
+        yield from asyncio.sleep(duration_s + 1)
+        click.echo("Done")
 
-    click.echo("Joins are now permitted...")
-    yield from asyncio.sleep(duration_s + 1)
-    click.echo("Done")
+    return util.app(inner)(ctx)
 
 
 @main.command()
@@ -34,8 +37,7 @@ def permit(ctx, duration_s):
 def devices(ctx, database):
     """Show device database"""
     ezsp = bellows.ezsp.EZSP()
-    app = bellows.zigbee.application.ControllerApplication(ezsp)
-    app.load(database)
+    app = bellows.zigbee.application.ControllerApplication(ezsp, database)
     for ieee, dev in app.devices.items():
         click.echo("Device:")
         click.echo("  NWK: 0x%04x" % (dev._nwk, ))

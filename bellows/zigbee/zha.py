@@ -1,7 +1,7 @@
 import enum
 
 
-class DeviceType(enum.Enum):
+class DeviceType(enum.IntEnum):
     # Generic
     ON_OFF_SWITCH = 0x0000
     LEVEL_CONTROL_SWITCH = 0x0001

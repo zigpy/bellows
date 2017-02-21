@@ -121,34 +121,17 @@ def test_leave_handler(app, ieee):
     assert ieee not in app.devices
 
 
-def test_database(app, tmpdir, ieee):
-
-    db = os.path.join(str(tmpdir), 'test.db')
-    dev = app.add_device(ieee, 99)
-    ep = dev.add_endpoint(1)
-    ep.device_type = zha.DeviceType.PUMP
-    ep = dev.add_endpoint(2)
-    ep.add_cluster(0)
-    app.save(db)
-
-    mock_listener = mock.MagicMock()
-    app.add_listener(mock_listener)
-    app.add_listener(mock_listener)
-    broken_listener = mock.MagicMock()
-    broken_listener.device_resurrected.side_effect = Exception()
-    app.add_listener(broken_listener)
-    app.load(db)
-    assert mock_listener.device_resurrected.call_count == 2
-
-    os.unlink(db)
-    app.load(db)
-
-
 def test_sequence(app):
     for i in range(1000):
         seq = app.get_sequence()
         assert seq >= 0
         assert seq < 256
+
+
+def test_add_device(app, ieee):
+    dev = app.add_device(ieee, 8)
+    dev2 = app.add_device(ieee, 9)
+    assert app.get_device(ieee) is dev
 
 
 def test_get_device_nwk(app, ieee):

@@ -36,23 +36,17 @@ def async(f):
 
 def app(f):
     database_file = None
-    loaded = False
 
     @asyncio.coroutine
     def async_inner(ctx, *args, **kwargs):
         global database_file, loaded
         database_file = ctx.obj['database_file']
-        app = yield from setup_application(ctx.obj['device'])
-        app.load(database_file)
-        loaded = True
+        app = yield from setup_application(ctx.obj['device'], database_file)
         ctx.obj['app'] = app
         yield from f(ctx, *args, **kwargs)
         yield from asyncio.sleep(0.5)
 
     def shutdown():
-        if loaded:
-            # Don't save the DB if we didn't fully load it
-            app.save(database_file)
         try:
             app._ezsp.close()
         except:
@@ -115,10 +109,10 @@ def setup(dev, cbh=None, configure=True):
 
 
 @asyncio.coroutine
-def setup_application(dev):
+def setup_application(dev, database_file):
     s = bellows.ezsp.EZSP()
     yield from s.connect(dev)
-    app = bellows.zigbee.application.ControllerApplication(s)
+    app = bellows.zigbee.application.ControllerApplication(s, database_file)
     yield from app.startup()
     return app
 

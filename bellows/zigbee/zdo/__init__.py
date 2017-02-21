@@ -60,7 +60,7 @@ class ZDO(util.LocalLogMixin):
         elif command_id == 0x0006:  # Match_Desc_req
             self.handle_match_desc(*args)
         elif command_id == 0x0013:  # Device_annce
-            app.add_device(args[1], args[2])
+            pass
         else:
             self.warn("Unsupported ZDO request 0x%04x", command_id)
 
