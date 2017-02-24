@@ -47,7 +47,11 @@ class ZDO(util.LocalLogMixin):
         aps, data = self._serialize(command, *args)
         return self._device.reply(aps, data)
 
-    def handle_request(self, aps_frame, tsn, command_id, args):
+    def handle_message(self, is_reply, aps_frame, tsn, command_id, args):
+        if is_reply:
+            self.debug("Unexpected ZDO reply 0x%04x: %s", command_id, args)
+            return
+
         self.debug("ZDO request 0x%04x: %s", command_id, args)
         app = self._device._application
         if command_id == 0x0000:  # NWK_addr_req

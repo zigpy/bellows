@@ -72,15 +72,15 @@ def test_radio_details(dev):
 
 def test_handle_request_no_endpoint(dev):
     f = dev.get_aps(1, 2, 3)
-    dev.handle_request(f, 1, 0, [])
+    dev.handle_message(False, f, 1, 0, [])
 
 
 def test_handle_request(dev):
     f = dev.get_aps(1, 2, 3)
     ep = dev.add_endpoint(3)
-    ep.handle_request = mock.MagicMock()
-    dev.handle_request(f, 1, 0, [])
-    assert ep.handle_request.call_count == 1
+    ep.handle_message = mock.MagicMock()
+    dev.handle_message(False, f, 1, 0, [])
+    assert ep.handle_message.call_count == 1
 
 
 def test_log(dev):

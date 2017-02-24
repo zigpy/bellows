@@ -69,7 +69,7 @@ def test_unbind(zdo_f):
 def _handle_match_desc(zdo_f, profile):
     zdo_f.reply = mock.MagicMock()
     aps = t.EmberApsFrame()
-    zdo_f.handle_request(aps, 123, 0x0006, [None, profile, [], []])
+    zdo_f.handle_message(False, aps, 123, 0x0006, [None, profile, [], []])
     assert zdo_f.reply.call_count == 1
 
 
@@ -85,7 +85,7 @@ def test_handle_addr(zdo_f):
     aps = t.EmberApsFrame()
     nwk = zdo_f._device._application._nwk
     zdo_f.reply = mock.MagicMock()
-    zdo_f.handle_request(aps, 234, 0x0001, [nwk])
+    zdo_f.handle_message(False, aps, 234, 0x0001, [nwk])
     assert zdo_f.reply.call_count == 1
 
 
@@ -93,8 +93,9 @@ def test_handle_announce(zdo_f):
     dev = zdo_f._device
     dev._application.devices.pop(dev._ieee)
     aps = t.EmberApsFrame()
-    zdo_f.handle_request(aps, 111, 0x0013, [0, dev._ieee, dev._nwk])
+    zdo_f.handle_message(False, aps, 111, 0x0013, [0, dev._ieee, dev._nwk])
+
 
 def test_handle_unsupported(zdo_f):
     aps = t.EmberApsFrame()
-    zdo_f.handle_request(aps, 321, 0xffff, [])
+    zdo_f.handle_message(False, aps, 321, 0xffff, [])

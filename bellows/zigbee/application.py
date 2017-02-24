@@ -124,23 +124,26 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         if is_reply:
             self._handle_reply(sender, aps_frame, tsn, command_id, args)
         else:
-            self._handle_request(sender, aps_frame, tsn, command_id, args)
+            self._handle_message(False, sender, aps_frame, tsn, command_id, args)
 
     def _handle_reply(self, sender, aps_frame, tsn, command_id, args):
         try:
             fut = self._pending.pop(tsn)
             fut.set_result(args)
+            return
         except KeyError:
             LOGGER.warning("Unexpected response TSN=%s command=%s args=%s", tsn, command_id, args)
 
-    def _handle_request(self, sender, aps_frame, tsn, command_id, args):
+        self._handle_message(True, sender, aps_frame, tsn, command_id, args)
+
+    def _handle_message(self, is_reply, sender, aps_frame, tsn, command_id, args):
         try:
             device = self.get_device(nwk=sender)
         except KeyError:
-            LOGGER.warning("Request on unknown device 0x%04x", sender)
+            LOGGER.warning("Message on unknown device 0x%04x", sender)
             return
 
-        return device.handle_request(aps_frame, tsn, command_id, args)
+        return device.handle_message(is_reply, aps_frame, tsn, command_id, args)
 
     def _handle_join(self, nwk, ieee, device_update, join_dec, parent_nwk):
         LOGGER.info("Device 0x%04x (%s) joined the network", nwk, ieee)

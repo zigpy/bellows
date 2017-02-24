@@ -23,8 +23,8 @@ def deserialize(aps_frame, data):
     if frame_type == 1:
         # Cluster command
         if aps_frame.clusterId not in Cluster._registry:
-            LOGGER.warning("Ignoring unknown cluster ID 0x%04x",
-                           aps_frame.clusterId)
+            LOGGER.debug("Ignoring unknown cluster ID 0x%04x",
+                         aps_frame.clusterId)
             return tsn, command_id + 256, is_reply, data
         cluster = Cluster._registry[aps_frame.clusterId]
         # Cluster-specific command
@@ -101,7 +101,11 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
 
         return self._endpoint._device.request(aps, data)
 
-    def handle_request(self, aps_frame, tsn, command_id, args):
+    def handle_message(self, is_reply, aps_frame, tsn, command_id, args):
+        if is_reply:
+            self.debug("Unexpected ZCL reply 0x%04x: %s", command_id, args)
+            return
+
         self.debug("ZCL request 0x%04x: %s", command_id, args)
         if command_id <= 0xff:
             self.listener_event('zdo_command', aps_frame, tsn, command_id, args)

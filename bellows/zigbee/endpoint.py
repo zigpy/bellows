@@ -18,13 +18,14 @@ class Status(enum.IntEnum):
     ZDO_INIT = 1
 
 
-class Endpoint(bellows.zigbee.util.LocalLogMixin):
+class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.ListenableMixin):
     """An endpoint on a device on the network"""
     def __init__(self, device, endpoint_id):
         self._device = device
         self._endpoint_id = endpoint_id
         self.clusters = {}
         self.status = Status.NEW
+        self._listeners = {}
 
     @asyncio.coroutine
     def initialize(self):
@@ -79,11 +80,15 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin):
             endpoint=self._endpoint_id,
         )
 
-    def handle_request(self, aps_frame, tsn, command_id, args):
+    def handle_message(self, is_reply, aps_frame, tsn, command_id, args):
         try:
-            self.clusters[aps_frame.clusterId].handle_request(aps_frame, tsn, command_id, args)
+            self.clusters[aps_frame.clusterId].handle_message(is_reply,
+                                                              aps_frame, tsn,
+                                                              command_id, args)
         except KeyError:
-            self.warn("Request on unknown cluster 0x%04x", aps_frame.clusterId)
+            self.warn("Message on unknown cluster 0x%04x", aps_frame.clusterId)
+            self.listener_event("unknown_cluster_message", is_reply,
+                                command_id, args)
 
     def log(self, lvl, msg, *args):
         msg = '[0x%04x:%s] ' + msg

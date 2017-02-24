@@ -86,16 +86,20 @@ def test_attribute_report(cluster):
     attr.attrid = 4
     attr.value = zcl.foundation.TypeValue()
     attr.value.value = 1
-    cluster.handle_request(aps, 0, 0x0a, [[attr]])
+    cluster.handle_message(False, aps, 0, 0x0a, [[attr]])
     assert cluster._attr_cache[4] == 1
 
 
 def test_handle_request_unknown(cluster, aps):
-    cluster.handle_request(aps, 0, 0xff, [])
+    cluster.handle_message(False, aps, 0, 0xff, [])
 
 
 def test_handle_cluster_request(cluster, aps):
-    cluster.handle_request(aps, 0, 256, [])
+    cluster.handle_message(False, aps, 0, 256, [])
+
+
+def test_handle_unexpected_reply(cluster, aps):
+    cluster.handle_message(True, aps, 0, 0, [])
 
 
 def test_read_attributes(cluster):

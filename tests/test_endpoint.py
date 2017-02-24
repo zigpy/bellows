@@ -67,19 +67,19 @@ def test_get_aps():
     assert aps.destinationEndpoint == 55
 
 
-def test_handle_request(ep):
+def test_handle_message(ep):
     c = ep.add_cluster(0)
-    c.handle_request = mock.MagicMock()
+    c.handle_message = mock.MagicMock()
     f = t.EmberApsFrame()
     f.clusterId = 0
-    ep.handle_request(f, 0, 1, [])
-    c.handle_request.assert_called_once_with(f, 0, 1, [])
+    ep.handle_message(False, f, 0, 1, [])
+    c.handle_message.assert_called_once_with(False, f, 0, 1, [])
 
 
 def test_handle_request_unknown(ep):
     f = t.EmberApsFrame()
     f.clusterId = 99
-    ep.handle_request(f, 0, 0, [])
+    ep.handle_message(False, f, 0, 0, [])
 
 
 def test_log(ep):

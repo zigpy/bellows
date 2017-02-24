@@ -75,17 +75,17 @@ class Device(bellows.zigbee.util.LocalLogMixin):
     def request(self, aps, data):
         return self._application.request(self._nwk, aps, data)
 
-    def handle_request(self, aps_frame, tsn, command_id, args):
+    def handle_message(self, is_reply, aps_frame, tsn, command_id, args):
         try:
             endpoint = self.endpoints[aps_frame.destinationEndpoint]
         except KeyError:
             self.warn(
-                "Request for unknown endpoint %s",
+                "Message on unknown endpoint %s",
                 aps_frame.destinationEndpoint,
             )
             return
 
-        return endpoint.handle_request(aps_frame, tsn, command_id, args)
+        return endpoint.handle_message(is_reply, aps_frame, tsn, command_id, args)
 
     def reply(self, aps, data):
         return self._application.reply(self._nwk, aps, data)
