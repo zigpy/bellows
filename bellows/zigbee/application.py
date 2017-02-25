@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 
 import bellows.types as t
 import bellows.zigbee.appdb
@@ -29,7 +30,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
             self._dblistener.load()
 
     @asyncio.coroutine
-    def startup(self):
+    def startup(self, auto_form=False):
         e = self._ezsp
 
         yield from e.reset()
@@ -49,12 +50,21 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         yield from self._cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xff)
 
         v = yield from e.networkInit()
-        assert v[0] == 0  # TODO: Better check
+        if v[0] != 0:
+            if not auto_form:
+                raise Exception("Could not initialize network")
+            yield from self.form_network()
 
         v = yield from e.getNetworkParameters()
         assert v[0] == 0  # TODO: Better check
         if v[1] != t.EmberNodeType.COORDINATOR:
-            raise Exception("Network not configured as coordinator")
+            if not auto_form:
+                raise Exception("Network not configured as coordinator")
+
+            LOGGER.info("Forming network")
+            yield from self._ezsp.leaveNetwork()
+            yield from asyncio.sleep(1)  # TODO
+            yield from self.form_network()
 
         yield from self._policy()
         nwk = yield from e.getNodeId()
@@ -63,6 +73,34 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         self._ieee = ieee[0]
 
         e.add_callback(self.ezsp_callback_handler)
+
+    @asyncio.coroutine
+    def form_network(self, channel=15, pan_id=None, extended_pan_id=None):
+        channel = t.uint8_t(channel)
+
+        if pan_id is None:
+            pan_id = t.uint16_t.from_bytes(os.urandom(2), 'little')
+        pan_id = t.uint16_t(pan_id)
+
+        if extended_pan_id is None:
+            extended_pan_id = t.fixed_list(8, t.uint8_t)([t.uint8_t(0)] * 8)
+
+        initial_security_state = bellows.zigbee.util.zha_security()
+        v = yield from self._ezsp.setInitialSecurityState(initial_security_state)
+        assert v[0] == 0  # TODO: Better check
+
+        parameters = t.EmberNetworkParameters()
+        parameters.panId = pan_id
+        parameters.extendedPanId = extended_pan_id
+        parameters.radioTxPower = t.uint8_t(8)
+        parameters.radioChannel = channel
+        parameters.joinMethod = t.EmberJoinMethod.USE_MAC_ASSOCIATION
+        parameters.nwkManagerId = t.EmberNodeId(0)
+        parameters.nwkUpdateId = t.uint8_t(0)
+        parameters.channels = t.uint32_t(0)
+
+        yield from self._ezsp.formNetwork(parameters)
+        yield from self._ezsp.setValue(t.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
 
     @asyncio.coroutine
     def _cfg(self, config_id, value):
@@ -172,7 +210,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
             LOGGER.warning("Unexpected message send failure")
 
     @asyncio.coroutine
-    def request(self, nwk, aps_frame, data):
+    def request(self, nwk, aps_frame, data, timeout=10):
         seq = aps_frame.sequence
         assert seq not in self._pending
         fut = asyncio.Future()
@@ -183,7 +221,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
             self._pending.pop(seq)
             raise Exception("Message send failure %s" % (v[0], ))
 
-        v = yield from fut
+        v = yield from asyncio.wait_for(fut, timeout)
         return v
 
     def reply(self, nwk, aps_frame, data):

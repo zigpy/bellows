@@ -21,3 +21,23 @@ def test_listenable():
     l.listener_event('event')
     assert listener.event.call_count == 2
     assert broken_listener.event.call_count == 1
+
+
+class Logger(util.LocalLogMixin):
+    log = mock.MagicMock()
+
+
+def test_log():
+    l = Logger()
+    l.debug("Test debug")
+    l.info("Test info")
+    l.warn("Test warn")
+    l.error("Test error")
+
+
+def test_zha_security_end_device():
+    util.zha_security(controller=False)
+
+
+def test_zha_security_controller():
+    util.zha_security(controller=True)

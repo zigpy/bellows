@@ -107,6 +107,26 @@ class EZSP:
         0,
     )
 
+    @asyncio.coroutine
+    def formNetwork(self, parameters):
+        fut = asyncio.Future()
+
+        def cb(frame_name, response):
+            nonlocal fut
+            if frame_name == 'stackStatusHandler':
+                fut.set_result(response)
+
+        self.add_callback(cb)
+        v = yield from self._command('formNetwork', parameters)
+        if v[0] != 0:
+            raise Exception("Failure forming network: %s" % (v, ))
+
+        v = yield from fut
+        if v[0] != t.EmberStatus.NETWORK_UP:
+            raise Exception("Failure forming network: %s" % (v, ))
+
+        return v
+
     def __getattr__(self, name):
         if name not in self.COMMANDS:
             raise AttributeError

@@ -7,85 +7,13 @@ import os
 import click
 
 import bellows.types as t
+import bellows.zigbee.util as zutil
 from . import opts
 from . import util
 from .main import main
 
 
 LOGGER = logging.getLogger(__name__)
-
-
-@main.command()
-@opts.channel
-@opts.extended_pan
-@opts.pan
-@click.pass_context
-@util.async
-def form(ctx, channel, pan_id, extended_pan_id):
-    """Create a new ZigBee network"""
-    s = yield from util.setup(ctx.obj['device'], util.print_cb)
-
-    v = yield from util.networkInit(s)
-    if v[0] == t.EmberStatus.SUCCESS:
-        LOGGER.debug("Network was up, leaving...")
-        v = yield from s.leaveNetwork()
-        util.check(v[0], "Failure leaving network: %s" % (v[0], ))
-        yield from asyncio.sleep(1)  # TODO
-
-    initial_security_state = util.zha_security(controller=True)
-    v = yield from s.setInitialSecurityState(initial_security_state)
-    util.check(v[0], "Setting security state failed: %s" % (v[0], ))
-
-    yield from util.basic_tc_permits(s)
-
-    if channel:
-        channel = t.uint8_t(channel)
-    else:
-        channel = t.uint8_t(17)
-
-    if extended_pan_id:
-        extended_pan_id = util.parse_epan(extended_pan_id)
-    else:
-        extended_pan_id = t.fixed_list(8, t.uint8_t)([t.uint8_t(0)] * 8)
-
-    if pan_id:
-        pan_id = t.uint16_t(pan_id)
-    else:
-        pan_id = t.uint16_t.from_bytes(os.urandom(2), 'little')
-
-    parameters = t.EmberNetworkParameters()
-    parameters.panId = pan_id
-    parameters.extendedPanId = extended_pan_id
-    parameters.radioTxPower = t.uint8_t(8)
-    parameters.radioChannel = channel
-    parameters.joinMethod = t.EmberJoinMethod.USE_MAC_ASSOCIATION
-    parameters.nwkManagerId = t.EmberNodeId(0)
-    parameters.nwkUpdateId = t.uint8_t(0)
-    parameters.channels = t.uint32_t(0)
-    click.echo(parameters)
-
-    LOGGER.info("Forming network ...")
-    fut = asyncio.Future()
-
-    def cb(fut, frame_name, response):
-        if frame_name == 'stackStatusHandler':
-            fut.set_result(response)
-
-    s.add_callback(functools.partial(cb, fut))
-    v = yield from s.formNetwork(parameters)
-    util.check(v[0], "Failed to form network: %s" % (v[0], ))
-
-    v = yield from fut
-    util.check(
-        v[0],
-        "Network didn't come up after form",
-        t.EmberStatus.NETWORK_UP,
-    )
-
-    yield from s.setValue(t.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
-    yield from asyncio.sleep(0.1)
-
-    s.close()
 
 
 @main.command()
@@ -155,7 +83,7 @@ def join(ctx, channels, pan_id, extended_pan_id):
         util.check(v[0], "Failure leaving network: %s" % (v[0], ))
         yield from asyncio.sleep(1)  # TODO
 
-    initial_security_state = util.zha_security()
+    initial_security_state = zutil.zha_security()
     v = yield from s.setInitialSecurityState(initial_security_state)
     util.check(v[0], "Setting security state failed: %s" % (v[0], ))
 

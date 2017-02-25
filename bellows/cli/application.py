@@ -15,6 +15,21 @@ from .main import main
 
 @main.command()
 @opts.database_file
+@opts.channel
+@opts.extended_pan
+@opts.pan
+@click.pass_context
+def form(ctx, database, channel, pan_id, extended_pan_id):
+    """Form a new ZigBee network"""
+    ctx.obj['database_file'] = database
+    def inner(ctx):
+        app = ctx.obj['app']
+        yield from app.form_network(channel, pan_id, extended_pan_id)
+
+    return util.app(inner)(ctx)
+
+@main.command()
+@opts.database_file
 @opts.duration_s
 @click.pass_context
 def permit(ctx, database, duration_s):

@@ -81,10 +81,3 @@ def test_handle_request(dev):
     ep.handle_message = mock.MagicMock()
     dev.handle_message(False, f, 1, 0, [])
     assert ep.handle_message.call_count == 1
-
-
-def test_log(dev):
-    dev.debug("Test debug")
-    dev.info("Test info")
-    dev.warn("Test warn")
-    dev.error("Test error")

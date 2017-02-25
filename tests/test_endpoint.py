@@ -80,10 +80,3 @@ def test_handle_request_unknown(ep):
     f = t.EmberApsFrame()
     f.clusterId = 99
     ep.handle_message(False, f, 0, 0, [])
-
-
-def test_log(ep):
-    ep.debug("Test debug")
-    ep.info("Test info")
-    ep.warn("Test warn")
-    ep.error("Test error")

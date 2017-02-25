@@ -196,10 +196,3 @@ def test_command(cluster):
 
 def test_name(cluster):
     assert cluster.name == 'Basic'
-
-
-def test_log(cluster):
-    cluster.debug("Test debug")
-    cluster.info("Test info")
-    cluster.warn("Test warn")
-    cluster.error("Test error")

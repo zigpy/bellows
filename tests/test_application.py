@@ -27,30 +27,58 @@ def ieee(init=0):
     return t.EmberEUI64(map(t.uint8_t, range(init, init + 8)))
 
 
-def _test_startup(app, nwk_type):
+def _test_startup(app, nwk_type, auto_form=False, init=0):
     # This is a fairly brittle and pointless test. Except the point is just
     # to allow startup to run all its paths and check types etc.
     @asyncio.coroutine
     def mockezsp(*args, **kwargs):
         return [0, nwk_type]
+    @asyncio.coroutine
+    def mockinit(*args, **kwargs):
+        return [init]
+    app._ezsp._command = mockezsp
     app._ezsp.setConfigurationValue = mockezsp
-    app._ezsp.networkInit = mockezsp
+    app._ezsp.networkInit = mockinit
     app._ezsp.getNetworkParameters = mockezsp
     app._ezsp.setPolicy = mockezsp
     app._ezsp.getNodeId = mockezsp
     app._ezsp.getEui64 = mockezsp
+    app._ezsp.leaveNetwork = mockezsp
+    app.form_network = mock.MagicMock()
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(app.startup())
+    loop.run_until_complete(app.startup(auto_form=auto_form))
 
 
 def test_startup(app):
     return _test_startup(app, t.EmberNodeType.COORDINATOR)
 
 
-def test_startup_not_coordinator(app):
+def test_startup_no_status(app):
+    with pytest.raises(Exception):
+        return _test_startup(app, None, init=1)
+
+
+def test_startup_no_status_form(app):
+    return _test_startup(app, None, auto_form=True, init=1)
+
+
+def test_startup_end(app):
     with pytest.raises(Exception):
         return _test_startup(app, t.EmberNodeType.SLEEPY_END_DEVICE)
+
+
+def test_startup_end_form(app):
+    return _test_startup(app, t.EmberNodeType.SLEEPY_END_DEVICE, True)
+
+
+def test_form_network(app):
+    f = asyncio.Future()
+    f.set_result([0])
+    app._ezsp.setInitialSecurityState.side_effect = [f]
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(app.form_network())
 
 
 def _frame_handler(app, aps, ieee, endpoint, cluster=0, sender=3):

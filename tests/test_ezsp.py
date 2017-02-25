@@ -105,6 +105,33 @@ def test_list_command_later_failure(ezsp_f):
         _test_list_command(ezsp_f, mockcommand)
 
 
+def _test_form_network(ezsp_f, initial_result, final_result):
+    @asyncio.coroutine
+    def mockcommand(name, *args):
+        assert name == 'formNetwork'
+        ezsp_f.frame_received(b'\x01\x00\x19' + final_result)
+        return initial_result
+
+    ezsp_f._command = mockcommand
+
+    loop = asyncio.get_event_loop()
+    return loop.run_until_complete(ezsp_f.formNetwork(mock.MagicMock()))
+
+
+def test_form_network(ezsp_f):
+    _test_form_network(ezsp_f, [0], b'\x90')
+
+
+def test_form_network_fail(ezsp_f):
+    with pytest.raises(Exception):
+        _test_form_network(ezsp_f, [1], b'\x90')
+
+
+def test_form_network_fail_stack_status(ezsp_f):
+    with pytest.raises(Exception):
+        _test_form_network(ezsp_f, [0], b'\x00')
+
+
 def test_receive_new(ezsp_f):
     ezsp_f.handle_callback = mock.MagicMock()
     ezsp_f.frame_received(b'\x00\xff\x00\x04\x05\x06')
