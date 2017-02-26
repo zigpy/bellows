@@ -6,7 +6,7 @@ LOGGER = logging.getLogger(__name__)
 
 class ListenableMixin:
     def add_listener(self, listener):
-        id_ = hash(listener)
+        id_ = id(listener)
         while id_ in self._listeners:
             id_ += 1
         self._listeners[id_] = listener
