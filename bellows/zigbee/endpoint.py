@@ -32,7 +32,7 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
         self.info("Discovering endpoint information")
         sdr = yield from self._device.zdo.request(
             0x0004,
-            self._device._nwk,
+            self._device.nwk,
             self._endpoint_id,
         )
         if sdr[0] != 0:
@@ -66,7 +66,7 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
         cluster = bellows.zigbee.zcl.Cluster.from_id(self, cluster_id)
         self.clusters[cluster_id] = cluster
         listener = bellows.zigbee.appdb.ClusterPersistingListener(
-            self._device._application._dblistener,
+            self._device.application._dblistener,
             cluster,
         )
         cluster.add_listener(listener)
@@ -92,5 +92,13 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
 
     def log(self, lvl, msg, *args):
         msg = '[0x%04x:%s] ' + msg
-        args = (self._device._nwk, self._endpoint_id) + args
+        args = (self._device.nwk, self._endpoint_id) + args
         return LOGGER.log(lvl, msg, *args)
+
+    @property
+    def device(self):
+        return self._device
+
+    @property
+    def endpoint_id(self):
+        return self._endpoint_id

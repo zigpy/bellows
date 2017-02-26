@@ -38,7 +38,7 @@ def test_deserialize_unknown():
 @pytest.fixture
 def zdo_f():
     app = mock.MagicMock()
-    app._ieee = t.EmberEUI64(map(t.uint8_t, [8, 9, 10, 11, 12, 13, 14, 15]))
+    app.ieee = t.EmberEUI64(map(t.uint8_t, [8, 9, 10, 11, 12, 13, 14, 15]))
     app.get_sequence = mock.MagicMock(return_value=123)
     ieee = t.EmberEUI64(map(t.uint8_t, [0, 1, 2, 3, 4, 5, 6, 7]))
     dev = bellows.zigbee.device.Device(app, ieee, 65535)
@@ -83,7 +83,7 @@ def test_handle_match_desc_generic(zdo_f):
 
 def test_handle_addr(zdo_f):
     aps = t.EmberApsFrame()
-    nwk = zdo_f._device._application._nwk
+    nwk = zdo_f._device.application.nwk
     zdo_f.reply = mock.MagicMock()
     zdo_f.handle_message(False, aps, 234, 0x0001, [nwk])
     assert zdo_f.reply.call_count == 1
@@ -91,11 +91,15 @@ def test_handle_addr(zdo_f):
 
 def test_handle_announce(zdo_f):
     dev = zdo_f._device
-    dev._application.devices.pop(dev._ieee)
+    dev._application.devices.pop(dev.ieee)
     aps = t.EmberApsFrame()
-    zdo_f.handle_message(False, aps, 111, 0x0013, [0, dev._ieee, dev._nwk])
+    zdo_f.handle_message(False, aps, 111, 0x0013, [0, dev.ieee, dev.nwk])
 
 
 def test_handle_unsupported(zdo_f):
     aps = t.EmberApsFrame()
     zdo_f.handle_message(False, aps, 321, 0xffff, [])
+
+
+def test_device_accessor(zdo_f):
+    assert zdo_f.device.nwk == 65535

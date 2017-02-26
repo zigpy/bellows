@@ -50,8 +50,8 @@ class PersistingListener:
 
     def attribute_updated(self, cluster, attrid, value):
         self._save_attribute(
-            cluster._endpoint._device._ieee,
-            cluster._endpoint._endpoint_id,
+            cluster.endpoint.device.ieee,
+            cluster.endpoint.endpoint_id,
             cluster.cluster_id,
             attrid,
             value,
@@ -96,15 +96,15 @@ class PersistingListener:
         )
 
     def _remove_device(self, device):
-        self.execute("DELETE FROM attributes WHERE ieee = ?", (device._ieee, ))
-        self.execute("DELETE FROM clusters WHERE ieee = ?", (device._ieee, ))
-        self.execute("DELETE FROM endpoints WHERE ieee = ?", (device._ieee, ))
-        self.execute("DELETE FROM devices WHERE ieee = ?", (device._ieee, ))
+        self.execute("DELETE FROM attributes WHERE ieee = ?", (device.ieee, ))
+        self.execute("DELETE FROM clusters WHERE ieee = ?", (device.ieee, ))
+        self.execute("DELETE FROM endpoints WHERE ieee = ?", (device.ieee, ))
+        self.execute("DELETE FROM devices WHERE ieee = ?", (device.ieee, ))
         self._db.commit()
 
     def _save_device(self, device):
         q = "INSERT OR REPLACE INTO devices (ieee, nwk, status) VALUES (?, ?, ?)"
-        self.execute(q, (device._ieee, device._nwk, device.status))
+        self.execute(q, (device.ieee, device.nwk, device.status))
         self._save_endpoints(device)
         for epid, ep in device.endpoints.items():
             if epid == 0:
@@ -121,8 +121,8 @@ class PersistingListener:
                 continue  # Skip zdo
             device_type = getattr(ep, 'device_type', None)
             eprow = (
-                device._ieee,
-                ep._endpoint_id,
+                device.ieee,
+                ep.endpoint_id,
                 getattr(ep, 'profile_id', None),
                 device_type,
                 ep.status,
@@ -134,7 +134,7 @@ class PersistingListener:
     def _save_clusters(self, endpoint):
         q = "INSERT OR REPLACE INTO clusters VALUES (?, ?, ?)"
         clusters = [
-            (endpoint._device._ieee, endpoint._endpoint_id, cluster.cluster_id)
+            (endpoint.device.ieee, endpoint.endpoint_id, cluster.cluster_id)
             for cluster in endpoint.clusters.values()
         ]
         self._cursor.executemany(q, clusters)

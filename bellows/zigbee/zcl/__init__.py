@@ -99,7 +99,7 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         data = bytes([frame_control, aps.sequence, command_id])
         data += t.serialize(args, schema)
 
-        return self._endpoint._device.request(aps, data)
+        return self._endpoint.device.request(aps, data)
 
     def handle_message(self, is_reply, aps_frame, tsn, command_id, args):
         if is_reply:
@@ -187,10 +187,10 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         return self.request(True, 0x02, schema, args)
 
     def bind(self):
-        return self._endpoint._device.zdo.bind(self._endpoint._endpoint_id, self.cluster_id)
+        return self._endpoint.device.zdo.bind(self._endpoint.endpoint_id, self.cluster_id)
 
     def unbind(self):
-        return self._endpoint._device.zdo.unbind(self._endpoint._endpoint_id, self.cluster_id)
+        return self._endpoint.device.zdo.unbind(self._endpoint.endpoint_id, self.cluster_id)
 
     def configure_reporting(self, attribute, min_interval, max_interval, reportable_change):
         schema = foundation.COMMANDS[0x06][1]
@@ -213,6 +213,10 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
     def name(self):
         return self.__class__.__name__
 
+    @property
+    def endpoint(self):
+        return self._endpoint
+
     def _update_attribute(self, attrid, value):
         self._attr_cache[attrid] = value
         self.listener_event('attribute_updated', attrid, value)
@@ -220,8 +224,8 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
     def log(self, lvl, msg, *args):
         msg = '[0x%04x:%s:0x%04x] ' + msg
         args = (
-            self._endpoint._device._nwk,
-            self._endpoint._endpoint_id,
+            self._endpoint.device.nwk,
+            self._endpoint.endpoint_id,
             self.cluster_id,
         ) + args
         return LOGGER.log(lvl, msg, *args)

@@ -78,7 +78,7 @@ def cluster(aps):
 
 def test_request_general(cluster):
     cluster.request(True, 0, [])
-    assert cluster._endpoint._device.request.call_count == 1
+    assert cluster._endpoint.device.request.call_count == 1
 
 
 def test_attribute_report(cluster):
@@ -174,7 +174,7 @@ def test_read_attributes_mixed_cached(cluster):
 
 def test_write_attributes(cluster):
     cluster.write_attributes({0: 5})
-    assert cluster._endpoint._device.request.call_count == 1
+    assert cluster._endpoint.device.request.call_count == 1
 
 
 def test_bind(cluster):
@@ -191,7 +191,7 @@ def test_configure_reporting(cluster):
 
 def test_command(cluster):
     cluster.command(0x00)
-    assert cluster._endpoint._device.request.call_count == 1
+    assert cluster._endpoint.device.request.call_count == 1
 
 
 def test_name(cluster):

@@ -98,3 +98,15 @@ class Device(bellows.zigbee.util.LocalLogMixin):
         msg = '[0x%04x] ' + msg
         args = (self._nwk, ) + args
         return LOGGER.log(lvl, msg, *args)
+
+    @property
+    def application(self):
+        return self._application
+
+    @property
+    def ieee(self):
+        return self._ieee
+
+    @property
+    def nwk(self):
+        return self._nwk

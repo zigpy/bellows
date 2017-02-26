@@ -53,14 +53,14 @@ class ZDO(util.LocalLogMixin):
             return
 
         self.debug("ZDO request 0x%04x: %s", command_id, args)
-        app = self._device._application
+        app = self._device.application
         if command_id == 0x0000:  # NWK_addr_req
-            if app._ieee == args[0]:
-                self.reply(0x8000, 0, app._ieee, app._nwk, 0, 0, [])
+            if app.ieee == args[0]:
+                self.reply(0x8000, 0, app.ieee, app.nwk, 0, 0, [])
         elif command_id == 0x0001:  # IEEE_addr_req
             broadcast = (0xffff, 0xfffd, 0xfffc)
-            if args[0] in broadcast or app._nwk == args[0]:
-                self.reply(0x8001, 0, app._ieee, app._nwk, 0, 0, [])
+            if args[0] in broadcast or app.nwk == args[0]:
+                self.reply(0x8001, 0, app.ieee, app.nwk, 0, 0, [])
         elif command_id == 0x0006:  # Match_Desc_req
             self.handle_match_desc(*args)
         elif command_id == 0x0013:  # Device_annce
@@ -69,7 +69,7 @@ class ZDO(util.LocalLogMixin):
             self.warn("Unsupported ZDO request 0x%04x", command_id)
 
     def handle_match_desc(self, addr, profile, in_clusters, out_clusters):
-        local_addr = self._device._application._nwk
+        local_addr = self._device.application.nwk
         if profile == 260:
             response = (0x8006, 0, local_addr, [t.uint8_t(1)])
         else:
@@ -80,20 +80,24 @@ class ZDO(util.LocalLogMixin):
     def bind(self, endpoint, cluster):
         dstaddr = types.MultiAddress()
         dstaddr.addrmode = 3
-        dstaddr.ieee = self._device._application._ieee
+        dstaddr.ieee = self._device.application.ieee
         dstaddr.endpoint = 1
-        return self.request(0x0021, self._device._ieee, endpoint, cluster, dstaddr)
+        return self.request(0x0021, self._device.ieee, endpoint, cluster, dstaddr)
 
     def unbind(self, endpoint, cluster):
         dstaddr = types.MultiAddress()
         dstaddr.addrmode = 3
-        dstaddr.ieee = self._device._application._ieee
+        dstaddr.ieee = self._device.application.ieee
         dstaddr.endpoint = 1
-        return self.request(0x0022, self._device._ieee, endpoint, cluster, dstaddr)
+        return self.request(0x0022, self._device.ieee, endpoint, cluster, dstaddr)
 
     def log(self, lvl, msg, *args):
         msg = '[0x%04x:zdo] ' + msg
         args = (
-            self._device._nwk,
+            self._device.nwk,
         ) + args
         return LOGGER.log(lvl, msg, *args)
+
+    @property
+    def device(self):
+        return self._device

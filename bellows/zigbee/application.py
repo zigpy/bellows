@@ -20,6 +20,8 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         self.devices = {}
         self._pending = {}
         self._listeners = {}
+        self._ieee = None
+        self._nwk = None
 
         if database_file is not None:
             self._dblistener = bellows.zigbee.appdb.PersistingListener(database_file, self)
@@ -147,7 +149,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
 
     def _handle_join(self, nwk, ieee, device_update, join_dec, parent_nwk):
         LOGGER.info("Device 0x%04x (%s) joined the network", nwk, ieee)
-        if ieee in self.devices and self.devices[ieee]._nwk == nwk:
+        if ieee in self.devices and self.devices[ieee].nwk == nwk:
             LOGGER.debug("Skip initialization for existing device %s", ieee)
             return
 
@@ -201,7 +203,15 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
 
         for dev in self.devices.values():
             # TODO: Make this not terrible
-            if dev._nwk == nwk:
+            if dev.nwk == nwk:
                 return dev
 
         raise KeyError
+
+    @property
+    def ieee(self):
+        return self._ieee
+
+    @property
+    def nwk(self):
+        return self._nwk
