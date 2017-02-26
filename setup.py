@@ -17,12 +17,11 @@ setup(
     install_requires=[
         'Click',
         'click-log',
-        'pure_pcapy==1.0.2',
+        'pure_pcapy3==1.0.1',
         'pyserial-asyncio',
     ],
     dependency_links=[
-        # Unreleased Python 3 branch of pure-pcapy
-        'https://bitbucket.org/viraptor/pure-pcapy/get/b19e25020aa90720.zip#egg=pure_pcapy-1.0.2',
+        'https://github.com/rcloran/pure-pcapy-3/archive/e289c7d7566306dc02d8f4eb30c0358b41f40f26.zip#egg=pure_pcapy3-1.0.1',
     ],
     tests_require=[
         'pytest',
