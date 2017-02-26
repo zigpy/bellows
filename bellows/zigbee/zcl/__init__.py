@@ -130,14 +130,48 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         self.warn("No handler for cluster command %s", command_id)
 
     @asyncio.coroutine
-    def read_attributes(self, attributes):
+    def read_attributes_raw(self, attributes):
         schema = foundation.COMMANDS[0x00][1]
         attributes = [t.uint16_t(a) for a in attributes]
         v = yield from self.request(True, 0x00, schema, attributes)
-        for record in v[0]:
+        return v
+
+    @asyncio.coroutine
+    def read_attributes(self, attributes, allow_cache=False):
+        success, failure = {}, {}
+        attribute_ids = []
+        orig_attributes = {}
+        for attribute in attributes:
+            if isinstance(attribute, str):
+                attrid = self._attridx[attribute]
+            else:
+                attrid = attribute
+            attribute_ids.append(attrid)
+            orig_attributes[attrid] = attribute
+
+        to_read = []
+        if allow_cache:
+            for idx, attribute in enumerate(attribute_ids):
+                if attribute in self._attr_cache:
+                    success[attributes[idx]] = self._attr_cache[attribute]
+                else:
+                    to_read.append(attribute)
+        else:
+            to_read = attribute_ids
+
+        if not to_read:
+            return success, failure
+
+        result = yield from self.read_attributes_raw(to_read)
+        for record in result[0]:
+            orig_attribute = orig_attributes[record.attrid]
             if record.status == 0:
                 self._update_attribute(record.attrid, record.value.value)
-        return v
+                success[orig_attribute] = record.value.value
+            else:
+                failure[orig_attribute] = record.status
+
+        return success, failure
 
     def write_attributes(self, attributes):
         args = []

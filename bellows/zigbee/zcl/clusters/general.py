@@ -16,8 +16,8 @@ class Basic(Cluster):
         0x0001: ('app_version', t.uint8_t),
         0x0002: ('stack_version', t.uint8_t),
         0x0003: ('hw_version', t.uint8_t),
-        0x0004: ('manufacturer_name', t.LVBytes),
-        0x0005: ('model_id', t.LVBytes),
+        0x0004: ('manufacturer', t.LVBytes),
+        0x0005: ('model', t.LVBytes),
         0x0006: ('date_code', t.LVBytes),
         0x0007: ('power_source', t.uint8_t),  # enum8
         0x0008: ('app_profile_version', t.uint8_t),  # enum8

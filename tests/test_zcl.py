@@ -102,18 +102,74 @@ def test_handle_unexpected_reply(cluster, aps):
     cluster.handle_message(True, aps, 0, 0, [])
 
 
-def test_read_attributes(cluster):
+def test_read_attributes_uncached(cluster):
     @asyncio.coroutine
     def mockrequest(foundation, command, schema, args):
-        rar = zcl.foundation.ReadAttributeRecord()
-        rar.status = 0
-        rar.attrid = 0
-        rar.value = zcl.foundation.TypeValue()
-        rar.value.value = 99
-        return [[rar]]
+        assert foundation is True
+        assert command == 0
+        rar0 = zcl.foundation.ReadAttributeRecord()
+        rar0.attrid = 0
+        rar0.status = 0
+        rar0.value = zcl.foundation.TypeValue()
+        rar0.value.value = 99
+        rar4 = zcl.foundation.ReadAttributeRecord()
+        rar4.attrid = 4
+        rar4.status = 0
+        rar4.value = zcl.foundation.TypeValue()
+        rar4.value.value = b'Manufacturer'
+        rar99 = zcl.foundation.ReadAttributeRecord()
+        rar99.attrid = 99
+        rar99.status = 1
+        return [[rar0, rar4, rar99]]
     cluster.request = mockrequest
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(cluster.read_attributes([0]))
+    success, failure = loop.run_until_complete(cluster.read_attributes(
+        [0, "manufacturer", 99],
+    ))
+    assert success[0] == 99
+    assert success["manufacturer"] == b'Manufacturer'
+    assert failure[99] == 1
+
+
+def test_read_attributes_cached(cluster):
+    cluster.request = mock.MagicMock()
+    cluster._attr_cache[0] = 99
+    cluster._attr_cache[4] = b'Manufacturer'
+    loop = asyncio.get_event_loop()
+    success, failure = loop.run_until_complete(cluster.read_attributes(
+        [0, "manufacturer"],
+        allow_cache=True,
+    ))
+    assert cluster.request.call_count == 0
+    assert success[0] == 99
+    assert success["manufacturer"] == b'Manufacturer'
+    assert failure == {}
+
+
+def test_read_attributes_mixed_cached(cluster):
+    @asyncio.coroutine
+    def mockrequest(foundation, command, schema, args):
+        assert foundation is True
+        assert command == 0
+        rar5 = zcl.foundation.ReadAttributeRecord()
+        rar5.attrid = 5
+        rar5.status = 0
+        rar5.value = zcl.foundation.TypeValue()
+        rar5.value.value = b'Model'
+        return [[rar5]]
+
+    cluster.request = mockrequest
+    cluster._attr_cache[0] = 99
+    cluster._attr_cache[4] = b'Manufacturer'
+    loop = asyncio.get_event_loop()
+    success, failure = loop.run_until_complete(cluster.read_attributes(
+        [0, "manufacturer", "model"],
+        allow_cache=True,
+    ))
+    assert success[0] == 99
+    assert success["manufacturer"] == b'Manufacturer'
+    assert success["model"] == b'Model'
+    assert failure == {}
 
 
 def test_write_attributes(cluster):
