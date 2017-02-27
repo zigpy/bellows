@@ -85,7 +85,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         if extended_pan_id is None:
             extended_pan_id = t.fixed_list(8, t.uint8_t)([t.uint8_t(0)] * 8)
 
-        initial_security_state = bellows.zigbee.util.zha_security()
+        initial_security_state = bellows.zigbee.util.zha_security(controller=True)
         v = yield from self._ezsp.setInitialSecurityState(initial_security_state)
         assert v[0] == 0  # TODO: Better check
 
@@ -205,7 +205,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
     def _handle_frame_failure(self, message_type, destination, aps_frame, message_tag, status, message):
         try:
             fut = self._pending.pop(message_tag)
-            fut.set_exception(Exception("Message send failure"))
+            fut.set_exception(Exception("Message send failure: %s" % (status, )))
         except KeyError:
             LOGGER.warning("Unexpected message send failure")
 
