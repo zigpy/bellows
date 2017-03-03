@@ -80,3 +80,10 @@ def test_handle_request_unknown(ep):
     f = t.EmberApsFrame()
     f.clusterId = 99
     ep.handle_message(False, f, 0, 0, [])
+
+
+def test_cluster_attr(ep):
+    with pytest.raises(AttributeError):
+        ep.basic
+    ep.add_cluster(0)
+    ep.basic

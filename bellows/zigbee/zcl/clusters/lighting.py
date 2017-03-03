@@ -9,6 +9,7 @@ class Color(Cluster):
     properties of a color-capable light"""
     cluster_id = 0x0300
     name = 'Color Control'
+    ep_attribute = 'light_color'
     attributes = {
         # Color Information
         0x0000: ('current_hue', t.uint8_t),
@@ -91,6 +92,7 @@ class Ballast(Cluster):
     """Attributes and commands for configuring a lighting
     ballast"""
     cluster_id = 0x0301
+    ep_attribute = 'light_ballast'
     attributes = {
         # Ballast Information
         0x0000: ('physical_min_level', t.uint8_t),

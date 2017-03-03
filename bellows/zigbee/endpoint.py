@@ -24,6 +24,7 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
         self._device = device
         self._endpoint_id = endpoint_id
         self.clusters = {}
+        self._cluster_attr = {}
         self.status = Status.NEW
         self._listeners = {}
 
@@ -65,6 +66,8 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
         """
         cluster = bellows.zigbee.zcl.Cluster.from_id(self, cluster_id)
         self.clusters[cluster_id] = cluster
+        if hasattr(cluster, 'ep_attribute'):
+            self._cluster_attr[cluster.ep_attribute] = cluster
         listener = bellows.zigbee.appdb.ClusterPersistingListener(
             self._device.application._dblistener,
             cluster,
@@ -102,3 +105,9 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
     @property
     def endpoint_id(self):
         return self._endpoint_id
+
+    def __getattr__(self, name):
+        try:
+            return self._cluster_attr[name]
+        except KeyError:
+            raise AttributeError

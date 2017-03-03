@@ -4,6 +4,8 @@ from bellows.zigbee.zcl import Cluster
 
 class ApplianceIdentification(Cluster):
     cluster_id = 0x0b00
+    name = 'Appliance Identification'
+    ep_attribute = 'appliance_id'
     attributes = {
         0x0000: ('basic_identification', t.uint56_t),
         0x0010: ('company_name', t.LVBytes),
@@ -24,6 +26,8 @@ class ApplianceIdentification(Cluster):
 
 class MeterIdentification(Cluster):
     cluster_id = 0x0b01
+    name = 'Meter Identification'
+    ep_attribute = 'meter_id'
     attributes = {
         0x0000: ('company_name', t.LVBytes),
         0x0001: ('meter_type_id', t.uint16_t),
@@ -42,8 +46,10 @@ class MeterIdentification(Cluster):
     client_commands = {}
 
 
-class ApplianceEventsAlerts(Cluster):
+class ApplianceEventAlerts(Cluster):
     cluster_id = 0x0b02
+    name = 'Appliance Event Alerts'
+    ep_attribute = 'appliance_event'
     attributes = {}
     server_commands = {
         0x0000: ('get_alerts', (), False),
@@ -57,6 +63,8 @@ class ApplianceEventsAlerts(Cluster):
 
 class ApplianceStatistics(Cluster):
     cluster_id = 0x0b03
+    name = 'Appliance Statistics'
+    ep_attribute = 'appliance_stats'
     attributes = {
         0x0000: ('log_max_size', t.uint32_t),
         0x0001: ('log_queue_max_size', t.uint8_t),
@@ -76,6 +84,7 @@ class ApplianceStatistics(Cluster):
 class ElectricalMeasurement(Cluster):
     cluster_id = 0x0b04
     name = 'Electrical Measurement'
+    ep_attribute = 'electrical_measurement'
     attributes = {
         # Basic Information
         0x0000: ('measurement_type', t.uint32_t),  # bitmap32
@@ -230,6 +239,7 @@ class ElectricalMeasurement(Cluster):
 
 class Diagnostic(Cluster):
     cluster_id = 0x0b05
+    ep_attribute = 'diagnostic'
     attributes = {
         # Hardware Information
         0x0000: ('number_of_resets', t.uint16_t),

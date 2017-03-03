@@ -4,6 +4,7 @@ from bellows.zigbee.zcl import Cluster
 
 class Price(Cluster):
     cluster_id = 0x0700
+    ep_attribute = 'smartenergy_price'
     attributes = {}
     server_commands = {}
     client_commands = {}
@@ -11,6 +12,7 @@ class Price(Cluster):
 
 class Drlc(Cluster):
     cluster_id = 0x0701
+    ep_attribute = 'smartenergy_drlc'
     attributes = {}
     server_commands = {}
     client_commands = {}
@@ -18,6 +20,7 @@ class Drlc(Cluster):
 
 class Metering(Cluster):
     cluster_id = 0x0702
+    ep_attribute = 'smartenergy_metering'
     attributes = {
         0x0000: ('current_summ_delivered', t.uint48_t),
         0x0000: ('notification_control_flags', t.uint32_t),  # bitmap32
@@ -169,6 +172,7 @@ class Metering(Cluster):
 
 class Messaging(Cluster):
     cluster_id = 0x0703
+    ep_attribute = 'smartenergy_messaging'
     attributes = {}
     server_commands = {}
     client_commands = {}
@@ -176,6 +180,7 @@ class Messaging(Cluster):
 
 class Tunneling(Cluster):
     cluster_id = 0x0704
+    ep_attribute = 'smartenergy_tunneling'
     attributes = {}
     server_commands = {}
     client_commands = {}
@@ -183,13 +188,15 @@ class Tunneling(Cluster):
 
 class Prepayment(Cluster):
     cluster_id = 0x0705
+    ep_attribute = 'smartenergy_prepayment'
     attributes = {}
     server_commands = {}
     client_commands = {}
 
 
-class EnergyMgmt(Cluster):
+class EnergyManagement(Cluster):
     cluster_id = 0x0706
+    ep_attribute = 'smartenergy_energy_management'
     attributes = {}
     server_commands = {}
     client_commands = {}
@@ -197,13 +204,15 @@ class EnergyMgmt(Cluster):
 
 class Calendar(Cluster):
     cluster_id = 0x0707
+    ep_attribute = 'smartenergy_calendar'
     attributes = {}
     server_commands = {}
     client_commands = {}
 
 
-class DeviceMgmt(Cluster):
+class DeviceManagement(Cluster):
     cluster_id = 0x0708
+    ep_attribute = 'smartenergy_device_management'
     attributes = {}
     server_commands = {}
     client_commands = {}
@@ -211,6 +220,7 @@ class DeviceMgmt(Cluster):
 
 class Events(Cluster):
     cluster_id = 0x0709
+    ep_attribute = 'smartenergy_events'
     attributes = {}
     server_commands = {}
     client_commands = {}
@@ -218,6 +228,7 @@ class Events(Cluster):
 
 class MduPairing(Cluster):
     cluster_id = 0x070a
+    ep_attribute = 'smartenergy_mdu_pairing'
     attributes = {}
     server_commands = {}
     client_commands = {}
@@ -225,6 +236,7 @@ class MduPairing(Cluster):
 
 class KeyEstablishment(Cluster):
     cluster_id = 0x0800
+    ep_attribute = 'smartenergy_key_establishment'
     attributes = {}
     server_commands = {}
     client_commands = {}

@@ -10,6 +10,7 @@ class Basic(Cluster):
     and enabling a device.
     """
     cluster_id = 0x0000
+    ep_attribute = 'basic'
     attributes = {
         # Basic Device Information
         0x0000: ('zcl_version', t.uint8_t),
@@ -40,6 +41,7 @@ class PowerConfiguration(Cluster):
     under/over voltage alarms."""
     cluster_id = 0x0001
     name = 'Power Configuration'
+    ep_attribute = 'power'
     attributes = {
         # Mains Information
         0x0000: ('mains_voltage', t.uint16_t),
@@ -73,12 +75,13 @@ class PowerConfiguration(Cluster):
     client_commands = {}
 
 
-class DeviceTemp(Cluster):
+class DeviceTemperature(Cluster):
     """Attributes for determining information about a device’s
     internal temperature, and for configuring under/over
     temperature alarms."""
     cluster_id = 0x0002
-    name = 'Device Temperature Configuration'
+    name = 'Device Temperature'
+    ep_attribute = 'device_temperature'
     attributes = {
         # Device Temperature Information
         0x0000: ('current_temperature', t.int16s),
@@ -100,6 +103,7 @@ class Identify(Cluster):
     """Attributes and commands for putting a device into
     Identification mode (e.g. flashing a light)"""
     cluster_id = 0x0003
+    ep_attribute = 'identify'
     attributes = {
         0x0000: ('identify_time', t.uint16_t),
         0x0001: ('identify_commission_state', t.uint8_t),  # bitmap8
@@ -120,6 +124,7 @@ class Groups(Cluster):
     """Attributes and commands for group configuration and
     manipulation."""
     cluster_id = 0x0004
+    ep_attribute = 'groups'
     attributes = {
         0x0000: ('name_support', t.uint8_t),  # bitmap8
     }
@@ -143,6 +148,7 @@ class Scenes(Cluster):
     """Attributes and commands for scene configuration and
     manipulation."""
     cluster_id = 0x0005
+    ep_attribute = 'scenes'
     attributes = {
         # Scene Management Information
         0x0000: ('count', t.uint8_t),
@@ -182,6 +188,7 @@ class OnOff(Cluster):
     ‘On’ and ‘Off’ states. """
     cluster_id = 0x0006
     name = 'On/Off'
+    ep_attribute = 'on_off'
     attributes = {
         0x0000: ('on_off', t.Bool),
     }
@@ -201,6 +208,7 @@ class OnOffConfiguration(Cluster):
     switching devices"""
     cluster_id = 0x0007
     name = 'On/Off Switch Configuration'
+    ep_attribute = 'on_off_config'
     attributes = {
         # Switch Information
         0x0000: ('switch_type', t.uint8_t),  # enum8
@@ -216,6 +224,7 @@ class LevelControl(Cluster):
     can be set to a level between fully ‘On’ and fully ‘Off’."""
     cluster_id = 0x0008
     name = 'Level control'
+    ep_attribute = 'level'
     attributes = {
         0x0000: ('current_level', t.uint8_t),
         0x0001: ('remaining_time', t.uint16_t),
@@ -242,6 +251,7 @@ class Alarms(Cluster):
     """ Attributes and commands for sending notifications and
     configuring alarm functionality."""
     cluster_id = 0x0009
+    ep_attribute = 'alarms'
     attributes = {
         # Alarm Information
         0x0000: ('alarm_count', t.uint16_t),
@@ -264,6 +274,7 @@ class Time(Cluster):
     """ Attributes and commands that provide a basic interface
     to a real-time clock."""
     cluster_id = 0x000a
+    ep_attribute = 'time'
     attributes = {
         0x0000: ('time', t.uint32_t),
         0x0001: ('time_status', t.uint8_t),  # bitmap8
@@ -285,6 +296,7 @@ class RSSILocation(Cluster):
     exchanging location information and channel parameters
     among devices."""
     cluster_id = 0x000b
+    ep_attribute = 'rssi_location'
     attributes = {
         # Location Information
         0x0000: ('type', t.uint8_t),
@@ -319,6 +331,7 @@ class RSSILocation(Cluster):
 
 class AnalogInput(Cluster):
     cluster_id = 0x000c
+    ep_attribute = 'analog_input'
     attributes = {
         0x001c: ('description', t.LVBytes),
         0x0041: ('max_present_value', t.Single),
@@ -337,6 +350,7 @@ class AnalogInput(Cluster):
 
 class AnalogOutput(Cluster):
     cluster_id = 0x000d
+    ep_attribute = 'analog_output'
     attributes = {
         0x001c: ('description', t.LVBytes),
         0x0041: ('max_present_value', t.Single),
@@ -357,6 +371,7 @@ class AnalogOutput(Cluster):
 
 class AnalogValue(Cluster):
     cluster_id = 0x000e
+    ep_attribute = 'analog_value'
     attributes = {
         0x001c: ('description', t.LVBytes),
         0x0051: ('out_of_service', t.Bool),
@@ -375,6 +390,7 @@ class AnalogValue(Cluster):
 class BinaryInput(Cluster):
     cluster_id = 0x000f
     name = 'Binary Input (Basic)'
+    ep_attribute = 'binary_input'
     attributes = {
         0x0004: ('active_text', t.LVBytes),
         0x001c: ('description', t.LVBytes),
@@ -392,6 +408,7 @@ class BinaryInput(Cluster):
 
 class BinaryOutput(Cluster):
     cluster_id = 0x0010
+    ep_attribute = 'binary_output'
     attributes = {
         0x0004: ('active_text', t.LVBytes),
         0x001c: ('description', t.LVBytes),
@@ -413,6 +430,7 @@ class BinaryOutput(Cluster):
 
 class BinaryValue(Cluster):
     cluster_id = 0x0011
+    ep_attribute = 'binary_value'
     attributes = {
         0x0004: ('active_text', t.LVBytes),
         0x001c: ('description', t.LVBytes),
@@ -433,6 +451,7 @@ class BinaryValue(Cluster):
 
 class MultistateInput(Cluster):
     cluster_id = 0x0012
+    ep_attribute = 'multistate_input'
     attributes = {
         0x000e: ('state_text', t.List(t.LVBytes)),
         0x001c: ('description', t.LVBytes),
@@ -450,6 +469,7 @@ class MultistateInput(Cluster):
 
 class MultistateOutput(Cluster):
     cluster_id = 0x0013
+    ep_attribute = 'multistate_output'
     attributes = {
         0x000e: ('state_text', t.List(t.LVBytes)),
         0x001c: ('description', t.LVBytes),
@@ -468,6 +488,7 @@ class MultistateOutput(Cluster):
 
 class MultistateValue(Cluster):
     cluster_id = 0x0014
+    ep_attribute = 'multistate_value'
     attributes = {
         0x000e: ('state_text', t.List(t.LVBytes)),
         0x001c: ('description', t.LVBytes),
@@ -488,6 +509,7 @@ class Commissioning(Cluster):
     """Attributes and commands for commissioning and
     managing a ZigBee device."""
     cluster_id = 0x0015
+    ep_attribute = 'commissioning'
     attributes = {
         # Startup Parameters
         0x0000: ('short_address', t.uint16_t),
@@ -534,6 +556,7 @@ class Commissioning(Cluster):
 
 class Partition(Cluster):
     cluster_id = 0x0016
+    ep_attribute = 'partition'
     attributes = {}
     server_commands = {}
     client_commands = {}
@@ -541,6 +564,7 @@ class Partition(Cluster):
 
 class Ota(Cluster):
     cluster_id = 0x0019
+    ep_attribute = 'ota'
     attributes = {
         0x0000: ('upgrade_server_id', t.EmberEUI64),
         0x0001: ('file_offset', t.uint32_t),
@@ -572,6 +596,7 @@ class Ota(Cluster):
 
 class PowerProfile(Cluster):
     cluster_id = 0x001a
+    ep_attribute = 'power_profile'
     attributes = {
         0x0000: ('total_profile_num', t.uint8_t),
         0x0001: ('multiple_scheduling', t.uint8_t),
@@ -630,8 +655,9 @@ class PowerProfile(Cluster):
     }
 
 
-class ApplianceCtrl(Cluster):
+class ApplianceControl(Cluster):
     cluster_id = 0x001b
+    ep_attribute = 'appliance_control'
     attributes = {}
     server_commands = {}
     client_commands = {}
@@ -640,6 +666,7 @@ class ApplianceCtrl(Cluster):
 class PollControl(Cluster):
     cluster_id = 0x0020
     name = "Poll Control"
+    ep_attribute = 'poll_control'
     attributes = {
         0x0000: ('checkin_interval', t.uint32_t),
         0x0001: ('long_poll_interval', t.uint32_t),
@@ -662,6 +689,7 @@ class PollControl(Cluster):
 
 class GreenPowerProxy(Cluster):
     cluster_id = 0x0021
+    ep_attribute = 'green_power'
     attributes = {}
     server_commands = {}
     client_commands = {}

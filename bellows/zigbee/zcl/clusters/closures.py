@@ -8,6 +8,7 @@ class Shade(Cluster):
     """Attributes and commands for configuring a shade"""
     cluster_id = 0x0100
     name = 'Shade Configuration'
+    ep_attribute = 'shade'
     attributes = {
         # Shade Information
         0x0000: ('physical_closed_limit', t.uint16_t),
@@ -24,6 +25,7 @@ class Shade(Cluster):
 class DoorLock(Cluster):
     cluster_id = 0x0101
     name = 'Door Lock'
+    ep_attribute = 'door_lock'
     attributes = {
         0x0000: ('lock_state', t.uint8_t),  # enum8
         0x0002: ('actuator_enabled', t.Bool),
@@ -131,6 +133,7 @@ class DoorLock(Cluster):
 class WindowCovering(Cluster):
     cluster_id = 0x0102
     name = 'Window Covering'
+    ep_attribute = 'window_covering'
     attributes = {
         # Window Covering Information
         0x0000: ('window_covering_type', t.uint8_t),  # enum8

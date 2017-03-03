@@ -7,6 +7,7 @@ from bellows.zigbee.zcl import Cluster
 class IlluminanceMeasurement(Cluster):
     cluster_id = 0x0400
     name = 'Illuminance Measurement'
+    ep_attribute = 'illuminance'
     attributes = {
         # Illuminance Measurement Information
         0x0000: ('measured_value', t.uint16_t),
@@ -22,6 +23,7 @@ class IlluminanceMeasurement(Cluster):
 class IlluminanceLevelSensing(Cluster):
     cluster_id = 0x0401
     name = 'Illuminance Level Sensing'
+    ep_attribute = 'illuminance_level'
     attributes = {
         # Illuminance Level Sensing Information
         0x0000: ('level_status', t.uint8_t),  # enum8
@@ -36,6 +38,7 @@ class IlluminanceLevelSensing(Cluster):
 class TemperatureMeasurement(Cluster):
     cluster_id = 0x0402
     name = 'Temperature Measurement'
+    ep_attribute = 'temperature'
     attributes = {
         # Temperature Measurement Information
         0x0000: ('measured_value', t.int16s),
@@ -52,6 +55,7 @@ class TemperatureMeasurement(Cluster):
 class PressureMeasurement(Cluster):
     cluster_id = 0x0403
     name = 'Pressure Measurement'
+    ep_attribute = 'pressure'
     attributes = {
         # Pressure Measurement Information
         0x0000: ('measured_value', t.int16s),
@@ -66,6 +70,7 @@ class PressureMeasurement(Cluster):
 class FlowMeasurement(Cluster):
     cluster_id = 0x0404
     name = 'Flow Measurement'
+    ep_attribute = 'flow'
     attributes = {
         # Flow Measurement Information
         0x0000: ('measured_value', t.uint16_t),
@@ -80,6 +85,7 @@ class FlowMeasurement(Cluster):
 class RelativeHumidity(Cluster):
     cluster_id = 0x0405
     name = 'Relative Humidity Measurement'
+    ep_attribute = 'humidity'
     attributes = {
         # Relative Humidity Measurement Information
         0x0000: ('measured_value', t.uint16_t),
@@ -94,6 +100,7 @@ class RelativeHumidity(Cluster):
 class OccupancySensing(Cluster):
     cluster_id = 0x0406
     name = 'Occupancy Sensing'
+    ep_attribute = 'occupancy'
     attributes = {
         # Occupancy Sensor Information
         0x0000: ('occupancy', t.uint8_t),  # bitmap8

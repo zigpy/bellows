@@ -8,6 +8,7 @@ class Pump(Cluster):
     """An interface for configuring and controlling pumps."""
     cluster_id = 0x0200
     name = 'Pump Configuration and Control'
+    ep_attribute = 'pump'
     attributes = {
         # Pump Information
         0x0000: ('max_pressure', t.int16s),
@@ -45,6 +46,7 @@ class Thermostat(Cluster):
     """An interface for configuring and controlling the
     functionality of a thermostat."""
     cluster_id = 0x0201
+    ep_attribute = 'thermostat'
     attributes = {
         # Thermostat Information
         0x0000: ('local_temp', t.int16s),
@@ -111,6 +113,7 @@ class Fan(Cluster):
     cooling system."""
     cluster_id = 0x0202
     name = 'Fan Control'
+    ep_attribute = 'fan'
     attributes = {
         # Fan Control Status
         0x0000: ('fan_mode', t.uint8_t),  # enum8
@@ -123,6 +126,7 @@ class Fan(Cluster):
 class Dehumidification(Cluster):
     """An interface for controlling dehumidification."""
     cluster_id = 0x0203
+    ep_attribute = 'dehumidification'
     attributes = {
         # Dehumidification Information
         0x0000: ('relative_humidity', t.uint8_t),
@@ -145,6 +149,7 @@ class UserInterface(Cluster):
     thermostat)."""
     cluster_id = 0x0204
     name = 'Thermostat User Interface Configuration'
+    ep_attribute = 'thermostat_ui'
     attributes = {
         0x0000: ('temp_display_mode', t.uint8_t),  # enum8
         0x0001: ('keypad_lockout', t.uint8_t),  # enum8

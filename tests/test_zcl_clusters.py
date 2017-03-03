@@ -1,3 +1,6 @@
+import re
+
+import bellows.zigbee.endpoint
 import bellows.zigbee.zcl as zcl
 
 
@@ -39,3 +42,15 @@ def test_server_commands():
 
 def test_client_commands():
     _test_commands('client_commands')
+
+
+def test_ep_attributes():
+    seen = set()
+    for cluster_id, cluster in zcl.Cluster._registry.items():
+        assert isinstance(cluster.ep_attribute, str)
+        assert re.match('^[a-z_]+$', cluster.ep_attribute)
+        assert cluster.ep_attribute not in seen
+        seen.add(cluster.ep_attribute)
+
+        ep = bellows.zigbee.endpoint.Endpoint(None, 1)
+        assert not hasattr(ep, cluster.ep_attribute)

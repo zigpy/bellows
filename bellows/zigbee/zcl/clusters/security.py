@@ -7,6 +7,7 @@ from bellows.zigbee.zcl import Cluster
 class IasZone(Cluster):
     cluster_id = 0x0500
     name = 'IAS Zone'
+    ep_attribute = 'ias_zone'
     attributes = {
         # Zone Information
         0x0000: ('zone_state', t.uint8_t),  # enum8
@@ -32,6 +33,7 @@ class IasZone(Cluster):
 class IasAce(Cluster):
     cluster_id = 0x0501
     name = 'IAS Ancillary Control Equipment'
+    ep_attribute = 'ias_ace'
     attributes = {}
     server_commands = {
         0x0000: ('arm', (), False),
@@ -61,6 +63,7 @@ class IasAce(Cluster):
 class IasWd(Cluster):
     cluster_id = 0x0502
     name = 'IAS Warning Device'
+    ep_attribute = 'ias_wd'
     attributes = {
         0x0000: ('max_duration', t.uint16_t),
     }

@@ -13,6 +13,7 @@ class DateTime(t.EzspStruct):
 
 class GenericTunnel(Cluster):
     cluster_id = 0x0600
+    ep_attribute = 'generic_tunnel'
     attributes = {
         0x0001: ('max_income_trans_size', t.uint16_t),
         0x0002: ('max_outgo_trans_size', t.uint16_t),
@@ -29,15 +30,17 @@ class GenericTunnel(Cluster):
 
 class BacnetProtocolTunnel(Cluster):
     cluster_id = 0x0601
+    ep_attribute = 'bacnet_tunnel'
     attributes = {}
     server_commands = {
-        0x0000: ('transfer_npdu', (), False),
+        0x0000: ('transfer_npdu', (t.LVBytes, ), False),
     }
     client_commands = {}
 
 
-class AnalogInputReg(Cluster):
+class AnalogInputRegular(Cluster):
     cluster_id = 0x0602
+    ep_attribute = 'bacnet_regular_analog_input'
     attributes = {
         0x0016: ('cov_increment', t.Single),
         0x001f: ('device_type', t.LVBytes),
@@ -51,8 +54,9 @@ class AnalogInputReg(Cluster):
     client_commands = {}
 
 
-class AnalogInputExt(Cluster):
+class AnalogInputExtended(Cluster):
     cluster_id = 0x0603
+    ep_attribute = 'bacnet_extended_analog_input'
     attributes = {
         0x0000: ('acked_transitions', t.uint8_t),  # bitmap8
         0x0011: ('notification_class', t.uint16_t),
@@ -75,8 +79,9 @@ class AnalogInputExt(Cluster):
     client_commands = {}
 
 
-class AnalogOutputReg(Cluster):
+class AnalogOutputRegular(Cluster):
     cluster_id = 0x0604
+    ep_attribute = 'bacnet_regular_analog_output'
     attributes = {
         0x0016: ('cov_increment', t.Single),
         0x001f: ('device_type', t.LVBytes),
@@ -90,8 +95,9 @@ class AnalogOutputReg(Cluster):
     client_commands = {}
 
 
-class AnalogOutputExt(Cluster):
+class AnalogOutputExtended(Cluster):
     cluster_id = 0x0605
+    ep_attribute = 'bacnet_extended_analog_output'
     attributes = {
         0x0000: ('acked_transitions', t.uint8_t),  # bitmap8
         0x0011: ('notification_class', t.uint16_t),
@@ -109,8 +115,9 @@ class AnalogOutputExt(Cluster):
     client_commands = {}
 
 
-class AnalogValueReg(Cluster):
+class AnalogValueRegular(Cluster):
     cluster_id = 0x0606
+    ep_attribute = 'bacnet_regular_analog_value'
     attributes = {
         0x0016: ('cov_increment', t.Single),
         0x004b: ('object_id', t.fixed_list(4, t.uint8_t)),
@@ -122,8 +129,9 @@ class AnalogValueReg(Cluster):
     client_commands = {}
 
 
-class AnalogValueExt(Cluster):
+class AnalogValueExtended(Cluster):
     cluster_id = 0x0607
+    ep_attribute = 'bacnet_extended_analog_value'
     attributes = {
         0x0000: ('acked_transitions', t.uint8_t),  # bitmap8
         0x0011: ('notification_class', t.uint16_t),
@@ -141,8 +149,9 @@ class AnalogValueExt(Cluster):
     client_commands = {}
 
 
-class BinaryInputReg(Cluster):
+class BinaryInputRegular(Cluster):
     cluster_id = 0x0608
+    ep_attribute = 'bacnet_regular_binary_input'
     attributes = {
         0x000f: ('change_of_state_count', t.uint32_t),
         0x0010: ('change_of_state_time', DateTime),
@@ -159,8 +168,9 @@ class BinaryInputReg(Cluster):
     client_commands = {}
 
 
-class BinaryInputExt(Cluster):
+class BinaryInputExtended(Cluster):
     cluster_id = 0x0609
+    ep_attribute = 'bacnet_extended_binary_input'
     attributes = {
         0x0000: ('acked_transitions', t.uint8_t),  # bitmap8
         0x0006: ('alarm_value', t.Bool),
@@ -175,8 +185,9 @@ class BinaryInputExt(Cluster):
     client_commands = {}
 
 
-class BinaryOutputReg(Cluster):
+class BinaryOutputRegular(Cluster):
     cluster_id = 0x060a
+    ep_attribute = 'bacnet_regular_binary_output'
     attributes = {
         0x000f: ('change_of_state_count', t.uint32_t),
         0x0010: ('change_of_state_time', DateTime),
@@ -194,8 +205,9 @@ class BinaryOutputReg(Cluster):
     client_commands = {}
 
 
-class BinaryOutputExt(Cluster):
+class BinaryOutputExtended(Cluster):
     cluster_id = 0x060b
+    ep_attribute = 'bacnet_extended_binary_output'
     attributes = {
         0x0000: ('acked_transitions', t.uint8_t),  # bitmap8
         0x0011: ('notification_class', t.uint16_t),
@@ -209,8 +221,9 @@ class BinaryOutputExt(Cluster):
     client_commands = {}
 
 
-class BinaryValueReg(Cluster):
+class BinaryValueRegular(Cluster):
     cluster_id = 0x060c
+    ep_attribute = 'bacnet_regular_binary_value'
     attributes = {
         0x000f: ('change_of_state_count', t.uint32_t),
         0x0010: ('change_of_state_time', DateTime),
@@ -226,8 +239,9 @@ class BinaryValueReg(Cluster):
     client_commands = {}
 
 
-class BinaryValueExt(Cluster):
+class BinaryValueExtended(Cluster):
     cluster_id = 0x060d
+    ep_attribute = 'bacnet_extended_binary_value'
     attributes = {
         0x0000: ('acked_transitions', t.uint8_t),  # bitmap8
         0x0006: ('alarm_value', t.Bool),
@@ -242,8 +256,9 @@ class BinaryValueExt(Cluster):
     client_commands = {}
 
 
-class MultistateInputReg(Cluster):
+class MultistateInputRegular(Cluster):
     cluster_id = 0x060e
+    ep_attribute = 'bacnet_regular_multistate_input'
     attributes = {
         0x001f: ('device_type', t.LVBytes),
         0x004b: ('object_id', t.fixed_list(4, t.uint8_t)),
@@ -255,8 +270,9 @@ class MultistateInputReg(Cluster):
     client_commands = {}
 
 
-class MultistateInputExt(Cluster):
+class MultistateInputExtended(Cluster):
     cluster_id = 0x060f
+    ep_attribute = 'bacnet_extended_multistate_input'
     attributes = {
         0x0000: ('acked_transitions', t.uint8_t),  # bitmap8
         0x0006: ('alarm_value', t.uint16_t),
@@ -272,8 +288,9 @@ class MultistateInputExt(Cluster):
     client_commands = {}
 
 
-class MultistateOutputReg(Cluster):
+class MultistateOutputRegular(Cluster):
     cluster_id = 0x0610
+    ep_attribute = 'bacnet_regular_multistate_output'
     attributes = {
         0x001f: ('device_type', t.LVBytes),
         0x0028: ('feed_back_value', t.uint8_t),  # enum8
@@ -286,8 +303,9 @@ class MultistateOutputReg(Cluster):
     client_commands = {}
 
 
-class MultistateOutputExt(Cluster):
+class MultistateOutputExtended(Cluster):
     cluster_id = 0x0611
+    ep_attribute = 'bacnet_extended_multistate_output'
     attributes = {
         0x0000: ('acked_transitions', t.uint8_t),  # bitmap8
         0x0011: ('notification_class', t.uint16_t),
@@ -301,8 +319,9 @@ class MultistateOutputExt(Cluster):
     client_commands = {}
 
 
-class MultistateValueReg(Cluster):
+class MultistateValueRegular(Cluster):
     cluster_id = 0x0612
+    ep_attribute = 'bacnet_regular_multistate_value'
     attributes = {
         0x004b: ('object_id', t.fixed_list(4, t.uint8_t)),
         0x004d: ('object_name', t.LVBytes),
@@ -313,8 +332,9 @@ class MultistateValueReg(Cluster):
     client_commands = {}
 
 
-class MultistateValueExt(Cluster):
+class MultistateValueExtended(Cluster):
     cluster_id = 0x0613
+    ep_attribute = 'bacnet_extended_multistate_value'
     attributes = {
         0x0000: ('acked_transitions', t.uint8_t),  # bitmap8
         0x0006: ('alarm_value', t.uint16_t),
@@ -327,23 +347,4 @@ class MultistateValueExt(Cluster):
         # 0x0082: ('event_time_stamps', TODO.array),  # Array[3] of (16-bit unsigned integer, time of day, or structure of (date, time of day))
     }
     server_commands = {}
-    client_commands = {}
-
-
-class BACNetProtocolTunnel(Cluster):
-    cluster_id = 0x0614
-    attributes = {
-        # 0x0000: ('deviceid_list', UNKNOWN),
-        # 0x0001: ('manager_target', UNKNOWN),
-        # 0x0002: ('manager_endpoint', UNKNOWN),
-        # 0x0003: ('connected', UNKNOWN),
-        # 0x0004: ('preemptible', UNKNOWN),
-        # 0x0005: ('idle_timeout', UNKNOWN),
-    }
-    server_commands = {
-        0x0000: ('transfer_apdu', (), False),
-        0x0001: ('connect_req', (), False),
-        0x0002: ('disconnect_req', (), False),
-        0x0003: ('connect_status_noti', (), False),
-    }
     client_commands = {}
