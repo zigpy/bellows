@@ -110,3 +110,6 @@ class Device(bellows.zigbee.util.LocalLogMixin):
     @property
     def nwk(self):
         return self._nwk
+
+    def __getitem__(self, key):
+        return self.endpoints[key]

@@ -81,3 +81,11 @@ def test_handle_request(dev):
     ep.handle_message = mock.MagicMock()
     dev.handle_message(False, f, 1, 0, [])
     assert ep.handle_message.call_count == 1
+
+
+def test_endpoint_getitem(dev):
+    ep = dev.add_endpoint(3)
+    assert dev[3] is ep
+
+    with pytest.raises(KeyError):
+        dev[1]
