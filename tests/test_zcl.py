@@ -102,24 +102,23 @@ def test_handle_unexpected_reply(cluster, aps):
     cluster.handle_message(True, aps, 0, 0, [])
 
 
+def _mk_rar(attrid, value, status=0):
+        r = zcl.foundation.ReadAttributeRecord()
+        r.attrid = attrid
+        r.status = status
+        r.value = zcl.foundation.TypeValue()
+        r.value.value = value
+        return r
+
+
 def test_read_attributes_uncached(cluster):
     @asyncio.coroutine
     def mockrequest(foundation, command, schema, args):
         assert foundation is True
         assert command == 0
-        rar0 = zcl.foundation.ReadAttributeRecord()
-        rar0.attrid = 0
-        rar0.status = 0
-        rar0.value = zcl.foundation.TypeValue()
-        rar0.value.value = 99
-        rar4 = zcl.foundation.ReadAttributeRecord()
-        rar4.attrid = 4
-        rar4.status = 0
-        rar4.value = zcl.foundation.TypeValue()
-        rar4.value.value = b'Manufacturer'
-        rar99 = zcl.foundation.ReadAttributeRecord()
-        rar99.attrid = 99
-        rar99.status = 1
+        rar0 = _mk_rar(0, 99)
+        rar4 = _mk_rar(4, b'Manufacturer')
+        rar99 = _mk_rar(99, None, 1)
         return [[rar0, rar4, rar99]]
     cluster.request = mockrequest
     loop = asyncio.get_event_loop()
@@ -151,11 +150,7 @@ def test_read_attributes_mixed_cached(cluster):
     def mockrequest(foundation, command, schema, args):
         assert foundation is True
         assert command == 0
-        rar5 = zcl.foundation.ReadAttributeRecord()
-        rar5.attrid = 5
-        rar5.status = 0
-        rar5.value = zcl.foundation.TypeValue()
-        rar5.value.value = b'Model'
+        rar5 = _mk_rar(5, b'Model')
         return [[rar5]]
 
     cluster.request = mockrequest
@@ -170,6 +165,31 @@ def test_read_attributes_mixed_cached(cluster):
     assert success["manufacturer"] == b'Manufacturer'
     assert success["model"] == b'Model'
     assert failure == {}
+
+
+def test_item_access_attributes(cluster):
+    @asyncio.coroutine
+    def mockrequest(foundation, command, schema, args):
+        assert foundation is True
+        assert command == 0
+        rar5 = _mk_rar(5, b'Model')
+        rar99 = _mk_rar(99, None, 1)
+        return [[rar5]]
+
+    cluster.request = mockrequest
+    cluster._attr_cache[0] = 99
+
+    @asyncio.coroutine
+    def inner():
+        v = yield from cluster['model']
+        assert v == b'Model'
+        v = yield from cluster['zcl_version']
+        assert v == 99
+        with pytest.raises(KeyError):
+            v = yield from cluster[99]
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(inner())
 
 
 def test_write_attributes(cluster):

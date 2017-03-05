@@ -143,7 +143,9 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         return v
 
     @asyncio.coroutine
-    def read_attributes(self, attributes, allow_cache=False):
+    def read_attributes(self, attributes, allow_cache=False, raw=False):
+        if raw:
+            assert len(attributes) == 1
         success, failure = {}, {}
         attribute_ids = []
         orig_attributes = {}
@@ -166,6 +168,8 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             to_read = attribute_ids
 
         if not to_read:
+            if raw:
+                return success[attributes[0]]
             return success, failure
 
         result = yield from self.read_attributes_raw(to_read)
@@ -177,6 +181,9 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             else:
                 failure[orig_attribute] = record.status
 
+        if raw:
+            # KeyError is an appropriate exception here, I think.
+            return success[attributes[0]]
         return success, failure
 
     def write_attributes(self, attributes):
@@ -244,6 +251,9 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             )
         except KeyError:
             raise AttributeError("No such command name: %s" % (name, ))
+
+    def __getitem__(self, key):
+        return self.read_attributes([key], allow_cache=True, raw=True)
 
 # Import to populate the registry
 from . import clusters
