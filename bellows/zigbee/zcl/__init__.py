@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import logging
 
 import bellows.types as t
@@ -69,6 +70,11 @@ class Registry(type):
             cls._attridx = {}
             for attrid, (attrname, datatype) in cls.attributes.items():
                 cls._attridx[attrname] = attrid
+        if hasattr(cls, 'server_commands'):
+            cls._server_command_idx = {}
+            for command_id, details in cls.server_commands.items():
+                command_name, schema, is_reply = details
+                cls._server_command_idx[command_name] = command_id
 
 
 class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
@@ -229,6 +235,15 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             self.cluster_id,
         ) + args
         return LOGGER.log(lvl, msg, *args)
+
+    def __getattr__(self, name):
+        try:
+            return functools.partial(
+                self.command,
+                self._server_command_idx[name],
+            )
+        except KeyError:
+            raise AttributeError("No such command name: %s" % (name, ))
 
 # Import to populate the registry
 from . import clusters

@@ -194,5 +194,15 @@ def test_command(cluster):
     assert cluster._endpoint.device.request.call_count == 1
 
 
+def test_command_attr(cluster):
+    cluster.reset_fact_default()
+    assert cluster._endpoint.device.request.call_count == 1
+
+
+def test_command_invalid_attr(cluster):
+    with pytest.raises(AttributeError):
+        cluster.no_such_command()
+
+
 def test_name(cluster):
     assert cluster.name == 'Basic'
