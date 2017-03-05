@@ -6,7 +6,6 @@ import pytest
 
 import bellows.types as t
 from bellows.zigbee.application import ControllerApplication
-from bellows.zigbee import zha
 
 
 @pytest.fixture

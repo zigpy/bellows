@@ -3,9 +3,9 @@ import enum
 import logging
 
 import bellows.zigbee.appdb
+import bellows.zigbee.profiles
 import bellows.zigbee.util
 import bellows.zigbee.zcl
-import bellows.zigbee.zha
 
 LOGGER = logging.getLogger(__name__)
 
@@ -46,11 +46,13 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
         sd = sdr[2]
         self.profile_id = sd.profile
         self.device_type = sd.device_type
-        if self.profile_id == 260:
-            try:
-                self.device_type = bellows.zigbee.zha.DeviceType(self.device_type)
-            except:
-                pass
+        try:
+            if self.profile_id == 260:
+                self.device_type = bellows.zigbee.profiles.zha.DeviceType(self.device_type)
+            elif self.profile_id == 49246:
+                self.device_type = bellows.zigbee.profiles.zll.DeviceType(self.device_type)
+        except:
+            pass
 
         for cluster in sd.input_clusters:
             self.add_cluster(cluster)

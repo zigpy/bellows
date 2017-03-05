@@ -4,7 +4,7 @@ import sqlite3
 import bellows.types as t
 import bellows.zigbee.device
 import bellows.zigbee.endpoint
-import bellows.zigbee.zha
+import bellows.zigbee.profiles
 
 
 LOGGER = logging.getLogger(__name__)
@@ -158,11 +158,13 @@ class PersistingListener:
             dev = self._application.get_device(ieee)
             ep = dev.add_endpoint(epid)
             ep.profile_id = profile_id
-            if profile_id == 260:
-                try:
-                    device_type = bellows.zigbee.zha.DeviceType(device_type)
-                except:
-                    pass
+            try:
+                if profile_id == 260:
+                    device_type = bellows.zigbee.profiles.zha.DeviceType(device_type)
+                elif profile_id == 49246:
+                    device_type = bellows.zigbee.profiles.zll.DeviceType(device_type)
+            except:
+                pass
             ep.device_type = device_type
             ep.status = bellows.zigbee.endpoint.Status(status)
 

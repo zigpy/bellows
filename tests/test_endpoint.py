@@ -14,14 +14,14 @@ def ep():
     return endpoint.Endpoint(dev, 1)
 
 
-def test_initialize(ep):
+def _test_initialize(ep, profile):
     loop = asyncio.get_event_loop()
 
     @asyncio.coroutine
     def mockrequest(req, nwk, epid):
         sd = types.SimpleDescriptor()
         sd.endpoint = 1
-        sd.profile = 260
+        sd.profile = profile
         sd.device_type = 0xff
         sd.input_clusters = [5]
         sd.output_clusters = [6]
@@ -33,6 +33,14 @@ def test_initialize(ep):
     assert ep.status > endpoint.Status.NEW
     assert 5 in ep.clusters
     assert 6 in ep.output_clusters
+
+
+def test_initialize_zha(ep):
+    return _test_initialize(ep, 260)
+
+
+def test_initialize_zll(ep):
+    return _test_initialize(ep, 49246)
 
 
 def test_initialize_fail(ep):

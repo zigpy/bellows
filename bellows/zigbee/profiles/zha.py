@@ -1,6 +1,8 @@
 import enum
 
 
+PROFILE_ID = 260
+
 class DeviceType(enum.IntEnum):
     # Generic
     ON_OFF_SWITCH = 0x0000
@@ -49,3 +51,11 @@ class DeviceType(enum.IntEnum):
     IAS_ANCILLARY_CONTROL = 0x0401  # IAS Ancillary Control Equipment
     IAS_ZONE = 0x0402
     IAS_WARNING_DEVICE = 0x0403
+
+
+CLUSTERS = {
+    DeviceType.ON_OFF_SWITCH: [0x0004, 0x0005, 0x0006, 0x0007],
+    DeviceType.ON_OFF_LIGHT: [0x0004, 0x0005, 0x0006, 0x0008],
+    DeviceType.DIMMABLE_LIGHT: [0x0004, 0x0005, 0x0006, 0x0008],
+    DeviceType.COLOR_DIMMABLE_LIGHT: [0x0004, 0x0005, 0x0006, 0x0008, 0x0300],
+}
