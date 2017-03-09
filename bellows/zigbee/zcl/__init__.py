@@ -80,6 +80,7 @@ class Registry(type):
 class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
     """A cluster on an endpoint"""
     _registry = {}
+    _server_command_idx = {}
 
     def __init__(self, endpoint):
         self._endpoint = endpoint
