@@ -1,4 +1,7 @@
+import asyncio
 from unittest import mock
+
+import pytest
 
 from bellows.zigbee import util
 
@@ -41,3 +44,38 @@ def test_zha_security_end_device():
 
 def test_zha_security_controller():
     util.zha_security(controller=True)
+
+
+def _test_retry(exception, exceptions, n):
+    counter = 0
+
+    @util.retry(exceptions)
+    @asyncio.coroutine
+    def count():
+        nonlocal counter
+        counter += 1
+        if counter <= n:
+            exc = exception()
+            exc._counter = counter
+            raise exc
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(count())
+    return counter
+
+
+def test_retry_no_retries():
+    counter = _test_retry(Exception, Exception, 0)
+    assert counter == 1
+
+
+def test_retry_always():
+    with pytest.raises(ValueError) as exc_info:
+        _test_retry(ValueError, (IndexError, ValueError), 999)
+    print(exc_info.value)
+    assert exc_info.value._counter == 3
+
+
+def test_retry_once():
+    counter = _test_retry(ValueError, ValueError, 1)
+    assert counter == 2

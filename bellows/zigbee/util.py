@@ -1,3 +1,5 @@
+import asyncio
+import functools
 import logging
 import os
 
@@ -69,3 +71,23 @@ def zha_security(controller=False):
         )
         isc.networkKey = random_key
     return isc
+
+
+def retry(exceptions, retries=3, delay=0.1):
+    """Return a decorator to retry a function in case of failure"""
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            nonlocal delay, retries
+            while True:
+                try:
+                    r = yield from func(*args, **kwargs)
+                    return r
+                except exceptions as e:
+                    if retries <= 1:
+                        raise
+                    retries -= 1
+                    yield from asyncio.sleep(delay)
+                    delay *= 2
+        return wrapper
+    return decorator
