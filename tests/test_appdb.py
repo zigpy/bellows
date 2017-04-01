@@ -39,6 +39,7 @@ def test_database(tmpdir, ieee):
     app.listener_event('device_initialized', dev)
     clus._update_attribute(0, 99)
     clus.listener_event('cluster_command', 0)
+    clus.listener_event('zdo_command')
 
     # Everything should've been saved - check that it re-loads
     app2 = make_app(db)

@@ -190,3 +190,6 @@ class ClusterPersistingListener:
 
     def cluster_command(self, *args, **kwargs):
         pass
+
+    def zdo_command(self, *args, **kwargs):
+        pass
