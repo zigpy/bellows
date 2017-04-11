@@ -1093,6 +1093,8 @@ class EmberMacPassthroughType(basic.uint8_t, enum.Enum):
     MAC_PASSTHROUGH_EMBERNET = 0x02
     # Legacy EmberNet messages filtered by their source address.
     MAC_PASSTHROUGH_EMBERNET_SOURCE = 0x04
+    MAC_PASSTHROUGH_APPLICATION = 0x08
+    MAC_PASSTHROUGH_CUSTOM = 0x10
 
 
 class EmberBindingType(basic.uint8_t, enum.Enum):
