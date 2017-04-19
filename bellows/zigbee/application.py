@@ -129,9 +129,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
 
     def add_device(self, ieee, nwk):
         assert isinstance(ieee, t.EmberEUI64)
-        if ieee in self.devices:
-            # TODO: Check NWK?
-            return self.devices[ieee]
+        # TODO: Shut down existing device
         dev = bellows.zigbee.device.Device(self, ieee, nwk)
         self.devices[ieee] = dev
         return dev

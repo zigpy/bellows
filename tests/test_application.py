@@ -158,7 +158,7 @@ def test_sequence(app):
 def test_add_device(app, ieee):
     dev = app.add_device(ieee, 8)
     dev2 = app.add_device(ieee, 9)
-    assert app.get_device(ieee) is dev
+    assert app.get_device(ieee).nwk == 9
 
 
 def test_get_device_nwk(app, ieee):
