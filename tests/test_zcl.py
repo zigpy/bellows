@@ -193,7 +193,7 @@ def test_item_access_attributes(cluster):
 
 
 def test_write_attributes(cluster):
-    cluster.write_attributes({0: 5})
+    cluster.write_attributes({0: 5, 'app_version': 4})
     assert cluster._endpoint.device.request.call_count == 1
 
 

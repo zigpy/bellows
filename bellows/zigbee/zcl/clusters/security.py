@@ -14,7 +14,7 @@ class IasZone(Cluster):
         0x0001: ('zone_type', t.uint16_t),  # enum16
         0x0002: ('zone_status', t.uint16_t),  # bitmap16
         # Zone Settings
-        0x0010: ('ias_cie_addr', t.EmberEUI64),
+        0x0010: ('cie_addr', t.EmberEUI64),
         0x0011: ('zone_id', t.uint8_t),
         0x0012: ('num_zone_sensitivity_levels_supported', t.uint8_t),
         0x0013: ('current_zone_sensitivity_level', t.uint8_t),

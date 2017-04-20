@@ -190,6 +190,8 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
     def write_attributes(self, attributes):
         args = []
         for attrid, value in attributes.items():
+            if isinstance(attrid, str):
+                attrid = self._attridx[attrid]
             a = foundation.Attribute()
             a.attrid = t.uint16_t(attrid)
             a.value = foundation.TypeValue()
