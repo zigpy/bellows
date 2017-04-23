@@ -9,6 +9,8 @@ CHANNELS = list(range(11, 27))
 channel = click.option(
     '-c', '--channel',
     type=click.IntRange(11, 26),
+    required=True,
+    default=15,
 )
 
 channels = click.option(

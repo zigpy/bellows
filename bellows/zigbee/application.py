@@ -30,7 +30,8 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
             self._dblistener.load()
 
     @asyncio.coroutine
-    def startup(self, auto_form=False):
+    def initialize(self):
+        """Perform basic NCP initialization steps"""
         e = self._ezsp
 
         yield from e.reset()
@@ -48,6 +49,12 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         yield from self._cfg(c.CONFIG_APPLICATION_ZDO_FLAGS, zdo)
         yield from self._cfg(c.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2)
         yield from self._cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xff)
+
+    @asyncio.coroutine
+    def startup(self, auto_form=False):
+        """Perform a complete application startup"""
+        yield from self.initialize()
+        e = self._ezsp
 
         v = yield from e.networkInit()
         if v[0] != 0:

@@ -24,9 +24,10 @@ def form(ctx, database, channel, pan_id, extended_pan_id):
     ctx.obj['database_file'] = database
     def inner(ctx):
         app = ctx.obj['app']
+        yield from app.initialize()
         yield from app.form_network(channel, pan_id, extended_pan_id)
 
-    return util.app(inner)(ctx)
+    return util.app(inner, app_startup=False)(ctx)
 
 @main.command()
 @opts.database_file

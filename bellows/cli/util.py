@@ -34,14 +34,18 @@ def async(f):
     return inner
 
 
-def app(f):
+def app(f, app_startup=True):
     database_file = None
 
     @asyncio.coroutine
     def async_inner(ctx, *args, **kwargs):
-        global database_file, loaded
+        nonlocal database_file
         database_file = ctx.obj['database_file']
-        app = yield from setup_application(ctx.obj['device'], database_file)
+        app = yield from setup_application(
+            ctx.obj['device'],
+            database_file,
+            startup=app_startup,
+        )
         ctx.obj['app'] = app
         yield from f(ctx, *args, **kwargs)
         yield from asyncio.sleep(0.5)
@@ -109,11 +113,12 @@ def setup(dev, cbh=None, configure=True):
 
 
 @asyncio.coroutine
-def setup_application(dev, database_file):
+def setup_application(dev, database_file, startup=True):
     s = bellows.ezsp.EZSP()
     yield from s.connect(dev)
     app = bellows.zigbee.application.ControllerApplication(s, database_file)
-    yield from app.startup()
+    if startup:
+        yield from app.startup()
     return app
 
 
