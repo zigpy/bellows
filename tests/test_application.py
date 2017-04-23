@@ -101,9 +101,18 @@ def test_frame_handler_zdo(app, aps, ieee):
 
 
 def test_frame_handler_zdo_reply(app, aps, ieee):
-    fut = app._pending[1] = mock.MagicMock()
+    send_fut, reply_fut = app._pending[1] = (mock.MagicMock(), mock.MagicMock())
     _frame_handler(app, aps, ieee, 0, 0x8000)
-    assert fut.set_result.call_count == 1
+    assert send_fut.set_result.call_count == 0
+    assert reply_fut.set_result.call_count == 1
+
+
+def test_frame_handler_dup_zdo_reply(app, aps, ieee):
+    send_fut, reply_fut = app._pending[1] = (mock.MagicMock(), mock.MagicMock())
+    reply_fut.set_result.side_effect = asyncio.futures.InvalidStateError()
+    _frame_handler(app, aps, ieee, 0, 0x8000)
+    assert send_fut.set_result.call_count == 0
+    assert reply_fut.set_result.call_count == 1
 
 
 def test_frame_handler_zdo_reply_unknown(app, aps, ieee):
@@ -115,12 +124,24 @@ def test_frame_handler_zcl(app, aps, ieee):
 
 
 def test_send_failure(app, aps, ieee):
-    fut = app._pending[254] = mock.MagicMock()
+    send_fut, reply_fut = app._pending[254] = (mock.MagicMock(), mock.MagicMock())
     app.ezsp_callback_handler(
         'messageSentHandler',
         [None, None, None, 254, 1, b'']
     )
-    assert fut.set_exception.call_count == 1
+    assert send_fut.set_exception.call_count == 1
+    assert reply_fut.set_exception.call_count == 0
+
+
+def test_dup_send_failure(app, aps, ieee):
+    send_fut, reply_fut = app._pending[254] = (mock.MagicMock(), mock.MagicMock())
+    send_fut.set_exception.side_effect = asyncio.futures.InvalidStateError()
+    app.ezsp_callback_handler(
+        'messageSentHandler',
+        [None, None, None, 254, 1, b'']
+    )
+    assert send_fut.set_exception.call_count == 1
+    assert reply_fut.set_exception.call_count == 0
 
 
 def test_send_failure_unexpected(app, aps, ieee):
@@ -128,6 +149,36 @@ def test_send_failure_unexpected(app, aps, ieee):
         'messageSentHandler',
         [None, None, None, 257, 1, b'']
     )
+
+
+def test_send_success(app, aps, ieee):
+    send_fut, reply_fut = app._pending[253] = (mock.MagicMock(), mock.MagicMock())
+    app.ezsp_callback_handler(
+        'messageSentHandler',
+        [None, None, None, 253, 0, b'']
+    )
+    assert send_fut.set_exception.call_count == 0
+    assert send_fut.set_result.call_count == 1
+    assert reply_fut.set_result.call_count == 0
+
+
+def test_unexpected_send_success(app, aps, ieee):
+    app.ezsp_callback_handler(
+        'messageSentHandler',
+        [None, None, None, 253, 0, b'']
+    )
+
+
+def test_dup_send_success(app, aps, ieee):
+    send_fut, reply_fut = app._pending[253] = (mock.MagicMock(), mock.MagicMock())
+    send_fut.set_result.side_effect = asyncio.futures.InvalidStateError()
+    app.ezsp_callback_handler(
+        'messageSentHandler',
+        [None, None, None, 253, 0, b'']
+    )
+    assert send_fut.set_exception.call_count == 0
+    assert send_fut.set_result.call_count == 1
+    assert reply_fut.set_result.call_count == 0
 
 
 def test_join_handler(app, ieee):
@@ -184,7 +235,8 @@ def test_permit(app):
 def _request(app, aps, returnval):
     @asyncio.coroutine
     def mocksend(method, nwk, aps_frame, seq, data):
-        app._pending[seq].set_result(mock.sentinel.result)
+        app._pending[seq][0].set_result(True)
+        app._pending[seq][1].set_result(mock.sentinel.result)
         return [returnval]
 
     app._ezsp.sendUnicast = mocksend

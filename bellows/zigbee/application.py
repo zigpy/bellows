@@ -147,6 +147,8 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         elif frame_name == 'messageSentHandler':
             if args[4] != 0:
                 self._handle_frame_failure(*args)
+            else:
+                self._handle_frame_sent(*args)
         elif frame_name == 'trustCenterJoinHandler':
             if args[2] == t.EmberDeviceUpdate.DEVICE_LEFT:
                 self._handle_leave(*args)
@@ -173,11 +175,17 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
 
     def _handle_reply(self, sender, aps_frame, tsn, command_id, args):
         try:
-            fut = self._pending.pop(tsn)
-            fut.set_result(args)
+            send_fut, reply_fut = self._pending[tsn]
+            if send_fut.done():
+                self._pending.pop(tsn)
+            reply_fut.set_result(args)
             return
         except KeyError:
             LOGGER.warning("Unexpected response TSN=%s command=%s args=%s", tsn, command_id, args)
+        except asyncio.futures.InvalidStateError as exc:
+            LOGGER.debug("Invalid state on future - probably duplicate response: %s", exc)
+            # We've already handled, don't drop through to device handler
+            return
 
         self._handle_message(True, sender, aps_frame, tsn, command_id, args)
 
@@ -209,24 +217,46 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
 
     def _handle_frame_failure(self, message_type, destination, aps_frame, message_tag, status, message):
         try:
-            fut = self._pending.pop(message_tag)
-            fut.set_exception(Exception("Message send failure: %s" % (status, )))
+            send_fut, reply_fut = self._pending.pop(message_tag)
+            send_fut.set_exception(Exception("Message send failure: %s" % (status, )))
+            reply_fut.cancel()
         except KeyError:
             LOGGER.warning("Unexpected message send failure")
+        except asyncio.futures.InvalidStateError as exc:
+            LOGGER.debug("Invalid state on future - probably duplicate response: %s", exc)
+
+    def _handle_frame_sent(self, message_type, destination, aps_frame, message_tag, status, message):
+        try:
+            send_fut, reply_fut = self._pending[message_tag]
+            # Sometimes messageSendResult and a reply come out of order
+            # If we've already handled the reply, delete pending
+            if reply_fut.done():
+                self._pending.pop(message_tag)
+            send_fut.set_result(True)
+        except KeyError:
+            LOGGER.warning("Unexpected message send notification")
+        except asyncio.futures.InvalidStateError as exc:
+            LOGGER.debug("Invalid state on future - probably duplicate response: %s", exc)
 
     @asyncio.coroutine
-    def request(self, nwk, aps_frame, data, timeout=10):
+    def request(self, nwk, aps_frame, data, timeout=30):
         seq = aps_frame.sequence
         assert seq not in self._pending
-        fut = asyncio.Future()
-        self._pending[seq] = fut
+        send_fut = asyncio.Future()
+        reply_fut = asyncio.Future()
+        self._pending[seq] = (send_fut, reply_fut)
 
         v = yield from self._ezsp.sendUnicast(self.direct, nwk, aps_frame, seq, data)
         if v[0] != 0:
             self._pending.pop(seq)
+            send_fut.cancel()
+            reply_fut.cancel()
             raise Exception("Message send failure %s" % (v[0], ))
 
-        v = yield from asyncio.wait_for(fut, timeout)
+        # Wait for messageSentHandler message
+        v = yield from send_fut
+        # Wait for reply
+        v = yield from asyncio.wait_for(reply_fut, timeout)
         return v
 
     def reply(self, nwk, aps_frame, data):
