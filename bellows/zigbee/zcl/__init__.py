@@ -259,4 +259,4 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         return self.read_attributes([key], allow_cache=True, raw=True)
 
 # Import to populate the registry
-from . import clusters
+from . import clusters  # noqa: F401, F402

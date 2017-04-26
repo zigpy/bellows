@@ -23,17 +23,11 @@ class Metering(Cluster):
     ep_attribute = 'smartenergy_metering'
     attributes = {
         0x0000: ('current_summ_delivered', t.uint48_t),
-        0x0000: ('notification_control_flags', t.uint32_t),  # bitmap32
         0x0001: ('current_summ_received', t.uint48_t),
-        0x0001: ('notification_flags', t.uint32_t),  # bitmap32
         0x0002: ('current_max_demand_delivered', t.uint48_t),
-        0x0002: ('price_notification_flags', t.uint32_t),  # bitmap32
-        0x0003: ('calendar_notification_flags', t.uint32_t),  # bitmap32
         0x0003: ('current_max_demand_received', t.uint48_t),
         0x0004: ('dft_summ', t.uint48_t),
-        0x0004: ('pre_pay_notification_flags', t.uint32_t),  # bitmap32
         0x0005: ('daily_freeze_time', t.uint16_t),
-        0x0005: ('device_management_flags', t.uint32_t),  # bitmap32
         0x0006: ('power_factor', t.int8s),
         0x0007: ('reading_snapshot_time', t.uint32_t),
         0x0008: ('current_max_demand_deliverd_time', t.uint32_t),

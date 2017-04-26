@@ -3,6 +3,7 @@ import enum
 
 PROFILE_ID = 49246
 
+
 class DeviceType(enum.IntEnum):
     ON_OFF_LIGHT = 0x0000
     ON_OFF_PLUGIN_UNIT = 0x0010

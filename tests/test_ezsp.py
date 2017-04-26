@@ -176,9 +176,9 @@ def test_callback_multi(ezsp_f):
 
     ezsp_f.handle_callback(4, 5, 6)
     testcb.assert_has_calls([
-         mock.call(1, 2, 3),
-         mock.call(1, 2, 3),
-         mock.call(4, 5, 6),
+        mock.call(1, 2, 3),
+        mock.call(1, 2, 3),
+        mock.call(4, 5, 6),
     ])
 
 

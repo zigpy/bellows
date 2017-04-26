@@ -1,5 +1,4 @@
 import asyncio
-import os
 from unittest import mock
 
 import pytest
@@ -32,9 +31,11 @@ def _test_startup(app, nwk_type, auto_form=False, init=0):
     @asyncio.coroutine
     def mockezsp(*args, **kwargs):
         return [0, nwk_type]
+
     @asyncio.coroutine
     def mockinit(*args, **kwargs):
         return [init]
+
     app._ezsp._command = mockezsp
     app._ezsp.setConfigurationValue = mockezsp
     app._ezsp.networkInit = mockinit
@@ -207,8 +208,8 @@ def test_sequence(app):
 
 
 def test_add_device(app, ieee):
-    dev = app.add_device(ieee, 8)
-    dev2 = app.add_device(ieee, 9)
+    app.add_device(ieee, 8)
+    app.add_device(ieee, 9)
     assert app.get_device(ieee).nwk == 9
 
 

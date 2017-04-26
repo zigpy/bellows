@@ -1,3 +1,4 @@
+# flake8: noqa
 from . import closures
 from . import general
 from . import homeautomation

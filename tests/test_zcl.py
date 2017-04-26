@@ -173,7 +173,6 @@ def test_item_access_attributes(cluster):
         assert foundation is True
         assert command == 0
         rar5 = _mk_rar(5, b'Model')
-        rar99 = _mk_rar(99, None, 1)
         return [[rar5]]
 
     cluster.request = mockrequest

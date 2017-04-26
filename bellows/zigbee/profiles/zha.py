@@ -3,6 +3,7 @@ import enum
 
 PROFILE_ID = 260
 
+
 class DeviceType(enum.IntEnum):
     # Generic
     ON_OFF_SWITCH = 0x0000

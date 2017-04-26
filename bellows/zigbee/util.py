@@ -83,7 +83,7 @@ def retry(exceptions, retries=3, delay=0.1):
                 try:
                     r = yield from func(*args, **kwargs)
                     return r
-                except exceptions as e:
+                except exceptions:
                     if retries <= 1:
                         raise
                     retries -= 1

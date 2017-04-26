@@ -18,7 +18,8 @@ class Gateway(asyncio.Protocol):
 
     RESERVED = FLAG + ESCAPE + XON + XOFF + SUBSTITUTE + CANCEL
 
-    class Terminator: pass
+    class Terminator:
+        pass
 
     def __init__(self, application, connected_future=None):
         self._send_seq = 0

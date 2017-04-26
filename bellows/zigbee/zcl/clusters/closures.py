@@ -146,11 +146,11 @@ class WindowCovering(Cluster):
         0x0008: ('current_position_lift_percentage', t.uint8_t),
         0x0009: ('current_position_tilt_percentage', t.uint8_t),
         # Window Covering Settings
-        0x0010: ('installed_closed_limit_tilt_ddegree', t.uint16_t),
         0x0010: ('installed_open_limit_lift_cm', t.uint16_t),
         0x0011: ('installed_closed_limit_lift_cm', t.uint16_t),
         0x0012: ('installed_open_limit_tilt_ddegree', t.uint16_t),
-        0x0012: ('velocity_lift', t.uint16_t),
+        0x0013: ('installed_closed_limit_tilt_ddegree', t.uint16_t),
+        0x0014: ('velocity_lift', t.uint16_t),
         0x0015: ('acceleration_time_lift', t.uint16_t),
         0x0016: ('num_of_actuation_tilt', t.uint16_t),
         0x0017: ('window_covering_mode', t.uint8_t),  # bitmap8
