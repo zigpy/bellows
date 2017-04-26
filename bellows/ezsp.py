@@ -13,6 +13,7 @@ LOGGER = logging.getLogger(__name__)
 class EZSP:
 
     COMMANDS = COMMANDS
+    ezsp_version = 4
 
     def __init__(self):
         self._callbacks = {}
@@ -31,17 +32,31 @@ class EZSP:
     def reset(self):
         return self._gw.reset()
 
+    @asyncio.coroutine
+    def version(self, version):
+        result = yield from self._command('version', version)
+        if result[0] != version:
+            LOGGER.debug("Switching to version %d", result[0])
+            result = self._command('version', result[0])
+
+        return result
+
     def close(self):
         return self._gw.close()
 
     def _ezsp_frame(self, name, *args):
         c = self.COMMANDS[name]
         data = t.serialize(args, c[1])
-        return bytes([
+        frame = [
             self._seq & 0xff,
-            0,  # Frame control. TODO.
-            c[0],  # Frame ID
-        ]) + data
+            0,    # Frame control. TODO.
+            c[0]  # Frame ID
+        ]
+        if self.ezsp_version == 5:
+            frame.insert(1, 0xFF)  # Legacy Frame ID
+            frame.insert(1, 0x00)  # Ext frame control. TODO.
+
+        return bytes(frame) + data
 
     def _command(self, name, *args):
         LOGGER.debug("Send command %s", name)
@@ -141,6 +156,12 @@ class EZSP:
         data randomization removed.
         """
         sequence, frame_id, data = data[0], data[2], data[3:]
+        if frame_id == 0xFF:
+            frame_id = 0
+            if len(data) > 1:
+                frame_id = data[1]
+                data = data[2:]
+
         frame_name = self.COMMANDS_BY_ID[frame_id][0]
         LOGGER.debug(
             "Application frame %s (%s) received",
@@ -158,6 +179,9 @@ class EZSP:
             frame_name = self.COMMANDS_BY_ID[frame_id][0]
             result, data = t.deserialize(data, schema)
             self.handle_callback(frame_name, result)
+
+        if frame_id == 0x00:
+            self.ezsp_version = result[0]
 
     def add_callback(self, cb):
         id_ = hash(cb)

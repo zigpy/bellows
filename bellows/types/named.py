@@ -56,6 +56,16 @@ class EmberLibraryStatus(basic.uint8_t):
     pass
 
 
+class SecureEzspSecurityType(basic.uint32_t):
+    # Security type of the Secure EZSP Protocol.
+    pass
+
+
+class SecureEzspSecurityLevel(basic.uint8_t):
+    # Security level of the Secure EZSP Protocol.
+    pass
+
+
 class EmberGpSecurityLevel(basic.uint8_t):
     # The security level of the GPD.
     pass
@@ -63,6 +73,16 @@ class EmberGpSecurityLevel(basic.uint8_t):
 
 class EmberGpKeyType(basic.uint8_t):
     # The type of security key to use for the GPD.
+    pass
+
+
+class SecureEzspRandomNumber(basic.uint64_t):
+    # Randomly generated 64-bit number
+    pass
+
+
+class SecureEzspSessionId(basic.uint64_t):
+    # Generated 64-bit Session ID, using random numbers from Host and NCP.
     pass
 
 
@@ -209,8 +229,16 @@ class EzspConfigId(basic.uint8_t, enum.Enum):
     CONFIG_ZLL_GROUP_ADDRESSES = 0x2F
     # ZLL rssi threshold initial configuration.
     CONFIG_ZLL_RSSI_THRESHOLD = 0x30
+    # ??? - TODO.
+    CONFIG_RF4CE_PARING_TABLE_SIZE = 0x31
+    # ??? - TODO.
+    CONFIG_RF4CE_PENDING_OUTGOING_PACKET_TABLE_SIZE = 0x32
     # Toggles the mtorr flow control in the stack.
     CONFIG_MTORR_FLOW_CONTROL = 0x33
+    # Setting the retry queue size.
+    CONFIG_RETRY_QUEUE_SIZE = 0x34
+    # Setting the new broadcast entry threshold.
+    CONFIG_NEW_BROADCAST_ENTRY_THRESHOLD = 0x35
     # The length of time, in seconds, that a trust center will store a
     # transient link key that a device can use to join its network. A transient
     # key is added with a call to emberAddTransientLinkKey. After the transient
@@ -310,6 +338,8 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     # The GDP application specific user s join unti_VALUE_RF4CE_MSO_USER_STRING
     # 0x21 The MSO user string
     VALUE_RF4CE_GDP_APPLICATION_SPECIFIC_USER_STRING = 0x20
+    # The MSO user string
+    VALUE_RF4CE_MSO_USER_STRING = 0x21
     # The MSO binding recipient parameters
     VALUE_RF4CE_MSO_BINDING_RECIPIENT_PARAMETERS = 0x22
     # The NWK layer security frame counter value
@@ -324,6 +354,12 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     VALUE_RF4CE_SUPPORTED_DEVICE_TYPES_LIST2 = 0x27
     # The RF4CE profiles supported by the node
     VALUE_RF4CE_SUPPORTED_PROFILES_LIST2 = 0x28
+    # Enable or disable packet traffic arbitration.
+    VALUE_ENABLE_PTA = 0x31
+    # Set packet traffic arbitration configuration options.
+    VALUE_PTA_OPTIONS = 0x32
+    # Configure manufacturing library options(0-non-CSMA transmits,1-CSMA transmits).
+    VALUE_MFGLIB_OPTIONS = 0x33
 
 
 class EzspExtendedValueId(basic.uint8_t, enum.Enum):
@@ -604,6 +640,22 @@ class EzspStatus(basic.uint8_t, enum.Enum):
     ERROR_QUEUE_FULL = 0x41
     # The command has been filtered out by NCP.
     ERROR_COMMAND_FILTERED = 0x42
+    # EZSP Security Key is already set
+    EZSP_ERROR_SECURITY_KEY_ALREADY_SET = 0x43
+    # EZSP Security Type is invalid
+    EZSP_ERROR_SECURITY_TYPE_INVALID = 0x44
+    # EZSP Security Parameters are invalid
+    EZSP_ERROR_SECURITY_PARAMETERS_INVALID = 0x45
+    # EZSP Security Parameters are already set
+    EZSP_ERROR_SECURITY_PARAMETERS_ALREADY_SET = 0x46
+    # EZSP Security Key is not set
+    EZSP_ERROR_SECURITY_KEY_NOT_SET = 0x47
+    # EZSP Security Parameters are not set
+    EZSP_ERROR_SECURITY_PARAMETERS_NOT_SET = 0x48
+    # Received frame with unsupported control byte
+    EZSP_ERROR_UNSUPPORTED_CONTROL = 0x49
+    # Received frame is unsecure, when security is established
+    EZSP_ERROR_UNSECURE_FRAME = 0x4A
     # Incompatible ASH version
     ASH_ERROR_VERSION = 0x50
     # Exceeded max ACK timeouts
@@ -1399,8 +1451,36 @@ class EmberCounterType(basic.uint8_t, enum.Enum):
     COUNTER_ALLOCATE_PACKET_BUFFER_FAILURE = 27
     # The number of relayed unicast packets.
     COUNTER_RELAYED_UNICAST = 28
+    # The number of times we dropped a packet due to reaching
+    # the preset PHY to MAC queue limit (emMaxPhyToMacQueueLength).
+    EMBER_COUNTER_PHY_TO_MAC_QUEUE_LIMIT_REACHED = 29
+    # The number of times we dropped a packet due to the
+    # packet-validate library checking a packet and rejecting it
+    # due to length or other formatting problems.
+    EMBER_COUNTER_PACKET_VALIDATE_LIBRARY_DROPPED_COUNT = 30
+    # The number of times the NWK retry queue is full and a
+    # new message failed to be added.
+    EMBER_COUNTER_TYPE_NWK_RETRY_OVERFLOW = 31
+    # The number of times the PHY layer was unable to transmit
+    # due to a failed CCA.
+    EMBER_COUNTER_PHY_CCA_FAIL_COUNT = 32
+    # The number of times a NWK broadcast was dropped because
+    # the broadcast table was full.
+    EMBER_COUNTER_BROADCAST_TABLE_FULL = 33
+    # The number of low priority packet traffic arbitration requests.
+    EMBER_COUNTER_PTA_LO_PRI_REQUESTED = 34
+    # The number of high priority packet traffic arbitration requests.
+    EMBER_COUNTER_PTA_HI_PRI_REQUESTED = 35
+    # The number of low priority packet traffic arbitration requests denied.
+    EMBER_COUNTER_PTA_LO_PRI_DENIED = 36
+    # The number of high priority packet traffic arbitration requests denied.
+    EMBER_COUNTER_PTA_HI_PRI_DENIED = 37
+    # The number of aborted low priority packet traffic arbitration transmissions.
+    EMBER_COUNTER_PTA_LO_PRI_TX_ABORTED = 38
+    # The number of aborted high priority packet traffic arbitration transmissions.
+    EMBER_COUNTER_PTA_HI_PRI_TX_ABORTED = 39
     # A placeholder giving the number of Ember counter types.
-    COUNTER_TYPE_COUNT = 29
+    COUNTER_TYPE_COUNT = 40
 
 
 class EmberJoinMethod(basic.uint8_t, enum.Enum):
