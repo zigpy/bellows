@@ -192,16 +192,18 @@ def test_callback_exc(ezsp_f):
 
 
 def test_version_5(ezsp_f):
-    loop = asyncio.get_event_loop()
     ezsp_f._gw = mock.MagicMock()
 
     ezsp_f.frame_received(b'\x00\x00\xff\x00\x00\x05\x05\x06')
     assert ezsp_f.ezsp_version == 5
 
     ezsp_f.getValue(1)
-    assert ezsp_f._gw.data.call_count == 1
+    ezsp_f._gw.data.assert_called_once_with(bytes([0x00, 0x00, 0xFF, 0x00, 0xAA, 0x01]))
 
-    @asyncio.coroutine
+
+def test_change_version(ezsp_f):
+    loop = asyncio.get_event_loop()
+
     def mockcommand(name, *args):
         assert name == 'version'
         ezsp_f.frame_received(b'\x01\x00\x1b')
@@ -210,4 +212,4 @@ def test_version_5(ezsp_f):
         return fut
 
     ezsp_f._command = mockcommand
-    loop.run_until_complete(ezsp_f.version(2))
+    loop.run_until_complete(ezsp_f.version())

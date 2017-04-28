@@ -33,13 +33,12 @@ class EZSP:
         return self._gw.reset()
 
     @asyncio.coroutine
-    def version(self, version):
+    def version(self):
+        version = self.ezsp_version
         result = yield from self._command('version', version)
         if result[0] != version:
-            LOGGER.debug("Switching to version %d", result[0])
-            result = self._command('version', result[0])
-
-        return result
+            LOGGER.debug("Switching to eszp version %d", result[0])
+            yield from self._command('version', result[0])
 
     def close(self):
         return self._gw.close()
