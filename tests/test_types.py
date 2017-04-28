@@ -59,3 +59,7 @@ def test_struct():
     r = repr(ts)
     assert 'TestStruct' in r
     assert r.startswith('<') and r.endswith('>')
+
+
+def test_str():
+    assert str(t.EzspStatus.deserialize(b'\0')[0]) == 'EzspStatus.SUCCESS'

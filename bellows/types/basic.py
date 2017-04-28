@@ -9,7 +9,8 @@ class int_t(int):
 
     @classmethod
     def deserialize(cls, data):
-        r = cls.from_bytes(data[:cls._size], 'little', signed=cls._signed)
+        # Work around https://bugs.python.org/issue23640
+        r = cls(int.from_bytes(data[:cls._size], 'little', signed=cls._signed))
         data = data[cls._size:]
         return r, data
 
