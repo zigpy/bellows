@@ -641,21 +641,21 @@ class EzspStatus(basic.uint8_t, enum.Enum):
     # The command has been filtered out by NCP.
     ERROR_COMMAND_FILTERED = 0x42
     # EZSP Security Key is already set
-    EZSP_ERROR_SECURITY_KEY_ALREADY_SET = 0x43
+    ERROR_SECURITY_KEY_ALREADY_SET = 0x43
     # EZSP Security Type is invalid
-    EZSP_ERROR_SECURITY_TYPE_INVALID = 0x44
+    ERROR_SECURITY_TYPE_INVALID = 0x44
     # EZSP Security Parameters are invalid
-    EZSP_ERROR_SECURITY_PARAMETERS_INVALID = 0x45
+    ERROR_SECURITY_PARAMETERS_INVALID = 0x45
     # EZSP Security Parameters are already set
-    EZSP_ERROR_SECURITY_PARAMETERS_ALREADY_SET = 0x46
+    ERROR_SECURITY_PARAMETERS_ALREADY_SET = 0x46
     # EZSP Security Key is not set
-    EZSP_ERROR_SECURITY_KEY_NOT_SET = 0x47
+    ERROR_SECURITY_KEY_NOT_SET = 0x47
     # EZSP Security Parameters are not set
-    EZSP_ERROR_SECURITY_PARAMETERS_NOT_SET = 0x48
+    ERROR_SECURITY_PARAMETERS_NOT_SET = 0x48
     # Received frame with unsupported control byte
-    EZSP_ERROR_UNSUPPORTED_CONTROL = 0x49
+    ERROR_UNSUPPORTED_CONTROL = 0x49
     # Received frame is unsecure, when security is established
-    EZSP_ERROR_UNSECURE_FRAME = 0x4A
+    ERROR_UNSECURE_FRAME = 0x4A
     # Incompatible ASH version
     ASH_ERROR_VERSION = 0x50
     # Exceeded max ACK timeouts
@@ -1453,32 +1453,32 @@ class EmberCounterType(basic.uint8_t, enum.Enum):
     COUNTER_RELAYED_UNICAST = 28
     # The number of times we dropped a packet due to reaching
     # the preset PHY to MAC queue limit (emMaxPhyToMacQueueLength).
-    EMBER_COUNTER_PHY_TO_MAC_QUEUE_LIMIT_REACHED = 29
+    COUNTER_PHY_TO_MAC_QUEUE_LIMIT_REACHED = 29
     # The number of times we dropped a packet due to the
     # packet-validate library checking a packet and rejecting it
     # due to length or other formatting problems.
-    EMBER_COUNTER_PACKET_VALIDATE_LIBRARY_DROPPED_COUNT = 30
+    COUNTER_PACKET_VALIDATE_LIBRARY_DROPPED_COUNT = 30
     # The number of times the NWK retry queue is full and a
     # new message failed to be added.
-    EMBER_COUNTER_TYPE_NWK_RETRY_OVERFLOW = 31
+    COUNTER_TYPE_NWK_RETRY_OVERFLOW = 31
     # The number of times the PHY layer was unable to transmit
     # due to a failed CCA.
-    EMBER_COUNTER_PHY_CCA_FAIL_COUNT = 32
+    COUNTER_PHY_CCA_FAIL_COUNT = 32
     # The number of times a NWK broadcast was dropped because
     # the broadcast table was full.
-    EMBER_COUNTER_BROADCAST_TABLE_FULL = 33
+    COUNTER_BROADCAST_TABLE_FULL = 33
     # The number of low priority packet traffic arbitration requests.
-    EMBER_COUNTER_PTA_LO_PRI_REQUESTED = 34
+    COUNTER_PTA_LO_PRI_REQUESTED = 34
     # The number of high priority packet traffic arbitration requests.
-    EMBER_COUNTER_PTA_HI_PRI_REQUESTED = 35
+    COUNTER_PTA_HI_PRI_REQUESTED = 35
     # The number of low priority packet traffic arbitration requests denied.
-    EMBER_COUNTER_PTA_LO_PRI_DENIED = 36
+    COUNTER_PTA_LO_PRI_DENIED = 36
     # The number of high priority packet traffic arbitration requests denied.
-    EMBER_COUNTER_PTA_HI_PRI_DENIED = 37
+    COUNTER_PTA_HI_PRI_DENIED = 37
     # The number of aborted low priority packet traffic arbitration transmissions.
-    EMBER_COUNTER_PTA_LO_PRI_TX_ABORTED = 38
+    COUNTER_PTA_LO_PRI_TX_ABORTED = 38
     # The number of aborted high priority packet traffic arbitration transmissions.
-    EMBER_COUNTER_PTA_HI_PRI_TX_ABORTED = 39
+    COUNTER_PTA_HI_PRI_TX_ABORTED = 39
     # A placeholder giving the number of Ember counter types.
     COUNTER_TYPE_COUNT = 40
 
