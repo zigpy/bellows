@@ -32,6 +32,7 @@ class PersistingListener:
         self._create_table_devices()
         self._create_table_endpoints()
         self._create_table_clusters()
+        self._create_table_output_clusters()
         self._create_table_attributes()
 
         self._application = application
@@ -84,6 +85,14 @@ class PersistingListener:
             "ieee, endpoint_id, cluster",
         )
 
+    def _create_table_output_clusters(self):
+        self._create_table("output_clusters", "(ieee ieee, endpoint_id, cluster)")
+        self._create_index(
+            "output_cluster_idx",
+            "output_clusters",
+            "ieee, endpoint_id, cluster",
+        )
+
     def _create_table_attributes(self):
         self._create_table(
             "attributes",
@@ -98,6 +107,7 @@ class PersistingListener:
     def _remove_device(self, device):
         self.execute("DELETE FROM attributes WHERE ieee = ?", (device.ieee, ))
         self.execute("DELETE FROM clusters WHERE ieee = ?", (device.ieee, ))
+        self.execute("DELETE FROM output_clusters WHERE ieee = ?", (device.ieee, ))
         self.execute("DELETE FROM endpoints WHERE ieee = ?", (device.ieee, ))
         self.execute("DELETE FROM devices WHERE ieee = ?", (device.ieee, ))
         self._db.commit()
@@ -110,7 +120,8 @@ class PersistingListener:
             if epid == 0:
                 # ZDO
                 continue
-            self._save_clusters(ep)
+            self._save_input_clusters(ep)
+            self._save_output_clusters(ep)
         self._db.commit()
 
     def _save_endpoints(self, device):
@@ -131,11 +142,20 @@ class PersistingListener:
         self._cursor.executemany(q, endpoints)
         self._db.commit()
 
-    def _save_clusters(self, endpoint):
+    def _save_input_clusters(self, endpoint):
         q = "INSERT OR REPLACE INTO clusters VALUES (?, ?, ?)"
         clusters = [
             (endpoint.device.ieee, endpoint.endpoint_id, cluster.cluster_id)
-            for cluster in endpoint.clusters.values()
+            for cluster in endpoint.in_clusters.values()
+        ]
+        self._cursor.executemany(q, clusters)
+        self._db.commit()
+
+    def _save_output_clusters(self, endpoint):
+        q = "INSERT OR REPLACE INTO output_clusters VALUES (?, ?, ?)"
+        clusters = [
+            (endpoint.device.ieee, endpoint.endpoint_id, cluster.cluster_id)
+            for cluster in endpoint.out_clusters.values()
         ]
         self._cursor.executemany(q, clusters)
         self._db.commit()
@@ -171,12 +191,17 @@ class PersistingListener:
         for (ieee, endpoint_id, cluster) in self._scan("clusters"):
             dev = self._application.get_device(ieee)
             ep = dev.endpoints[endpoint_id]
-            ep.add_cluster(cluster)
+            ep.add_input_cluster(cluster)
+
+        for (ieee, endpoint_id, cluster) in self._scan("output_clusters"):
+            dev = self._application.get_device(ieee)
+            ep = dev.endpoints[endpoint_id]
+            ep.add_output_cluster(cluster)
 
         for (ieee, endpoint_id, cluster, attrid, value) in self._scan("attributes"):
             dev = self._application.get_device(ieee)
             ep = dev.endpoints[endpoint_id]
-            clus = ep.clusters[cluster]
+            clus = ep.in_clusters[cluster]
             clus._attr_cache[attrid] = value
 
 

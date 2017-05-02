@@ -32,7 +32,8 @@ def test_database(tmpdir, ieee):
     ep = dev.add_endpoint(2)
     ep.profile_id = 260
     ep.device_type = 0xfffd  # Invalid
-    clus = ep.add_cluster(0)
+    clus = ep.add_input_cluster(0)
+    ep.add_output_cluster(1)
     ep = dev.add_endpoint(3)
     ep.profile_id = 49246
     ep.device_type = profiles.zll.DeviceType.COLOR_LIGHT
@@ -46,7 +47,8 @@ def test_database(tmpdir, ieee):
     dev = app2.get_device(ieee)
     assert dev.endpoints[1].device_type == profiles.zha.DeviceType.PUMP
     assert dev.endpoints[2].device_type == 0xfffd
-    assert dev.endpoints[2].clusters[0]._attr_cache[0] == 99
+    assert dev.endpoints[2].in_clusters[0]._attr_cache[0] == 99
+    assert dev.endpoints[2].out_clusters[1].cluster_id == 1
     assert dev.endpoints[3].device_type == profiles.zll.DeviceType.COLOR_LIGHT
 
     app._handle_leave(99, ieee)
