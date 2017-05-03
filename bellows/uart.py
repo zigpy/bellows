@@ -77,7 +77,7 @@ class Gateway(asyncio.Protocol):
             LOGGER.error("UNKNOWN FRAME RECEIVED: %r", data)  # TODO
 
     def data_frame_received(self, data):
-        LOGGER.debug("Data frame: %s", data.hex())
+        LOGGER.debug("Data frame: %s", binascii.hexlify(data))
         seq = (data[0] & 0b01110000) >> 4
         self._rec_seq = (seq + 1) % 8
         self.write(self._ack_frame())
@@ -85,28 +85,28 @@ class Gateway(asyncio.Protocol):
         self._application.frame_received(self._randomize(data[1:-3]))
 
     def ack_frame_received(self, data):
-        LOGGER.debug("ACK frame: %s", data.hex())
+        LOGGER.debug("ACK frame: %s", binascii.hexlify(data))
         self._handle_ack(data[0])
 
     def nak_frame_received(self, data):
-        LOGGER.debug("NAK frame: %s", data.hex())
+        LOGGER.debug("NAK frame: %s", binascii.hexlify(data))
         self._handle_nak(data[0])
 
     def rst_frame_received(self, data):
-        LOGGER.debug("RST frame: %s", data.hex())
+        LOGGER.debug("RST frame: %s", binascii.hexlify(data))
 
     def rstack_frame_received(self, data):
-        LOGGER.debug("RSTACK frame: %s", data.hex())
+        LOGGER.debug("RSTACK frame: %s", binascii.hexlify(data))
         if self._reset_future is None:
             LOGGER.warn("Reset future is None")
             return
         self._reset_future.set_result(True)
 
     def error_frame_received(self, data):
-        LOGGER.debug("Error frame: %s", data.hex())
+        LOGGER.debug("Error frame: %s", binascii.hexlify(data))
 
     def write(self, data):
-        LOGGER.debug("Sending: %s", data.hex())
+        LOGGER.debug("Sending: %s", binascii.hexlify(data))
         self._transport.write(data)
 
     def close(self):
