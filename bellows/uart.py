@@ -32,12 +32,14 @@ class Gateway(asyncio.Protocol):
         self._pending = (-1, None)
 
     def connection_made(self, transport):
+        """Callback when the uart is connected"""
         self._transport = transport
         if self._connected_future is not None:
             self._connected_future.set_result(True)
             asyncio.async(self._send_task())
 
     def data_received(self, data):
+        """Callback when there is data received from the uart"""
         # TODO: Fix this handling for multiple instances of the characters
         # If a Cancel Byte or Substitute Byte is received, the bytes received
         # so far are discarded. In the case of a Substitute Byte, subsequent
@@ -55,12 +57,14 @@ class Gateway(asyncio.Protocol):
             self.frame_received(frame)
 
     def _extract_frame(self, data):
+        """Extract a frame from the data buffer"""
         if self.FLAG in data:
             place = data.find(self.FLAG)
             return self._unstuff(data[:place + 1]), data[place + 1:]
         return None, data
 
     def frame_received(self, data):
+        """Frame receive handler"""
         if (data[0] & 0b10000000) == 0:
             self.data_frame_received(data)
         elif (data[0] & 0b11100000) == 0b10000000:
@@ -77,6 +81,7 @@ class Gateway(asyncio.Protocol):
             LOGGER.error("UNKNOWN FRAME RECEIVED: %r", data)  # TODO
 
     def data_frame_received(self, data):
+        """Data frame receive handler"""
         LOGGER.debug("Data frame: %r", data)
         seq = (data[0] & 0b01110000) >> 4
         self._rec_seq = (seq + 1) % 8
@@ -85,17 +90,21 @@ class Gateway(asyncio.Protocol):
         self._application.frame_received(self._randomize(data[1:-3]))
 
     def ack_frame_received(self, data):
+        """Acknowledgement frame receive handler"""
         LOGGER.debug("ACK frame: %r", data)
         self._handle_ack(data[0])
 
     def nak_frame_received(self, data):
+        """Negative acknowledgement frame receive handler"""
         LOGGER.debug("NAK frame: %r", data)
         self._handle_nak(data[0])
 
     def rst_frame_received(self, data):
+        """Reset frame handler"""
         LOGGER.debug("RST frame: %r", data)
 
     def rstack_frame_received(self, data):
+        """Reset acknowledgement frame receive handler"""
         LOGGER.debug("RSTACK frame: %r", data)
         if self._reset_future is None:
             LOGGER.warn("Reset future is None")
@@ -103,9 +112,11 @@ class Gateway(asyncio.Protocol):
         self._reset_future.set_result(True)
 
     def error_frame_received(self, data):
+        """Error frame receive handler"""
         LOGGER.debug("Error frame: %r", data)
 
     def write(self, data):
+        """Send data to the uart"""
         LOGGER.debug("Sending: %r", data)
         self._transport.write(data)
 
@@ -114,6 +125,7 @@ class Gateway(asyncio.Protocol):
         self._transport.close()
 
     def reset(self):
+        """Sends a reset frame"""
         # TODO: It'd be nice to delete self._reset_future.
         if self._reset_future is not None:
             raise TypeError("reset can only be called on a new connection")
@@ -124,6 +136,7 @@ class Gateway(asyncio.Protocol):
 
     @asyncio.coroutine
     def _send_task(self):
+        """Send queue handler"""
         while True:
             item = yield from self._sendq.get()
             if item is self.Terminator:
@@ -138,33 +151,39 @@ class Gateway(asyncio.Protocol):
                 success = yield from self._pending[1]
 
     def _handle_ack(self, control):
+        """Handle an acknowledgement frame"""
         ack = ((control & 0b00000111) - 1) % 8
         if ack == self._pending[0]:
             pending, self._pending = self._pending, (-1, None)
             pending[1].set_result(True)
 
     def _handle_nak(self, control):
+        """Handle negative acknowledgment frame"""
         nak = control & 0b00000111
         if nak == self._pending[0]:
             self._pending[1].set_result(False)
 
     def data(self, data):
+        """Send a data frame"""
         seq = self._send_seq
         self._send_seq = (seq + 1) % 8
         self._sendq.put_nowait((data, seq))
 
     def _data_frame(self, data, seq, rxmit):
+        """Construct a data frame"""
         assert 0 <= seq <= 7
         assert 0 <= rxmit <= 1
         control = (seq << 4) | (rxmit << 3) | self._rec_seq
         return self._frame(bytes([control]), self._randomize(data))
 
     def _ack_frame(self):
+        """Construct a acknowledgement frame"""
         assert 0 <= self._rec_seq < 8
         control = bytes([0b10000000 | (self._rec_seq & 0b00000111)])
         return self._frame(control, b'')
 
     def _rst_frame(self):
+        """Construct a reset frame"""
         return self.CANCEL + self._frame(b'\xC0', b'')
 
     def _frame(self, control, data):
