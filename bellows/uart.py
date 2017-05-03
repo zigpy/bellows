@@ -138,39 +138,33 @@ class Gateway(asyncio.Protocol):
                 success = yield from self._pending[1]
 
     def _handle_ack(self, control):
-        """Handle an acknowledgement frame"""
         ack = ((control & 0b00000111) - 1) % 8
         if ack == self._pending[0]:
             pending, self._pending = self._pending, (-1, None)
             pending[1].set_result(True)
 
     def _handle_nak(self, control):
-        """Handle negative acknowledgment frame"""
         nak = control & 0b00000111
         if nak == self._pending[0]:
             self._pending[1].set_result(False)
 
     def data(self, data):
-        """Send a data frame"""
         seq = self._send_seq
         self._send_seq = (seq + 1) % 8
         self._sendq.put_nowait((data, seq))
 
     def _data_frame(self, data, seq, rxmit):
-        """Construct a data frame"""
         assert 0 <= seq <= 7
         assert 0 <= rxmit <= 1
         control = (seq << 4) | (rxmit << 3) | self._rec_seq
         return self._frame(bytes([control]), self._randomize(data))
 
     def _ack_frame(self):
-	"""Construct a acknowledgement frame"""
         assert 0 <= self._rec_seq < 8
         control = bytes([0b10000000 | (self._rec_seq & 0b00000111)])
         return self._frame(control, b'')
 
     def _rst_frame(self):
-        """Construct a reset frame"""
         return self.CANCEL + self._frame(b'\xC0', b'')
 
     def _frame(self, control, data):
