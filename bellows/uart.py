@@ -104,7 +104,7 @@ class Gateway(asyncio.Protocol):
         LOGGER.debug("RST frame: %r", data)
 
     def rstack_frame_received(self, data):
-        """Reset stack frame receive handler"""
+        """Reset acknowledgement frame receive handler"""
         LOGGER.debug("RSTACK frame: %r", data)
         if self._reset_future is None:
             LOGGER.warn("Reset future is None")
