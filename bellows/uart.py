@@ -4,6 +4,8 @@ import logging
 import serial_asyncio
 import serial
 
+import bellows.types as t
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -105,11 +107,13 @@ class Gateway(asyncio.Protocol):
 
     def rstack_frame_received(self, data):
         """Reset acknowledgement frame receive handler"""
-        LOGGER.debug("RSTACK frame: %s", binascii.hexlify(data))
-        if self._reset_future is None:
-            LOGGER.warn("Reset future is None")
-            return
-        self._reset_future.set_result(True)
+        LOGGER.debug("RSTACK Version: %d Reason: %s frame: %s", data[1], t.NcpResetCode(data[2]).name, binascii.hexlify(data))
+        # Only handle the frame, if it is a reply to our reset request
+        if t.NcpResetCode(data[2]) == t.NcpResetCode.RESET_SOFTWARE:
+            if self._reset_future is None:
+                LOGGER.warn("Reset future is None")
+                return
+            self._reset_future.set_result(True)
 
     def error_frame_received(self, data):
         """Error frame receive handler"""
