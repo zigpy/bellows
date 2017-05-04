@@ -98,6 +98,12 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             return c
 
     def request(self, general, command_id, schema, *args):
+        if len(schema) != len(args):
+            self.error("Schema and args lengths do not match")
+            error = asyncio.Future()
+            error.set_exception(ValueError("Missing parameters for request, expected %d argument(s)" % len(schema)))
+            return error
+
         aps = self._endpoint.get_aps(self.cluster_id)
         if general:
             frame_control = 0x00
@@ -232,6 +238,10 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
     @property
     def endpoint(self):
         return self._endpoint
+
+    @property
+    def commands(self):
+        return list(self._server_command_idx.keys())
 
     def _update_attribute(self, attrid, value):
         self._attr_cache[attrid] = value

@@ -223,5 +223,14 @@ def test_command_invalid_attr(cluster):
         cluster.no_such_command()
 
 
+def test_invalid_arguments_cluster_command(cluster):
+    res = cluster.command(0x00, 1)
+    assert type(res.exception()) == ValueError
+
+
 def test_name(cluster):
     assert cluster.name == 'Basic'
+
+
+def test_commands(cluster):
+    assert cluster.commands == ["reset_fact_default"]
