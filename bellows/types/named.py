@@ -229,9 +229,11 @@ class EzspConfigId(basic.uint8_t, enum.Enum):
     CONFIG_ZLL_GROUP_ADDRESSES = 0x2F
     # ZLL rssi threshold initial configuration.
     CONFIG_ZLL_RSSI_THRESHOLD = 0x30
-    # ??? - TODO.
-    CONFIG_RF4CE_PARING_TABLE_SIZE = 0x31
-    # ??? - TODO.
+    # The maximum number of pairings supported by the stack. Controllers
+    # must support at least one pairing table entry while targets must
+    # support at least five.
+    CONFIG_RF4CE_PAIRING_TABLE_SIZE = 0x31
+    # The maximum number of outgoing RF4CE packets supported by the stack.
     CONFIG_RF4CE_PENDING_OUTGOING_PACKET_TABLE_SIZE = 0x32
     # Toggles the mtorr flow control in the stack.
     CONFIG_MTORR_FLOW_CONTROL = 0x33
