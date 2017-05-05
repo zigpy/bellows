@@ -61,6 +61,15 @@ def test_add_cluster(ep):
     assert 0 in ep.clusters
 
 
+def test_multiple_add_cluster(ep):
+    ep.add_cluster(0)
+    assert ep.clusters[0].cluster_id is 0
+    ep.clusters[0].cluster_id = 1
+    assert ep.clusters[0].cluster_id is 1
+    ep.add_cluster(0)
+    assert ep.clusters[0].cluster_id is 1
+
+
 def test_get_aps():
     app_mock = mock.MagicMock()
     ieee = t.EmberEUI64(map(t.uint8_t, [0, 1, 2, 3, 4, 5, 6, 7]))
