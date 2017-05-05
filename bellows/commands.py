@@ -18,6 +18,7 @@ COMMANDS = {
     'setGpioRadioPowerMask': (0xAE, (t.uint32_t, ), ()),
     'setCtune': (0xF5, (t.uint16_t, ), ()),
     'getCtune': (0xF6, (), (t.uint16_t, )),
+    'setChannelMap': (0xF7, (t.uint8_t, t.uint8_t), ()),
     # 5. Utilities Frames
     'nop': (0x05, (), ()),
     'echo': (0x81, (t.LVBytes, ), (t.LVBytes, )),
@@ -139,6 +140,10 @@ COMMANDS = {
     'zigbeeKeyEstablishmentHandler': (0x9B, (), (t.EmberEUI64, t.EmberKeyStatus)),
     'addTransientLinkKey': (0xAF, (t.EmberEUI64, t.EmberKeyData), (t.EmberStatus, )),
     'clearTransientLinkKeys': (0x6B, (), ()),
+    'setSecurityKey': (0xCA, (t.EmberKeyData, t.SecureEzspSecurityType), (t.EzspStatus, )),
+    'setSecurityParameters': (0xCB, (t.SecureEzspSecurityLevel, t.SecureEzspRandomNumber), (t.EzspStatus, t.SecureEzspRandomNumber)),
+    'resetToFactoryDefaults': (0xCC, (), (t.EzspStatus, )),
+    'getSecurityKeyStatus': (0xCD, (), (t.EzspStatus, t.SecureEzspSecurityType)),
     # 10. Trust Center Frames
     'trustCenterJoinHandler': (0x24, (), (t.EmberNodeId, t.EmberEUI64, t.EmberDeviceUpdate, t.EmberJoinDecision, t.EmberNodeId)),
     'broadcastNextNetworkKey': (0x73, (t.EmberKeyData, ), (t.EmberStatus, )),
