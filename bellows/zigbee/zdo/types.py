@@ -121,9 +121,9 @@ CLUSTERS = {
     0x0022: ('Unind_req', (('SrcAddress', t.EmberEUI64), ('SrcEndpoint', t.uint8_t), ('ClusterID', t.uint16_t), ('DstAddress', MultiAddress))),
     # Network Management Server Services Requests
     # ... TODO optional stuff ...
+    0x0034: ('Mgmt_Leave_reg', (('DeviceAddress', t.EmberEUI64), ('Options', t.uint8_t))),  # bitmap8
     0x0036: ('Mgmt_Permit_Joining_req', (('PermitDuration', t.uint8_t), ('TC_Significant', t.Bool))),
     # ... TODO optional stuff ...
-
     # Responses
     # Device and Service Discovery Server Responses
     0x8000: ('NWK_addr_rsp', (STATUS, IEEE, NWK, ('NumAssocDev', t.uint8_t), ('StartIndex', t.uint8_t), ('NWKAddressAssocDevList', t.List(t.uint16_t)))),
@@ -154,6 +154,7 @@ CLUSTERS = {
     # ... TODO optional stuff ...
     # Network Management Server Services Responses
     # ... TODO optional stuff ...
+    0x8034: ('Mgmt_Leave_rsp', (STATUS, )),
     0x8036: ('Mgmt_Permit_Joining_rsp', (STATUS, )),
     # ... TODO optional stuff ...
 }
