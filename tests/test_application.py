@@ -5,6 +5,7 @@ import pytest
 
 import bellows.types as t
 from bellows.zigbee.application import ControllerApplication
+from bellows.zigbee import device
 
 
 @pytest.fixture
@@ -189,6 +190,13 @@ def test_join_handler(app, ieee):
         [1, ieee, None, None, None],
     )
     assert ieee in app.devices
+
+
+def test_join_handler_skip(app, ieee):
+    app._handle_join(1, ieee, None, None, None)
+    app.devices[ieee].status = device.Status.ZDO_INIT
+    app._handle_join(1, ieee, None, None, None)
+    assert app.devices[ieee].status == device.Status.ZDO_INIT
 
 
 def test_leave_handler(app, ieee):

@@ -89,3 +89,12 @@ def test_endpoint_getitem(dev):
 
     with pytest.raises(KeyError):
         dev[1]
+
+
+def test_init_done(dev):
+    assert dev.status == device.Status.NEW
+    assert dev.init_done() is False
+    dev.status = device.Status.ZDO_INIT
+    assert dev.init_done() is True
+    dev.add_endpoint(1)
+    assert dev.init_done() is False

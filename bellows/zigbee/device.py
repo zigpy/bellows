@@ -34,24 +34,37 @@ class Device(bellows.zigbee.util.LocalLogMixin):
 
     @asyncio.coroutine
     def initialize(self):
-        self.info("Discovering endpoints")
-        epr = yield from self.zdo.request(0x0005, self._nwk)
-        if epr[0] != 0:
-            # TODO: Handle
-            self.warn("Failed ZDO request during device initialization")
-            return
+        if self.status == Status.NEW:
+            self.info("Discovering endpoints")
+            epr = yield from self.zdo.request(0x0005, self._nwk)
+            if epr[0] != 0:
+                # TODO: Handle
+                self.warn("Failed ZDO request during device initialization")
+                return
 
-        self.info("Discovered endpoints: %s", epr[2])
+            self.info("Discovered endpoints: %s", epr[2])
 
-        for endpoint_id in epr[2]:
-            self.add_endpoint(endpoint_id)
+            for endpoint_id in epr[2]:
+                self.add_endpoint(endpoint_id)
 
-        self.status = Status.ZDO_INIT
+            self.status = Status.ZDO_INIT
 
         for endpoint_id in epr[2]:
             yield from self.endpoints[endpoint_id].initialize()
 
         self._application.listener_event('device_initialized', self)
+
+    def init_done(self):
+        if self.status != Status.ZDO_INIT:
+            return False
+
+        for endpoint_id in self.endpoints:
+            if endpoint_id == 0:
+                continue
+            if self.endpoints[endpoint_id].status != Status.ZDO_INIT:
+                return False
+
+        return True
 
     def add_endpoint(self, endpoint_id):
         ep = bellows.zigbee.endpoint.Endpoint(self, endpoint_id)
