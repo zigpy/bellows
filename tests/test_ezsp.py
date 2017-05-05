@@ -40,7 +40,7 @@ def test_close(ezsp_f):
 
 
 def test_attr(ezsp_f):
-    m = ezsp_f.version
+    m = ezsp_f.getValue
     assert isinstance(m, functools.partial)
     assert callable(m)
 
@@ -189,3 +189,27 @@ def test_callback_exc(ezsp_f):
     ezsp_f.add_callback(testcb)
     ezsp_f.handle_callback(1)
     assert testcb.call_count == 1
+
+
+def test_version_5(ezsp_f):
+    ezsp_f._gw = mock.MagicMock()
+
+    ezsp_f.frame_received(b'\x00\x00\xff\x00\x00\x05\x05\x06')
+    assert ezsp_f.ezsp_version == 5
+
+    ezsp_f.getValue(1)
+    ezsp_f._gw.data.assert_called_once_with(bytes([0x00, 0x00, 0xFF, 0x00, 0xAA, 0x01]))
+
+
+def test_change_version(ezsp_f):
+    loop = asyncio.get_event_loop()
+
+    def mockcommand(name, *args):
+        assert name == 'version'
+        ezsp_f.frame_received(b'\x01\x00\x1b')
+        fut = asyncio.Future()
+        fut.set_result([5])
+        return fut
+
+    ezsp_f._command = mockcommand
+    loop.run_until_complete(ezsp_f.version())

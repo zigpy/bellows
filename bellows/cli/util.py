@@ -93,7 +93,7 @@ def setup(dev, cbh=None, configure=True):
     yield from s.connect(dev)
     LOGGER.debug("Connected. Resetting.")
     yield from s.reset()
-    yield from s.version(4)
+    yield from s.version()
 
     @asyncio.coroutine
     def cfg(config_id, value):
