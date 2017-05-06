@@ -107,9 +107,10 @@ class Gateway(asyncio.Protocol):
 
     def rstack_frame_received(self, data):
         """Reset acknowledgement frame receive handler"""
-        LOGGER.debug("RSTACK Version: %d Reason: %s frame: %s", data[1], t.NcpResetCode(data[2]).name, binascii.hexlify(data))
+        code = t.NcpResetCode(data[2])
+        LOGGER.debug("RSTACK Version: %d Reason: %s frame: %s", data[1], code.name, binascii.hexlify(data))
         # Only handle the frame, if it is a reply to our reset request
-        if t.NcpResetCode(data[2]) == t.NcpResetCode.RESET_SOFTWARE:
+        if code is t.NcpResetCode.RESET_SOFTWARE:
             if self._reset_future is None:
                 LOGGER.warn("Reset future is None")
                 return
