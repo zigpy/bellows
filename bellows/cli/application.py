@@ -182,7 +182,7 @@ def read_attribute(ctx, attribute):
     v = yield from cluster.read_attributes([attribute])
     if not v:
         click.echo("Received empty response")
-    if attribute not in v[0]:
+    elif attribute not in v[0]:
         click.echo("Attribute %s not successful. Status=%s" % (
             attribute, v[1][attribute]
         ))
