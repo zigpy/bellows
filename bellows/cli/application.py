@@ -103,16 +103,16 @@ def endpoints(ctx):
     """List endpoints on a device"""
     app = ctx.obj['app']
     node = ctx.obj['node']
-    if node in app.devices:
-        dev = app.devices[node]
 
-        v = yield from dev.zdo.request(0x0005, dev._nwk)
-        if v[0] != 0:
-            click.echo("Non-success response: %s" % (v, ))
-        else:
-            click.echo(v[2])
-    else:
+    dev = util.get_device(app, node)
+    if dev is None:
         click.echo("Device %s is not in the device database" % node)
+
+    v = yield from dev.zdo.request(0x0005, dev._nwk)
+    if v[0] != 0:
+        click.echo("Non-success response: %s" % (v, ))
+    else:
+        click.echo(v[2])
 
 
 @zdo.command()
@@ -123,19 +123,16 @@ def get_endpoint(ctx, endpoint):
     """Show an endpoint's simple descriptor"""
     app = ctx.obj['app']
     node = ctx.obj['node']
-    if node in app.devices:
-        dev = app.devices[node]
 
-        if endpoint in dev.endpoints:
-            v = yield from dev.zdo.request(0x0004, dev._nwk, endpoint)
-            if v[0] != 0:
-                click.echo("Non-success response: %s" % (v, ))
-            else:
-                click.echo(v[2])
-        else:
-            click.echo("Device %s to not have endpoint %d" % (node, endpoint))
+    dev, endp = util.get_endpoint(app, node, endpoint)
+    if endp is None:
+        return
+
+    v = yield from dev.zdo.request(0x0004, dev._nwk, endpoint)
+    if v[0] != 0:
+        click.echo("Non-success response: %s" % (v, ))
     else:
-        click.echo("Device %s is not in the device database" % node)
+        click.echo(v[2])
 
 
 @zdo.command()
@@ -147,19 +144,13 @@ def bind(ctx, endpoint, cluster):
     """Bind to a cluster on a node"""
     app = ctx.obj['app']
     node = ctx.obj['node']
-    if node in app.devices:
-        dev = app.devices[node]
 
-        if endpoint in dev.endpoints:
-            if cluster in dev.endpoints[endpoint].clusters:
-                v = yield from dev.zdo.bind(endpoint, cluster)
-                click.echo(v)
-            else:
-                click.echo("Device %s to not have cluster %d under endpoint %d" % (node, cluster, endpoint))
-        else:
-            click.echo("Device %s to not have endpoint %d" % (node, endpoint))
-    else:
-        click.echo("Device %s is not in the device database" % node)
+    dev, endp, clust = util.get_cluster(app, node, endpoint, cluster)
+    if clust is None:
+        return
+
+    v = yield from dev.zdo.bind(endpoint, cluster)
+    click.echo(v)
 
 
 @zdo.command()
@@ -171,19 +162,13 @@ def unbind(ctx, endpoint, cluster):
     """Unbind a cluster on a node"""
     app = ctx.obj['app']
     node = ctx.obj['node']
-    if node in app.devices:
-        dev = app.devices[node]
 
-        if endpoint in dev.endpoints:
-            if cluster in dev.endpoints[endpoint].clusters:
-                v = yield from dev.zdo.unbind(endpoint, cluster)
-                click.echo(v)
-            else:
-                click.echo("Device %s to not have cluster %d under endpoint %d" % (node, cluster, endpoint))
-        else:
-            click.echo("Device %s to not have endpoint %d" % (node, endpoint))
-    else:
-        click.echo("Device %s is not in the device database" % node)
+    dev, endp, clust = util.get_cluster(app, node, endpoint, cluster)
+    if clust is None:
+        return
+
+    v = yield from dev.zdo.unbind(endpoint, cluster)
+    click.echo(v)
 
 
 @main.group()
@@ -211,32 +196,21 @@ def read_attribute(ctx, attribute):
     endpoint_id = ctx.obj['endpoint']
     cluster_id = ctx.obj['cluster']
 
-    if node in app.devices:
-        dev = app.devices[node]
+    dev, endpoint, cluster = util.get_cluster(app, node, endpoint_id, cluster_id)
+    if cluster is None:
+        return
 
-        if endpoint_id in dev.endpoints:
-            endpoint = dev.endpoints[endpoint_id]
-
-            if cluster_id in endpoint.clusters:
-                cluster = endpoint.clusters[cluster_id]
-
-                v = yield from cluster.read_attributes([attribute])
-                if v[0]:
-                    for record in v[0]:
-                        click.echo("%s=%s" % (record, v[0][record]))
-                elif v[1]:
-                    for record in v[1]:
-                        click.echo("Attribute %s not successful. Status=%s" % (
-                            record, f.Status(v[1][record]).name
-                        ))
-                else:
-                    click.echo("Received empty response")
-            else:
-                click.echo("Device %s to not have cluster %d under endpoint %d" % (node, cluster_id, endpoint_id))
-        else:
-            click.echo("Device %s to not have endpoint %d" % (node, endpoint_id))
+    v = yield from cluster.read_attributes([attribute])
+    if v[0]:
+        for record in v[0]:
+            click.echo("%s=%s" % (record, v[0][record]))
+    elif v[1]:
+        for record in v[1]:
+            click.echo("Attribute %s not successful. Status=%s" % (
+                record, f.Status(v[1][record]).name
+            ))
     else:
-        click.echo("Device %s is not in the device database" % node)
+        click.echo("Received empty response")
 
 
 @zcl.command()
@@ -250,23 +224,12 @@ def write_attribute(ctx, attribute, value):
     endpoint_id = ctx.obj['endpoint']
     cluster_id = ctx.obj['cluster']
 
-    if node in app.devices:
-        dev = app.devices[node]
+    dev, endpoint, cluster = util.get_cluster(app, node, endpoint_id, cluster_id)
+    if cluster is None:
+        return
 
-        if endpoint_id in dev.endpoints:
-            endpoint = dev.endpoints[endpoint_id]
-
-            if cluster_id in endpoint.clusters:
-                cluster = endpoint.clusters[cluster_id]
-
-                v = yield from cluster.write_attributes({attribute: value})
-                click.echo(v)
-            else:
-                click.echo("Device %s to not have cluster %d under endpoint %d" % (node, cluster_id, endpoint_id))
-        else:
-            click.echo("Device %s to not have endpoint %d" % (node, endpoint_id))
-    else:
-        click.echo("Device %s is not in the device database" % node)
+    v = yield from cluster.write_attributes({attribute: value})
+    click.echo(v)
 
 
 @zcl.command()
@@ -280,23 +243,12 @@ def commands(ctx):
     ezsp = bellows.ezsp.EZSP()
     app = bellows.zigbee.application.ControllerApplication(ezsp, database)
 
-    if node in app.devices:
-        dev = app.devices[node]
+    dev, endpoint, cluster = util.get_cluster(app, node, endpoint_id, cluster_id)
+    if cluster is None:
+        return
 
-        if endpoint_id in dev.endpoints:
-            endpoint = dev.endpoints[endpoint_id]
-
-            if cluster_id in endpoint.clusters:
-                cluster = endpoint.clusters[cluster_id]
-
-                for c in cluster.commands:
-                    click.echo(c)
-            else:
-                click.echo("Device %s to not have cluster %d under endpoint %d" % (node, cluster_id, endpoint_id))
-        else:
-            click.echo("Device %s to not have endpoint %d" % (node, endpoint))
-    else:
-        click.echo("Device %s is not in the device database" % node)
+    for c in cluster.commands:
+        click.echo(c)
 
 
 @zcl.command()
@@ -310,26 +262,15 @@ def command(ctx, command, parameters):
     endpoint_id = ctx.obj['endpoint']
     cluster_id = ctx.obj['cluster']
 
-    if node in app.devices:
-        dev = app.devices[node]
+    dev, endpoint, cluster = util.get_cluster(app, node, endpoint_id, cluster_id)
+    if cluster is None:
+        return
 
-        if endpoint_id in dev.endpoints:
-            endpoint = dev.endpoints[endpoint_id]
-
-            if cluster_id in endpoint.clusters:
-                cluster = endpoint.clusters[cluster_id]
-
-                try:
-                    v = yield from getattr(cluster, command)(*parameters)
-                    click.eccho(v)
-                except ValueError as e:
-                    click.echo(e)
-            else:
-                click.echo("Device %s to not have cluster %d under endpoint %d" % (node, cluster_id, endpoint_id))
-        else:
-            click.echo("Device %s to not have endpoint %d" % (node, endpoint))
-    else:
-        click.echo("Device %s is not in the device database" % node)
+    try:
+        v = yield from getattr(cluster, command)(*parameters)
+        click.echo(v)
+    except ValueError as e:
+        click.echo(e)
 
 
 @zcl.command()
@@ -349,25 +290,14 @@ def configure_reporting(ctx,
     endpoint_id = ctx.obj['endpoint']
     cluster_id = ctx.obj['cluster']
 
-    if node in app.devices:
-        dev = app.devices[node]
+    dev, endpoint, cluster = util.get_cluster(app, node, endpoint_id, cluster_id)
+    if cluster is None:
+        return
 
-        if endpoint_id in dev.endpoints:
-            endpoint = dev.endpoints[endpoint_id]
-
-            if cluster_id in endpoint.clusters:
-                cluster = endpoint.clusters[cluster_id]
-
-                v = yield from cluster.configure_reporting(
-                    attribute,
-                    min_interval,
-                    max_interval,
-                    reportable_change,
-                )
-                click.echo(v)
-            else:
-                click.echo("Device %s to not have cluster %d under endpoint %d" % (node, cluster_id, endpoint_id))
-        else:
-            click.echo("Device %s to not have endpoint %d" % (node, endpoint))
-    else:
-        click.echo("Device %s is not in the device database" % node)
+    v = yield from cluster.configure_reporting(
+        attribute,
+        min_interval,
+        max_interval,
+        reportable_change,
+    )
+    click.echo(v)

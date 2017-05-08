@@ -167,3 +167,35 @@ def basic_tc_permits(s):
         t.EzspPolicyId.TRUST_CENTER_POLICY,
         t.EzspDecisionId.ALLOW_PRECONFIGURED_KEY_JOINS,
     )
+
+
+def get_device(app, node):
+    if node not in app.devices:
+        click.echo("Device %s is not in the device database" % node)
+        return None
+
+    return app.devices[node]
+
+
+def get_endpoint(app, node, endpoint_id):
+    dev = get_device(app, node)
+    if dev is None:
+        return (dev, None)
+
+    if endpoint_id not in dev.endpoints:
+        click.echo("Device %s to not have endpoint %d" % (node, endpoint_id))
+        return (dev, None)
+
+    return (dev, dev.endpoints[endpoint_id])
+
+
+def get_cluster(app, node, endpoint_id, cluster_id):
+    dev, endpoint = get_endpoint(app, node, endpoint_id)
+    if endpoint is None:
+        return(dev, endpoint, None)
+
+    if cluster_id not in endpoint.clusters:
+        click.echo("Device %s to not have cluster %d under endpoint %d" % (node, cluster_id, endpoint_id))
+        return(dev, endpoint, None)
+
+    return (dev, endpoint, endpoint.clusters[cluster_id])
