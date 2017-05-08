@@ -35,7 +35,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         e = self._ezsp
 
         yield from e.reset()
-        yield from e.version(4)
+        yield from e.version()
 
         c = t.EzspConfigId
         yield from self._cfg(c.CONFIG_STACK_PROFILE, 2)
