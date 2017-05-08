@@ -101,7 +101,6 @@ DATA_TYPES = {
 DATA_TYPE_IDX = {
     t: tidx
     for tidx, (tname, t, ad) in DATA_TYPES.items()
-    if ad is Analog
 }
 DATA_TYPE_IDX[t.uint32_t] = 0x23
 DATA_TYPE_IDX[t.EmberEUI64] = 0xf0

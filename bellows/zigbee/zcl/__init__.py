@@ -192,13 +192,22 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         for attrid, value in attributes.items():
             if isinstance(attrid, str):
                 attrid = self._attridx[attrid]
+            if attrid not in self.attributes:
+                self.error("%d is not a valid attribute id" % attrid)
+                continue
+
             a = foundation.Attribute()
             a.attrid = t.uint16_t(attrid)
             a.value = foundation.TypeValue()
-            python_type = self.attributes[attrid][1]
-            a.value.type = t.uint8_t(foundation.DATA_TYPE_IDX[python_type])
-            a.value.value = python_type(value)
-            args.append(a)
+
+            try:
+                python_type = self.attributes[attrid][1]
+                a.value.type = t.uint8_t(foundation.DATA_TYPE_IDX[python_type])
+                a.value.value = python_type(value)
+                args.append(a)
+            except ValueError as e:
+                self.error(e)
+
         schema = foundation.COMMANDS[0x02][1]
         return self.request(True, 0x02, schema, args)
 
@@ -238,7 +247,7 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         self.listener_event('attribute_updated', attrid, value)
 
     def log(self, lvl, msg, *args):
-        msg = '[0x%04x:%s:0x%04x] ' + msg
+        msg = '[0x%04x:%s:0x%04x] ' + str(msg)
         args = (
             self._endpoint.device.nwk,
             self._endpoint.endpoint_id,

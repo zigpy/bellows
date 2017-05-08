@@ -196,6 +196,16 @@ def test_write_attributes(cluster):
     assert cluster._endpoint.device.request.call_count == 1
 
 
+def test_write_wrong_attribute(cluster):
+    cluster.write_attributes({0xff: 5})
+    assert cluster._endpoint.device.request.call_count == 1
+
+
+def test_write_attributes_wrong_type(cluster):
+    cluster.write_attributes({18: 2})
+    assert cluster._endpoint.device.request.call_count == 1
+
+
 def test_bind(cluster):
     cluster.bind()
 
