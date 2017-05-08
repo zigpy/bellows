@@ -13,6 +13,7 @@ class NcpResetCode(basic.uint8_t, enum.Enum):
     RESET_BOOTLOADER = 0x09
     RESET_SOFTWARE = 0x0B
     ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT = 0x51
+    ERROR_UNKNOWN_EM3XX_ERROR = 0x80
 
 
 class EmberRf4ceTxOption(basic.uint8_t):

@@ -109,14 +109,21 @@ class Gateway(asyncio.Protocol):
         """Reset acknowledgement frame receive handler"""
         self._send_seq = 0
         self._rec_seq = 0
-        code = t.NcpResetCode(data[2])
+        try:
+            code = t.NcpResetCode(data[2])
+        except:
+            code = t.NcpResetCode.ERROR_UNKNOWN_EM3XX_ERROR
+
         LOGGER.debug("RSTACK Version: %d Reason: %s frame: %s", data[1], code.name, binascii.hexlify(data))
         # Only handle the frame, if it is a reply to our reset request
-        if code is t.NcpResetCode.RESET_SOFTWARE:
-            if self._reset_future is None:
-                LOGGER.warn("Reset future is None")
-                return
-            self._reset_future.set_result(True)
+        if code is not t.NcpResetCode.RESET_SOFTWARE:
+            return
+
+        if self._reset_future is None:
+            LOGGER.warn("Reset future is None")
+            return
+
+        self._reset_future.set_result(True)
 
     def error_frame_received(self, data):
         """Error frame receive handler"""
