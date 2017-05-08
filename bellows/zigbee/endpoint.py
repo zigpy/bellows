@@ -30,40 +30,41 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
 
     @asyncio.coroutine
     def initialize(self):
-        if self.status == Status.NEW:
-            self.info("Discovering endpoint information")
-            sdr = yield from self._device.zdo.request(
-                0x0004,
-                self._device.nwk,
-                self._endpoint_id,
-            )
-            if sdr[0] != 0:
-                # TODO: Handle
-                self.warn("Failed ZDO request during device initialization")
-                return
+        if self.status == Status.ZDO_INIT:
+            return
 
-            self.info("Discovered endpoint information: %s", sdr[2])
+        self.info("Discovering endpoint information")
+        sdr = yield from self._device.zdo.request(
+            0x0004,
+            self._device.nwk,
+            self._endpoint_id,
+        )
+        if sdr[0] != 0:
+            # TODO: Handle
+            self.warn("Failed ZDO request during device initialization")
+            return
 
-            sd = sdr[2]
-            self.profile_id = sd.profile
-            self.device_type = sd.device_type
-            try:
-                if self.profile_id == 260:
-                    self.device_type = bellows.zigbee.profiles.zha.DeviceType(self.device_type)
-                elif self.profile_id == 49246:
-                    self.device_type = bellows.zigbee.profiles.zll.DeviceType(self.device_type)
-            except:
-                pass
+        self.info("Discovered endpoint information: %s", sdr[2])
+        sd = sdr[2]
+        self.profile_id = sd.profile
+        self.device_type = sd.device_type
+        try:
+            if self.profile_id == 260:
+                self.device_type = bellows.zigbee.profiles.zha.DeviceType(self.device_type)
+            elif self.profile_id == 49246:
+                self.device_type = bellows.zigbee.profiles.zll.DeviceType(self.device_type)
+        except:
+            pass
 
-            for cluster in sd.input_clusters:
-                self.add_cluster(cluster)
+        for cluster in sd.input_clusters:
+            self.add_cluster(cluster)
 
-            self.output_clusters = sd.output_clusters
+        self.output_clusters = sd.output_clusters
 
-            for cluster in sd.output_clusters:
-                self.add_cluster(cluster)
+        for cluster in sd.output_clusters:
+            self.add_cluster(cluster)
 
-            self.status = Status.ZDO_INIT
+        self.status = Status.ZDO_INIT
 
     def add_cluster(self, cluster_id):
         """Adds a device's input cluster
