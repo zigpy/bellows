@@ -180,15 +180,14 @@ def read_attribute(ctx, attribute):
     cluster = dev.endpoints[endpoint].clusters[cluster_id]
 
     v = yield from cluster.read_attributes([attribute])
-    if not v[0]:
+    if not v:
         click.echo("Received empty response")
-    for record in v[0]:
-        if record.status == 0:
-            click.echo("%s=%s" % (record.attrid, record.value.value))
-        else:
-            click.echo("Attribute %s not successful. Status=%s" % (
-                record.attrid, record.status
-            ))
+    elif attribute not in v[0]:
+        click.echo("Attribute %s not successful. Status=%s" % (
+            attribute, v[1][attribute]
+        ))
+    else:
+        click.echo("%s=%s" % (attribute, v[0][attribute]))
 
 
 @zcl.command()
