@@ -96,7 +96,7 @@ class ZDO(util.LocalLogMixin):
         dstaddr.addrmode = 3
         dstaddr.ieee = self._device.application.ieee
         dstaddr.endpoint = 1
-        return self.request(0x0034, self._device.ieee, (1 << 1), dstaddr)
+        return self.request(0x0034, self._device.ieee, 0x02, dstaddr)
 
     def log(self, lvl, msg, *args):
         msg = '[0x%04x:zdo] ' + msg
