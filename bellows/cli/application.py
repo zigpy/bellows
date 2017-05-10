@@ -8,7 +8,6 @@ import bellows.ezsp
 import bellows.types as t
 import bellows.zigbee.application
 import bellows.zigbee.endpoint
-import bellows.zigbee.zcl.foundation as f
 from . import opts
 from . import util
 from .main import main
