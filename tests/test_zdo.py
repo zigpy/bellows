@@ -66,6 +66,13 @@ def test_unbind(zdo_f):
     assert app_mock.request.call_args[0][1].clusterId == 0x0022
 
 
+def test_leave(zdo_f):
+    zdo_f.leave()
+    app_mock = zdo_f._device._application
+    assert app_mock.request.call_count == 1
+    assert app_mock.request.call_args[0][1].clusterId == 0x0034
+
+
 def _handle_match_desc(zdo_f, profile):
     zdo_f.reply = mock.MagicMock()
     aps = t.EmberApsFrame()
