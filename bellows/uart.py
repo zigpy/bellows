@@ -47,9 +47,11 @@ class Gateway(asyncio.Protocol):
         # so far are discarded. In the case of a Substitute Byte, subsequent
         # bytes will also be discarded until the next Flag Byte.
         if self.CANCEL in data:
-            data = data[data.find(self.CANCEL) + 1:]
+            self._buffer = b''
+            data = data[data.rfind(self.CANCEL) + 1:]
         if self.SUBSTITUTE in data:
-            data = data[:data.find(self.SUBSTITUTE) + 1]
+            self._buffer = b''
+            data = data[data.find(self.FLAG) + 1:]
 
         self._buffer += data
         while self._buffer:
