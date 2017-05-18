@@ -59,10 +59,21 @@ def test_data_frame(gw):
     assert gw._data_frame(b'\x00\x00\x00\x00\x00', 0, False)[1:-3] == expected
 
 
+def test_cancel_received(gw):
+    gw.rst_frame_received = mock.MagicMock()
+    gw.data_received(b'garbage')
+    gw.data_received(b'\x1a\xc0\x38\xbc\x7e')
+    assert gw.rst_frame_received.call_count == 1
+    assert gw._buffer == b''
+
+
 def test_substitute_received(gw):
     gw.rst_frame_received = mock.MagicMock()
-    gw.data_received(b'\x18\x38\xbc\x7e')
+    gw.data_received(b'garbage')
+    gw.data_received(b'\x18\x38\xbc\x7epart')
+    gw.data_received(b'ial')
     gw.rst_frame_received.assert_not_called()
+    assert gw._buffer == b'partial'
 
 
 def test_partial_data_received(gw):
@@ -89,7 +100,9 @@ def test_nak_frame_received(gw):
 
 
 def test_rst_frame_received(gw):
+    gw.rst_frame_received = mock.MagicMock()
     gw.data_received(b'garbage\x1a\xc0\x38\xbc\x7e')
+    assert gw.rst_frame_received.call_count == 1
 
 
 def test_rstack_frame_received(gw):
