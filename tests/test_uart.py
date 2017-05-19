@@ -100,9 +100,7 @@ def test_nak_frame_received(gw):
 
 
 def test_rst_frame_received(gw):
-    gw.rst_frame_received = mock.MagicMock()
     gw.data_received(b'garbage\x1a\xc0\x38\xbc\x7e')
-    assert gw.rst_frame_received.call_count == 1
 
 
 def test_rstack_frame_received(gw):
