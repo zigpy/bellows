@@ -196,6 +196,16 @@ def test_write_attributes(cluster):
     assert cluster._endpoint.device.request.call_count == 1
 
 
+def test_write_wrong_attribute(cluster):
+    cluster.write_attributes({0xff: 5})
+    assert cluster._endpoint.device.request.call_count == 1
+
+
+def test_write_attributes_wrong_type(cluster):
+    cluster.write_attributes({18: 2})
+    assert cluster._endpoint.device.request.call_count == 1
+
+
 def test_bind(cluster):
     cluster.bind()
 
@@ -223,5 +233,14 @@ def test_command_invalid_attr(cluster):
         cluster.no_such_command()
 
 
+def test_invalid_arguments_cluster_command(cluster):
+    res = cluster.command(0x00, 1)
+    assert type(res.exception()) == ValueError
+
+
 def test_name(cluster):
     assert cluster.name == 'Basic'
+
+
+def test_commands(cluster):
+    assert cluster.commands == ["reset_fact_default"]
