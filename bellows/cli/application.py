@@ -106,6 +106,7 @@ def endpoints(ctx):
     dev = util.get_device(app, node)
     if dev is None:
         click.echo("Device %s is not in the device database" % node)
+        return
 
     v = yield from dev.zdo.request(0x0005, dev._nwk)
     if v[0] != 0:
