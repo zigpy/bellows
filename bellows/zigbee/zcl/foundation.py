@@ -105,6 +105,7 @@ DATA_TYPE_IDX = {
 }
 DATA_TYPE_IDX[t.uint32_t] = 0x23
 DATA_TYPE_IDX[t.EmberEUI64] = 0xf0
+DATA_TYPE_IDX[t.Bool] = 0x10
 
 
 class TypeValue():
