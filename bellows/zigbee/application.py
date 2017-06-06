@@ -218,7 +218,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
     def _handle_frame_failure(self, message_type, destination, aps_frame, message_tag, status, message):
         try:
             send_fut, reply_fut = self._pending.pop(message_tag)
-            send_fut.set_exception(Exception("Message send failure: %s" % (status, )))
+            send_fut.set_exception(Exception("Message send failure: %d" % (status, )))
             reply_fut.cancel()
         except KeyError:
             LOGGER.warning("Unexpected message send failure")
