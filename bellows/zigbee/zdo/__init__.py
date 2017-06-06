@@ -27,10 +27,11 @@ def deserialize(aps_frame, data):
     return tsn, aps_frame.clusterId, is_reply, args
 
 
-class ZDO(util.LocalLogMixin):
+class ZDO(util.LocalLogMixin, util.ListenableMixin):
     """The ZDO endpoint of a device"""
     def __init__(self, device):
         self._device = device
+        self._listeners = {}
 
     def _serialize(self, command, *args):
         aps = self._device.get_aps(profile=0, cluster=command, endpoint=0)
@@ -64,7 +65,7 @@ class ZDO(util.LocalLogMixin):
         elif command_id == 0x0006:  # Match_Desc_req
             self.handle_match_desc(*args)
         elif command_id == 0x0013:  # Device_annce
-            pass
+            self.listener_event('device_announce', self._device)
         else:
             self.warn("Unsupported ZDO request 0x%04x", command_id)
 
