@@ -4,6 +4,8 @@ import logging
 import serial_asyncio
 import serial
 
+import bellows.types as t
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -45,9 +47,11 @@ class Gateway(asyncio.Protocol):
         # so far are discarded. In the case of a Substitute Byte, subsequent
         # bytes will also be discarded until the next Flag Byte.
         if self.CANCEL in data:
-            data = data[data.find(self.CANCEL) + 1:]
+            self._buffer = b''
+            data = data[data.rfind(self.CANCEL) + 1:]
         if self.SUBSTITUTE in data:
-            data = data[:data.find(self.SUBSTITUTE) + 1]
+            self._buffer = b''
+            data = data[data.find(self.FLAG) + 1:]
 
         self._buffer += data
         while self._buffer:
@@ -105,12 +109,22 @@ class Gateway(asyncio.Protocol):
 
     def rstack_frame_received(self, data):
         """Reset acknowledgement frame receive handler"""
-        LOGGER.debug("RSTACK frame: %s", binascii.hexlify(data))
         self._send_seq = 0
         self._rec_seq = 0
+        try:
+            code = t.NcpResetCode(data[2])
+        except:
+            code = t.NcpResetCode.ERROR_UNKNOWN_EM3XX_ERROR
+
+        LOGGER.debug("RSTACK Version: %d Reason: %s frame: %s", data[1], code.name, binascii.hexlify(data))
+        # Only handle the frame, if it is a reply to our reset request
+        if code is not t.NcpResetCode.RESET_SOFTWARE:
+            return
+
         if self._reset_future is None:
             LOGGER.warn("Reset future is None")
             return
+
         self._reset_future.set_result(True)
 
     def error_frame_received(self, data):

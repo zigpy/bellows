@@ -78,10 +78,10 @@ def devices(ctx, database):
                 clusters = sorted(list(ep.clusters.keys()))
                 if clusters:
                     click.echo("      Clusters:")
-                for cluster in clusters:
-                    click.echo("        %s (%s)" % (
-                        ep.clusters[cluster].name, cluster
-                    ))
+                    for cluster in clusters:
+                        click.echo("        %s (%s)" % (
+                            ep.clusters[cluster].name, cluster
+                        ))
 
 
 @main.group()
@@ -101,12 +101,17 @@ def zdo(ctx, node, database):
 def endpoints(ctx):
     """List endpoints on a device"""
     app = ctx.obj['app']
-    dev = app.devices[ctx.obj['node']]
+    node = ctx.obj['node']
+
+    dev = util.get_device(app, node)
+    if dev is None:
+        return
 
     v = yield from dev.zdo.request(0x0005, dev._nwk)
     if v[0] != 0:
         click.echo("Non-success response: %s" % (v, ))
-    click.echo(v[2])
+    else:
+        click.echo(v[2])
 
 
 @zdo.command()
@@ -116,12 +121,17 @@ def endpoints(ctx):
 def get_endpoint(ctx, endpoint):
     """Show an endpoint's simple descriptor"""
     app = ctx.obj['app']
-    dev = app.devices[ctx.obj['node']]
+    node = ctx.obj['node']
+
+    dev, endp = util.get_endpoint(app, node, endpoint)
+    if endp is None:
+        return
 
     v = yield from dev.zdo.request(0x0004, dev._nwk, endpoint)
     if v[0] != 0:
         click.echo("Non-success response: %s" % (v, ))
-    click.echo(v[2])
+    else:
+        click.echo(v[2])
 
 
 @zdo.command()
@@ -132,7 +142,11 @@ def get_endpoint(ctx, endpoint):
 def bind(ctx, endpoint, cluster):
     """Bind to a cluster on a node"""
     app = ctx.obj['app']
-    dev = app.devices[ctx.obj['node']]
+    node = ctx.obj['node']
+
+    dev, endp, clust = util.get_cluster(app, node, endpoint, cluster)
+    if clust is None:
+        return
 
     v = yield from dev.zdo.bind(endpoint, cluster)
     click.echo(v)
@@ -146,9 +160,25 @@ def bind(ctx, endpoint, cluster):
 def unbind(ctx, endpoint, cluster):
     """Unbind a cluster on a node"""
     app = ctx.obj['app']
-    dev = app.devices[ctx.obj['node']]
+    node = ctx.obj['node']
+
+    dev, endp, clust = util.get_cluster(app, node, endpoint, cluster)
+    if clust is None:
+        return
 
     v = yield from dev.zdo.unbind(endpoint, cluster)
+    click.echo(v)
+
+
+@zdo.command()
+@click.pass_context
+@util.app
+def leave(ctx):
+    """Tell a node to leave the network"""
+    app = ctx.obj['app']
+    dev = app.devices[ctx.obj['node']]
+
+    v = yield from dev.zdo.leave()
     click.echo(v)
 
 
@@ -173,11 +203,13 @@ def zcl(ctx, database, node, cluster, endpoint):
 @util.app
 def read_attribute(ctx, attribute):
     app = ctx.obj['app']
-    dev = app.devices[ctx.obj['node']]
-    endpoint = ctx.obj['endpoint']
+    node = ctx.obj['node']
+    endpoint_id = ctx.obj['endpoint']
     cluster_id = ctx.obj['cluster']
 
-    cluster = dev.endpoints[endpoint].clusters[cluster_id]
+    dev, endpoint, cluster = util.get_cluster(app, node, endpoint_id, cluster_id)
+    if cluster is None:
+        return
 
     v = yield from cluster.read_attributes([attribute])
     if not v:
@@ -193,6 +225,66 @@ def read_attribute(ctx, attribute):
 @zcl.command()
 @click.pass_context
 @click.argument('attribute', type=click.IntRange(0, 65535))
+@click.argument('value', type=click.IntRange(0, 65535))
+@util.app
+def write_attribute(ctx, attribute, value):
+    app = ctx.obj['app']
+    node = ctx.obj['node']
+    endpoint_id = ctx.obj['endpoint']
+    cluster_id = ctx.obj['cluster']
+
+    dev, endpoint, cluster = util.get_cluster(app, node, endpoint_id, cluster_id)
+    if cluster is None:
+        return
+
+    v = yield from cluster.write_attributes({attribute: value})
+    click.echo(v)
+
+
+@zcl.command()
+@click.pass_context
+def commands(ctx):
+    database = ctx.obj['database_file']
+    node = ctx.obj['node']
+    endpoint_id = ctx.obj['endpoint']
+    cluster_id = ctx.obj['cluster']
+
+    ezsp = bellows.ezsp.EZSP()
+    app = bellows.zigbee.application.ControllerApplication(ezsp, database)
+
+    dev, endpoint, cluster = util.get_cluster(app, node, endpoint_id, cluster_id)
+    if cluster is None:
+        return
+
+    for c in cluster.commands:
+        click.echo(c)
+
+
+@zcl.command()
+@click.pass_context
+@click.argument('command')
+@click.argument('parameters', nargs=-1)
+@util.app
+def command(ctx, command, parameters):
+    app = ctx.obj['app']
+    node = ctx.obj['node']
+    endpoint_id = ctx.obj['endpoint']
+    cluster_id = ctx.obj['cluster']
+
+    dev, endpoint, cluster = util.get_cluster(app, node, endpoint_id, cluster_id)
+    if cluster is None:
+        return
+
+    try:
+        v = yield from getattr(cluster, command)(*parameters)
+        click.echo(v)
+    except ValueError as e:
+        click.echo(e)
+
+
+@zcl.command()
+@click.pass_context
+@click.argument('attribute', type=click.IntRange(0, 65535))
 @click.argument('min_interval', type=click.IntRange(0, 65535))
 @click.argument('max_interval', type=click.IntRange(0, 65535))
 @click.argument('reportable_change', type=click.INT)
@@ -203,11 +295,13 @@ def configure_reporting(ctx,
                         max_interval,
                         reportable_change):
     app = ctx.obj['app']
-    dev = app.devices[ctx.obj['node']]
-    endpoint = ctx.obj['endpoint']
+    node = ctx.obj['node']
+    endpoint_id = ctx.obj['endpoint']
     cluster_id = ctx.obj['cluster']
 
-    cluster = dev.endpoints[endpoint].clusters[cluster_id]
+    dev, endpoint, cluster = util.get_cluster(app, node, endpoint_id, cluster_id)
+    if cluster is None:
+        return
 
     v = yield from cluster.configure_reporting(
         attribute,
