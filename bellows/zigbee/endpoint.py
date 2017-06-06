@@ -69,17 +69,17 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
         (a server cluster supported by the device)
         """
         if cluster_id in self.clusters:
-            cluster = self.clusters[cluster_id]
-        else:
-            cluster = bellows.zigbee.zcl.Cluster.from_id(self, cluster_id)
-            self.clusters[cluster_id] = cluster
-            if hasattr(cluster, 'ep_attribute'):
-                self._cluster_attr[cluster.ep_attribute] = cluster
-                listener = bellows.zigbee.appdb.ClusterPersistingListener(
-                    self._device.application._dblistener,
-                    cluster,
-                )
-                cluster.add_listener(listener)
+            return self.clusters[cluster_id]
+
+        cluster = bellows.zigbee.zcl.Cluster.from_id(self, cluster_id)
+        self.clusters[cluster_id] = cluster
+        if hasattr(cluster, 'ep_attribute'):
+            self._cluster_attr[cluster.ep_attribute] = cluster
+            listener = bellows.zigbee.appdb.ClusterPersistingListener(
+                self._device.application._dblistener,
+                cluster,
+            )
+            cluster.add_listener(listener)
 
         return cluster
 
