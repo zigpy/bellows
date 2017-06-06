@@ -61,9 +61,6 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
 
         self.output_clusters = sd.output_clusters
 
-        for cluster in sd.output_clusters:
-            self.add_cluster(cluster)
-
         self.status = Status.ZDO_INIT
 
     def add_cluster(self, cluster_id):
