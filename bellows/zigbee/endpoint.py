@@ -75,11 +75,12 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
         self.clusters[cluster_id] = cluster
         if hasattr(cluster, 'ep_attribute'):
             self._cluster_attr[cluster.ep_attribute] = cluster
-            listener = bellows.zigbee.appdb.ClusterPersistingListener(
-                self._device.application._dblistener,
-                cluster,
-            )
-            cluster.add_listener(listener)
+
+        listener = bellows.zigbee.appdb.ClusterPersistingListener(
+            self._device.application._dblistener,
+            cluster,
+        )
+        cluster.add_listener(listener)
 
         return cluster
 
