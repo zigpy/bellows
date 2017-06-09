@@ -56,9 +56,26 @@ def test_initialize_fail(ep):
     assert ep.status == endpoint.Status.NEW
 
 
+def test_reinitialize(ep):
+    _test_initialize(ep, 260)
+    assert ep.profile_id == 260
+    ep.profile_id = 10
+    _test_initialize(ep, 260)
+    assert ep.profile_id == 10
+
+
 def test_add_cluster(ep):
     ep.add_cluster(0)
     assert 0 in ep.clusters
+
+
+def test_multiple_add_cluster(ep):
+    ep.add_cluster(0)
+    assert ep.clusters[0].cluster_id is 0
+    ep.clusters[0].cluster_id = 1
+    assert ep.clusters[0].cluster_id is 1
+    ep.add_cluster(0)
+    assert ep.clusters[0].cluster_id is 1
 
 
 def test_get_aps():

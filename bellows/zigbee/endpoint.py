@@ -30,6 +30,9 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
 
     @asyncio.coroutine
     def initialize(self):
+        if self.status == Status.ZDO_INIT:
+            return
+
         self.info("Discovering endpoint information")
         sdr = yield from self._device.zdo.request(
             0x0004,
@@ -42,7 +45,6 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
             return
 
         self.info("Discovered endpoint information: %s", sdr[2])
-
         sd = sdr[2]
         self.profile_id = sd.profile
         self.device_type = sd.device_type
@@ -66,15 +68,20 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
 
         (a server cluster supported by the device)
         """
+        if cluster_id in self.clusters:
+            return self.clusters[cluster_id]
+
         cluster = bellows.zigbee.zcl.Cluster.from_id(self, cluster_id)
         self.clusters[cluster_id] = cluster
         if hasattr(cluster, 'ep_attribute'):
             self._cluster_attr[cluster.ep_attribute] = cluster
+
         listener = bellows.zigbee.appdb.ClusterPersistingListener(
             self._device.application._dblistener,
             cluster,
         )
         cluster.add_listener(listener)
+
         return cluster
 
     def get_aps(self, cluster):

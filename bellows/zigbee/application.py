@@ -201,11 +201,15 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
     def _handle_join(self, nwk, ieee, device_update, join_dec, parent_nwk):
         LOGGER.info("Device 0x%04x (%s) joined the network", nwk, ieee)
         if ieee in self.devices and self.devices[ieee].nwk == nwk:
-            LOGGER.debug("Skip initialization for existing device %s", ieee)
-            return
+            if self.devices[ieee].init_done():
+                LOGGER.debug("Skip initialization for existing device %s", ieee)
+                return
 
-        dev = self.add_device(ieee, nwk)
-        self.listener_event('device_joined', dev)
+            dev = self.get_device(ieee, nwk)
+        else:
+            dev = self.add_device(ieee, nwk)
+            self.listener_event('device_joined', dev)
+
         loop = asyncio.get_event_loop()
         loop.call_soon(asyncio.async, dev.initialize())
 
