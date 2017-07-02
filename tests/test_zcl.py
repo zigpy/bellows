@@ -67,6 +67,14 @@ def test_unknown_cluster():
     assert c.cluster_id == 999
 
 
+def test_manufacturer_specific_cluster():
+    import bellows.zigbee.zcl.clusters.manufacturer_specific as ms
+    c = zcl.Cluster.from_id(None, 0xfc00)
+    assert isinstance(c, ms.ManufacturerSpecificCluster)
+    c = zcl.Cluster.from_id(None, 0xffff)
+    assert isinstance(c, ms.ManufacturerSpecificCluster)
+
+
 @pytest.fixture
 def cluster(aps):
     epmock = mock.MagicMock()
