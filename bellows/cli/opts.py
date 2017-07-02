@@ -23,12 +23,7 @@ channels = click.option(
 
 device = click.option(
     '-d', '--device',
-    type=click.Path(
-        exists=True,
-        readable=True,
-        writable=True,
-        dir_okay=False,
-    ),
+    type=click.STRING,
     envvar='EZSP_DEVICE',
     required=True,
 )
