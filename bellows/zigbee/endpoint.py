@@ -23,7 +23,8 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
     def __init__(self, device, endpoint_id):
         self._device = device
         self._endpoint_id = endpoint_id
-        self.clusters = {}
+        self.in_clusters = {}
+        self.out_clusters = {}
         self._cluster_attr = {}
         self.status = Status.NEW
         self._listeners = {}
@@ -57,22 +58,22 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
             pass
 
         for cluster in sd.input_clusters:
-            self.add_cluster(cluster)
-
-        self.output_clusters = sd.output_clusters
+            self.add_input_cluster(cluster)
+        for cluster in sd.output_clusters:
+            self.add_output_cluster(cluster)
 
         self.status = Status.ZDO_INIT
 
-    def add_cluster(self, cluster_id):
-        """Adds a device's input cluster
+    def add_input_cluster(self, cluster_id):
+        """Adds an endpoint's input cluster
 
         (a server cluster supported by the device)
         """
-        if cluster_id in self.clusters:
-            return self.clusters[cluster_id]
+        if cluster_id in self.in_clusters:
+            return self.in_clusters[cluster_id]
 
         cluster = bellows.zigbee.zcl.Cluster.from_id(self, cluster_id)
-        self.clusters[cluster_id] = cluster
+        self.in_clusters[cluster_id] = cluster
         if hasattr(cluster, 'ep_attribute'):
             self._cluster_attr[cluster.ep_attribute] = cluster
 
@@ -84,6 +85,18 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
 
         return cluster
 
+    def add_output_cluster(self, cluster_id):
+        """Adds an endpoint's output cluster
+
+        (a client cluster supported by the device)
+        """
+        if cluster_id in self.out_clusters:
+            return self.out_clusters[cluster_id]
+
+        cluster = bellows.zigbee.zcl.Cluster.from_id(self, cluster_id)
+        self.out_clusters[cluster_id] = cluster
+        return cluster
+
     def get_aps(self, cluster):
         assert self.status != Status.NEW
         return self._device.get_aps(
@@ -93,14 +106,18 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
         )
 
     def handle_message(self, is_reply, aps_frame, tsn, command_id, args):
-        try:
-            self.clusters[aps_frame.clusterId].handle_message(is_reply,
-                                                              aps_frame, tsn,
-                                                              command_id, args)
-        except KeyError:
+        handler = None
+        if aps_frame.clusterId in self.in_clusters:
+            handler = self.in_clusters[aps_frame.clusterId].handle_message
+        elif aps_frame.clusterId in self.out_clusters:
+            handler = self.out_clusters[aps_frame.clusterId].handle_message
+        else:
             self.warn("Message on unknown cluster 0x%04x", aps_frame.clusterId)
             self.listener_event("unknown_cluster_message", is_reply,
                                 command_id, args)
+            return
+
+        handler(is_reply, aps_frame, tsn, command_id, args)
 
     def log(self, lvl, msg, *args):
         msg = '[0x%04x:%s] ' + msg
