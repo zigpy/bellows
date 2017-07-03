@@ -90,12 +90,18 @@ class EmberGpKeyType(basic.uint8_t):
 
 
 class SecureEzspRandomNumber(basic.uint64_t):
-    # Randomly generated 64-bit number
+    # Randomly generated 64-bit number.
+    # Both NCP and Host contribute this number to create the Session ID,
+    # which is used in the nonce.
     pass
 
 
 class SecureEzspSessionId(basic.uint64_t):
     # Generated 64-bit Session ID, using random numbers from Host and NCP.
+    # It is generated at each reboot (during negotiation phase).
+    # Having both sides contribute to the value prevents one side from
+    # choosing a number that might have been previously
+    # used (either because of a bug or by malicious intent).
     pass
 
 
@@ -1144,9 +1150,15 @@ class EmberOutgoingMessageType(basic.uint8_t, enum.Enum):
     # Multicast message. This value is passed to emberMessageSentHandler()
     # only. It may not be passed to emberSendUnicast().
     OUTGOING_MULTICAST = 0x03
+    # Aliased multicast message. This value is passed to emberMessageSentHandler() only.
+    # It may not be passed to emberSendUnicast().
+    OUTGOING_MULTICAST_WITH_ALIAS = 0x04,
+    # Aliased Broadcast message.  This value is passed to emberMessageSentHandler() only.
+    # It may not be passed to emberSendUnicast().
+    OUTGOING_BROADCAST_WITH_ALIAS = 0x05,
     # Broadcast message. This value is passed to emberMessageSentHandler()
     # only. It may not be passed to emberSendUnicast().
-    OUTGOING_BROADCAST = 0x04
+    OUTGOING_BROADCAST = 0x06
 
 
 class EmberMacPassthroughType(basic.uint8_t, enum.Enum):

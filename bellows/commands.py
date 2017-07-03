@@ -101,6 +101,7 @@ COMMANDS = {
     #       uint16_t - decoding this frame will be incorrect, since the length
     #       refers to the number of items in the list
     'incomingRouteRecordHandler': (0x59, (), (t.EmberNodeId, t.EmberEUI64, t.uint8_t, t.int8s, t.LVBytes)),
+    'changeSourceRouteHandler': (0xC4, (), (t.EmberNodeId, t.EmberNodeId, t.Bool)),
     # TODO: LVBytes in setSourceRoute is really a list of uint16_t,
     #       serializing the frame will produce something the NCP will fail
     #       on, since the NCP expects the length to be number of items in the
@@ -140,6 +141,7 @@ COMMANDS = {
     'zigbeeKeyEstablishmentHandler': (0x9B, (), (t.EmberEUI64, t.EmberKeyStatus)),
     'addTransientLinkKey': (0xAF, (t.EmberEUI64, t.EmberKeyData), (t.EmberStatus, )),
     'clearTransientLinkKeys': (0x6B, (), ()),
+    'getTransientLinkKey': (0xCE, (t.EmberEUI64, ), (t.EmberStatus, t.EmberTransientKeyData)),
     'setSecurityKey': (0xCA, (t.EmberKeyData, t.SecureEzspSecurityType), (t.EzspStatus, )),
     'setSecurityParameters': (0xCB, (t.SecureEzspSecurityLevel, t.SecureEzspRandomNumber), (t.EzspStatus, t.SecureEzspRandomNumber)),
     'resetToFactoryDefaults': (0xCC, (), (t.EzspStatus, )),
