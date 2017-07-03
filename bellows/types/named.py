@@ -1152,10 +1152,10 @@ class EmberOutgoingMessageType(basic.uint8_t, enum.Enum):
     OUTGOING_MULTICAST = 0x03
     # Aliased multicast message. This value is passed to emberMessageSentHandler() only.
     # It may not be passed to emberSendUnicast().
-    OUTGOING_MULTICAST_WITH_ALIAS = 0x04,
+    OUTGOING_MULTICAST_WITH_ALIAS = 0x04
     # Aliased Broadcast message.  This value is passed to emberMessageSentHandler() only.
     # It may not be passed to emberSendUnicast().
-    OUTGOING_BROADCAST_WITH_ALIAS = 0x05,
+    OUTGOING_BROADCAST_WITH_ALIAS = 0x05
     # Broadcast message. This value is passed to emberMessageSentHandler()
     # only. It may not be passed to emberSendUnicast().
     OUTGOING_BROADCAST = 0x06
