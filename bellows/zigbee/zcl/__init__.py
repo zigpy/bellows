@@ -187,13 +187,18 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             return success, failure
 
         result = yield from self.read_attributes_raw(to_read)
-        for record in result[0]:
-            orig_attribute = orig_attributes[record.attrid]
-            if record.status == 0:
-                self._update_attribute(record.attrid, record.value.value)
-                success[orig_attribute] = record.value.value
-            else:
-                failure[orig_attribute] = record.status
+        if not isinstance(result[0], list):
+            for attrid in to_read:
+                orig_attribute = orig_attributes[attrid]
+                failure[orig_attribute] = result[0]  # Assume default response
+        else:
+            for record in result[0]:
+                orig_attribute = orig_attributes[record.attrid]
+                if record.status == 0:
+                    self._update_attribute(record.attrid, record.value.value)
+                    success[orig_attribute] = record.value.value
+                else:
+                    failure[orig_attribute] = record.status
 
         if raw:
             # KeyError is an appropriate exception here, I think.

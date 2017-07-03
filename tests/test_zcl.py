@@ -175,6 +175,23 @@ def test_read_attributes_mixed_cached(cluster):
     assert failure == {}
 
 
+def test_read_attributes_default_response(cluster):
+    @asyncio.coroutine
+    def mockrequest(foundation, command, schema, args):
+        assert foundation is True
+        assert command == 0
+        return [0xc1]
+
+    cluster.request = mockrequest
+    loop = asyncio.get_event_loop()
+    success, failure = loop.run_until_complete(cluster.read_attributes(
+        [0, 5, 23],
+        allow_cache=False,
+    ))
+    assert success == {}
+    assert failure == {0: 0xc1, 5: 0xc1, 23: 0xc1}
+
+
 def test_item_access_attributes(cluster):
     @asyncio.coroutine
     def mockrequest(foundation, command, schema, args):
