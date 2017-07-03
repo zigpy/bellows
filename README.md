@@ -23,13 +23,9 @@ Currently implemented features are:
  * EZSP application protocol
  * CLI wrapping basic ZigBee network operations (eg, scanning and forming a
    network)
- * Incomplete ZDO functionality (with CLI)
- * Incomplete ZCL functionality (with CLI)
-
-The ZDO and ZCL functionality is currently very brittle -- errors and
-unexpected conditions are not well handled. The application framework is also
-not well set up for applications to build against it. For example, there's
-no way to register for callbacks on network or device events.
+ * ZDO functionality (with CLI)
+ * ZCL functionality (with CLI)
+ * An application framework with device state persistence
 
 An example use of the CLI:
 
