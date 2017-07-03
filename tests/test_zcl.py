@@ -67,6 +67,14 @@ def test_unknown_cluster():
     assert c.cluster_id == 999
 
 
+def test_manufacturer_specific_cluster():
+    import bellows.zigbee.zcl.clusters.manufacturer_specific as ms
+    c = zcl.Cluster.from_id(None, 0xfc00)
+    assert isinstance(c, ms.ManufacturerSpecificCluster)
+    c = zcl.Cluster.from_id(None, 0xffff)
+    assert isinstance(c, ms.ManufacturerSpecificCluster)
+
+
 @pytest.fixture
 def cluster(aps):
     epmock = mock.MagicMock()
@@ -165,6 +173,23 @@ def test_read_attributes_mixed_cached(cluster):
     assert success["manufacturer"] == b'Manufacturer'
     assert success["model"] == b'Model'
     assert failure == {}
+
+
+def test_read_attributes_default_response(cluster):
+    @asyncio.coroutine
+    def mockrequest(foundation, command, schema, args):
+        assert foundation is True
+        assert command == 0
+        return [0xc1]
+
+    cluster.request = mockrequest
+    loop = asyncio.get_event_loop()
+    success, failure = loop.run_until_complete(cluster.read_attributes(
+        [0, 5, 23],
+        allow_cache=False,
+    ))
+    assert success == {}
+    assert failure == {0: 0xc1, 5: 0xc1, 23: 0xc1}
 
 
 def test_item_access_attributes(cluster):

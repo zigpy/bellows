@@ -31,8 +31,8 @@ def _test_initialize(ep, profile):
     loop.run_until_complete(ep.initialize())
 
     assert ep.status > endpoint.Status.NEW
-    assert 5 in ep.clusters
-    assert 6 in ep.output_clusters
+    assert 5 in ep.in_clusters
+    assert 6 in ep.out_clusters
 
 
 def test_initialize_zha(ep):
@@ -64,18 +64,32 @@ def test_reinitialize(ep):
     assert ep.profile_id == 10
 
 
-def test_add_cluster(ep):
-    ep.add_cluster(0)
-    assert 0 in ep.clusters
+def test_add_input_cluster(ep):
+    ep.add_input_cluster(0)
+    assert 0 in ep.in_clusters
 
 
-def test_multiple_add_cluster(ep):
-    ep.add_cluster(0)
-    assert ep.clusters[0].cluster_id is 0
-    ep.clusters[0].cluster_id = 1
-    assert ep.clusters[0].cluster_id is 1
-    ep.add_cluster(0)
-    assert ep.clusters[0].cluster_id is 1
+def test_add_output_cluster(ep):
+    ep.add_output_cluster(0)
+    assert 0 in ep.out_clusters
+
+
+def test_multiple_add_input_cluster(ep):
+    ep.add_input_cluster(0)
+    assert ep.in_clusters[0].cluster_id is 0
+    ep.in_clusters[0].cluster_id = 1
+    assert ep.in_clusters[0].cluster_id is 1
+    ep.add_input_cluster(0)
+    assert ep.in_clusters[0].cluster_id is 1
+
+
+def test_multiple_add_output_cluster(ep):
+    ep.add_output_cluster(0)
+    assert ep.out_clusters[0].cluster_id is 0
+    ep.out_clusters[0].cluster_id = 1
+    assert ep.out_clusters[0].cluster_id is 1
+    ep.add_output_cluster(0)
+    assert ep.out_clusters[0].cluster_id is 1
 
 
 def test_get_aps():
@@ -93,7 +107,16 @@ def test_get_aps():
 
 
 def test_handle_message(ep):
-    c = ep.add_cluster(0)
+    c = ep.add_input_cluster(0)
+    c.handle_message = mock.MagicMock()
+    f = t.EmberApsFrame()
+    f.clusterId = 0
+    ep.handle_message(False, f, 0, 1, [])
+    c.handle_message.assert_called_once_with(False, f, 0, 1, [])
+
+
+def test_handle_message_output(ep):
+    c = ep.add_output_cluster(0)
     c.handle_message = mock.MagicMock()
     f = t.EmberApsFrame()
     f.clusterId = 0
@@ -110,5 +133,5 @@ def test_handle_request_unknown(ep):
 def test_cluster_attr(ep):
     with pytest.raises(AttributeError):
         ep.basic
-    ep.add_cluster(0)
+    ep.add_input_cluster(0)
     ep.basic

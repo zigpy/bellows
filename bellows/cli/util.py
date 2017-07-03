@@ -189,13 +189,13 @@ def get_endpoint(app, node, endpoint_id):
     return (dev, dev.endpoints[endpoint_id])
 
 
-def get_cluster(app, node, endpoint_id, cluster_id):
+def get_in_cluster(app, node, endpoint_id, cluster_id):
     dev, endpoint = get_endpoint(app, node, endpoint_id)
     if endpoint is None:
         return(dev, endpoint, None)
 
-    if cluster_id not in endpoint.clusters:
+    if cluster_id not in endpoint.in_clusters:
         click.echo("Device %s has no cluster %d on endpoint %d" % (node, cluster_id, endpoint_id))
         return(dev, endpoint, None)
 
-    return (dev, endpoint, endpoint.clusters[cluster_id])
+    return (dev, endpoint, endpoint.in_clusters[cluster_id])
