@@ -171,6 +171,21 @@ class EmberPrivateKeyData(EzspStruct):
     ]
 
 
+class EmberTransientKeyData(EzspStruct):
+    # The transient key data structure
+    _fields = [
+        # The IEEE address paired with the transient link key.
+        ('eui64', named.EmberEUI64),
+        # The key data structure matching the transient key.
+        ('keyData', EmberKeyData),
+        # The incoming frame counter associated with this key.
+        ('incomingFrameCounter', basic.uint32_t),
+        # The number of milliseconds remaining before the key
+        # is automatically timed out of the transient key table.
+        ('countdownTimerMs', basic.uint32_t),
+    ]
+
+
 class EmberSmacData(EzspStruct):
     # The Shared Message Authentication Code data used in CBKE.
     _fields = [
