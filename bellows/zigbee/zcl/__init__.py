@@ -66,6 +66,8 @@ class Registry(type):
         super(Registry, cls).__init__(name, bases, nmspc)
         if hasattr(cls, 'cluster_id'):
             cls._registry[cls.cluster_id] = cls
+        if hasattr(cls, 'cluster_id_range'):
+            cls._registry_range[cls.cluster_id_range] = cls
         if hasattr(cls, 'attributes'):
             cls._attridx = {}
             for attrid, (attrname, datatype) in cls.attributes.items():
@@ -80,6 +82,7 @@ class Registry(type):
 class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
     """A cluster on an endpoint"""
     _registry = {}
+    _registry_range = {}
     _server_command_idx = {}
 
     def __init__(self, endpoint):
@@ -89,13 +92,17 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
 
     @classmethod
     def from_id(cls, endpoint, cluster_id):
-        try:
+        if cluster_id in cls._registry:
             return cls._registry[cluster_id](endpoint)
-        except KeyError:
-            LOGGER.warning("Unknown cluster %s", cluster_id)
-            c = cls(endpoint)
-            c.cluster_id = cluster_id
-            return c
+        else:
+            for cluster_id_range, cluster in cls._registry_range.items():
+                if cluster_id_range[0] <= cluster_id <= cluster_id_range[1]:
+                    return cluster(endpoint)
+
+        LOGGER.warning("Unknown cluster %s", cluster_id)
+        c = cls(endpoint)
+        c.cluster_id = cluster_id
+        return c
 
     def request(self, general, command_id, schema, *args):
         if len(schema) != len(args):
@@ -180,13 +187,18 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             return success, failure
 
         result = yield from self.read_attributes_raw(to_read)
-        for record in result[0]:
-            orig_attribute = orig_attributes[record.attrid]
-            if record.status == 0:
-                self._update_attribute(record.attrid, record.value.value)
-                success[orig_attribute] = record.value.value
-            else:
-                failure[orig_attribute] = record.status
+        if not isinstance(result[0], list):
+            for attrid in to_read:
+                orig_attribute = orig_attributes[attrid]
+                failure[orig_attribute] = result[0]  # Assume default response
+        else:
+            for record in result[0]:
+                orig_attribute = orig_attributes[record.attrid]
+                if record.status == 0:
+                    self._update_attribute(record.attrid, record.value.value)
+                    success[orig_attribute] = record.value.value
+                else:
+                    failure[orig_attribute] = record.status
 
         if raw:
             # KeyError is an appropriate exception here, I think.

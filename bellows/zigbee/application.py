@@ -41,7 +41,6 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         yield from self._cfg(c.CONFIG_STACK_PROFILE, 2)
         yield from self._cfg(c.CONFIG_SECURITY_LEVEL, 5)
         yield from self._cfg(c.CONFIG_SUPPORTED_NETWORKS, 1)
-        yield from self._cfg(c.CONFIG_SUPPORTED_NETWORKS, 1)
         zdo = (
             t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS |
             t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
