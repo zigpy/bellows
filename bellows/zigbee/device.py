@@ -25,7 +25,7 @@ class Device(bellows.zigbee.util.LocalLogMixin):
     def __init__(self, application, ieee, nwk):
         self._application = application
         self._ieee = ieee
-        self._nwk = nwk
+        self.nwk = nwk
         self.zdo = bellows.zigbee.zdo.ZDO(self)
         self.endpoints = {0: self.zdo}
         self.lqi = None
@@ -36,7 +36,7 @@ class Device(bellows.zigbee.util.LocalLogMixin):
     def initialize(self):
         if self.status == Status.NEW:
             self.info("Discovering endpoints")
-            epr = yield from self.zdo.request(0x5, self._nwk, tries=3, delay=2)
+            epr = yield from self.zdo.request(0x5, self.nwk, tries=3, delay=2)
             if epr[0] != 0:
                 # TODO: Handle
                 self.warn("Failed ZDO request during device initialization")
@@ -86,7 +86,7 @@ class Device(bellows.zigbee.util.LocalLogMixin):
         return f
 
     def request(self, aps, data):
-        return self._application.request(self._nwk, aps, data)
+        return self._application.request(self.nwk, aps, data)
 
     def handle_message(self, is_reply, aps_frame, tsn, command_id, args):
         try:
@@ -101,7 +101,7 @@ class Device(bellows.zigbee.util.LocalLogMixin):
         return endpoint.handle_message(is_reply, aps_frame, tsn, command_id, args)
 
     def reply(self, aps, data):
-        return self._application.reply(self._nwk, aps, data)
+        return self._application.reply(self.nwk, aps, data)
 
     def radio_details(self, lqi, rssi):
         self.lqi = lqi
@@ -109,7 +109,7 @@ class Device(bellows.zigbee.util.LocalLogMixin):
 
     def log(self, lvl, msg, *args):
         msg = '[0x%04x] ' + msg
-        args = (self._nwk, ) + args
+        args = (self.nwk, ) + args
         return LOGGER.log(lvl, msg, *args)
 
     @property
@@ -119,10 +119,6 @@ class Device(bellows.zigbee.util.LocalLogMixin):
     @property
     def ieee(self):
         return self._ieee
-
-    @property
-    def nwk(self):
-        return self._nwk
 
     def __getitem__(self, key):
         return self.endpoints[key]

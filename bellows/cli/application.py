@@ -69,7 +69,7 @@ def devices(ctx, database):
     app = bellows.zigbee.application.ControllerApplication(ezsp, database)
     for ieee, dev in app.devices.items():
         click.echo("Device:")
-        click.echo("  NWK: 0x%04x" % (dev._nwk, ))
+        click.echo("  NWK: 0x%04x" % (dev.nwk, ))
         click.echo("  IEEE: %s" % (ieee, ))
         click.echo("  Endpoints:")
         for epid, ep in dev.endpoints.items():
@@ -112,7 +112,7 @@ def endpoints(ctx):
     if dev is None:
         return
 
-    v = yield from dev.zdo.request(0x0005, dev._nwk)
+    v = yield from dev.zdo.request(0x0005, dev.nwk)
     if v[0] != 0:
         click.echo("Non-success response: %s" % (v, ))
     else:
@@ -132,7 +132,7 @@ def get_endpoint(ctx, endpoint):
     if endp is None:
         return
 
-    v = yield from dev.zdo.request(0x0004, dev._nwk, endpoint)
+    v = yield from dev.zdo.request(0x0004, dev.nwk, endpoint)
     if v[0] != 0:
         click.echo("Non-success response: %s" % (v, ))
     else:
