@@ -4,7 +4,7 @@ import logging
 
 import bellows.zigbee.appdb
 import bellows.zigbee.profiles
-import bellows.zigbee.util
+import bellows.zigbee.util as zutil
 import bellows.zigbee.zcl
 
 LOGGER = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ class Status(enum.IntEnum):
     ZDO_INIT = 1
 
 
-class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.ListenableMixin):
+class Endpoint(zutil.LocalLogMixin, zutil.ListenableMixin):
     """An endpoint on a device on the network"""
     def __init__(self, device, endpoint_id):
         self._device = device
@@ -35,16 +35,18 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
             return
 
         self.info("Discovering endpoint information")
-        sdr = yield from self._device.zdo.request(
-            0x0004,
-            self._device.nwk,
-            self._endpoint_id,
-            tries=3,
-            delay=2,
-        )
-        if sdr[0] != 0:
-            # TODO: Handle
-            self.warn("Failed ZDO request during device initialization")
+        try:
+            sdr = yield from self._device.zdo.request(
+                0x0004,
+                self._device.nwk,
+                self._endpoint_id,
+                tries=3,
+                delay=2,
+            )
+            if sdr[0] != 0:
+                raise Exception("Failed to retrieve service descriptor: %s", sdr)
+        except Exception as exc:
+            self.warn("Failed ZDO request during device initialization: %s", exc)
             return
 
         self.info("Discovered endpoint information: %s", sdr[2])

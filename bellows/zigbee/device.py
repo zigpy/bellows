@@ -4,8 +4,8 @@ import logging
 
 import bellows.types as t
 import bellows.zigbee.endpoint
-import bellows.zigbee.util
-import bellows.zigbee.zdo
+import bellows.zigbee.util as zutil
+import bellows.zigbee.zdo as zdo
 
 
 LOGGER = logging.getLogger(__name__)
@@ -17,29 +17,40 @@ class Status(enum.IntEnum):
     NEW = 0
     # ZDO endpoint discovery done
     ZDO_INIT = 1
+    # Endpoints initialized
+    ENDPOINTS_INIT = 2
 
 
-class Device(bellows.zigbee.util.LocalLogMixin):
+class Device(zutil.LocalLogMixin):
     """A device on the network"""
 
     def __init__(self, application, ieee, nwk):
         self._application = application
         self._ieee = ieee
         self.nwk = nwk
-        self.zdo = bellows.zigbee.zdo.ZDO(self)
+        self.zdo = zdo.ZDO(self)
         self.endpoints = {0: self.zdo}
         self.lqi = None
         self.rssi = None
         self.status = Status.NEW
+        self.initializing = False
+
+    def schedule_initialize(self):
+        self.initializing = True
+        loop = asyncio.get_event_loop()
+        loop.call_soon(asyncio.async, self._initialize())
 
     @asyncio.coroutine
-    def initialize(self):
+    def _initialize(self):
         if self.status == Status.NEW:
             self.info("Discovering endpoints")
-            epr = yield from self.zdo.request(0x5, self.nwk, tries=3, delay=2)
-            if epr[0] != 0:
-                # TODO: Handle
-                self.warn("Failed ZDO request during device initialization")
+            try:
+                epr = yield from self.zdo.request(0x0005, self.nwk, tries=3, delay=2)
+                if epr[0] != 0:
+                    raise Exception("Endpoint request failed: %s", epr)
+            except Exception as exc:
+                self.initializing = False
+                self.warn("Failed ZDO request during device initialization: %s", exc)
                 return
 
             self.info("Discovered endpoints: %s", epr[2])
@@ -49,22 +60,14 @@ class Device(bellows.zigbee.util.LocalLogMixin):
 
             self.status = Status.ZDO_INIT
 
-        for endpoint_id in epr[2]:
+        for endpoint_id in self.endpoints.keys():
+            if endpoint_id == 0:  # ZDO
+                continue
             yield from self.endpoints[endpoint_id].initialize()
 
+        self.status = Status.ENDPOINTS_INIT
+        self.initializing = False
         self._application.listener_event('device_initialized', self)
-
-    def init_done(self):
-        if self.status != Status.ZDO_INIT:
-            return False
-
-        for endpoint_id in self.endpoints:
-            if endpoint_id == 0:
-                continue
-            if self.endpoints[endpoint_id].status != Status.ZDO_INIT:
-                return False
-
-        return True
 
     def add_endpoint(self, endpoint_id):
         ep = bellows.zigbee.endpoint.Endpoint(self, endpoint_id)

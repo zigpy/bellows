@@ -28,7 +28,7 @@ def test_initialize(monkeypatch, dev):
     monkeypatch.setattr(endpoint.Endpoint, 'initialize', mockepinit)
 
     dev.zdo.request = mockrequest
-    loop.run_until_complete(dev.initialize())
+    loop.run_until_complete(dev._initialize())
 
     assert dev.status > device.Status.NEW
     assert 1 in dev.endpoints
@@ -43,7 +43,7 @@ def test_initialize_fail(dev):
         return [1]
 
     dev.zdo.request = mockrequest
-    loop.run_until_complete(dev.initialize())
+    loop.run_until_complete(dev._initialize())
 
     assert dev.status == device.Status.NEW
 
@@ -89,12 +89,3 @@ def test_endpoint_getitem(dev):
 
     with pytest.raises(KeyError):
         dev[1]
-
-
-def test_init_done(dev):
-    assert dev.status == device.Status.NEW
-    assert dev.init_done() is False
-    dev.status = device.Status.ZDO_INIT
-    assert dev.init_done() is True
-    dev.add_endpoint(1)
-    assert dev.init_done() is False
