@@ -149,7 +149,7 @@ def bind(ctx, endpoint, cluster):
     app = ctx.obj['app']
     node = ctx.obj['node']
 
-    dev, endp, clust = util.get_cluster(app, node, endpoint, cluster)
+    dev, endp, clust = util.get_in_cluster(app, node, endpoint, cluster)
     if clust is None:
         return
 
@@ -167,7 +167,7 @@ def unbind(ctx, endpoint, cluster):
     app = ctx.obj['app']
     node = ctx.obj['node']
 
-    dev, endp, clust = util.get_cluster(app, node, endpoint, cluster)
+    dev, endp, clust = util.get_in_cluster(app, node, endpoint, cluster)
     if clust is None:
         return
 
@@ -212,12 +212,12 @@ def read_attribute(ctx, attribute):
     endpoint_id = ctx.obj['endpoint']
     cluster_id = ctx.obj['cluster']
 
-    dev, endpoint, cluster = util.get_cluster(app, node, endpoint_id, cluster_id)
+    dev, endpoint, cluster = util.get_in_cluster(app, node, endpoint_id, cluster_id)
     if cluster is None:
         return
 
-    v = yield from cluster.read_attributes_raw([attribute])
-    if not v[0]:
+    v = yield from cluster.read_attributes([attribute], allow_cache=False)
+    if not v:
         click.echo("Received empty response")
     elif attribute not in v[0]:
         click.echo("Attribute %s not successful. Status=%s" % (
@@ -238,7 +238,7 @@ def write_attribute(ctx, attribute, value):
     endpoint_id = ctx.obj['endpoint']
     cluster_id = ctx.obj['cluster']
 
-    dev, endpoint, cluster = util.get_cluster(app, node, endpoint_id, cluster_id)
+    dev, endpoint, cluster = util.get_in_cluster(app, node, endpoint_id, cluster_id)
     if cluster is None:
         return
 
@@ -257,7 +257,7 @@ def commands(ctx):
     ezsp = bellows.ezsp.EZSP()
     app = bellows.zigbee.application.ControllerApplication(ezsp, database)
 
-    dev, endpoint, cluster = util.get_cluster(app, node, endpoint_id, cluster_id)
+    dev, endpoint, cluster = util.get_in_cluster(app, node, endpoint_id, cluster_id)
     if cluster is None:
         return
 
@@ -276,7 +276,7 @@ def command(ctx, command, parameters):
     endpoint_id = ctx.obj['endpoint']
     cluster_id = ctx.obj['cluster']
 
-    dev, endpoint, cluster = util.get_cluster(app, node, endpoint_id, cluster_id)
+    dev, endpoint, cluster = util.get_in_cluster(app, node, endpoint_id, cluster_id)
     if cluster is None:
         return
 
