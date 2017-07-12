@@ -17,6 +17,8 @@ setup(
     install_requires=[
         'Click',
         'click-log',
+        'pycrypto',
+        'crccheck',
         'pure_pcapy3==1.0.1',
         'pyserial-asyncio',
     ],

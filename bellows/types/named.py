@@ -1388,6 +1388,7 @@ class EmberDeviceUpdate(basic.uint8_t, enum.Enum):
 class EmberKeyStatus(basic.uint8_t, enum.Enum):
     # The status of the attempt to establish a key.
 
+    KEY_STATUS_NONE = 0x00
     APP_LINK_KEY_ESTABLISHED = 0x01
     APP_MASTER_KEY_ESTABLISHED = 0x02
     TRUST_CENTER_LINK_KEY_ESTABLISHED = 0x03
@@ -1405,6 +1406,14 @@ class EmberKeyStatus(basic.uint8_t, enum.Enum):
     TC_FAILED_TO_SEND_APP_KEYS = 0x0F
     TC_FAILED_TO_STORE_APP_KEY_REQUEST = 0x10
     TC_REJECTED_APP_KEY_REQUEST = 0x11
+    TC_FAILED_TO_GENERATE_NEW_KEY = 0x12
+    TC_FAILED_TO_SEND_TC_KEY = 0x13
+    TRUST_CENTER_IS_PRE_R21 = 0x1E
+    TC_REQUESTER_VERIFY_KEY_TIMEOUT = 0x32
+    TC_REQUESTER_VERIFY_KEY_FAILURE = 0x33
+    TC_REQUESTER_VERIFY_KEY_SUCCESS = 0x34
+    VERIFY_LINK_KEY_FAILURE = 0x64
+    VERIFY_LINK_KEY_SUCCESS = 0x65
 
 
 class EmberCounterType(basic.uint8_t, enum.Enum):

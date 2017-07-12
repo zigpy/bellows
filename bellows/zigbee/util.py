@@ -2,6 +2,8 @@ import asyncio
 import functools
 import logging
 import os
+from crccheck.crc import CrcX25
+from Crypto.Cipher import AES
 
 import bellows.types as t
 
@@ -91,3 +93,78 @@ def retry(exceptions, retries=3, delay=0.1):
                     delay *= 2
         return wrapper
     return decorator
+
+
+def aesMmoHashUpdate(length, result, data):
+    while len(data) >= AES.block_size:
+        # Encrypt
+        aes = AES.new(bytes(result), AES.MODE_ECB)
+        result = bytearray(aes.encrypt(bytes(data[:AES.block_size])))
+
+        # XOR
+        for i in range(AES.block_size):
+            result[i] ^= bytes(data[:AES.block_size])[i]
+
+        data = data[AES.block_size:]
+        length += AES.block_size
+
+    return (length, result)
+
+
+def aesMmoHash(data):
+    result_len = 0
+    remainingLength = 0
+    length = len(data)
+    result = bytearray([0] * AES.block_size)
+    temp = bytearray([0] * AES.block_size)
+
+    if (data and length > 0):
+        remainingLength = length & (AES.block_size - 1)
+        if (length >= AES.block_size):
+            # Mask out the lower byte since hash update will hash
+            # everything except the last piece, if the last piece
+            # is less than 16 bytes.
+            hashedLength = (length & ~(AES.block_size - 1))
+            (result_len, result) = aesMmoHashUpdate(result_len, result, data)
+            data = data[hashedLength:]
+
+    for i in range(remainingLength):
+        temp[i] = data[i]
+
+    # Per the spec, Concatenate a 1 bit followed by all zero bits
+    # (previous memset() on temp[] set the rest of the bits to zero)
+    temp[remainingLength] = 0x80
+    result_len += remainingLength
+
+    # If appending the bit string will push us beyond the 16-byte boundary
+    # we must hash that block and append another 16-byte block.
+    if ((AES.block_size - remainingLength) < 3):
+        (result_len, result) = aesMmoHashUpdate(result_len, result, temp)
+
+        # Since this extra data is due to the concatenation,
+        # we remove that length. We want the length of data only
+        # and not the padding.
+        result_len -= AES.block_size
+        temp = bytearray([0] * AES.block_size)
+
+    bitSize = result_len * 8
+    temp[AES.block_size - 2] = (bitSize >> 8) & 0xFF
+    temp[AES.block_size - 1] = (bitSize) & 0xFF
+
+    (result_len, result) = aesMmoHashUpdate(result_len, result, temp)
+
+    key = t.EmberKeyData()
+    key.contents = t.fixed_list(16, t.uint8_t)(
+        [t.uint8_t(c) for c in result]
+    )
+    return key
+
+
+def convertInstallCode(code):
+    real_crc = bytes([code[-1], code[-2]])
+    crc = CrcX25()
+    crc.process(code[:len(code) - 2])
+    if real_crc != crc.finalbytes():
+        return None
+
+    return aesMmoHash(code)
