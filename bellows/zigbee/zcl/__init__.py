@@ -97,7 +97,9 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         else:
             for cluster_id_range, cluster in cls._registry_range.items():
                 if cluster_id_range[0] <= cluster_id <= cluster_id_range[1]:
-                    return cluster(endpoint)
+                    c = cluster(endpoint)
+                    c.cluster_id = cluster_id
+                    return c
 
         LOGGER.warning("Unknown cluster %s", cluster_id)
         c = cls(endpoint)
