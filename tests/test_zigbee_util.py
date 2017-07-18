@@ -46,10 +46,9 @@ def test_zha_security_controller():
     util.zha_security(controller=True)
 
 
-def _test_retry(exception, exceptions, n):
+def _test_retry(exception, retry_exceptions, n):
     counter = 0
 
-    @util.retry(exceptions)
     @asyncio.coroutine
     def count():
         nonlocal counter
@@ -60,7 +59,7 @@ def _test_retry(exception, exceptions, n):
             raise exc
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(count())
+    loop.run_until_complete(util.retry(count, retry_exceptions))
     return counter
 
 
@@ -72,10 +71,55 @@ def test_retry_no_retries():
 def test_retry_always():
     with pytest.raises(ValueError) as exc_info:
         _test_retry(ValueError, (IndexError, ValueError), 999)
-    print(exc_info.value)
     assert exc_info.value._counter == 3
 
 
 def test_retry_once():
     counter = _test_retry(ValueError, ValueError, 1)
+    assert counter == 2
+
+
+def _test_retryable(exception, retry_exceptions, n, retries=3, delay=0.001):
+    counter = 0
+
+    @util.retryable(retry_exceptions)
+    @asyncio.coroutine
+    def count(x, y, z):
+        assert x == y == z == 9
+        nonlocal counter
+        counter += 1
+        if counter <= n:
+            exc = exception()
+            exc._counter = counter
+            raise exc
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(count(9, 9, 9, retries=retries, delay=delay))
+    return counter
+
+
+def test_retryable_no_retry():
+    counter = _test_retryable(Exception, Exception, 0, 0, 0)
+    assert counter == 1
+
+
+def test_retryable_exception_no_retry():
+    with pytest.raises(Exception) as exc_info:
+        _test_retryable(Exception, Exception, 1, 0, 0)
+    assert exc_info.value._counter == 1
+
+
+def test_retryable_no_retries():
+    counter = _test_retryable(Exception, Exception, 0)
+    assert counter == 1
+
+
+def test_retryable_always():
+    with pytest.raises(ValueError) as exc_info:
+        _test_retryable(ValueError, (IndexError, ValueError), 999)
+    assert exc_info.value._counter == 3
+
+
+def test_retryable_once():
+    counter = _test_retryable(ValueError, ValueError, 1)
     assert counter == 2
