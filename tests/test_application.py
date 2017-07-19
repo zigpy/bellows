@@ -5,6 +5,7 @@ import pytest
 
 import bellows.types as t
 from bellows.zigbee.application import ControllerApplication
+from bellows.zigbee.exceptions import DeliveryError
 from bellows.zigbee import device
 
 
@@ -241,22 +242,35 @@ def test_permit(app):
     assert app._ezsp.permitJoining.call_count == 1
 
 
-def _request(app, aps, returnval):
+def _request(app, aps, returnvals, **kwargs):
     @asyncio.coroutine
     def mocksend(method, nwk, aps_frame, seq, data):
         app._pending[seq][0].set_result(True)
         app._pending[seq][1].set_result(mock.sentinel.result)
-        return [returnval]
+        return [returnvals.pop(0)]
 
     app._ezsp.sendUnicast = mocksend
     loop = asyncio.get_event_loop()
-    return loop.run_until_complete(app.request(0x1234, aps, b''))
+    return loop.run_until_complete(app.request(0x1234, aps, b'', **kwargs))
 
 
 def test_request(app, aps):
-    assert _request(app, aps, 0) == mock.sentinel.result
+    assert _request(app, aps, [0]) == mock.sentinel.result
 
 
 def test_request_fail(app, aps):
-    with pytest.raises(Exception):
-        _request(app, aps, 1)
+    with pytest.raises(DeliveryError):
+        _request(app, aps, [1])
+
+
+def test_request_retry(app, aps):
+    returnvals = [1, 0, 0]
+    assert _request(app, aps, returnvals, tries=2, delay=0) == mock.sentinel.result
+    assert returnvals == [0]
+
+
+def test_request_retry_fail(app, aps):
+    returnvals = [1, 1, 0, 0]
+    with pytest.raises(DeliveryError):
+        assert _request(app, aps, returnvals, tries=2, delay=0)
+    assert returnvals == [0, 0]

@@ -74,7 +74,7 @@ def zha_security(controller=False):
 
 
 @asyncio.coroutine
-def retry(func, retry_exceptions, retries=3, delay=0.1):
+def retry(func, retry_exceptions, tries=3, delay=0.1):
     """Retry a function in case of exception
 
     Only exceptions in `retry_exceptions` will be retried.
@@ -84,29 +84,29 @@ def retry(func, retry_exceptions, retries=3, delay=0.1):
             r = yield from func()
             return r
         except retry_exceptions:
-            if retries <= 1:
+            if tries <= 1:
                 raise
-            retries -= 1
+            tries -= 1
             yield from asyncio.sleep(delay)
 
 
-def retryable(retry_exceptions, retries=0, delay=0.1):
+def retryable(retry_exceptions, tries=1, delay=0.1):
     """Return a decorator which makes a function able to be retried
 
-    This adds "retries" and "delay" keyword arguments to the function. Only
+    This adds "tries" and "delay" keyword arguments to the function. Only
     exceptions in `retry_exceptions` will be retried.
     """
     def decorator(func):
-        nonlocal retries, delay
+        nonlocal tries, delay
 
         @functools.wraps(func)
-        def wrapper(*args, retries=retries, delay=delay, **kwargs):
-            if not retries:
+        def wrapper(*args, tries=tries, delay=delay, **kwargs):
+            if tries <= 1:
                 return func(*args, **kwargs)
             return retry(
                 functools.partial(func, *args, **kwargs),
                 retry_exceptions,
-                retries=retries,
+                tries=tries,
                 delay=delay,
             )
         return wrapper

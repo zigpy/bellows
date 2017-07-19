@@ -79,7 +79,7 @@ def test_retry_once():
     assert counter == 2
 
 
-def _test_retryable(exception, retry_exceptions, n, retries=3, delay=0.001):
+def _test_retryable(exception, retry_exceptions, n, tries=3, delay=0.001):
     counter = 0
 
     @util.retryable(retry_exceptions)
@@ -94,7 +94,7 @@ def _test_retryable(exception, retry_exceptions, n, retries=3, delay=0.001):
             raise exc
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(count(9, 9, 9, retries=retries, delay=delay))
+    loop.run_until_complete(count(9, 9, 9, tries=tries, delay=delay))
     return counter
 
 

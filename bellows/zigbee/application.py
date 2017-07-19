@@ -242,8 +242,9 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         except asyncio.futures.InvalidStateError as exc:
             LOGGER.debug("Invalid state on future - probably duplicate response: %s", exc)
 
+    @bellows.zigbee.util.retryable((DeliveryError, asyncio.TimeoutError))
     @asyncio.coroutine
-    def request(self, nwk, aps_frame, data, timeout=30):
+    def request(self, nwk, aps_frame, data, timeout=10):
         seq = aps_frame.sequence
         assert seq not in self._pending
         send_fut = asyncio.Future()
