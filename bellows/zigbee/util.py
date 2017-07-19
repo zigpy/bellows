@@ -4,7 +4,7 @@ import logging
 import os
 
 import bellows.types as t
-
+from bellows.zigbee.exceptions import DeliveryError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -111,3 +111,6 @@ def retryable(retry_exceptions, tries=1, delay=0.1):
             )
         return wrapper
     return decorator
+
+
+retryable_request = retryable((DeliveryError, asyncio.TimeoutError))

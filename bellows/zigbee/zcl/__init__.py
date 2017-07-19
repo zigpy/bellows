@@ -106,6 +106,7 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         c.cluster_id = cluster_id
         return c
 
+    @util.retryable_request
     def request(self, general, command_id, schema, *args):
         if len(schema) != len(args):
             self.error("Schema and args lengths do not match")
