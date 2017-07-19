@@ -8,6 +8,7 @@ import bellows.zigbee.device
 import bellows.zigbee.util
 import bellows.zigbee.zcl
 import bellows.zigbee.zdo
+from bellows.zigbee.exceptions import DeliveryError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -221,7 +222,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
     def _handle_frame_failure(self, message_type, destination, aps_frame, message_tag, status, message):
         try:
             send_fut, reply_fut = self._pending.pop(message_tag)
-            send_fut.set_exception(Exception("Message send failure: %s" % (status, )))
+            send_fut.set_exception(DeliveryError("Message send failure: %s" % (status, )))
             reply_fut.cancel()
         except KeyError:
             LOGGER.warning("Unexpected message send failure")
@@ -254,7 +255,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
             self._pending.pop(seq)
             send_fut.cancel()
             reply_fut.cancel()
-            raise Exception("Message send failure %s" % (v[0], ))
+            raise DeliveryError("Message send failure %s" % (v[0], ))
 
         # Wait for messageSentHandler message
         v = yield from send_fut
