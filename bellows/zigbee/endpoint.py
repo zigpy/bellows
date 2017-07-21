@@ -39,6 +39,8 @@ class Endpoint(bellows.zigbee.util.LocalLogMixin, bellows.zigbee.util.Listenable
             0x0004,
             self._device.nwk,
             self._endpoint_id,
+            tries=3,
+            delay=2,
         )
         if sdr[0] != 0:
             # TODO: Handle

@@ -18,7 +18,7 @@ def test_initialize(monkeypatch, dev):
     loop = asyncio.get_event_loop()
 
     @asyncio.coroutine
-    def mockrequest(req, nwk):
+    def mockrequest(req, nwk, tries=None, delay=None):
         return [0, None, [1, 2]]
 
     @asyncio.coroutine
@@ -39,7 +39,7 @@ def test_initialize_fail(dev):
     loop = asyncio.get_event_loop()
 
     @asyncio.coroutine
-    def mockrequest(req, nwk):
+    def mockrequest(req, nwk, tries=None, delay=None):
         return [1]
 
     dev.zdo.request = mockrequest

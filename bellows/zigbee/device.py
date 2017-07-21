@@ -36,7 +36,7 @@ class Device(bellows.zigbee.util.LocalLogMixin):
     def initialize(self):
         if self.status == Status.NEW:
             self.info("Discovering endpoints")
-            epr = yield from self.zdo.request(0x0005, self._nwk)
+            epr = yield from self.zdo.request(0x5, self._nwk, tries=3, delay=2)
             if epr[0] != 0:
                 # TODO: Handle
                 self.warn("Failed ZDO request during device initialization")
