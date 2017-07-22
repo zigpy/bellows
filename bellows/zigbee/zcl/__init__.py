@@ -147,7 +147,7 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             for attr in args[0]:
                 self._update_attribute(attr.attrid, attr.value.value)
         else:
-            self.warn("No handler for general command %s", command_id)
+            self.debug("No handler for general command %s", command_id)
 
     def handle_cluster_request(self, aps_frame, tsn, command_id, args):
         self.warn("No handler for cluster command %s", command_id)
