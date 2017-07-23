@@ -150,7 +150,7 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             self.debug("No handler for general command %s", command_id)
 
     def handle_cluster_request(self, aps_frame, tsn, command_id, args):
-        self.warn("No handler for cluster command %s", command_id)
+        self.debug("No handler for cluster command %s", command_id)
 
     @asyncio.coroutine
     def read_attributes_raw(self, attributes):
