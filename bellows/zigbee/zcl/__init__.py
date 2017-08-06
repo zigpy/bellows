@@ -292,5 +292,6 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
     def __getitem__(self, key):
         return self.read_attributes([key], allow_cache=True, raw=True)
 
+
 # Import to populate the registry
 from . import clusters  # noqa: F401, F402
