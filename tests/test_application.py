@@ -2,7 +2,6 @@ import asyncio
 from unittest import mock
 
 import pytest
-import bellows
 import bellows.types as t
 from bellows.zigbee.application import ControllerApplication
 from bellows.zigbee import device
@@ -253,7 +252,7 @@ def test_permit_with_key(app):
     app._ezsp.addTransientLinkKey = get_mock_coro([0, 0])
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(app.permit_with_key(bytes([1,2,3,4,5,6,7,8]), bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]), 60))
+    loop.run_until_complete(app.permit_with_key(bytes([1, 2, 3, 4, 5, 6, 7, 8]), bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]), 60))
 
     assert app._ezsp.addTransientLinkKey.call_count == 1
     assert app._ezsp.permitJoining.call_count == 1
