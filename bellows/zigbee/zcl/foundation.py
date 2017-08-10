@@ -26,9 +26,19 @@ class Status(t.uint8_t, enum.Enum):
     WRITE_ONLY = 0x8f  # A request has been made to read an attribute
     INCONSISTENT_STARTUP_STATE = 0x90  # Setting the requested values would put
     DEFINED_OUT_OF_BAND = 0x91  # An attempt has been made to write an
+    INCONSISTENT = 0x92  # The supplied values (e.g., contents of table cells) are inconsistent
+    ACTION_DENIED = 0x93  # The credentials presented by the device sending the
+    TIMEOUT = 0x94  # The exchange was aborted due to excessive response time
+    ABORT = 0x95  # Failed case when a client or a server decides to abort the upgrade process
+    INVALID_IMAGE = 0x96  # Invalid OTA upgrade image (ex. failed signature
+    WAIT_FOR_DATA = 0x97  # Server does not have data block available yet
+    NO_IMAGE_AVAILABLE = 0x98  # No OTA upgrade image available for a particular client
+    REQUIRE_MORE_IMAGE = 0x99  # The client still requires more OTA upgrade image
+    NOTIFICATION_PENDING = 0x9a  # The command has been received and is being processed
     HARDWARE_FAILURE = 0xc0  # An operation was unsuccessful due to a
     SOFTWARE_FAILURE = 0xc1  # An operation was unsuccessful due to a
-    CALIBRATION_ERROR = 0xc2  # An error occurred during calibration.
+    CALIBRATION_ERROR = 0xc2  # An error occurred during calibratio
+    UNSUPPORTED_CLUSTER = 0xc3  # The cluster is not supported
 
 
 class Analog:

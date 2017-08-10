@@ -40,6 +40,7 @@ class ZDO(util.LocalLogMixin, util.ListenableMixin):
         data += t.serialize(args, schema)
         return aps, data
 
+    @util.retryable_request
     def request(self, command, *args):
         aps, data = self._serialize(command, *args)
         return self._device.request(aps, data)

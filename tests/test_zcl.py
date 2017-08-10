@@ -71,8 +71,10 @@ def test_manufacturer_specific_cluster():
     import bellows.zigbee.zcl.clusters.manufacturer_specific as ms
     c = zcl.Cluster.from_id(None, 0xfc00)
     assert isinstance(c, ms.ManufacturerSpecificCluster)
+    assert hasattr(c, 'cluster_id')
     c = zcl.Cluster.from_id(None, 0xffff)
     assert isinstance(c, ms.ManufacturerSpecificCluster)
+    assert hasattr(c, 'cluster_id')
 
 
 @pytest.fixture

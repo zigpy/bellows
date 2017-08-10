@@ -8,6 +8,7 @@ import bellows.zigbee.device
 import bellows.zigbee.util
 import bellows.zigbee.zcl
 import bellows.zigbee.zdo
+from bellows.zigbee.exceptions import DeliveryError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -201,18 +202,17 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
 
     def _handle_join(self, nwk, ieee, device_update, join_dec, parent_nwk):
         LOGGER.info("Device 0x%04x (%s) joined the network", nwk, ieee)
-        if ieee in self.devices and self.devices[ieee].nwk == nwk:
-            if self.devices[ieee].init_done():
+        if ieee in self.devices:
+            dev = self.get_device(ieee)
+            dev.nwk = nwk
+            if dev.initializing or dev.status == bellows.zigbee.device.Status.ENDPOINTS_INIT:
                 LOGGER.debug("Skip initialization for existing device %s", ieee)
                 return
-
-            dev = self.get_device(ieee, nwk)
         else:
             dev = self.add_device(ieee, nwk)
             self.listener_event('device_joined', dev)
 
-        loop = asyncio.get_event_loop()
-        loop.call_soon(asyncio.async, dev.initialize())
+        dev.schedule_initialize()
 
     def _handle_leave(self, nwk, ieee, *args):
         LOGGER.info("Device 0x%04x (%s) left the network", nwk, ieee)
@@ -223,7 +223,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
     def _handle_frame_failure(self, message_type, destination, aps_frame, message_tag, status, message):
         try:
             send_fut, reply_fut = self._pending.pop(message_tag)
-            send_fut.set_exception(Exception("Message send failure: %s" % (status, )))
+            send_fut.set_exception(DeliveryError("Message send failure: %s" % (status, )))
             reply_fut.cancel()
         except KeyError:
             LOGGER.warning("Unexpected message send failure")
@@ -243,8 +243,9 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         except asyncio.futures.InvalidStateError as exc:
             LOGGER.debug("Invalid state on future - probably duplicate response: %s", exc)
 
+    @bellows.zigbee.util.retryable_request
     @asyncio.coroutine
-    def request(self, nwk, aps_frame, data, timeout=30):
+    def request(self, nwk, aps_frame, data, timeout=10):
         seq = aps_frame.sequence
         assert seq not in self._pending
         send_fut = asyncio.Future()
@@ -256,7 +257,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
             self._pending.pop(seq)
             send_fut.cancel()
             reply_fut.cancel()
-            raise Exception("Message send failure %s" % (v[0], ))
+            raise DeliveryError("Message send failure %s" % (v[0], ))
 
         # Wait for messageSentHandler message
         v = yield from send_fut

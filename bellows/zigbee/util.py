@@ -6,7 +6,7 @@ from crccheck.crc import CrcX25
 from Crypto.Cipher import AES
 
 import bellows.types as t
-
+from bellows.zigbee.exceptions import DeliveryError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -75,24 +75,47 @@ def zha_security(controller=False):
     return isc
 
 
-def retry(exceptions, retries=3, delay=0.1):
-    """Return a decorator to retry a function in case of failure"""
+@asyncio.coroutine
+def retry(func, retry_exceptions, tries=3, delay=0.1):
+    """Retry a function in case of exception
+
+    Only exceptions in `retry_exceptions` will be retried.
+    """
+    while True:
+        try:
+            r = yield from func()
+            return r
+        except retry_exceptions:
+            if tries <= 1:
+                raise
+            tries -= 1
+            yield from asyncio.sleep(delay)
+
+
+def retryable(retry_exceptions, tries=1, delay=0.1):
+    """Return a decorator which makes a function able to be retried
+
+    This adds "tries" and "delay" keyword arguments to the function. Only
+    exceptions in `retry_exceptions` will be retried.
+    """
     def decorator(func):
+        nonlocal tries, delay
+
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            nonlocal delay, retries
-            while True:
-                try:
-                    r = yield from func(*args, **kwargs)
-                    return r
-                except exceptions:
-                    if retries <= 1:
-                        raise
-                    retries -= 1
-                    yield from asyncio.sleep(delay)
-                    delay *= 2
+        def wrapper(*args, tries=tries, delay=delay, **kwargs):
+            if tries <= 1:
+                return func(*args, **kwargs)
+            return retry(
+                functools.partial(func, *args, **kwargs),
+                retry_exceptions,
+                tries=tries,
+                delay=delay,
+            )
         return wrapper
     return decorator
+
+
+retryable_request = retryable((DeliveryError, asyncio.TimeoutError))
 
 
 def aesMmoHashUpdate(length, result, data):

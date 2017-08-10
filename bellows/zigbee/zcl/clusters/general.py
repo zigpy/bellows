@@ -2,6 +2,7 @@
 
 import bellows.types as t
 from bellows.zigbee.zcl import Cluster
+from bellows.zigbee.zcl import foundation
 
 
 class Basic(Cluster):
@@ -28,6 +29,7 @@ class Basic(Cluster):
         0x0012: ('device_enabled', t.Bool),
         0x0013: ('alarm_mask', t.uint8_t),  # bitmap8
         0x0014: ('disable_local_config', t.uint8_t),  # bitmap8
+        0x4000: ('sw_build_id', t.LVBytes),
     }
     server_commands = {
         0x0000: ('reset_fact_default', (), False),
@@ -70,6 +72,44 @@ class PowerConfiguration(Cluster):
         0x003c: ('battery_percent_thres2', t.uint8_t),
         0x003d: ('battery_percent_thres3', t.uint8_t),
         0x003e: ('battery_alarm_state', t.uint32_t),  # bitmap32
+        # Battery 2 Information
+        0x0040: ('battery_2_voltage', t.uint8_t),
+        0x0041: ('battery_2_percentage_remaining', t.uint8_t),
+        # Battery 2 Settings
+        0x0050: ('battery_2_volt', t.LVBytes),
+        0x0051: ('battery_2_size', t.uint8_t),  # enum8
+        0x0052: ('battery_2_a_hr_rating', t.uint16_t),
+        0x0053: ('battery_2_quantity', t.uint8_t),
+        0x0054: ('battery_2_rated_voltage', t.uint8_t),
+        0x0055: ('battery_2_alarm_mask', t.uint8_t),  # bitmap8
+        0x0056: ('battery_2_volt_min_thres', t.uint8_t),
+        0x0057: ('battery_2_volt_thres1', t.uint16_t),
+        0x0058: ('battery_2_volt_thres2', t.uint16_t),
+        0x0059: ('battery_2_volt_thres3', t.uint16_t),
+        0x005a: ('battery_2_percent_min_thres', t.uint8_t),
+        0x005b: ('battery_2_percent_thres1', t.uint8_t),
+        0x005c: ('battery_2_percent_thres2', t.uint8_t),
+        0x005d: ('battery_2_percent_thres3', t.uint8_t),
+        0x005e: ('battery_2_alarm_state', t.uint32_t),  # bitmap32
+        # Battery 3 Information
+        0x0060: ('battery_3_voltage', t.uint8_t),
+        0x0061: ('battery_3_percentage_remaining', t.uint8_t),
+        # Battery 3 Settings
+        0x0070: ('battery_3_volt', t.LVBytes),
+        0x0071: ('battery_3_size', t.uint8_t),  # enum8
+        0x0072: ('battery_3_a_hr_rating', t.uint16_t),
+        0x0073: ('battery_3_quantity', t.uint8_t),
+        0x0074: ('battery_3_rated_voltage', t.uint8_t),
+        0x0075: ('battery_3_alarm_mask', t.uint8_t),  # bitmap8
+        0x0076: ('battery_3_volt_min_thres', t.uint8_t),
+        0x0077: ('battery_3_volt_thres1', t.uint16_t),
+        0x0078: ('battery_3_volt_thres2', t.uint16_t),
+        0x0079: ('battery_3_volt_thres3', t.uint16_t),
+        0x007a: ('battery_3_percent_min_thres', t.uint8_t),
+        0x007b: ('battery_3_percent_thres1', t.uint8_t),
+        0x007c: ('battery_3_percent_thres2', t.uint8_t),
+        0x007d: ('battery_3_percent_thres3', t.uint8_t),
+        0x007e: ('battery_3_alarm_state', t.uint32_t),  # bitmap32
     }
     server_commands = {}
     client_commands = {}
@@ -191,6 +231,9 @@ class OnOff(Cluster):
     ep_attribute = 'on_off'
     attributes = {
         0x0000: ('on_off', t.Bool),
+        0x4000: ('global_scene_control', t.Bool),
+        0x4001: ('on_time', t.uint16_t),
+        0x4002: ('off_wait_time', t.uint16_t),
     }
     server_commands = {
         0x0000: ('off', (), False),
@@ -242,7 +285,7 @@ class LevelControl(Cluster):
         0x0004: ('move_to_level_with_on_off', (t.uint8_t, t.uint16_t), False),
         0x0005: ('move_with_on_off', (t.uint8_t, t.uint8_t), False),
         0x0006: ('step_with_on_off', (t.uint8_t, t.uint8_t, t.uint16_t), False),
-        0x0007: ('stop_with_on_off', (), False),
+        0x0007: ('stop', (), False),
     }
     client_commands = {}
 
@@ -315,17 +358,34 @@ class RSSILocation(Cluster):
         0x0017: ('num_rssi_measurements', t.uint16_t),
     }
     server_commands = {
-        0x0000: ('set_absolute', (t.int16s, t.int16s, t.int16s, t.int8s, t.uint16_t), False),
+        0x0000: ('set_absolute_location', (t.int16s, t.int16s, t.int16s, t.int8s, t.uint16_t), False),
         0x0001: ('set_dev_config', (t.int16s, t.uint16_t, t.uint16_t, t.uint8_t, t.uint16_t), False),
         0x0002: ('get_dev_config', (t.EmberEUI64, ), False),
-        0x0003: ('get_data', (t.uint8_t, t.uint64_t, t.EmberEUI64), False),
+        0x0003: ('get_location_data', (t.uint8_t, t.uint64_t, t.EmberEUI64), False),
+        0x0004: ('rssi_response', (t.EmberEUI64, t.int16s, t.int16s, t.int16s, t.int8s, t.uint8_t), True),
+        0x0005: ('send_pings', (t.EmberEUI64, t.uint8_t, t.uint16_t), False),
+        0x0006: ('anchor_node_announce', (t.EmberEUI64, t.int16s, t.int16s, t.int16s), False),
     }
+
+    class NeighborInfo(t.EzspStruct):
+        _fields = [
+            ('neighbor', t.EmberEUI64),
+            ('x', t.int16s),
+            ('y', t.int16s),
+            ('z', t.int16s),
+            ('rssi', t.int8s),
+            ('num_measurements', t.uint8_t),
+        ]
+
     client_commands = {
         0x0000: ('dev_config_response', (t.uint8_t, t.int16s, t.uint16_t, t.uint16_t, t.uint8_t, t.uint16_t), True),
-        0x0001: ('data_response', (t.uint8_t, t.uint8_t, t.int16s, t.int16s, t.int16s, t.uint16_t, t.uint8_t, t.uint8_t, t.uint16_t), True),
-        0x0002: ('data_notification', (), False),
-        0x0003: ('compact_data_notification', (), False),
-        0x0004: ('rssi_ping', (t.uint8_t, ), False),
+        0x0001: ('location_data_response', (t.uint8_t, t.uint8_t, t.int16s, t.int16s, t.int16s, t.uint16_t, t.uint8_t, t.uint8_t, t.uint16_t), True),
+        0x0002: ('location_data_notification', (), False),
+        0x0003: ('compact_location_data_notification', (), False),
+        0x0004: ('rssi_ping', (t.uint8_t, ), False),  # data8
+        0x0005: ('rssi_req', (), False),
+        0x0006: ('report_rssi_measurements', (t.EmberEUI64, t.LVList(NeighborInfo), ), False),
+        0x0007: ('request_own_location', (t.EmberEUI64, ), False),
     }
 
 
@@ -579,18 +639,18 @@ class Ota(Cluster):
         0x000a: ('image_stamp', t.uint32_t),
     }
     server_commands = {
-        0x0001: ('query_next_image', (), False),
-        0x0003: ('image_block', (), False),
-        0x0004: ('image_page', (), False),
-        0x0006: ('upgrade_end', (), False),
-        0x0008: ('query_specific_file', (), False),
+        0x0001: ('query_next_image', (t.uint8_t, t.uint16_t, t.uint16_t, t.uint32_t, t.uint16_t), False),
+        0x0003: ('image_block', (t.uint8_t, t.uint16_t, t.uint16_t, t.uint32_t, t.uint32_t, t.uint8_t, t.EmberEUI64, t.uint16_t), False),
+        0x0004: ('image_page', (t.uint8_t, t.uint16_t, t.uint16_t, t.uint32_t, t.uint32_t, t.uint8_t, t.uint16_t, t.uint16_t, t.EmberEUI64), False),
+        0x0006: ('upgrade_end', (foundation.Status, t.uint16_t, t.uint16_t, t.uint32_t), False),
+        0x0008: ('query_specific_file', (t.EmberEUI64, t.uint16_t, t.uint16_t, t.uint32_t, t.uint16_t), False),
     }
     client_commands = {
-        0x0000: ('image_notify', (), False),
-        0x0002: ('query_next_image_response', (), True),
-        0x0005: ('image_block', (), False),
-        0x0007: ('upgrade_end_response', (), True),
-        0x0009: ('query_specific_file_response', (), True),
+        0x0000: ('image_notify', (t.uint8_t, t.uint8_t, t.uint16_t, t.uint16_t, t.uint32_t), False),
+        0x0002: ('query_next_image_response', (foundation.Status, t.uint16_t, t.uint16_t, t.uint32_t, t.uint32_t), True),
+        0x0005: ('image_block_response', (foundation.Status, t.uint16_t, t.uint16_t, t.uint32_t, t.uint32_t, t.LVBytes), True),
+        0x0007: ('upgrade_end_response', (t.uint16_t, t.uint16_t, t.uint32_t, t.uint32_t, t.uint32_t), True),
+        0x0009: ('query_specific_file_response', (foundation.Status, t.uint16_t, t.uint16_t, t.uint32_t, t.uint32_t), True),
     }
 
 
