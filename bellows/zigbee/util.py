@@ -161,6 +161,9 @@ def aesMmoHash(data):
 
 
 def convertInstallCode(code):
+    if len(code) < 10:
+        return None
+
     real_crc = bytes([code[-1], code[-2]])
     crc = CrcX25()
     crc.process(code[:len(code) - 2])

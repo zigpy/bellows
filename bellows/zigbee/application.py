@@ -155,12 +155,6 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
                 self._handle_leave(*args)
             else:
                 self._handle_join(*args)
-        elif frame_name == 'zigbeeKeyEstablishmentHandler':
-            LOGGER.info("zigbeeKeyEstablishmentHandler")
-            LOGGER.info(args)
-        else:
-            LOGGER.warning("Unhandled callback: %s" % frame_name)
-            LOGGER.warning(args)
 
     def _handle_frame(self, message_type, aps_frame, lqi, rssi, sender, binding_index, address_index, message):
         try:
@@ -278,10 +272,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         return self._ezsp.permitJoining(time_s)
 
     def permit_with_key(self, node, code, time_s=60):
-        print(node, type(node))
         if type(node) is not t.EmberEUI64:
-            for p in node:
-                print(p)
             node = t.EmberEUI64([t.uint8_t(p) for p in node])
 
         key = bellows.zigbee.util.convertInstallCode(code)
