@@ -44,6 +44,7 @@ def app(f, app_startup=True):
             ctx.obj['device'],
             database_file,
             startup=app_startup,
+            baudrate=ctx.obj['baudrate']
         )
         ctx.obj['app'] = app
         yield from f(ctx, *args, **kwargs)
@@ -86,11 +87,11 @@ def channel_mask(channels):
 
 
 @asyncio.coroutine
-def setup(dev, cbh=None, configure=True):
+def setup(dev, cbh=None, configure=True, baudrate=None):
     s = bellows.ezsp.EZSP()
     if cbh:
         s.add_callback(cbh)
-    yield from s.connect(dev)
+    yield from s.connect(dev, baudrate)
     LOGGER.debug("Connected. Resetting.")
     yield from s.reset()
     yield from s.version()
@@ -112,9 +113,9 @@ def setup(dev, cbh=None, configure=True):
 
 
 @asyncio.coroutine
-def setup_application(dev, database_file, startup=True):
+def setup_application(dev, database_file, startup=True, baudrate=None):
     s = bellows.ezsp.EZSP()
-    yield from s.connect(dev)
+    yield from s.connect(dev, baudrate=baudrate)
     app = bellows.zigbee.application.ControllerApplication(s, database_file)
     if startup:
         yield from app.startup()

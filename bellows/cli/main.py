@@ -13,9 +13,10 @@ LOGGER = logging.getLogger(__name__)
 @click_log.simple_verbosity_option()
 @click_log.init()
 @opts.device
+@opts.baudrate
 @click.pass_context
-def main(ctx, device):
-    ctx.obj = {'device': device}
+def main(ctx, device, baudrate):
+    ctx.obj = {'device': device, 'baudrate': baudrate}
     root = logging.getLogger('root')
     root.handlers = [click_log.ClickHandler()]
     root.setLevel(click_log.get_level())
