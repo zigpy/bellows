@@ -30,6 +30,7 @@ Currently implemented features are:
 An example use of the CLI:
 
 ```
+$ export EZSP_DEVICE=/dev/ttyUSB1
 $ bellows devices
 Device:
   NWK: 0x1ee4
