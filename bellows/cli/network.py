@@ -118,10 +118,11 @@ def leave(ctx):
     v = yield from util.networkInit(s)
     if v[0] == t.EmberStatus.NOT_JOINED:
         click.echo("Not joined, not leaving")
-        return
+    else:
+        v = yield from s.leaveNetwork()
+        util.check(v[0], "Failure leaving network: %s" % (v[0], ))
 
-    v = yield from s.leaveNetwork()
-    util.check(v[0], "Failure leaving network: %s" % (v[0], ))
+    s.close()
 
 
 @main.command()
