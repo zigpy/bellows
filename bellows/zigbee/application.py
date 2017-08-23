@@ -276,7 +276,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         if type(node) is not t.EmberEUI64:
             node = t.EmberEUI64([t.uint8_t(p) for p in node])
 
-        key = bellows.zigbee.util.convertInstallCode(code)
+        key = bellows.zigbee.util.convert_install_code(code)
         if key is None:
             raise Exception("Invalid install code")
 

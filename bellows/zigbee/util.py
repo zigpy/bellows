@@ -118,7 +118,7 @@ def retryable(retry_exceptions, tries=1, delay=0.1):
 retryable_request = retryable((DeliveryError, asyncio.TimeoutError))
 
 
-def aesMmoHashUpdate(length, result, data):
+def aes_mmo_hash_update(length, result, data):
     while len(data) >= AES.block_size:
         # Encrypt
         aes = AES.new(bytes(result), AES.MODE_ECB)
@@ -134,35 +134,35 @@ def aesMmoHashUpdate(length, result, data):
     return (length, result)
 
 
-def aesMmoHash(data):
+def aes_mmo_hash(data):
     result_len = 0
-    remainingLength = 0
+    remaining_length = 0
     length = len(data)
     result = bytearray([0] * AES.block_size)
     temp = bytearray([0] * AES.block_size)
 
     if (data and length > 0):
-        remainingLength = length & (AES.block_size - 1)
+        remaining_length = length & (AES.block_size - 1)
         if (length >= AES.block_size):
             # Mask out the lower byte since hash update will hash
             # everything except the last piece, if the last piece
             # is less than 16 bytes.
             hashedLength = (length & ~(AES.block_size - 1))
-            (result_len, result) = aesMmoHashUpdate(result_len, result, data)
+            (result_len, result) = aes_mmo_hash_update(result_len, result, data)
             data = data[hashedLength:]
 
-    for i in range(remainingLength):
+    for i in range(remaining_length):
         temp[i] = data[i]
 
     # Per the spec, Concatenate a 1 bit followed by all zero bits
     # (previous memset() on temp[] set the rest of the bits to zero)
-    temp[remainingLength] = 0x80
-    result_len += remainingLength
+    temp[remaining_length] = 0x80
+    result_len += remaining_length
 
     # If appending the bit string will push us beyond the 16-byte boundary
     # we must hash that block and append another 16-byte block.
-    if ((AES.block_size - remainingLength) < 3):
-        (result_len, result) = aesMmoHashUpdate(result_len, result, temp)
+    if ((AES.block_size - remaining_length) < 3):
+        (result_len, result) = aes_mmo_hash_update(result_len, result, temp)
 
         # Since this extra data is due to the concatenation,
         # we remove that length. We want the length of data only
@@ -174,7 +174,7 @@ def aesMmoHash(data):
     temp[AES.block_size - 2] = (bitSize >> 8) & 0xFF
     temp[AES.block_size - 1] = (bitSize) & 0xFF
 
-    (result_len, result) = aesMmoHashUpdate(result_len, result, temp)
+    (result_len, result) = aes_mmo_hash_update(result_len, result, temp)
 
     key = t.EmberKeyData()
     key.contents = t.fixed_list(16, t.uint8_t)(
@@ -183,7 +183,7 @@ def aesMmoHash(data):
     return key
 
 
-def convertInstallCode(code):
+def convert_install_code(code):
     if len(code) < 10:
         return None
 
@@ -193,4 +193,4 @@ def convertInstallCode(code):
     if real_crc != crc.finalbytes():
         return None
 
-    return aesMmoHash(code)
+    return aes_mmo_hash(code)
