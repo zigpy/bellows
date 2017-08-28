@@ -274,3 +274,23 @@ def test_request_retry_fail(app, aps):
     with pytest.raises(DeliveryError):
         assert _request(app, aps, returnvals, tries=2, delay=0)
     assert returnvals == [0, 0]
+
+
+def _reply(app, aps, returnvals, **kwargs):
+    @asyncio.coroutine
+    def mocksend(method, nwk, aps_frame, seq, data):
+        app._pending[seq][0].set_result(mock.sentinel.result)
+        return [returnvals.pop(0)]
+
+    app._ezsp.sendUnicast = mocksend
+    loop = asyncio.get_event_loop()
+    return loop.run_until_complete(app.reply(0x1234, aps, b'', **kwargs))
+
+
+def test_reply(app, aps):
+    assert _reply(app, aps, [0]) == mock.sentinel.result
+
+
+def test_reply_fail(app, aps):
+    with pytest.raises(DeliveryError):
+        _reply(app, aps, [1])

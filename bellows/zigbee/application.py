@@ -222,7 +222,8 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         try:
             send_fut, reply_fut = self._pending.pop(message_tag)
             send_fut.set_exception(DeliveryError("Message send failure: %s" % (status, )))
-            reply_fut.cancel()
+            if reply_fut:
+                reply_fut.cancel()
         except KeyError:
             LOGGER.warning("Unexpected message send failure")
         except asyncio.futures.InvalidStateError as exc:
@@ -233,7 +234,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
             send_fut, reply_fut = self._pending[message_tag]
             # Sometimes messageSendResult and a reply come out of order
             # If we've already handled the reply, delete pending
-            if reply_fut.done():
+            if reply_fut is None or reply_fut.done():
                 self._pending.pop(message_tag)
             send_fut.set_result(True)
         except KeyError:
@@ -263,8 +264,22 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         v = yield from asyncio.wait_for(reply_fut, timeout)
         return v
 
+    @asyncio.coroutine
     def reply(self, nwk, aps_frame, data):
-        return self._ezsp.sendUnicast(self.direct, nwk, aps_frame, aps_frame.sequence, data)
+        seq = aps_frame.sequence
+        assert seq not in self._pending
+        send_fut = asyncio.Future()
+        self._pending[seq] = (send_fut, None)
+
+        v = yield from self._ezsp.sendUnicast(self.direct, nwk, aps_frame, seq, data)
+        if v[0] != 0:
+            self._pending.pop(seq)
+            send_fut.cancel()
+            raise DeliveryError("Message send failure %s" % (v[0], ))
+
+        # Wait for messageSentHandler message
+        v = yield from send_fut
+        return v
 
     def permit(self, time_s=60):
         assert 0 <= time_s <= 254
