@@ -648,7 +648,7 @@ class Ota(Cluster):
     client_commands = {
         0x0000: ('image_notify', (t.uint8_t, t.uint8_t, t.uint16_t, t.uint16_t, t.uint32_t), False),
         0x0002: ('query_next_image_response', (foundation.Status, t.uint16_t, t.uint16_t, t.uint32_t, t.uint32_t), True),
-        0x0005: ('image_block_response', (foundation.Status, t.uint16_t, t.uint16_t, t.uint32_t, t.uint32_t, t.LVBytes), True),
+        0x0005: ('image_block_response', (foundation.Status, t.uint16_t, t.uint16_t, t.uint32_t, t.uint32_t, t.uint8_t, t.LVBytes), True),
         0x0007: ('upgrade_end_response', (t.uint16_t, t.uint16_t, t.uint32_t, t.uint32_t, t.uint32_t), True),
         0x0009: ('query_specific_file_response', (foundation.Status, t.uint16_t, t.uint16_t, t.uint32_t, t.uint32_t), True),
     }
