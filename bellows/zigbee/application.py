@@ -178,7 +178,8 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
             send_fut, reply_fut = self._pending[tsn]
             if send_fut.done():
                 self._pending.pop(tsn)
-            reply_fut.set_result(args)
+            if reply_fut:
+                reply_fut.set_result(args)
             return
         except KeyError:
             LOGGER.warning("Unexpected response TSN=%s command=%s args=%s", tsn, command_id, args)
