@@ -249,11 +249,9 @@ class Gateway(asyncio.Protocol):
 
 
 @asyncio.coroutine
-def connect(port, application, loop=None, baudrate=None):
+def connect(port, baudrate, application, loop=None):
     if loop is None:
         loop = asyncio.get_event_loop()
-    if baudrate is None:
-        baudrate = 57600
 
     connection_future = asyncio.Future()
     protocol = Gateway(application, connection_future)

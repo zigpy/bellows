@@ -23,7 +23,7 @@ def test_connect(ezsp_f, monkeypatch):
     monkeypatch.setattr(uart, 'connect', mockconnect)
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(ezsp_f.connect(None))
+    loop.run_until_complete(ezsp_f.connect(None, None))
     assert connected
 
 
