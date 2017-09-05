@@ -166,7 +166,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         else:
             deserialize = bellows.zigbee.zcl.deserialize
 
-        tsn, command_id, is_reply, args = deserialize(aps_frame, message)
+        tsn, command_id, is_reply, args = deserialize(aps_frame.clusterId, message)
 
         if is_reply:
             self._handle_reply(sender, aps_frame, tsn, command_id, args)

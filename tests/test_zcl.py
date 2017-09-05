@@ -12,50 +12,44 @@ def aps():
     return t.EmberApsFrame()
 
 
-def test_deserialize_general(aps):
-    aps.clusterId = 0
-    tsn, command_id, is_reply, args = zcl.deserialize(aps, b'\x00\x01\x00')
+def test_deserialize_general():
+    tsn, command_id, is_reply, args = zcl.deserialize(0, b'\x00\x01\x00')
     assert tsn == 1
     assert command_id == 0
     assert is_reply is False
 
 
-def test_deserialize_general_unknown(aps):
-    aps.clusterId = 0
-    tsn, command_id, is_reply, args = zcl.deserialize(aps, b'\x00\x01\xff')
+def test_deserialize_general_unknown():
+    tsn, command_id, is_reply, args = zcl.deserialize(0, b'\x00\x01\xff')
     assert tsn == 1
     assert command_id == 255
     assert is_reply is False
 
 
-def test_deserialize_cluster(aps):
-    aps.clusterId = 0
-    tsn, command_id, is_reply, args = zcl.deserialize(aps, b'\x01\x01\x00xxx')
+def test_deserialize_cluster():
+    tsn, command_id, is_reply, args = zcl.deserialize(0, b'\x01\x01\x00xxx')
     assert tsn == 1
     assert command_id == 256
     assert is_reply is False
 
 
-def test_deserialize_cluster_client(aps):
-    aps.clusterId = 3
-    tsn, command_id, is_reply, args = zcl.deserialize(aps, b'\x09\x01\x00AB')
+def test_deserialize_cluster_client():
+    tsn, command_id, is_reply, args = zcl.deserialize(3, b'\x09\x01\x00AB')
     assert tsn == 1
     assert command_id == 256
     assert is_reply is True
     assert args == [0x4241]
 
 
-def test_deserialize_cluster_unknown(aps):
-    aps.clusterId = 0xff00
-    tsn, command_id, is_reply, args = zcl.deserialize(aps, b'\x05\x00\x00\x01\x00')
+def test_deserialize_cluster_unknown():
+    tsn, command_id, is_reply, args = zcl.deserialize(0xff00, b'\x05\x00\x00\x01\x00')
     assert tsn == 1
     assert command_id == 256
     assert is_reply is False
 
 
-def test_deserialize_cluster_command_unknown(aps):
-    aps.clusterId = 0
-    tsn, command_id, is_reply, args = zcl.deserialize(aps, b'\x01\x01\xff')
+def test_deserialize_cluster_command_unknown():
+    tsn, command_id, is_reply, args = zcl.deserialize(0, b'\x01\x01\xff')
     assert tsn == 1
     assert command_id == 255 + 256
     assert is_reply is False
@@ -91,7 +85,7 @@ def test_request_general(cluster):
     assert cluster._endpoint.device.request.call_count == 1
 
 
-def test_attribute_report(cluster):
+def test_attribute_report(cluster, aps):
     attr = zcl.foundation.Attribute()
     attr.attrid = 4
     attr.value = zcl.foundation.TypeValue()
