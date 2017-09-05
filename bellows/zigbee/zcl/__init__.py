@@ -10,7 +10,7 @@ from bellows.zigbee.zcl import foundation
 LOGGER = logging.getLogger(__name__)
 
 
-def deserialize(aps_frame, data):
+def deserialize(cluster_id, data):
     frame_control, data = data[0], data[1:]
     frame_type = frame_control & 0b0011
     direction = (frame_control & 0b1000) >> 3
@@ -23,11 +23,11 @@ def deserialize(aps_frame, data):
 
     if frame_type == 1:
         # Cluster command
-        if aps_frame.clusterId not in Cluster._registry:
+        if cluster_id not in Cluster._registry:
             LOGGER.debug("Ignoring unknown cluster ID 0x%04x",
-                         aps_frame.clusterId)
+                         cluster_id)
             return tsn, command_id + 256, is_reply, data
-        cluster = Cluster._registry[aps_frame.clusterId]
+        cluster = Cluster._registry[cluster_id]
         # Cluster-specific command
 
         if direction:
