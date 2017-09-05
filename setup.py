@@ -16,7 +16,7 @@ setup(
     },
     install_requires=[
         'Click',
-        'click-log',
+        'click-log==0.2.0',
         'pycrypto',
         'crccheck',
         'pure_pcapy3==1.0.1',

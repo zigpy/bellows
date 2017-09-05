@@ -9,22 +9,22 @@ from . import types
 LOGGER = logging.getLogger(__name__)
 
 
-def deserialize(aps_frame, data):
+def deserialize(cluster_id, data):
     tsn, data = data[0], data[1:]
 
-    is_reply = bool(aps_frame.clusterId & 0x8000)
+    is_reply = bool(cluster_id & 0x8000)
     try:
-        cluster_details = types.CLUSTERS[aps_frame.clusterId]
+        cluster_details = types.CLUSTERS[cluster_id]
     except KeyError:
-        LOGGER.warning("Unknown ZDO cluster 0x%02x", aps_frame.clusterId)
-        return tsn, aps_frame.clusterId, is_reply, data
+        LOGGER.warning("Unknown ZDO cluster 0x%02x", cluster_id)
+        return tsn, cluster_id, is_reply, data
 
     args, data = t.deserialize(data, cluster_details[2])
     if data != b'':
         # TODO: Seems sane to check, but what should we do?
         LOGGER.warning("Data remains after deserializing ZDO frame")
 
-    return tsn, aps_frame.clusterId, is_reply, args
+    return tsn, cluster_id, is_reply, args
 
 
 class ZDO(util.LocalLogMixin, util.ListenableMixin):
