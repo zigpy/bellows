@@ -167,7 +167,7 @@ class Attribute(t.EzspStruct):
 
 class WriteAttributesStatusRecord(t.EzspStruct):
     _fields = [
-        ('status', t.uint8_t),
+        ('status', Status),
         ('attrid', t.uint16_t),
     ]
 
