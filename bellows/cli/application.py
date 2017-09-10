@@ -181,9 +181,8 @@ def unbind(ctx, endpoint, cluster):
 def leave(ctx):
     """Tell a node to leave the network"""
     app = ctx.obj['app']
-    dev = app.devices[ctx.obj['node']]
 
-    v = yield from dev.zdo.leave()
+    v = yield from app.remove(ctx.obj['node'])
     click.echo(v)
 
 
