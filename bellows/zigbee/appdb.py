@@ -40,14 +40,17 @@ class PersistingListener:
     def execute(self, *args, **kwargs):
         return self._cursor.execute(*args, **kwargs)
 
-    def device_left(self, device):
-        self._remove_device(device)
-
     def device_joined(self, device):
         self._save_device(device)
 
     def device_initialized(self, device):
         self._save_device(device)
+
+    def device_left(self, device):
+        pass
+
+    def device_removed(self, device):
+        self._remove_device(device)
 
     def attribute_updated(self, cluster, attrid, value):
         self._save_attribute(

@@ -206,6 +206,19 @@ def test_leave_handler(app, ieee):
         'trustCenterJoinHandler',
         [1, ieee, t.EmberDeviceUpdate.DEVICE_LEFT, None, None]
     )
+    assert ieee in app.devices
+
+
+def test_remove(app, ieee):
+    app.devices[ieee] = mock.MagicMock()
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(app.remove(ieee))
+    assert ieee not in app.devices
+
+
+def test_remove_nonexistent(app, ieee):
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(app.remove(ieee))
     assert ieee not in app.devices
 
 

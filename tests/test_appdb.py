@@ -1,3 +1,4 @@
+import asyncio
 import os
 from unittest import mock
 
@@ -54,6 +55,18 @@ def test_database(tmpdir, ieee):
     app._handle_leave(99, ieee)
 
     app2 = make_app(db)
+    assert ieee in app2.devices
+
+    @asyncio.coroutine
+    def mockleave(*args, **kwargs):
+        return [0]
+
+    app2.devices[ieee].zdo.leave = mockleave
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(app2.remove(ieee))
     assert ieee not in app2.devices
+
+    app3 = make_app(db)
+    assert ieee not in app3.devices
 
     os.unlink(db)
