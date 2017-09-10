@@ -141,6 +141,26 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         self.devices[ieee] = dev
         return dev
 
+    @asyncio.coroutine
+    def remove(self, ieee):
+        assert isinstance(ieee, t.EmberEUI64)
+        dev = self.devices.pop(ieee, None)
+        if not dev:
+            LOGGER.debug("Device not found for removal: %s", ieee)
+            return
+        LOGGER.info("Removing device 0x%04x (%s)", dev.nwk, ieee)
+        zdo_worked = False
+        try:
+            resp = yield from dev.zdo.leave()
+            zdo_worked = resp[0] == 0
+        except Exception:
+            pass
+        if not zdo_worked:
+            # This should probably be delivered to the parent device instead
+            # of the device itself.
+            yield from self._ezsp.removeDevice(dev.nwk, dev.ieee, dev.ieee)
+        self.listener_event('device_removed', dev)
+
     def ezsp_callback_handler(self, frame_name, args):
         if frame_name == 'incomingMessageHandler':
             self._handle_frame(*args)
@@ -214,7 +234,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
 
     def _handle_leave(self, nwk, ieee, *args):
         LOGGER.info("Device 0x%04x (%s) left the network", nwk, ieee)
-        dev = self.devices.pop(ieee, None)
+        dev = self.devices.get(ieee, None)
         if dev is not None:
             self.listener_event('device_left', dev)
 
