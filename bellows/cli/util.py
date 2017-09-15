@@ -90,7 +90,11 @@ def setup(dev, cbh=None, configure=True):
     s = bellows.ezsp.EZSP()
     if cbh:
         s.add_callback(cbh)
-    yield from s.connect(dev)
+    try:
+        yield from s.connect(dev)
+    except Exception as e:
+        LOGGER.error(e)
+        raise click.Abort()
     LOGGER.debug("Connected. Resetting.")
     yield from s.reset()
     yield from s.version()
