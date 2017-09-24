@@ -73,7 +73,7 @@ def config(ctx, config, all_):
 def info(ctx):
     """Get NCP information"""
     s = yield from util.setup(ctx.obj['device'], ctx.obj['baudrate'])
-    yield from util.networkInit(s)
+    yield from util.network_init(s)
 
     commands = [
         'getEui64',

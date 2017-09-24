@@ -50,8 +50,7 @@ def _dump(ctx, channel, outfile):
     v = yield from s.mfglibSetChannel(channel)
     util.check(v[0], "Unable to set channel")
 
-    DLT_IEEE802_15_4 = 195
-    pcap = pure_pcapy.Dumper(outfile, 128, DLT_IEEE802_15_4)
+    pcap = pure_pcapy.Dumper(outfile, 128, 195)  # DLT_IEEE_15_4
 
     click.echo("Capture started")
     ctx.obj['start_time'] = time.time()

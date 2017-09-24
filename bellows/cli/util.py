@@ -91,7 +91,11 @@ def setup(dev, baudrate, cbh=None, configure=True):
     s = bellows.ezsp.EZSP()
     if cbh:
         s.add_callback(cbh)
-    yield from s.connect(dev, baudrate)
+    try:
+        yield from s.connect(dev, baudrate)
+    except Exception as e:
+        LOGGER.error(e)
+        raise click.Abort()
     LOGGER.debug("Connected. Resetting.")
     yield from s.reset()
     yield from s.version()
@@ -131,7 +135,7 @@ def check(ret, message, expected=0):
 
 
 @asyncio.coroutine
-def networkInit(s):
+def network_init(s):
     v = yield from s.networkInit()
     check(
         v[0],
@@ -150,21 +154,21 @@ def parse_epan(epan):
 @asyncio.coroutine
 def basic_tc_permits(s):
     @asyncio.coroutine
-    def setPolicy(policy, decision):
+    def set_policy(policy, decision):
         v = yield from s.setPolicy(policy, decision)
         check(v[0], "Failed to set policy %s to %s: %s" % (
             policy, decision, v[0],
         ))
 
-    yield from setPolicy(
+    yield from set_policy(
         t.EzspPolicyId.TC_KEY_REQUEST_POLICY,
         t.EzspDecisionId.DENY_TC_KEY_REQUESTS,
     )
-    yield from setPolicy(
+    yield from set_policy(
         t.EzspPolicyId.APP_KEY_REQUEST_POLICY,
         t.EzspDecisionId.ALLOW_APP_KEY_REQUESTS,
     )
-    yield from setPolicy(
+    yield from set_policy(
         t.EzspPolicyId.TRUST_CENTER_POLICY,
         t.EzspDecisionId.ALLOW_PRECONFIGURED_KEY_JOINS,
     )

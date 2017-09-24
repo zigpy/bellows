@@ -1,6 +1,7 @@
 """CLI commands which use the application framework"""
 
 import asyncio
+import binascii
 
 import click
 
@@ -46,6 +47,32 @@ def permit(ctx, database, duration_s):
         click.echo("Joins are permitted for the next %ss..." % (duration_s, ))
         yield from asyncio.sleep(duration_s + 1)
         click.echo("Done")
+
+    return util.app(inner)(ctx)
+
+
+@main.command()
+@click.argument('node')
+@click.argument('code')
+@opts.database_file
+@opts.duration_s
+@click.pass_context
+def permit_with_key(ctx, database, duration_s, node, code):
+    """Allow devices to join this ZigBee network using an install code"""
+    ctx.obj['database_file'] = database
+    node = t.EmberEUI64([t.uint8_t(p, base=16) for p in node.split(':')])
+    code = binascii.unhexlify(code)
+
+    def inner(ctx):
+        app = ctx.obj['app']
+        try:
+            yield from app.permit_with_key(node, code, duration_s)
+
+            click.echo("Joins are permitted for the next %ss..." % (duration_s, ))
+            yield from asyncio.sleep(duration_s + 1)
+            click.echo("Done")
+        except Exception as e:
+            click.echo(e)
 
     return util.app(inner)(ctx)
 
