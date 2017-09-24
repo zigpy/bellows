@@ -49,6 +49,8 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         yield from self._cfg(c.CONFIG_APPLICATION_ZDO_FLAGS, zdo)
         yield from self._cfg(c.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2)
         yield from self._cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xff)
+        yield from self._cfg(c.CONFIG_KEY_TABLE_SIZE, 1)
+        yield from self._cfg(c.CONFIG_TRANSIENT_KEY_TIMEOUT_S, 180)
 
     @asyncio.coroutine
     def startup(self, auto_form=False):
@@ -289,6 +291,20 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
     def permit(self, time_s=60):
         assert 0 <= time_s <= 254
         return self._ezsp.permitJoining(time_s)
+
+    def permit_with_key(self, node, code, time_s=60):
+        if type(node) is not t.EmberEUI64:
+            node = t.EmberEUI64([t.uint8_t(p) for p in node])
+
+        key = bellows.zigbee.util.convert_install_code(code)
+        if key is None:
+            raise Exception("Invalid install code")
+
+        v = yield from self._ezsp.addTransientLinkKey(node, key)
+        if v[0] != 0:
+            raise Exception("Failed to set link key")
+
+        return self._ezsp.permitJoining(time_s, True)
 
     def get_sequence(self):
         self._send_sequence = (self._send_sequence + 1) % 256

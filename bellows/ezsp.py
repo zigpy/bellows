@@ -143,7 +143,7 @@ class EZSP:
 
     def __getattr__(self, name):
         if name not in self.COMMANDS:
-            raise AttributeError
+            raise AttributeError("%s not found in COMMANDS" % (name, ))
 
         return functools.partial(self._command, name)
 

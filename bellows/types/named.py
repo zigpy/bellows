@@ -1101,6 +1101,10 @@ class EmberNodeType(basic.uint8_t, enum.Enum):
     SLEEPY_END_DEVICE = 0x04
     # A sleepy end device that can move through the network.
     MOBILE_END_DEVICE = 0x05
+    # RF4CE target node.
+    RF4CE_TARGET = 0x06
+    # RF4CE controller node.
+    RF4CE_CONTROLLER = 0x07
 
 
 class EmberNetworkStatus(basic.uint8_t, enum.Enum):
@@ -1174,6 +1178,7 @@ class EmberMacPassthroughType(basic.uint8_t, enum.Enum):
     MAC_PASSTHROUGH_EMBERNET_SOURCE = 0x04
     MAC_PASSTHROUGH_APPLICATION = 0x08
     MAC_PASSTHROUGH_CUSTOM = 0x10
+    MAC_PASSTHROUGH_INTERNAL_GP = 0x40
     MAC_PASSTHROUGH_INTERNAL = 0x80
 
 
@@ -1197,8 +1202,23 @@ class EmberApsOption(basic.uint16_t):
 
     # No options.
     APS_OPTION_NONE = 0x0000
+    # Encrypt with Transient Key
+    APS_OPTION_ENCRYPT_WITH_TRANSIENT_KEY = 0x0001
+    # Use alias Sequence number
+    APS_OPTION_USE_ALIAS_SEQUENCE_NUMBER = 0x0002
     # UNKNOWN: Discovered while receiving data
     APS_OPTION_UNKNOWN = 0x0008
+    # This signs the application layer message body (APS Frame not included)
+    # and appends the ECDSA signature to the end of the message.  Needed by
+    # Smart Energy applications.  This requires the CBKE and ECC libraries.
+    # The ::emberDsaSignHandler() function is called after DSA signing
+    # is complete but before the message has been sent by the APS layer.
+    # Note that when passing a buffer to the stack for DSA signing, the final
+    # byte in the buffer has special significance as an indicator of how many
+    # leading bytes should be ignored for signature purposes.  Refer to API
+    # documentation of emberDsaSign() or the dsaSign EZSP command for further
+    # details about this requirement.
+    APS_OPTION_DSA_SIGN = 0x0010
     # Send the message using APS Encryption, using the Link Key shared with the
     # destination node to encrypt the data at the APS Level.
     APS_OPTION_ENCRYPTION = 0x0020
@@ -1371,6 +1391,15 @@ class EmberKeyStructBitmask(basic.uint16_t):
     KEY_HAS_INCOMING_FRAME_COUNTER = 0x0004
     # The key has a Partner IEEE address associated with it.
     KEY_HAS_PARTNER_EUI64 = 0x0008
+    # This indicates the key is authorized for use in APS data messages.
+    # If the key is not authorized for use in APS data messages it has not
+    # yet gone through a key agreement protocol, such as CBKE (i.e. ECC)
+    KEY_IS_AUTHORIZED = 0x0010
+    # This indicates that the partner associated with the link is a sleepy
+    # end device.  This bit is set automatically if the local device
+    # hears a device announce from the partner indicating it is not
+    # an 'RX on when idle' device.
+    KEY_PARTNER_IS_SLEEPY = 0x0020
 
 
 class EmberDeviceUpdate(basic.uint8_t, enum.Enum):
@@ -1388,6 +1417,7 @@ class EmberDeviceUpdate(basic.uint8_t, enum.Enum):
 class EmberKeyStatus(basic.uint8_t, enum.Enum):
     # The status of the attempt to establish a key.
 
+    KEY_STATUS_NONE = 0x00
     APP_LINK_KEY_ESTABLISHED = 0x01
     APP_MASTER_KEY_ESTABLISHED = 0x02
     TRUST_CENTER_LINK_KEY_ESTABLISHED = 0x03
@@ -1405,6 +1435,14 @@ class EmberKeyStatus(basic.uint8_t, enum.Enum):
     TC_FAILED_TO_SEND_APP_KEYS = 0x0F
     TC_FAILED_TO_STORE_APP_KEY_REQUEST = 0x10
     TC_REJECTED_APP_KEY_REQUEST = 0x11
+    TC_FAILED_TO_GENERATE_NEW_KEY = 0x12
+    TC_FAILED_TO_SEND_TC_KEY = 0x13
+    TRUST_CENTER_IS_PRE_R21 = 0x1E
+    TC_REQUESTER_VERIFY_KEY_TIMEOUT = 0x32
+    TC_REQUESTER_VERIFY_KEY_FAILURE = 0x33
+    TC_REQUESTER_VERIFY_KEY_SUCCESS = 0x34
+    VERIFY_LINK_KEY_FAILURE = 0x64
+    VERIFY_LINK_KEY_SUCCESS = 0x65
 
 
 class EmberCounterType(basic.uint8_t, enum.Enum):
