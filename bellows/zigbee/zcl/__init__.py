@@ -62,7 +62,7 @@ def deserialize(cluster_id, data):
 
 
 class Registry(type):
-    def __init__(cls, name, bases, nmspc):
+    def __init__(cls, name, bases, nmspc):  # noqa: N805
         super(Registry, cls).__init__(name, bases, nmspc)
         if hasattr(cls, 'cluster_id'):
             cls._registry[cls.cluster_id] = cls

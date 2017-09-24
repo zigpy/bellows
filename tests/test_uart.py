@@ -23,7 +23,7 @@ def test_connect(monkeypatch):
         mockconnect,
     )
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(uart.connect(portmock, appmock))
+    loop.run_until_complete(uart.connect(portmock, 115200, appmock))
 
 
 @pytest.fixture

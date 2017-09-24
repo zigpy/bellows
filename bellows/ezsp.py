@@ -25,9 +25,9 @@ class EZSP:
             self.COMMANDS_BY_ID[details[0]] = (name, details[1], details[2])
 
     @asyncio.coroutine
-    def connect(self, device):
+    def connect(self, device, baudrate):
         assert self._gw is None
-        self._gw = yield from uart.connect(device, self)
+        self._gw = yield from uart.connect(device, baudrate, self)
 
     def reset(self):
         return self._gw.reset()
@@ -122,7 +122,7 @@ class EZSP:
     )
 
     @asyncio.coroutine
-    def formNetwork(self, parameters):
+    def formNetwork(self, parameters):  # noqa: N802
         fut = asyncio.Future()
 
         def cb(frame_name, response):
@@ -143,7 +143,7 @@ class EZSP:
 
     def __getattr__(self, name):
         if name not in self.COMMANDS:
-            raise AttributeError
+            raise AttributeError("%s not found in COMMANDS" % (name, ))
 
         return functools.partial(self._command, name)
 

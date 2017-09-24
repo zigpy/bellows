@@ -27,6 +27,14 @@ def ieee(init=0):
     return t.EmberEUI64(map(t.uint8_t, range(init, init + 8)))
 
 
+def get_mock_coro(return_value):
+    @asyncio.coroutine
+    def mock_coro(*args, **kwargs):
+        return return_value
+
+    return mock.Mock(wraps=mock_coro)
+
+
 def _test_startup(app, nwk_type, auto_form=False, init=0):
     # This is a fairly brittle and pointless test. Except the point is just
     # to allow startup to run all its paths and check types etc.
@@ -253,6 +261,41 @@ def test_get_device_both(app, ieee):
 def test_permit(app):
     app.permit(60)
     assert app._ezsp.permitJoining.call_count == 1
+
+
+def test_permit_with_key(app):
+    app._ezsp.addTransientLinkKey = get_mock_coro([0, 0])
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(app.permit_with_key(bytes([1, 2, 3, 4, 5, 6, 7, 8]), bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]), 60))
+
+    assert app._ezsp.addTransientLinkKey.call_count == 1
+    assert app._ezsp.permitJoining.call_count == 1
+
+
+def test_permit_with_key_ieee(app, ieee):
+    app._ezsp.addTransientLinkKey = get_mock_coro([0, 0])
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(app.permit_with_key(ieee, bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]), 60))
+
+    assert app._ezsp.addTransientLinkKey.call_count == 1
+    assert app._ezsp.permitJoining.call_count == 1
+
+
+def test_permit_with_key_invalid_install_code(app, ieee):
+    loop = asyncio.get_event_loop()
+
+    with pytest.raises(Exception):
+        loop.run_until_complete(app.permit_with_key(ieee, bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]), 60))
+
+
+def test_permit_with_key_failed_add_key(app, ieee):
+    app._ezsp.addTransientLinkKey = get_mock_coro([1, 1])
+
+    loop = asyncio.get_event_loop()
+    with pytest.raises(Exception):
+        loop.run_until_complete(app.permit_with_key(ieee, bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]), 60))
 
 
 def _request(app, aps, returnvals, **kwargs):

@@ -23,7 +23,7 @@ def test_connect(ezsp_f, monkeypatch):
     monkeypatch.setattr(uart, 'connect', mockconnect)
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(ezsp_f.connect(None))
+    loop.run_until_complete(ezsp_f.connect(None, None))
     assert connected
 
 
@@ -48,6 +48,11 @@ def test_attr(ezsp_f):
 def test_non_existent_attr(ezsp_f):
     with pytest.raises(AttributeError):
         ezsp_f.nonexistentMethod()
+
+
+def test_non_existent_attr_with_list(ezsp_f):
+    with pytest.raises(AttributeError):
+        ezsp_f.__getattr__(("unexpectedly", "hah"))
 
 
 def test_command(ezsp_f):
