@@ -22,7 +22,7 @@ def config(ctx, config, all_):
     if not (config or all_):
         raise click.BadOptionUsage("One of config or --all must be specified")
 
-    s = yield from util.setup(ctx.obj['device'], util.print_cb)
+    s = yield from util.setup(ctx.obj['device'], ctx.obj['baudrate'], util.print_cb)
 
     if all_:
         for config in t.EzspConfigId:
@@ -72,7 +72,7 @@ def config(ctx, config, all_):
 @util.async
 def info(ctx):
     """Get NCP information"""
-    s = yield from util.setup(ctx.obj['device'])
+    s = yield from util.setup(ctx.obj['device'], ctx.obj['baudrate'])
     yield from util.network_init(s)
 
     commands = [

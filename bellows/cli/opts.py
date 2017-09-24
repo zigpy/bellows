@@ -28,6 +28,13 @@ device = click.option(
     required=True,
 )
 
+baudrate = click.option(
+    '-b', '--baudrate',
+    type=click.INT,
+    envvar='EZSP_BAUDRATE',
+    default=57600
+)
+
 database_file = click.option(
     '-D', '--database',
     type=click.Path(
