@@ -122,7 +122,7 @@ class EZSP:
     )
 
     @asyncio.coroutine
-    def formNetwork(self, parameters):
+    def formNetwork(self, parameters):  # noqa: N802
         fut = asyncio.Future()
 
         def cb(frame_name, response):

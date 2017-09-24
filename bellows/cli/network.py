@@ -74,7 +74,7 @@ def join(ctx, channels, pan_id, extended_pan_id):
     if extended_pan_id is None:
         extended_pan_id = t.fixed_list(8, t.uint8_t)([t.uint8_t(0)] * 8)
 
-    v = yield from util.networkInit(s)
+    v = yield from util.network_init(s)
 
     if v[0] == t.EmberStatus.SUCCESS:
         LOGGER.debug("Network was up, leaving...")
@@ -115,7 +115,7 @@ def join(ctx, channels, pan_id, extended_pan_id):
 def leave(ctx):
     """Leave the ZigBee network"""
     s = yield from util.setup(ctx.obj['device'])
-    v = yield from util.networkInit(s)
+    v = yield from util.network_init(s)
     if v[0] == t.EmberStatus.NOT_JOINED:
         click.echo("Not joined, not leaving")
     else:

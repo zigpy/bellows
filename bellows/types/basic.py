@@ -1,7 +1,7 @@
 import struct
 
 
-class int_t(int):
+class int_t(int):  # noqa: N801
     _signed = True
 
     def serialize(self):
@@ -15,71 +15,71 @@ class int_t(int):
         return r, data
 
 
-class int8s(int_t):
+class int8s(int_t):  # noqa: N801
     _size = 1
 
 
-class int16s(int_t):
+class int16s(int_t):  # noqa: N801
     _size = 2
 
 
-class int24s(int_t):
+class int24s(int_t):  # noqa: N801
     _size = 3
 
 
-class int32s(int_t):
+class int32s(int_t):  # noqa: N801
     _size = 4
 
 
-class int40s(int_t):
+class int40s(int_t):  # noqa: N801
     _size = 5
 
 
-class int48s(int_t):
+class int48s(int_t):  # noqa: N801
     _size = 6
 
 
-class int56s(int_t):
+class int56s(int_t):  # noqa: N801
     _size = 7
 
 
-class int64s(int_t):
+class int64s(int_t):  # noqa: N801
     _size = 8
 
 
-class uint_t(int_t):
+class uint_t(int_t):  # noqa: N801
     _signed = False
 
 
-class uint8_t(uint_t):
+class uint8_t(uint_t):  # noqa: N801
     _size = 1
 
 
-class uint16_t(uint_t):
+class uint16_t(uint_t):  # noqa: N801
     _size = 2
 
 
-class uint24_t(uint_t):
+class uint24_t(uint_t):  # noqa: N801
     _size = 3
 
 
-class uint32_t(uint_t):
+class uint32_t(uint_t):  # noqa: N801
     _size = 4
 
 
-class uint40_t(uint_t):
+class uint40_t(uint_t):  # noqa: N801
     _size = 5
 
 
-class uint48_t(uint_t):
+class uint48_t(uint_t):  # noqa: N801
     _size = 6
 
 
-class uint56_t(uint_t):
+class uint56_t(uint_t):  # noqa: N801
     _size = 7
 
 
-class uint64_t(uint_t):
+class uint64_t(uint_t):  # noqa: N801
     _size = 8
 
 
@@ -146,13 +146,13 @@ class _LVList(_List):
         return r, data
 
 
-def List(itemtype):
+def List(itemtype):  # noqa: N802
     class List(_List):
         _itemtype = itemtype
     return List
 
 
-def LVList(itemtype):
+def LVList(itemtype):  # noqa: N802
     class LVList(_LVList):
         _itemtype = itemtype
     return LVList
