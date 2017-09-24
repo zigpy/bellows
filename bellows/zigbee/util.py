@@ -147,9 +147,9 @@ def aes_mmo_hash(data):
             # Mask out the lower byte since hash update will hash
             # everything except the last piece, if the last piece
             # is less than 16 bytes.
-            hashedLength = (length & ~(AES.block_size - 1))
+            hashed_length = (length & ~(AES.block_size - 1))
             (result_len, result) = aes_mmo_hash_update(result_len, result, data)
-            data = data[hashedLength:]
+            data = data[hashed_length:]
 
     for i in range(remaining_length):
         temp[i] = data[i]
