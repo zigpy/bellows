@@ -170,9 +170,9 @@ def aes_mmo_hash(data):
         result_len -= AES.block_size
         temp = bytearray([0] * AES.block_size)
 
-    bitSize = result_len * 8
-    temp[AES.block_size - 2] = (bitSize >> 8) & 0xFF
-    temp[AES.block_size - 1] = (bitSize) & 0xFF
+    bit_size = result_len * 8
+    temp[AES.block_size - 2] = (bit_size >> 8) & 0xFF
+    temp[AES.block_size - 1] = (bit_size) & 0xFF
 
     (result_len, result) = aes_mmo_hash_update(result_len, result, temp)
 
