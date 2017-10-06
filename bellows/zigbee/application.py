@@ -224,8 +224,10 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         LOGGER.info("Device 0x%04x (%s) joined the network", nwk, ieee)
         if ieee in self.devices:
             dev = self.get_device(ieee)
-            dev.nwk = nwk
-            if dev.initializing or dev.status == bellows.zigbee.device.Status.ENDPOINTS_INIT:
+            if dev.nwk != nwk:
+                LOGGER.debug("Device %s changed id (0x%04x => 0x%04x)", ieee, dev.nwk, nwk)
+                dev.nwk = nwk
+            elif dev.initializing or dev.status == bellows.zigbee.device.Status.ENDPOINTS_INIT:
                 LOGGER.debug("Skip initialization for existing device %s", ieee)
                 return
         else:
