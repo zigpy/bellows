@@ -6,7 +6,6 @@ import binascii
 import click
 
 import bellows.ezsp
-import bellows.types as t
 import bellows.zigbee.application
 import bellows.zigbee.endpoint
 from . import opts
