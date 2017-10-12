@@ -25,7 +25,7 @@ class CSVParamType(click.ParamType):
 
 
 class ZigbeeNodeParamType(click.ParamType):
-    name = 'collon separated hex bytes'
+    name = 'colon separated hex bytes'
 
     def convert(self, value, param, ctx):
         if ":" not in value or len(value) != 23:
