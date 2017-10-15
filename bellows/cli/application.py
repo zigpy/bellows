@@ -6,7 +6,6 @@ import binascii
 import click
 
 import bellows.ezsp
-import bellows.types as t
 import bellows.zigbee.application
 import bellows.zigbee.endpoint
 from . import opts
@@ -52,7 +51,7 @@ def permit(ctx, database, duration_s):
 
 
 @main.command()
-@click.argument('node')
+@click.argument('node', type=util.ZigbeeNodeParamType())
 @click.argument('code')
 @opts.database_file
 @opts.duration_s
@@ -60,7 +59,6 @@ def permit(ctx, database, duration_s):
 def permit_with_key(ctx, database, duration_s, node, code):
     """Allow devices to join this ZigBee network using an install code"""
     ctx.obj['database_file'] = database
-    node = t.EmberEUI64([t.uint8_t(p, base=16) for p in node.split(':')])
     code = binascii.unhexlify(code)
 
     def inner(ctx):
@@ -119,10 +117,9 @@ def devices(ctx, database):
 @main.group()
 @click.pass_context
 @opts.database_file
-@click.argument('node')
+@click.argument('node', type=util.ZigbeeNodeParamType())
 def zdo(ctx, node, database):
     """Perform ZDO operations against a device"""
-    node = t.EmberEUI64([int(p, base=16) for p in node.split(':')])
     ctx.obj['node'] = node
     ctx.obj['database_file'] = database
 
@@ -216,12 +213,11 @@ def leave(ctx):
 @main.group()
 @click.pass_context
 @opts.database_file
-@click.argument('node')
+@click.argument('node', type=util.ZigbeeNodeParamType())
 @click.argument('endpoint', type=click.IntRange(1, 255))
 @click.argument('cluster', type=click.IntRange(0, 65535))
 def zcl(ctx, database, node, cluster, endpoint):
     """Peform ZCL operations against a device"""
-    node = t.EmberEUI64([int(p, base=16) for p in node.split(':')])
     ctx.obj['database_file'] = database
     ctx.obj['node'] = node
     ctx.obj['endpoint'] = endpoint
