@@ -4,7 +4,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="bellows",
-    version="0.3.5",
+    version="0.4.0",
     description="Library implementing EZSP and ZigBee",
     url="http://github.com/rcloran/bellows",
     author="Russell Cloran",
