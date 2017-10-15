@@ -44,7 +44,6 @@ database_file = click.option(
     ),
     required=True,
     default=os.path.join(click.get_app_dir("bellows"), "app.db"),
-
 )
 
 duration_ms = click.option(
