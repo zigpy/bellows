@@ -87,14 +87,14 @@ def test_partial_data_received(gw):
 def test_crc_error(gw):
     gw.write = mock.MagicMock()
     gw.data_received(b'L\xa1\x8e\x03\xcd\x07\xb9Y\xfbG%\xae\xbd~')
-    assert gw.write.call_count == 0
+    assert gw.write.call_count == 1
     assert gw._application.frame_received.call_count == 0
 
 
 def test_crc_error_and_valid_frame(gw):
     gw.write = mock.MagicMock()
     gw.data_received(b'L\xa1\x8e\x03\xcd\x07\xb9Y\xfbG%\xae\xbd~\x54\x79\xa1\xb0\x50\xf2\x6e\x7e')
-    assert gw.write.call_count == 1
+    assert gw.write.call_count == 2
     assert gw._application.frame_received.call_count == 1
 
 
