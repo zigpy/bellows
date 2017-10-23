@@ -1,4 +1,5 @@
 import asyncio
+import binascii
 import logging
 import os
 
@@ -189,7 +190,11 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         else:
             deserialize = bellows.zigbee.zcl.deserialize
 
-        tsn, command_id, is_reply, args = deserialize(aps_frame.clusterId, message)
+        try:
+            tsn, command_id, is_reply, args = deserialize(aps_frame.clusterId, message)
+        except ValueError as e:
+            LOGGER.error("Failed to parse message (%s) on cluster %d, because %s", binascii.hexlify(message), aps_frame.clusterId, e)
+            return
 
         if is_reply:
             self._handle_reply(sender, aps_frame, tsn, command_id, args)
