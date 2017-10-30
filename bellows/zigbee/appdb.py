@@ -16,8 +16,8 @@ def _sqlite_adapters():
     sqlite3.register_adapter(t.EmberEUI64, adapt_ieee)
 
     def convert_ieee(s):
-        l = [t.uint8_t(p, base=16) for p in s.split(b':')]
-        return t.EmberEUI64(l)
+        ieee = [t.uint8_t(p, base=16) for p in s.split(b':')]
+        return t.EmberEUI64(ieee)
     sqlite3.register_converter("ieee", convert_ieee)
 
 
@@ -186,7 +186,7 @@ class PersistingListener:
                     device_type = bellows.zigbee.profiles.zha.DeviceType(device_type)
                 elif profile_id == 49246:
                     device_type = bellows.zigbee.profiles.zll.DeviceType(device_type)
-            except:
+            except ValueError:
                 pass
             ep.device_type = device_type
             ep.status = bellows.zigbee.endpoint.Status(status)
