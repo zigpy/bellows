@@ -115,9 +115,9 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
     @util.retryable_request
     def request(self, general, command_id, schema, *args):
         if len(schema) != len(args):
-            self.error("Schema and args lengths do not match")
+            self.error("Schema and args lengths do not match in request")
             error = asyncio.Future()
-            error.set_exception(ValueError("Missing parameters for request, expected %d argument(s)" % len(schema)))
+            error.set_exception(ValueError("Wrong number of parameters for request, expected %d argument(s)" % len(schema)))
             return error
 
         aps = self._endpoint.get_aps(self.cluster_id)
@@ -132,9 +132,9 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
 
     def reply(self, command_id, schema, *args):
         if len(schema) != len(args):
-            self.error("Schema and args lengths do not match")
+            self.error("Schema and args lengths do not match in reply")
             error = asyncio.Future()
-            error.set_exception(ValueError("Missing parameters for request, expected %d argument(s)" % len(schema)))
+            error.set_exception(ValueError("Wrong number of parameters for reply, expected %d argument(s)" % len(schema)))
             return error
 
         aps = self._endpoint.get_aps(self.cluster_id)
