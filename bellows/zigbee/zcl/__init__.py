@@ -138,8 +138,8 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             return error
 
         aps = self._endpoint.get_aps(self.cluster_id)
-        frame_command = 0b1001  # Cluster reply command
-        data = bytes([frame_command, aps.sequence, command_id])
+        frame_control = 0b1001  # Cluster reply command
+        data = bytes([frame_control, aps.sequence, command_id])
         data += t.serialize(args, schema)
 
         return self._endpoint.device.reply(aps, data)
