@@ -26,6 +26,7 @@ class Gateway(asyncio.Protocol):
     def __init__(self, application, connected_future=None):
         self._send_seq = 0
         self._rec_seq = 0
+        self._nak_count = 0
         self._buffer = b''
         self._application = application
         self._reset_future = None
@@ -69,10 +70,18 @@ class Gateway(asyncio.Protocol):
             crc = binascii.crc_hqx(frame[:-3], 0xffff)
             crc = bytes([crc >> 8, crc % 256])
             if crc != frame[-3:-1]:
-                LOGGER.error("CRC error in frame (%s != %s)", binascii.hexlify(frame[-3:-1]), binascii.hexlify(crc))
-                self.write(self._nak_frame())
+                LOGGER.error("CRC error in frame %s (%s != %s)", binascii.hexlify(frame), binascii.hexlify(frame[-3:-1]), binascii.hexlify(crc))
+                self._nak_count += 1
+                if self._nak_count == 3:
+                    self._nak_count = 0
+                    LOGGER.error("Failed to receive valid frame, dropping")
+                    self.write(self._ack_frame())
+                else:
+                    self.write(self._nak_frame())
                 # Make sure that we also handle the next frame if it is already recevied
                 return self._extract_frame(rest)
+            else:
+                self._nak_count = 0
             return frame, rest
         return None, data
 
