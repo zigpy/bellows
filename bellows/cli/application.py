@@ -136,11 +136,14 @@ def endpoints(ctx):
     if dev is None:
         return
 
-    v = yield from dev.zdo.request(0x0005, dev.nwk)
-    if v[0] != 0:
-        click.echo("Non-success response: %s" % (v, ))
-    else:
-        click.echo(v[2])
+    try:
+        v = yield from dev.zdo.request(0x0005, dev.nwk)
+        if v[0] != 0:
+            click.echo("Non-success response: %s" % (v, ))
+        else:
+            click.echo(v[2])
+    except bellows.zigbee.exceptions.DeliveryError as e:
+        click.echo(e)
 
 
 @zdo.command()
@@ -156,11 +159,14 @@ def get_endpoint(ctx, endpoint):
     if endp is None:
         return
 
-    v = yield from dev.zdo.request(0x0004, dev.nwk, endpoint)
-    if v[0] != 0:
-        click.echo("Non-success response: %s" % (v, ))
-    else:
-        click.echo(v[2])
+    try:
+        v = yield from dev.zdo.request(0x0004, dev.nwk, endpoint)
+        if v[0] != 0:
+            click.echo("Non-success response: %s" % (v, ))
+        else:
+            click.echo(v[2])
+    except bellows.zigbee.exceptions.DeliveryError as e:
+        click.echo(e)
 
 
 @zdo.command()
@@ -177,8 +183,11 @@ def bind(ctx, endpoint, cluster):
     if clust is None:
         return
 
-    v = yield from dev.zdo.bind(endpoint, cluster)
-    click.echo(v)
+    try:
+        v = yield from dev.zdo.bind(endpoint, cluster)
+        click.echo(v)
+    except bellows.zigbee.exceptions.DeliveryError as e:
+        click.echo(e)
 
 
 @zdo.command()
@@ -195,8 +204,11 @@ def unbind(ctx, endpoint, cluster):
     if clust is None:
         return
 
-    v = yield from dev.zdo.unbind(endpoint, cluster)
-    click.echo(v)
+    try:
+        v = yield from dev.zdo.unbind(endpoint, cluster)
+        click.echo(v)
+    except bellows.zigbee.exceptions.DeliveryError as e:
+        click.echo(e)
 
 
 @zdo.command()
@@ -206,8 +218,11 @@ def leave(ctx):
     """Tell a node to leave the network"""
     app = ctx.obj['app']
 
-    v = yield from app.remove(ctx.obj['node'])
-    click.echo(v)
+    try:
+        v = yield from app.remove(ctx.obj['node'])
+        click.echo(v)
+    except bellows.zigbee.exceptions.DeliveryError as e:
+        click.echo(e)
 
 
 @main.group()
@@ -238,15 +253,18 @@ def read_attribute(ctx, attribute):
     if cluster is None:
         return
 
-    v = yield from cluster.read_attributes([attribute], allow_cache=False)
-    if not v:
-        click.echo("Received empty response")
-    elif attribute not in v[0]:
-        click.echo("Attribute %s not successful. Status=%s" % (
-            attribute, v[1][attribute]
-        ))
-    else:
-        click.echo("%s=%s" % (attribute, v[0][attribute]))
+    try:
+        v = yield from cluster.read_attributes([attribute], allow_cache=False)
+        if not v:
+            click.echo("Received empty response")
+        elif attribute not in v[0]:
+            click.echo("Attribute %s not successful. Status=%s" % (
+                attribute, v[1][attribute]
+            ))
+        else:
+            click.echo("%s=%s" % (attribute, v[0][attribute]))
+    except bellows.zigbee.exceptions.DeliveryError as e:
+        click.echo(e)
 
 
 @zcl.command()
@@ -264,8 +282,11 @@ def write_attribute(ctx, attribute, value):
     if cluster is None:
         return
 
-    v = yield from cluster.write_attributes({attribute: value})
-    click.echo(v)
+    try:
+        v = yield from cluster.write_attributes({attribute: value})
+        click.echo(v)
+    except bellows.zigbee.exceptions.DeliveryError as e:
+        click.echo(e)
 
 
 @zcl.command()
@@ -307,6 +328,8 @@ def command(ctx, command, parameters):
         click.echo(v)
     except ValueError as e:
         click.echo(e)
+    except bellows.zigbee.exceptions.DeliveryError as e:
+        click.echo(e)
 
 
 @zcl.command()
@@ -330,10 +353,13 @@ def configure_reporting(ctx,
     if cluster is None:
         return
 
-    v = yield from cluster.configure_reporting(
-        attribute,
-        min_interval,
-        max_interval,
-        reportable_change,
-    )
-    click.echo(v)
+    try:
+        v = yield from cluster.configure_reporting(
+            attribute,
+            min_interval,
+            max_interval,
+            reportable_change,
+        )
+        click.echo(v)
+    except bellows.zigbee.exceptions.DeliveryError as e:
+        click.echo(e)
