@@ -233,8 +233,8 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
                 return
         else:
             dev = self.add_device(ieee, nwk)
-            self.listener_event('device_joined', dev)
 
+        self.listener_event('device_joined', dev)
         dev.schedule_initialize()
 
     def _handle_leave(self, nwk, ieee, *args):
