@@ -38,9 +38,11 @@ baudrate = click.option(
 database_file = click.option(
     '-D', '--database',
     type=click.Path(
+        exists=True,
         dir_okay=False,
         writable=True,
     ),
+    required=True,
     default=os.path.join(click.get_app_dir("bellows"), "app.db"),
 )
 

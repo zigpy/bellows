@@ -50,7 +50,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         yield from self._cfg(c.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2)
         yield from self._cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xff)
         yield from self._cfg(c.CONFIG_KEY_TABLE_SIZE, 1)
-        yield from self._cfg(c.CONFIG_TRANSIENT_KEY_TIMEOUT_S, 180)
+        yield from self._cfg(c.CONFIG_TRANSIENT_KEY_TIMEOUT_S, 180, True)
 
     @asyncio.coroutine
     def startup(self, auto_form=False):
@@ -112,9 +112,10 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         yield from self._ezsp.setValue(t.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
 
     @asyncio.coroutine
-    def _cfg(self, config_id, value):
+    def _cfg(self, config_id, value, optional=False):
         v = yield from self._ezsp.setConfigurationValue(config_id, value)
-        assert v[0] == 0  # TODO: Better check
+        if not optional:
+            assert v[0] == 0  # TODO: Better check
 
     @asyncio.coroutine
     def _policy(self):
