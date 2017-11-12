@@ -72,7 +72,7 @@ class Thermostat(Cluster):
         0x0019: ('min_setpoint_dead_band', t.int8s),
         0x001a: ('remote_sensing', t.uint8_t),  # bitmap8
         0x001b: ('ctrl_seqe_of_oper', t.uint8_t),  # enum8
-        0x001c: ('system_mode', t.uint8_t),  # enum8
+        0x001c: ('system_mode', t.enum8),  # enum8
         0x001d: ('alarm_mask', t.uint8_t),  # bitmap8
         0x001e: ('running_mode', t.uint8_t),  # enum8
         # ...
