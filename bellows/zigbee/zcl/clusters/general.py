@@ -739,8 +739,8 @@ class PollControl(Cluster):
     server_commands = {
         0x0000: ('checkin_response', (t.uint8_t, t.uint16_t), True),
         0x0001: ('fast_poll_stop', (), False),
-        0x0002: ('set_long_poll_interval', (t.uint32_t), False),
-        0x0003: ('set_short_poll_interval', (t.uint16_t), False),
+        0x0002: ('set_long_poll_interval', (t.uint32_t, ), False),
+        0x0003: ('set_short_poll_interval', (t.uint16_t, ), False),
     }
     client_commands = {
         0x0000: ('checkin', (), False),
