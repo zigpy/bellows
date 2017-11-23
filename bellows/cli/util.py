@@ -96,7 +96,7 @@ def channel_mask(channels):
 
 
 @asyncio.coroutine
-def setup(dev, baudrate, cbh=None, configure=True):
+def setup(dev, baudrate=57600, cbh=None, configure=True):
     s = bellows.ezsp.EZSP()
     if cbh:
         s.add_callback(cbh)
