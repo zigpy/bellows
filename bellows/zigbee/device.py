@@ -127,14 +127,21 @@ class Device(zutil.LocalLogMixin):
         return self._application.request(self.nwk, aps, data)
 
     def handle_message(self, is_reply, aps_frame, tsn, command_id, args):
-        try:
-            endpoint = self.endpoints[aps_frame.destinationEndpoint]
-        except KeyError:
+        asyncio.ensure_future(self.async_handle_message(
+            is_reply, aps_frame, tsn, command_id, args))
+
+    @asyncio.coroutine
+    def async_handle_message(self, is_reply, aps_frame, tsn, command_id, args):
+        if aps_frame.destinationEndpoint not in self.endpoints:
             self.warn(
                 "Message on unknown endpoint %s",
                 aps_frame.destinationEndpoint,
             )
-            return
+            self.add_endpoint(aps_frame.destinationEndpoint)
+            yield from self.endpoints[aps_frame.destinationEndpoint].initialize()
+            self._application.listener_event('device_updated', self)
+
+        endpoint = self.endpoints[aps_frame.destinationEndpoint]
 
         return endpoint.handle_message(is_reply, aps_frame, tsn, command_id, args)
 
