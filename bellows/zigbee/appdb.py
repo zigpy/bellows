@@ -119,6 +119,8 @@ class PersistingListener:
         self._db.commit()
 
     def _save_device(self, device):
+        if device.status != bellows.zigbee.device.Status.INITIALIZED:
+            return
         q = "INSERT OR REPLACE INTO devices (ieee, nwk, manufacturer) VALUES (?, ?, ?)"
         self.execute(q, (device.ieee, device.nwk, device.manufacturer_code))
         self._save_endpoints(device)
@@ -135,8 +137,9 @@ class PersistingListener:
         q = "INSERT OR REPLACE INTO endpoints VALUES (?, ?, ?, ?)"
         endpoints = []
         for epid, ep in device.endpoints.items():
-            if epid == 0:
-                continue  # Skip zdo
+            # Skip zdo
+            if epid == 0 or ep.status != bellows.zigbee.endpoint.Status.INITIALIZED:
+                continue
             device_type = getattr(ep, 'device_type', None)
             eprow = (
                 device.ieee,
