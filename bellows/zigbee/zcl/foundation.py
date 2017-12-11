@@ -126,8 +126,25 @@ class TypeValue():
     def deserialize(cls, data):
         self = cls()
         self.type, data = data[0], data[1:]
-        actual_type = DATA_TYPES[self.type][1]
-        self.value, data = actual_type.deserialize(data)
+        if self.type in [0x48, 0x50, 0x51]:  # Array, set or bag
+            etype, data = t.basic.uint8_t.deserialize(data)
+            nofel, data = t.basic.uint16_t.deserialize(data)
+            actual_type = DATA_TYPES[etype][1]
+            self.value = []
+            for i in range(nofel):
+                val, data = actual_type.deserialize(data)
+                self.value.append(val)
+        elif self.type == 0x4c:  # Structure
+            nofel, data = t.basic.uint16_t.deserialize(data)
+            self.value = []
+            for i in range(nofel):
+                etype, data = t.basic.uint8_t.deserialize(data)
+                actual_type = DATA_TYPES[etype][1]
+                val, data = actual_type.deserialize(data)
+                self.value.append(val)
+        else:
+            actual_type = DATA_TYPES[self.type][1]
+            self.value, data = actual_type.deserialize(data)
         return self, data
 
 
