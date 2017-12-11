@@ -5,22 +5,13 @@ import click
 import pure_pcapy
 
 from . import util
+from . import opts
 from .main import main
 
 
 @main.command()
-@click.option(
-    '-c', '--channel',
-    type=click.IntRange(11, 26),
-    metavar="CHANNEL",
-    required=True,
-)
-@click.option(
-    '-w', 'outfile',
-    type=click.Path(writable=True, dir_okay=False),
-    metavar="FILE",
-    required=True,
-)
+@opts.channel
+@opts.outfile
 @click.pass_context
 def dump(ctx, channel, outfile):
     """Capture frames on CHANNEL and write to FILE in tcpdump format"""

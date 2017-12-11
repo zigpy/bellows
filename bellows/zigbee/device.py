@@ -6,6 +6,7 @@ import bellows.types as t
 import bellows.zigbee.endpoint
 import bellows.zigbee.util as zutil
 import bellows.zigbee.zdo as zdo
+from bellows.zigbee.zdo.types import CLUSTER_ID
 
 
 LOGGER = logging.getLogger(__name__)

@@ -219,7 +219,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
             LOGGER.warning("Message on unknown device 0x%04x", sender)
             return
 
-        return device.handle_message(is_reply, aps_frame, tsn, command_id, args)
+        device.handle_message(is_reply, aps_frame, tsn, command_id, args)
 
     def _handle_join(self, nwk, ieee, device_update, join_dec, parent_nwk):
         LOGGER.info("Device 0x%04x (%s) joined the network", nwk, ieee)

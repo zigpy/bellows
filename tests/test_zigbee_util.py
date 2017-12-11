@@ -152,3 +152,8 @@ def test_fail_convert_install_code():
     message = bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0xFF, 0xFF])
     key = util.convert_install_code(message)
     assert key is None
+
+
+def test_dotdict():
+    dm = util.dotdict({'asdf': 'ert'})
+    assert dm.asdf == 'ert'

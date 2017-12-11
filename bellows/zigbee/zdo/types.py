@@ -1,6 +1,7 @@
 import enum
 
 import bellows.types as t
+from bellows.zigbee.util import dotdict
 
 
 class PowerDescriptor(t.EzspStruct):
@@ -91,7 +92,6 @@ NWKI = ('NWKAddrOfInterest', t.uint16_t)
 IEEE = ('IEEEAddr', t.EmberEUI64)
 STATUS = ('Status', t.uint8_t)
 
-
 CLUSTERS = {
     # Device and Service Discovery Server Requests
     0x0000: ('NWK_addr_req', (IEEE, ('RequestType', t.uint8_t), ('StartIndex', t.uint8_t))),
@@ -159,6 +159,8 @@ CLUSTERS = {
     0x8036: ('Mgmt_Permit_Joining_rsp', (STATUS, )),
     # ... TODO optional stuff ...
 }
+
+CLUSTER_ID = dotdict({value[0]: key for key, value in CLUSTERS.items()})
 
 
 # Rewrite to (name, param_names, param_types)
