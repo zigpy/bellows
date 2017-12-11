@@ -137,10 +137,10 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         )
         assert v[0] == 0  # TODO: Better check
 
-    def add_device(self, ieee, nwk):
+    def add_device(self, ieee, nwk, manufacturer=None):
         assert isinstance(ieee, t.EmberEUI64)
         # TODO: Shut down existing device
-        dev = bellows.zigbee.device.Device(self, ieee, nwk)
+        dev = bellows.zigbee.device.Device(self, ieee, nwk, manufacturer)
         self.devices[ieee] = dev
         return dev
 
@@ -226,7 +226,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         if ieee in self.devices:
             dev = self.get_device(ieee)
             dev.nwk = nwk
-            if dev.initializing or dev.status == bellows.zigbee.device.Status.ENDPOINTS_INIT:
+            if dev.initializing or dev.status == bellows.zigbee.device.Status.INITIALIZED:
                 LOGGER.debug("Skip initialization for existing device %s", ieee)
                 return
         else:

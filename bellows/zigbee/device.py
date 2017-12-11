@@ -20,12 +20,14 @@ class Status(enum.IntEnum):
     ZDO_INIT = 1
     # Endpoints initialized
     ENDPOINTS_INIT = 2
+    # Initialization finished
+    INITIALIZED = 100
 
 
 class Device(zutil.LocalLogMixin):
     """A device on the network"""
 
-    def __init__(self, application, ieee, nwk):
+    def __init__(self, application, ieee, nwk, manufacturer=None):
         self._application = application
         self._ieee = ieee
         self.nwk = nwk
@@ -35,6 +37,7 @@ class Device(zutil.LocalLogMixin):
         self.rssi = None
         self.status = Status.NEW
         self.initializing = False
+        self._manufacturer_code = manufacturer
 
     def schedule_initialize(self):
         self.initializing = True
@@ -42,38 +45,69 @@ class Device(zutil.LocalLogMixin):
         loop.call_soon(asyncio.async, self._initialize())
 
     @asyncio.coroutine
-    def _initialize(self):
-        if self.status == Status.NEW:
-            self.info("Discovering endpoints")
-            try:
-                epr = yield from self.zdo.request(0x0005, self.nwk, tries=3, delay=2)
-                if epr[0] != 0:
-                    raise Exception("Endpoint request failed: %s", epr)
-            except Exception as exc:
-                self.initializing = False
-                self.warn("Failed ZDO request during device initialization: %s", exc)
-                return
+    def _discover_endpoints(self):
+        self.info("Discovering endpoints")
+        try:
+            epr = yield from self.zdo.request(CLUSTER_ID.Active_EP_req, self.nwk, tries=3, delay=2)
+            if epr[0] != 0:
+                raise Exception("Endpoint request failed: %s", epr)
+        except Exception as exc:
+            self.initializing = False
+            self.warn("Failed ZDO request during device initialization: %s", exc)
+            return
 
-            self.info("Discovered endpoints: %s", epr[2])
+        self.info("Discovered endpoints: %s", epr[2])
 
-            for endpoint_id in epr[2]:
-                self.add_endpoint(endpoint_id)
-
-            self.status = Status.ZDO_INIT
+        for endpoint_id in epr[2]:
+            self.add_endpoint(endpoint_id)
 
         for endpoint_id in self.endpoints.keys():
             if endpoint_id == 0:  # ZDO
                 continue
             yield from self.endpoints[endpoint_id].initialize()
 
+    @asyncio.coroutine
+    def get_manufacturer_code(self):
+        if self._manufacturer_code is None:
+            try:
+                ndr = yield from self.zdo.request(
+                    CLUSTER_ID.Node_Desc_req,
+                    self.nwk,
+                    tries=3,
+                    delay=2,
+                )
+
+                if ndr[0] != 0:
+                    raise Exception("Failed to retrieve node descriptor: %s", ndr)
+
+                self.info("Discovered node information: %s", ndr[2])
+                self._manufacturer_code = ndr[2].manufacturer_code
+            except Exception as exc:
+                self.warn("Failed ZDO request: %s", exc)
+                return
+        return self._manufacturer_code
+
+    @property
+    def manufacturer_code(self):
+        return self._manufacturer_code
+
+    @asyncio.coroutine
+    def _initialize(self):
+        if self.status == Status.NEW:
+            yield from self._discover_endpoints()
+            self.status = Status.ZDO_INIT
+
         self.status = Status.ENDPOINTS_INIT
+        yield from self.get_manufacturer_code()
+        self.status = Status.INITIALIZED
         self.initializing = False
         self._application.listener_event('device_initialized', self)
 
     def add_endpoint(self, endpoint_id):
-        ep = bellows.zigbee.endpoint.Endpoint(self, endpoint_id)
-        self.endpoints[endpoint_id] = ep
-        return ep
+        if endpoint_id not in self.endpoints:
+            ep = bellows.zigbee.endpoint.Endpoint(self, endpoint_id)
+            self.endpoints[endpoint_id] = ep
+            return ep
 
     def get_aps(self, profile, cluster, endpoint):
         f = t.EmberApsFrame()

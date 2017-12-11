@@ -97,7 +97,7 @@ def test_get_aps():
     ieee = t.EmberEUI64(map(t.uint8_t, [0, 1, 2, 3, 4, 5, 6, 7]))
     dev = device.Device(app_mock, ieee, 65535)
     ep = endpoint.Endpoint(dev, 55)
-    ep.status = endpoint.Status.ZDO_INIT
+    ep.status = endpoint.Status.INITIALIZED
     ep.profile_id = 99
     aps = ep.get_aps(255)
     assert aps.profileId == 99
