@@ -42,7 +42,7 @@ def async(f):
     return inner
 
 
-def app(f, app_startup=True):
+def app(f, app_startup=True, run_forever=False, shutdown_cb=None):
     database_file = None
 
     @asyncio.coroutine
@@ -70,6 +70,8 @@ def app(f, app_startup=True):
         loop = asyncio.get_event_loop()
         try:
             loop.run_until_complete(async_inner(*args, **kwargs))
+            if run_forever:
+                loop.run_forever()
         except:
             # It seems that often errors like a message send will try to send
             # two messages, and not reading all of them will leave the NCP in
@@ -77,6 +79,8 @@ def app(f, app_startup=True):
             loop.run_until_complete(asyncio.sleep(0.5))
             raise
         finally:
+            if shutdown_cb:
+                shutdown_cb(ctx)
             shutdown()
 
     return inner
@@ -96,7 +100,7 @@ def channel_mask(channels):
 
 
 @asyncio.coroutine
-def setup(dev, baudrate, cbh=None, configure=True):
+def setup(dev, baudrate=57600, cbh=None, configure=True):
     s = bellows.ezsp.EZSP()
     if cbh:
         s.add_callback(cbh)

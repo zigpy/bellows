@@ -1,6 +1,7 @@
 import enum
 
 import bellows.types as t
+from bellows.zigbee.util import dotdict
 
 
 class PowerDescriptor(t.EzspStruct):
@@ -91,7 +92,6 @@ NWKI = ('NWKAddrOfInterest', t.uint16_t)
 IEEE = ('IEEEAddr', t.EmberEUI64)
 STATUS = ('Status', t.uint8_t)
 
-
 CLUSTERS = {
     # Device and Service Discovery Server Requests
     0x0000: ('NWK_addr_req', (IEEE, ('RequestType', t.uint8_t), ('StartIndex', t.uint8_t))),
@@ -118,7 +118,7 @@ CLUSTERS = {
     #  Bind Management Server Services Responses
     0x0020: ('End_Device_Bind_req', (('BindingTarget', t.uint16_t), ('SrcAddress', t.EmberEUI64), ('SrcEndpoint', t.uint8_t), ('ProfileID', t.uint8_t), ('InClusterList', t.LVList(t.uint8_t)), ('OutClusterList', t.LVList(t.uint8_t)))),
     0x0021: ('Bind_req', (('SrcAddress', t.EmberEUI64), ('SrcEndpoint', t.uint8_t), ('ClusterID', t.uint16_t), ('DstAddress', MultiAddress))),
-    0x0022: ('Unind_req', (('SrcAddress', t.EmberEUI64), ('SrcEndpoint', t.uint8_t), ('ClusterID', t.uint16_t), ('DstAddress', MultiAddress))),
+    0x0022: ('Unbind_req', (('SrcAddress', t.EmberEUI64), ('SrcEndpoint', t.uint8_t), ('ClusterID', t.uint16_t), ('DstAddress', MultiAddress))),
     # Network Management Server Services Requests
     # ... TODO optional stuff ...
     0x0034: ('Mgmt_Leave_req', (('DeviceAddress', t.EmberEUI64), ('Options', t.uint8_t))),  # bitmap8
@@ -159,6 +159,8 @@ CLUSTERS = {
     0x8036: ('Mgmt_Permit_Joining_rsp', (STATUS, )),
     # ... TODO optional stuff ...
 }
+
+CLUSTER_ID = dotdict({value[0]: key for key, value in CLUSTERS.items()})
 
 
 # Rewrite to (name, param_names, param_types)

@@ -137,10 +137,10 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         )
         assert v[0] == 0  # TODO: Better check
 
-    def add_device(self, ieee, nwk):
+    def add_device(self, ieee, nwk, manufacturer=None):
         assert isinstance(ieee, t.EmberEUI64)
         # TODO: Shut down existing device
-        dev = bellows.zigbee.device.Device(self, ieee, nwk)
+        dev = bellows.zigbee.device.Device(self, ieee, nwk, manufacturer)
         self.devices[ieee] = dev
         return dev
 
@@ -219,14 +219,14 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
             LOGGER.warning("Message on unknown device 0x%04x", sender)
             return
 
-        return device.handle_message(is_reply, aps_frame, tsn, command_id, args)
+        device.handle_message(is_reply, aps_frame, tsn, command_id, args)
 
     def _handle_join(self, nwk, ieee, device_update, join_dec, parent_nwk):
         LOGGER.info("Device 0x%04x (%s) joined the network", nwk, ieee)
         if ieee in self.devices:
             dev = self.get_device(ieee)
             dev.nwk = nwk
-            if dev.initializing or dev.status == bellows.zigbee.device.Status.ENDPOINTS_INIT:
+            if dev.initializing or dev.status == bellows.zigbee.device.Status.INITIALIZED:
                 LOGGER.debug("Skip initialization for existing device %s", ieee)
                 return
         else:

@@ -31,9 +31,9 @@ class PersistingListener:
 
         self._create_table_devices()
         self._create_table_endpoints()
-        self._create_table_clusters()
+        self._create_table_input_clusters()
         self._create_table_output_clusters()
-        self._create_table_attributes()
+        self._create_table_cluster_attributes()
 
         self._application = application
 
@@ -44,6 +44,9 @@ class PersistingListener:
         self._save_device(device)
 
     def device_initialized(self, device):
+        self._save_device(device)
+
+    def device_updated(self, device):
         self._save_device(device)
 
     def device_left(self, device):
@@ -70,54 +73,56 @@ class PersistingListener:
         ))
 
     def _create_table_devices(self):
-        self._create_table("devices", "(ieee ieee, nwk, status)")
+        self._create_table("devices", "(ieee ieee, nwk INTEGER, manufacturer INTEGER)")
         self._create_index("ieee_idx", "devices", "ieee")
 
     def _create_table_endpoints(self):
         self._create_table(
             "endpoints",
-            "(ieee ieee, endpoint_id, profile_id, device_type device_type, status)",
+            "(ieee ieee, endpoint_id INTEGER, profile_id INTEGER, device_type INTEGER)",
         )
         self._create_index("endpoint_idx", "endpoints", "ieee, endpoint_id")
 
-    def _create_table_clusters(self):
-        self._create_table("clusters", "(ieee ieee, endpoint_id, cluster)")
+    def _create_table_input_clusters(self):
+        self._create_table("input_clusters", "(ieee ieee, endpoint_id INTEGER, cluster INTEGER)")
         self._create_index(
             "cluster_idx",
-            "clusters",
+            "input_clusters",
             "ieee, endpoint_id, cluster",
         )
 
     def _create_table_output_clusters(self):
-        self._create_table("output_clusters", "(ieee ieee, endpoint_id, cluster)")
+        self._create_table("output_clusters", "(ieee ieee, endpoint_id INTEGER, cluster INTEGER)")
         self._create_index(
             "output_cluster_idx",
             "output_clusters",
             "ieee, endpoint_id, cluster",
         )
 
-    def _create_table_attributes(self):
+    def _create_table_cluster_attributes(self):
         self._create_table(
-            "attributes",
-            "(ieee ieee, endpoint_id, cluster, attrid, value)",
+            "cluster_attributes",
+            "(ieee ieee, endpoint_id, cluster INTEGER, attrid INTEGER, value TEXT)",
         )
         self._create_index(
             "attribute_idx",
-            "attributes",
+            "cluster_attributes",
             "ieee, endpoint_id, cluster, attrid"
         )
 
     def _remove_device(self, device):
-        self.execute("DELETE FROM attributes WHERE ieee = ?", (device.ieee, ))
-        self.execute("DELETE FROM clusters WHERE ieee = ?", (device.ieee, ))
+        self.execute("DELETE FROM cluster_attributes WHERE ieee = ?", (device.ieee, ))
+        self.execute("DELETE FROM input_clusters WHERE ieee = ?", (device.ieee, ))
         self.execute("DELETE FROM output_clusters WHERE ieee = ?", (device.ieee, ))
         self.execute("DELETE FROM endpoints WHERE ieee = ?", (device.ieee, ))
         self.execute("DELETE FROM devices WHERE ieee = ?", (device.ieee, ))
         self._db.commit()
 
     def _save_device(self, device):
-        q = "INSERT OR REPLACE INTO devices (ieee, nwk, status) VALUES (?, ?, ?)"
-        self.execute(q, (device.ieee, device.nwk, device.status))
+        if device.status != bellows.zigbee.device.Status.INITIALIZED:
+            return
+        q = "INSERT OR REPLACE INTO devices (ieee, nwk, manufacturer) VALUES (?, ?, ?)"
+        self.execute(q, (device.ieee, device.nwk, device.manufacturer_code))
         self._save_endpoints(device)
         for epid, ep in device.endpoints.items():
             if epid == 0:
@@ -128,25 +133,27 @@ class PersistingListener:
         self._db.commit()
 
     def _save_endpoints(self, device):
-        q = "INSERT OR REPLACE INTO endpoints VALUES (?, ?, ?, ?, ?)"
+        self.execute("DELETE FROM endpoints WHERE ieee = ?", (device.ieee, ))
+        q = "INSERT OR REPLACE INTO endpoints VALUES (?, ?, ?, ?)"
         endpoints = []
         for epid, ep in device.endpoints.items():
-            if epid == 0:
-                continue  # Skip zdo
+            # Skip zdo
+            if epid == 0 or ep.status != bellows.zigbee.endpoint.Status.INITIALIZED:
+                continue
             device_type = getattr(ep, 'device_type', None)
             eprow = (
                 device.ieee,
                 ep.endpoint_id,
                 getattr(ep, 'profile_id', None),
                 device_type,
-                ep.status,
             )
             endpoints.append(eprow)
         self._cursor.executemany(q, endpoints)
         self._db.commit()
 
     def _save_input_clusters(self, endpoint):
-        q = "INSERT OR REPLACE INTO clusters VALUES (?, ?, ?)"
+        self.execute("DELETE FROM input_clusters WHERE ieee = ?", (endpoint.device.ieee, ))
+        q = "INSERT OR REPLACE INTO input_clusters VALUES (?, ?, ?)"
         clusters = [
             (endpoint.device.ieee, endpoint.endpoint_id, cluster.cluster_id)
             for cluster in endpoint.in_clusters.values()
@@ -155,6 +162,7 @@ class PersistingListener:
         self._db.commit()
 
     def _save_output_clusters(self, endpoint):
+        self.execute("DELETE FROM output_clusters WHERE ieee = ?", (endpoint.device.ieee, ))
         q = "INSERT OR REPLACE INTO output_clusters VALUES (?, ?, ?)"
         clusters = [
             (endpoint.device.ieee, endpoint.endpoint_id, cluster.cluster_id)
@@ -164,7 +172,7 @@ class PersistingListener:
         self._db.commit()
 
     def _save_attribute(self, ieee, endpoint_id, cluster_id, attrid, value):
-        q = "INSERT OR REPLACE INTO attributes VALUES (?, ?, ?, ?, ?)"
+        q = "INSERT OR REPLACE INTO cluster_attributes VALUES (?, ?, ?, ?, ?)"
         self.execute(q, (ieee, endpoint_id, cluster_id, attrid, value))
         self._db.commit()
 
@@ -173,25 +181,22 @@ class PersistingListener:
 
     def load(self):
         LOGGER.debug("Loading application state from %s", self._database_file)
-        for (ieee, nwk, status) in self._scan("devices"):
-            dev = self._application.add_device(ieee, nwk)
-            dev.status = bellows.zigbee.device.Status(status)
+        for (ieee, nwk, manufacturer) in self._scan("devices"):
+            dev = self._application.add_device(ieee, nwk, manufacturer)
+            dev.status = bellows.zigbee.device.Status.INITIALIZED
 
-        for (ieee, epid, profile_id, device_type, status) in self._scan("endpoints"):
+        for (ieee, epid, profile_id, device_type) in self._scan("endpoints"):
             dev = self._application.get_device(ieee)
             ep = dev.add_endpoint(epid)
             ep.profile_id = profile_id
             try:
-                if profile_id == 260:
-                    device_type = bellows.zigbee.profiles.zha.DeviceType(device_type)
-                elif profile_id == 49246:
-                    device_type = bellows.zigbee.profiles.zll.DeviceType(device_type)
+                device_type = bellows.zigbee.profiles.PROFILES[profile_id].DeviceType(device_type)
             except:
                 pass
             ep.device_type = device_type
-            ep.status = bellows.zigbee.endpoint.Status(status)
+            ep.status = bellows.zigbee.endpoint.Status.INITIALIZED
 
-        for (ieee, endpoint_id, cluster) in self._scan("clusters"):
+        for (ieee, endpoint_id, cluster) in self._scan("input_clusters"):
             dev = self._application.get_device(ieee)
             ep = dev.endpoints[endpoint_id]
             ep.add_input_cluster(cluster)
@@ -201,7 +206,7 @@ class PersistingListener:
             ep = dev.endpoints[endpoint_id]
             ep.add_output_cluster(cluster)
 
-        for (ieee, endpoint_id, cluster, attrid, value) in self._scan("attributes"):
+        for (ieee, endpoint_id, cluster, attrid, value) in self._scan("cluster_attributes"):
             dev = self._application.get_device(ieee)
             ep = dev.endpoints[endpoint_id]
             clus = ep.in_clusters[cluster]

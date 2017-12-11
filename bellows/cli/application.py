@@ -8,6 +8,8 @@ import click
 import bellows.ezsp
 import bellows.zigbee.application
 import bellows.zigbee.endpoint
+import bellows.types as t
+from bellows.zigbee.zdo.types import CLUSTER_ID as ZDO_CLUSTER_ID
 from . import opts
 from . import util
 from .main import main
@@ -16,8 +18,8 @@ from .main import main
 @main.command()
 @opts.database_file
 @opts.channel
-@opts.extended_pan
 @opts.pan
+@opts.extended_pan
 @click.pass_context
 def form(ctx, database, channel, pan_id, extended_pan_id):
     """Form a new ZigBee network"""
@@ -30,6 +32,25 @@ def form(ctx, database, channel, pan_id, extended_pan_id):
 
     return util.app(inner, app_startup=False)(ctx)
 
+@main.command()
+@opts.database_file
+@opts.wshost
+@opts.wsport
+@opts.resthost
+@opts.restport
+@opts.restapikey
+@click.pass_context
+def standalone(ctx, database, wshost, wsport, resthost, restport, rest_api_key):
+    """Run a standalone server."""
+    import bellows.standalone
+    ctx.obj['database_file'] = database
+    ctx.obj['wshost'] = wshost
+    ctx.obj['wsport'] = wsport
+    ctx.obj['resthost'] = resthost
+    ctx.obj['restport'] = restport
+    ctx.obj['rest_api_key'] = rest_api_key
+
+    return util.app(bellows.standalone.start, app_startup=False, run_forever=True)(ctx)
 
 @main.command()
 @opts.database_file
@@ -136,7 +157,7 @@ def endpoints(ctx):
     if dev is None:
         return
 
-    v = yield from dev.zdo.request(0x0005, dev.nwk)
+    v = yield from dev.zdo.request(ZDO_CLUSTER_ID.Active_EP_req, dev.nwk)
     if v[0] != 0:
         click.echo("Non-success response: %s" % (v, ))
     else:
@@ -213,9 +234,9 @@ def leave(ctx):
 @main.group()
 @click.pass_context
 @opts.database_file
-@click.argument('node', type=util.ZigbeeNodeParamType())
-@click.argument('endpoint', type=click.IntRange(1, 255))
-@click.argument('cluster', type=click.IntRange(0, 65535))
+@opts.arg_node
+@opts.arg_endpoint
+@opts.arg_cluster
 def zcl(ctx, database, node, cluster, endpoint):
     """Peform ZCL operations against a device"""
     ctx.obj['database_file'] = database
@@ -226,7 +247,7 @@ def zcl(ctx, database, node, cluster, endpoint):
 
 @zcl.command()
 @click.pass_context
-@click.argument('attribute', type=click.IntRange(0, 65535))
+@opts.arg_attribute
 @util.app
 def read_attribute(ctx, attribute):
     app = ctx.obj['app']
@@ -251,8 +272,8 @@ def read_attribute(ctx, attribute):
 
 @zcl.command()
 @click.pass_context
-@click.argument('attribute', type=click.IntRange(0, 65535))
-@click.argument('value', type=click.IntRange(0, 65535))
+@opts.arg_attribute
+@opts.arg_attribute_value
 @util.app
 def write_attribute(ctx, attribute, value):
     app = ctx.obj['app']
@@ -311,7 +332,7 @@ def command(ctx, command, parameters):
 
 @zcl.command()
 @click.pass_context
-@click.argument('attribute', type=click.IntRange(0, 65535))
+@opts.arg_attribute
 @click.argument('min_interval', type=click.IntRange(0, 65535))
 @click.argument('max_interval', type=click.IntRange(0, 65535))
 @click.argument('reportable_change', type=click.INT)

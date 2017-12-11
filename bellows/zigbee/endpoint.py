@@ -6,6 +6,10 @@ import bellows.zigbee.appdb
 import bellows.zigbee.profiles
 import bellows.zigbee.util as zutil
 import bellows.zigbee.zcl
+from bellows.zigbee.zdo.types import CLUSTER_ID
+# from bellows.zigbee.profiles.zll import PROFILE_ID as ZLL_PROFILE_ID
+from bellows.zigbee.profiles.zha import PROFILE_ID as ZHA_PROFILE_ID
+from bellows.zigbee.specialization import VENDOR
 
 LOGGER = logging.getLogger(__name__)
 
@@ -14,8 +18,12 @@ class Status(enum.IntEnum):
     """The status of an Endpoint"""
     # No initialization is done
     NEW = 0
+    # Initing
+    INITIALIZING = 1
     # Endpoint information (device type, clusters, etc) init done
-    ZDO_INIT = 1
+    ZDO_INIT = 2
+    # Finished
+    INITIALIZED = 100
 
 
 class Endpoint(zutil.LocalLogMixin, zutil.ListenableMixin):
@@ -31,13 +39,14 @@ class Endpoint(zutil.LocalLogMixin, zutil.ListenableMixin):
 
     @asyncio.coroutine
     def initialize(self):
-        if self.status == Status.ZDO_INIT:
-            return
+        # if self.status != Status.NEW:
+            # return
+        self.status = Status.INITIALIZING
 
         self.info("Discovering endpoint information")
         try:
             sdr = yield from self._device.zdo.request(
-                0x0004,
+                CLUSTER_ID.Simple_Desc_req,
                 self._device.nwk,
                 self._endpoint_id,
                 tries=3,
@@ -54,10 +63,7 @@ class Endpoint(zutil.LocalLogMixin, zutil.ListenableMixin):
         self.profile_id = sd.profile
         self.device_type = sd.device_type
         try:
-            if self.profile_id == 260:
-                self.device_type = bellows.zigbee.profiles.zha.DeviceType(self.device_type)
-            elif self.profile_id == 49246:
-                self.device_type = bellows.zigbee.profiles.zll.DeviceType(self.device_type)
+            self.device_type = bellows.zigbee.profiles.PROFILES[self.profile_id].DeviceType(self.device_type)
         except:
             pass
 
@@ -66,7 +72,7 @@ class Endpoint(zutil.LocalLogMixin, zutil.ListenableMixin):
         for cluster in sd.output_clusters:
             self.add_output_cluster(cluster)
 
-        self.status = Status.ZDO_INIT
+        self.status = Status.INITIALIZED
 
     def add_input_cluster(self, cluster_id):
         """Adds an endpoint's input cluster
@@ -103,8 +109,14 @@ class Endpoint(zutil.LocalLogMixin, zutil.ListenableMixin):
 
     def get_aps(self, cluster):
         assert self.status != Status.NEW
+        pid = self.profile_id
+
+        mcode = self.device.manufacturer_code
+        if mcode == VENDOR.IKEA:
+            pid = ZHA_PROFILE_ID
+
         return self._device.get_aps(
-            profile=self.profile_id,
+            profile=pid,
             cluster=cluster,
             endpoint=self._endpoint_id,
         )
@@ -116,10 +128,12 @@ class Endpoint(zutil.LocalLogMixin, zutil.ListenableMixin):
         elif aps_frame.clusterId in self.out_clusters:
             handler = self.out_clusters[aps_frame.clusterId].handle_message
         else:
-            self.warn("Message on unknown cluster 0x%04x", aps_frame.clusterId)
+            self.warn("Message on unknown cluster 0x%04x (0x%04x: %s)", aps_frame.clusterId, self._device.nwk, self._endpoint_id)
             self.listener_event("unknown_cluster_message", is_reply,
                                 command_id, args)
-            return
+            self.add_input_cluster(aps_frame.clusterId)
+            self._device._application.listener_event('device_updated', self.device)
+            handler = self.in_clusters[aps_frame.clusterId].handle_message
 
         handler(is_reply, aps_frame, tsn, command_id, args)
 
