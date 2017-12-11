@@ -118,7 +118,7 @@ CLUSTERS = {
     #  Bind Management Server Services Responses
     0x0020: ('End_Device_Bind_req', (('BindingTarget', t.uint16_t), ('SrcAddress', t.EmberEUI64), ('SrcEndpoint', t.uint8_t), ('ProfileID', t.uint8_t), ('InClusterList', t.LVList(t.uint8_t)), ('OutClusterList', t.LVList(t.uint8_t)))),
     0x0021: ('Bind_req', (('SrcAddress', t.EmberEUI64), ('SrcEndpoint', t.uint8_t), ('ClusterID', t.uint16_t), ('DstAddress', MultiAddress))),
-    0x0022: ('Unind_req', (('SrcAddress', t.EmberEUI64), ('SrcEndpoint', t.uint8_t), ('ClusterID', t.uint16_t), ('DstAddress', MultiAddress))),
+    0x0022: ('Unbind_req', (('SrcAddress', t.EmberEUI64), ('SrcEndpoint', t.uint8_t), ('ClusterID', t.uint16_t), ('DstAddress', MultiAddress))),
     # Network Management Server Services Requests
     # ... TODO optional stuff ...
     0x0034: ('Mgmt_Leave_req', (('DeviceAddress', t.EmberEUI64), ('Options', t.uint8_t))),  # bitmap8
