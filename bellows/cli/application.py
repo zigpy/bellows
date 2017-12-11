@@ -32,6 +32,25 @@ def form(ctx, database, channel, pan_id, extended_pan_id):
 
     return util.app(inner, app_startup=False)(ctx)
 
+@main.command()
+@opts.database_file
+@opts.wshost
+@opts.wsport
+@opts.resthost
+@opts.restport
+@opts.restapikey
+@click.pass_context
+def standalone(ctx, database, wshost, wsport, resthost, restport, rest_api_key):
+    """Run a standalone server."""
+    import bellows.standalone
+    ctx.obj['database_file'] = database
+    ctx.obj['wshost'] = wshost
+    ctx.obj['wsport'] = wsport
+    ctx.obj['resthost'] = resthost
+    ctx.obj['restport'] = restport
+    ctx.obj['rest_api_key'] = rest_api_key
+
+    return util.app(bellows.standalone.start, app_startup=False, run_forever=True)(ctx)
 
 @main.command()
 @opts.database_file
