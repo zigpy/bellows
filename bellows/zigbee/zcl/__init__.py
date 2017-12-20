@@ -229,7 +229,6 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             except ValueError as e:
                 self.error(str(e))
 
-        print(args)
         if is_report:
             schema = foundation.COMMANDS[0x01][1]
             return self.reply(0x01, schema, args)
