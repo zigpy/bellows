@@ -226,12 +226,13 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         if ieee in self.devices:
             dev = self.get_device(ieee)
             dev.nwk = nwk
-            if dev.initializing or dev.status == bellows.zigbee.device.Status.ENDPOINTS_INIT:
-                LOGGER.debug("Skip initialization for existing device %s", ieee)
-                return
         else:
             dev = self.add_device(ieee, nwk)
-            self.listener_event('device_joined', dev)
+
+        self.listener_event('device_joined', dev)
+        if dev.initializing or dev.status == bellows.zigbee.device.Status.ENDPOINTS_INIT:
+            LOGGER.debug("Skip initialization for existing device %s", ieee)
+            return
 
         dev.schedule_initialize()
 
