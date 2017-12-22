@@ -69,3 +69,6 @@ ENV/
 
 # Editor temp files
 .*.swp
+
+# IDEs stuff
+.idea/

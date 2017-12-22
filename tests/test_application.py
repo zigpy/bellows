@@ -6,7 +6,7 @@ import pytest
 import bellows.types as t
 from bellows.zigbee.application import ControllerApplication
 from bellows.zigbee.exceptions import DeliveryError
-from bellows.zigbee import device
+from bellows.zigbee import device, util
 
 
 @pytest.fixture
@@ -192,20 +192,25 @@ def test_dup_send_success(app, aps, ieee):
     assert reply_fut.set_result.call_count == 0
 
 
-def test_join_handler(app, ieee):
+@mock.patch.object(util.ListenableMixin, 'listener_event')
+def test_join_handler(listener_event_mock, app, ieee):
     # Calls device.initialize, leaks a task
     app.ezsp_callback_handler(
         'trustCenterJoinHandler',
         [1, ieee, None, None, None],
     )
     assert ieee in app.devices
+    assert listener_event_mock.call_count == 1
 
 
-def test_join_handler_skip(app, ieee):
+@mock.patch.object(util.ListenableMixin, 'listener_event')
+def test_join_handler_skip(listener_event_mock, app, ieee):
     app._handle_join(1, ieee, None, None, None)
     app.devices[ieee].status = device.Status.ZDO_INIT
+    assert listener_event_mock.call_count == 1
     app._handle_join(1, ieee, None, None, None)
     assert app.devices[ieee].status == device.Status.ZDO_INIT
+    assert listener_event_mock.call_count == 2
 
 
 def test_leave_handler(app, ieee):
