@@ -84,11 +84,11 @@ class uint64_t(uint_t):  # noqa: N801
     _size = 8
 
 
-class enum8(uint8_t): # noqa: N801
+class enum8(uint8_t):  # noqa: N801
     _enum = True
 
 
-class enum16(uint16_t): # noqa: N801
+class enum16(uint16_t):  # noqa: N801
     _enum = True
 
 
