@@ -310,6 +310,13 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         if v[0] != 0:
             raise Exception("Failed to set link key")
 
+        v = yield from self._ezsp.setPolicy(
+            t.EzspPolicyId.TC_KEY_REQUEST_POLICY,
+            t.EzspDecisionId.GENERATE_NEW_TC_LINK_KEY,
+        )
+        if v[0] != 0:
+            raise Exception("Failed to change policy to allow generation of new trust center keys")
+
         return self._ezsp.permitJoining(time_s, True)
 
     def get_sequence(self):

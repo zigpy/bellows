@@ -277,7 +277,8 @@ def test_permit(app):
 
 
 def test_permit_with_key(app):
-    app._ezsp.addTransientLinkKey = get_mock_coro([0, 0])
+    app._ezsp.addTransientLinkKey = get_mock_coro([0])
+    app._ezsp.setPolicy = get_mock_coro([0])
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(app.permit_with_key(bytes([1, 2, 3, 4, 5, 6, 7, 8]), bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]), 60))
@@ -287,7 +288,8 @@ def test_permit_with_key(app):
 
 
 def test_permit_with_key_ieee(app, ieee):
-    app._ezsp.addTransientLinkKey = get_mock_coro([0, 0])
+    app._ezsp.addTransientLinkKey = get_mock_coro([0])
+    app._ezsp.setPolicy = get_mock_coro([0])
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(app.permit_with_key(ieee, bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]), 60))
@@ -305,6 +307,15 @@ def test_permit_with_key_invalid_install_code(app, ieee):
 
 def test_permit_with_key_failed_add_key(app, ieee):
     app._ezsp.addTransientLinkKey = get_mock_coro([1, 1])
+
+    loop = asyncio.get_event_loop()
+    with pytest.raises(Exception):
+        loop.run_until_complete(app.permit_with_key(ieee, bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]), 60))
+
+
+def test_permit_with_key_failed_set_policy(app, ieee):
+    app._ezsp.addTransientLinkKey = get_mock_coro([0])
+    app._ezsp.setPolicy = get_mock_coro([1])
 
     loop = asyncio.get_event_loop()
     with pytest.raises(Exception):
