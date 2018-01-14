@@ -10,6 +10,6 @@ matrix:
       env: TOXENV=py35
     - python: "3.6"
       env: TOXENV=py36
-install: pip install -U tox coveralls
+install: pip install -U setuptools tox coveralls
 script: tox
 after_success: coveralls

@@ -118,9 +118,9 @@ class LVBytes(bytes):
 
     @classmethod
     def deserialize(cls, data):
-        l = int.from_bytes(data[:1], 'little')
-        s = data[1:l + 1]
-        return s, data[l + 1:]
+        bytes = int.from_bytes(data[:1], 'little')
+        s = data[1:bytes + 1]
+        return s, data[bytes + 1:]
 
 
 class _List(list):
