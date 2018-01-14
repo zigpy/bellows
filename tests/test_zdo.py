@@ -94,9 +94,18 @@ def test_handle_addr(zdo_f):
 
 def test_handle_announce(zdo_f):
     dev = zdo_f._device
+    zdo_f.listener_event = mock.MagicMock()
     dev._application.devices.pop(dev.ieee)
     aps = t.EmberApsFrame()
     zdo_f.handle_message(False, aps, 111, 0x0013, [0, dev.ieee, dev.nwk])
+    assert zdo_f.listener_event.call_count == 1
+
+
+def test_handle_permit_join(zdo_f):
+    aps = t.EmberApsFrame()
+    zdo_f.listener_event = mock.MagicMock()
+    zdo_f.handle_message(False, aps, 111, 0x0036, [100, 1])
+    assert zdo_f.listener_event.call_count == 1
 
 
 def test_handle_unsupported(zdo_f):
