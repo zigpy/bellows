@@ -192,6 +192,19 @@ def test_dup_send_success(app, aps, ieee):
     assert reply_fut.set_result.call_count == 0
 
 
+def test_receive_invalid_message(app, aps, ieee):
+    app._handle_reply = mock.MagicMock()
+    app._handle_message = mock.MagicMock()
+    aps.destinationEndpoint = 1
+    aps.clusterId = 6
+    app.ezsp_callback_handler(
+        'incomingMessageHandler',
+        [None, aps, 0, 0, 0, 0, 0, b'\x08\x13\x0b\x00\x71']
+    )
+    assert app._handle_reply.call_count == 0
+    assert app._handle_message.call_count == 0
+
+
 def test_join_handler(app, ieee):
     # Calls device.initialize, leaks a task
     app.ezsp_callback_handler(
