@@ -41,7 +41,7 @@ def dump(ctx, channel, outfile):
 
 @asyncio.coroutine
 def _dump(ctx, channel, outfile):
-    s = yield from util.setup(ctx.obj['device'])
+    s = yield from util.setup(ctx.obj['device'], ctx.obj['baudrate'])
     ctx.obj['ezsp'] = s
 
     v = yield from s.mfglibStart(True)
