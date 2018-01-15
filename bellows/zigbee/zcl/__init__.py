@@ -305,18 +305,17 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
         return LOGGER.log(lvl, msg, *args)
 
     def __getattr__(self, name):
-        try:
-            if name in self._client_command_idx:
-                return functools.partial(
-                    self.client_command,
-                    self._client_command_idx[name],
-                )
-            else:
-                return functools.partial(
-                    self.command,
-                    self._server_command_idx[name],
-                )
-        except KeyError:
+        if name in self._client_command_idx:
+            return functools.partial(
+                self.client_command,
+                self._client_command_idx[name],
+            )
+        elif name in self._server_command_idx:
+            return functools.partial(
+                self.command,
+                self._server_command_idx[name],
+            )
+        else:
             raise AttributeError("No such command name: %s" % (name, ))
 
     def __getitem__(self, key):
