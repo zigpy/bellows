@@ -67,6 +67,8 @@ class ZDO(util.LocalLogMixin, util.ListenableMixin):
             self.handle_match_desc(*args)
         elif command_id == 0x0013:  # Device_annce
             self.listener_event('device_announce', self._device)
+        elif command_id == 0x0036:  # Mgmt_Permit_Joining_req
+            self.listener_event('permit_duration', args[0])
         else:
             self.warn("Unsupported ZDO request 0x%04x", command_id)
 
