@@ -241,6 +241,11 @@ def test_write_attributes_wrong_type(cluster):
     assert cluster._endpoint.device.request.call_count == 1
 
 
+def test_write_attributes_report(cluster):
+    cluster.write_attributes({0: 5}, is_report=True)
+    assert cluster._endpoint.device.reply.call_count == 1
+
+
 def test_bind(cluster):
     cluster.bind()
 

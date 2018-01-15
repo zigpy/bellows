@@ -237,7 +237,12 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
                 self.error("%d is not a valid attribute id", attrid)
                 continue
 
-            a = foundation.Attribute()
+            if is_report:
+                a = foundation.ReadAttributeRecord()
+                a.status = 0
+            else:
+                a = foundation.Attribute()
+
             a.attrid = t.uint16_t(attrid)
             a.value = foundation.TypeValue()
 
