@@ -228,7 +228,7 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             return success[attributes[0]]
         return success, failure
 
-    def write_attributes(self, attributes):
+    def write_attributes(self, attributes, is_report=False):
         args = []
         for attrid, value in attributes.items():
             if isinstance(attrid, str):
@@ -237,7 +237,12 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
                 self.error("%d is not a valid attribute id", attrid)
                 continue
 
-            a = foundation.Attribute()
+            if is_report:
+                a = foundation.ReadAttributeRecord()
+                a.status = 0
+            else:
+                a = foundation.Attribute()
+
             a.attrid = t.uint16_t(attrid)
             a.value = foundation.TypeValue()
 
@@ -249,8 +254,12 @@ class Cluster(util.ListenableMixin, util.LocalLogMixin, metaclass=Registry):
             except ValueError as e:
                 self.error(str(e))
 
-        schema = foundation.COMMANDS[0x02][1]
-        return self.request(True, 0x02, schema, args)
+        if is_report:
+            schema = foundation.COMMANDS[0x01][1]
+            return self.reply(0x01, schema, args)
+        else:
+            schema = foundation.COMMANDS[0x02][1]
+            return self.request(True, 0x02, schema, args)
 
     def bind(self):
         return self._endpoint.device.zdo.bind(self._endpoint.endpoint_id, self.cluster_id)
