@@ -192,6 +192,19 @@ def test_dup_send_success(app, aps, ieee):
     assert reply_fut.set_result.call_count == 0
 
 
+def test_receive_invalid_message(app, aps, ieee):
+    app._handle_reply = mock.MagicMock()
+    app._handle_message = mock.MagicMock()
+    aps.destinationEndpoint = 1
+    aps.clusterId = 6
+    app.ezsp_callback_handler(
+        'incomingMessageHandler',
+        [None, aps, 0, 0, 0, 0, 0, b'\x08\x13\x0b\x00\x71']
+    )
+    assert app._handle_reply.call_count == 0
+    assert app._handle_message.call_count == 0
+
+
 def test_join_handler(app, ieee):
     # Calls device.initialize, leaks a task
     app.ezsp_callback_handler(
@@ -270,7 +283,8 @@ def test_permit(app):
 
 
 def test_permit_with_key(app):
-    app._ezsp.addTransientLinkKey = get_mock_coro([0, 0])
+    app._ezsp.addTransientLinkKey = get_mock_coro([0])
+    app._ezsp.setPolicy = get_mock_coro([0])
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(app.permit_with_key(bytes([1, 2, 3, 4, 5, 6, 7, 8]), bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]), 60))
@@ -280,7 +294,8 @@ def test_permit_with_key(app):
 
 
 def test_permit_with_key_ieee(app, ieee):
-    app._ezsp.addTransientLinkKey = get_mock_coro([0, 0])
+    app._ezsp.addTransientLinkKey = get_mock_coro([0])
+    app._ezsp.setPolicy = get_mock_coro([0])
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(app.permit_with_key(ieee, bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]), 60))
@@ -298,6 +313,15 @@ def test_permit_with_key_invalid_install_code(app, ieee):
 
 def test_permit_with_key_failed_add_key(app, ieee):
     app._ezsp.addTransientLinkKey = get_mock_coro([1, 1])
+
+    loop = asyncio.get_event_loop()
+    with pytest.raises(Exception):
+        loop.run_until_complete(app.permit_with_key(ieee, bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]), 60))
+
+
+def test_permit_with_key_failed_set_policy(app, ieee):
+    app._ezsp.addTransientLinkKey = get_mock_coro([0])
+    app._ezsp.setPolicy = get_mock_coro([1])
 
     loop = asyncio.get_event_loop()
     with pytest.raises(Exception):

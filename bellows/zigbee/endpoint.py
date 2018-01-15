@@ -58,7 +58,7 @@ class Endpoint(zutil.LocalLogMixin, zutil.ListenableMixin):
                 self.device_type = bellows.zigbee.profiles.zha.DeviceType(self.device_type)
             elif self.profile_id == 49246:
                 self.device_type = bellows.zigbee.profiles.zll.DeviceType(self.device_type)
-        except:
+        except ValueError:
             pass
 
         for cluster in sd.input_clusters:
