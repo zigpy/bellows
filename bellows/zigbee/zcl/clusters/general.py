@@ -336,11 +336,11 @@ class Time(Cluster):
 
     def handle_cluster_request(self, aps_frame, tsn, command_id, *args):
         if command_id == 0:
-            epoc = datetime(2000, 1, 1, 0, 0, 0, 0)
             data = {}
             for attr in args[0][0]:
                 if attr == 0:
-                    diff = datetime.utcnow() - epoc
+                    epoch = datetime(2000, 1, 1, 0, 0, 0, 0)
+                    diff = datetime.utcnow() - epoch
                     data[attr] = diff.total_seconds()
                 elif attr == 1:
                     data[attr] = 7
