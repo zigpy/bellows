@@ -113,7 +113,7 @@ class Gateway(asyncio.Protocol):
         self._rec_seq = 0
         try:
             code = t.NcpResetCode(data[2])
-        except:
+        except ValueError:
             code = t.NcpResetCode.ERROR_UNKNOWN_EM3XX_ERROR
 
         LOGGER.debug("RSTACK Version: %d Reason: %s frame: %s", data[1], code.name, binascii.hexlify(data))

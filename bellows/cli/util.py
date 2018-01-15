@@ -62,7 +62,7 @@ def app(f, app_startup=True):
     def shutdown():
         try:
             app._ezsp.close()
-        except:
+        except:  # noqa: E722
             pass
 
     @functools.wraps(f)
@@ -70,7 +70,7 @@ def app(f, app_startup=True):
         loop = asyncio.get_event_loop()
         try:
             loop.run_until_complete(async_inner(*args, **kwargs))
-        except:
+        except:  # noqa: E722
             # It seems that often errors like a message send will try to send
             # two messages, and not reading all of them will leave the NCP in
             # a bad state. This seems to mitigate this somewhat. Better way?
@@ -156,8 +156,8 @@ def network_init(s):
 
 def parse_epan(epan):
     """Parse a user specified extended PAN ID"""
-    l = [t.uint8_t(x, 16) for x in epan.split(":")]
-    return t.fixed_list(8, t.uint8_t)(l)
+    epan_list = [t.uint8_t(x, 16) for x in epan.split(":")]
+    return t.fixed_list(8, t.uint8_t)(epan_list)
 
 
 @asyncio.coroutine
