@@ -184,7 +184,7 @@ def aes_mmo_hash(data):
 
 
 def convert_install_code(code):
-    if len(code) < 10:
+    if len(code) < 8:
         return None
 
     real_crc = bytes([code[-1], code[-2]])
