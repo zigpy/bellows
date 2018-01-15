@@ -36,9 +36,13 @@ class Device(zutil.LocalLogMixin):
         self.initializing = False
 
     def schedule_initialize(self):
-        self.initializing = True
+        if self.initializing:
+            LOGGER.debug("Canceling old initialize call")
+            self._init_handle.cancel()
+        else:
+            self.initializing = True
         loop = asyncio.get_event_loop()
-        loop.call_soon(asyncio.async, self._initialize())
+        self._init_handle = loop.call_soon(asyncio.async, self._initialize())
 
     @asyncio.coroutine
     def _initialize(self):

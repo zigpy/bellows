@@ -221,6 +221,12 @@ def test_join_handler_skip(app, ieee):
     assert app.devices[ieee].status == device.Status.ZDO_INIT
 
 
+def test_join_handler_change_id(app, ieee):
+    app._handle_join(1, ieee, None, None, None)
+    app._handle_join(2, ieee, None, None, None)
+    assert app.devices[ieee].nwk == 2
+
+
 def test_leave_handler(app, ieee):
     app.devices[ieee] = mock.sentinel.device
     app.ezsp_callback_handler(
