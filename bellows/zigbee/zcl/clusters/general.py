@@ -1,5 +1,6 @@
 """General Functional Domain"""
 
+from datetime import datetime
 import bellows.types as t
 from bellows.zigbee.zcl import Cluster
 from bellows.zigbee.zcl import foundation
@@ -332,6 +333,22 @@ class Time(Cluster):
     }
     server_commands = {}
     client_commands = {}
+
+    def handle_cluster_request(self, aps_frame, tsn, command_id, *args):
+        if command_id == 0:
+            data = {}
+            for attr in args[0][0]:
+                if attr == 0:
+                    epoch = datetime(2000, 1, 1, 0, 0, 0, 0)
+                    diff = datetime.utcnow() - epoch
+                    data[attr] = diff.total_seconds()
+                elif attr == 1:
+                    data[attr] = 7
+                elif attr == 2:
+                    diff = datetime.fromtimestamp(0) - datetime.utcfromtimestamp(0)
+                    data[attr] = diff.total_seconds()
+
+            self.write_attributes(data, True)
 
 
 class RSSILocation(Cluster):

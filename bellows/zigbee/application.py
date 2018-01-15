@@ -206,7 +206,8 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
             send_fut, reply_fut = self._pending[tsn]
             if send_fut.done():
                 self._pending.pop(tsn)
-            reply_fut.set_result(args)
+            if reply_fut:
+                reply_fut.set_result(args)
             return
         except KeyError:
             LOGGER.warning("Unexpected response TSN=%s command=%s args=%s", tsn, command_id, args)
@@ -252,7 +253,8 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         try:
             send_fut, reply_fut = self._pending.pop(message_tag)
             send_fut.set_exception(DeliveryError("Message send failure: %s" % (status, )))
-            reply_fut.cancel()
+            if reply_fut:
+                reply_fut.cancel()
         except KeyError:
             LOGGER.warning("Unexpected message send failure")
         except asyncio.futures.InvalidStateError as exc:
@@ -263,7 +265,7 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
             send_fut, reply_fut = self._pending[message_tag]
             # Sometimes messageSendResult and a reply come out of order
             # If we've already handled the reply, delete pending
-            if reply_fut.done():
+            if reply_fut is None or reply_fut.done():
                 self._pending.pop(message_tag)
             send_fut.set_result(True)
         except KeyError:
@@ -273,28 +275,29 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
 
     @bellows.zigbee.util.retryable_request
     @asyncio.coroutine
-    def request(self, nwk, aps_frame, data, timeout=10):
+    def request(self, nwk, aps_frame, data, expect_reply=True, timeout=10):
         seq = aps_frame.sequence
         assert seq not in self._pending
         send_fut = asyncio.Future()
-        reply_fut = asyncio.Future()
+        reply_fut = None
+        if expect_reply:
+            reply_fut = asyncio.Future()
         self._pending[seq] = (send_fut, reply_fut)
 
         v = yield from self._ezsp.sendUnicast(self.direct, nwk, aps_frame, seq, data)
         if v[0] != 0:
             self._pending.pop(seq)
             send_fut.cancel()
-            reply_fut.cancel()
+            if expect_reply:
+                reply_fut.cancel()
             raise DeliveryError("Message send failure %s" % (v[0], ))
 
         # Wait for messageSentHandler message
         v = yield from send_fut
-        # Wait for reply
-        v = yield from asyncio.wait_for(reply_fut, timeout)
+        if expect_reply:
+            # Wait for reply
+            v = yield from asyncio.wait_for(reply_fut, timeout)
         return v
-
-    def reply(self, nwk, aps_frame, data):
-        return self._ezsp.sendUnicast(self.direct, nwk, aps_frame, aps_frame.sequence, data)
 
     def permit(self, time_s=60):
         assert 0 <= time_s <= 254

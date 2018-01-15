@@ -108,7 +108,7 @@ class Device(zutil.LocalLogMixin):
         return endpoint.handle_message(is_reply, aps_frame, tsn, command_id, args)
 
     def reply(self, aps, data):
-        return self._application.reply(self.nwk, aps, data)
+        return self._application.request(self.nwk, aps, data, False)
 
     def radio_details(self, lqi, rssi):
         self.lqi = lqi
