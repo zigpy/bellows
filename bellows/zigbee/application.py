@@ -1,4 +1,5 @@
 import asyncio
+import binascii
 import logging
 import os
 
@@ -189,7 +190,11 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         else:
             deserialize = bellows.zigbee.zcl.deserialize
 
-        tsn, command_id, is_reply, args = deserialize(aps_frame.clusterId, message)
+        try:
+            tsn, command_id, is_reply, args = deserialize(aps_frame.clusterId, message)
+        except ValueError as e:
+            LOGGER.error("Failed to parse message (%s) on cluster %d, because %s", binascii.hexlify(message), aps_frame.clusterId, e)
+            return
 
         if is_reply:
             self._handle_reply(sender, aps_frame, tsn, command_id, args)
@@ -307,6 +312,13 @@ class ControllerApplication(bellows.zigbee.util.ListenableMixin):
         v = yield from self._ezsp.addTransientLinkKey(node, key)
         if v[0] != 0:
             raise Exception("Failed to set link key")
+
+        v = yield from self._ezsp.setPolicy(
+            t.EzspPolicyId.TC_KEY_REQUEST_POLICY,
+            t.EzspDecisionId.GENERATE_NEW_TC_LINK_KEY,
+        )
+        if v[0] != 0:
+            raise Exception("Failed to change policy to allow generation of new trust center keys")
 
         return self._ezsp.permitJoining(time_s, True)
 

@@ -12,16 +12,16 @@ class Listenable(util.ListenableMixin):
 
 
 def test_listenable():
-    l = Listenable()
+    listen = Listenable()
     listener = mock.MagicMock()
-    l.add_listener(listener)
-    l.add_listener(listener)
+    listen.add_listener(listener)
+    listen.add_listener(listener)
 
     broken_listener = mock.MagicMock()
     broken_listener.event.side_effect = Exception()
-    l.add_listener(broken_listener)
+    listen.add_listener(broken_listener)
 
-    l.listener_event('event')
+    listen.listener_event('event')
     assert listener.event.call_count == 2
     assert broken_listener.event.call_count == 1
 
@@ -31,11 +31,11 @@ class Logger(util.LocalLogMixin):
 
 
 def test_log():
-    l = Logger()
-    l.debug("Test debug")
-    l.info("Test info")
-    l.warn("Test warn")
-    l.error("Test error")
+    log = Logger()
+    log.debug("Test debug")
+    log.info("Test info")
+    log.warn("Test warn")
+    log.error("Test error")
 
 
 def test_zha_security_end_device():
