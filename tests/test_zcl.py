@@ -80,12 +80,26 @@ def cluster(aps):
     return zcl.Cluster.from_id(epmock, 0)
 
 
+@pytest.fixture
+def client_cluster(aps):
+    epmock = mock.MagicMock()
+    aps.clusterId = 3
+    aps.sequence = 123
+    epmock.get_aps.return_value = aps
+    return zcl.Cluster.from_id(epmock, 3)
+
+
 def test_request_general(cluster):
     cluster.request(True, 0, [])
     assert cluster._endpoint.device.request.call_count == 1
 
 
-def test_attribute_report(cluster, aps):
+def test_reply_general(cluster):
+    cluster.reply(0, [])
+    assert cluster._endpoint.device.reply.call_count == 1
+
+
+def test_attribute_report(cluster):
     attr = zcl.foundation.Attribute()
     attr.attrid = 4
     attr.value = zcl.foundation.TypeValue()
@@ -249,6 +263,11 @@ def test_command_attr(cluster):
     assert cluster._endpoint.device.request.call_count == 1
 
 
+def test_client_command_attr(client_cluster):
+    client_cluster.identify_query_response(0)
+    assert client_cluster._endpoint.device.reply.call_count == 1
+
+
 def test_command_invalid_attr(cluster):
     with pytest.raises(AttributeError):
         cluster.no_such_command()
@@ -256,6 +275,11 @@ def test_command_invalid_attr(cluster):
 
 def test_invalid_arguments_cluster_command(cluster):
     res = cluster.command(0x00, 1)
+    assert type(res.exception()) == ValueError
+
+
+def test_invalid_arguments_cluster_client_command(client_cluster):
+    res = client_cluster.client_command(0, 0, 0)
     assert type(res.exception()) == ValueError
 
 
