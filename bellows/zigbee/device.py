@@ -36,9 +36,13 @@ class Device(zutil.LocalLogMixin):
         self.initializing = False
 
     def schedule_initialize(self):
-        self.initializing = True
+        if self.initializing:
+            LOGGER.debug("Canceling old initialize call")
+            self._init_handle.cancel()
+        else:
+            self.initializing = True
         loop = asyncio.get_event_loop()
-        loop.call_soon(asyncio.async, self._initialize())
+        self._init_handle = loop.call_soon(asyncio.async, self._initialize())
 
     @asyncio.coroutine
     def _initialize(self):
@@ -104,7 +108,7 @@ class Device(zutil.LocalLogMixin):
         return endpoint.handle_message(is_reply, aps_frame, tsn, command_id, args)
 
     def reply(self, aps, data):
-        return self._application.reply(self.nwk, aps, data)
+        return self._application.request(self.nwk, aps, data, False)
 
     def radio_details(self, lqi, rssi):
         self.lqi = lqi
