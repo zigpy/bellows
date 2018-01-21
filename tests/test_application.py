@@ -96,6 +96,7 @@ def _frame_handler(app, aps, ieee, endpoint, cluster=0, sender=3):
     app._ieee = [t.uint8_t(0)] * 8
     app._nwk = 0
     aps.destinationEndpoint = endpoint
+    aps.sourceEndpoint = 2
     aps.clusterId = cluster
     app.ezsp_callback_handler(
         'incomingMessageHandler',
@@ -196,6 +197,7 @@ def test_receive_invalid_message(app, aps, ieee):
     app._handle_reply = mock.MagicMock()
     app._handle_message = mock.MagicMock()
     aps.destinationEndpoint = 1
+    aps.sourceEndpoint = 2
     aps.clusterId = 6
     app.ezsp_callback_handler(
         'incomingMessageHandler',
