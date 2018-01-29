@@ -82,6 +82,8 @@ class uint56_t(uint_t):  # noqa: N801
 class uint64_t(uint_t):  # noqa: N801
     _size = 8
 
+class enum8(uint8_t):  # noqa: N801 
+    pass
 
 class Single(float):
     def serialize(self):
