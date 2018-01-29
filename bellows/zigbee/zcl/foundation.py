@@ -85,7 +85,7 @@ DATA_TYPES = {
     0x2e: ('Signed Integer', t.int56s, Analog),
     0x2f: ('Signed Integer', t.int64s, Analog),
     0x30: ('Enumeration', t.enum8, Discrete),
-    0x31: ('Enumeration', t.uint16_t, Discrete),
+    0x31: ('Enumeration', t.enum16, Discrete),
     # 0x38: ('Floating point', t.Half, Analog),
     0x39: ('Floating point', t.Single, Analog),
     0x3a: ('Floating point', t.Double, Analog),

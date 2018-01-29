@@ -85,6 +85,9 @@ class uint64_t(uint_t):  # noqa: N801
 class enum8(uint8_t):  # noqa: N801 
     pass
 
+class enum16(uint16_t):  # noqa: N801 
+    pass
+
 class Single(float):
     def serialize(self):
         return struct.pack('<f', self)
