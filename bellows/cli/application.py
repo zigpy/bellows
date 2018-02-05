@@ -7,7 +7,7 @@ import click
 
 import bellows.ezsp
 import bellows.zigbee.application
-import bellows.zigbee.endpoint
+import zigpy.endpoint
 from . import opts
 from . import util
 from .main import main
@@ -100,7 +100,7 @@ def devices(ctx, database):
         for epid, ep in dev.endpoints.items():
             if epid == 0:
                 continue
-            if ep.status == bellows.zigbee.endpoint.Status.NEW:
+            if ep.status == zigpy.endpoint.Status.NEW:
                 click.echo("    %s: Uninitialized")
             else:
                 click.echo(

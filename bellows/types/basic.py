@@ -1,6 +1,3 @@
-import struct
-
-
 class int_t(int):  # noqa: N801
     _signed = True
 
@@ -81,24 +78,6 @@ class uint56_t(uint_t):  # noqa: N801
 
 class uint64_t(uint_t):  # noqa: N801
     _size = 8
-
-
-class Single(float):
-    def serialize(self):
-        return struct.pack('<f', self)
-
-    @classmethod
-    def deserialize(cls, data):
-        return struct.unpack('<f', data)[0], data[4:]
-
-
-class Double(float):
-    def serialize(self):
-        return struct.pack('<d', self)
-
-    @classmethod
-    def deserialize(cls, data):
-        return struct.unpack('<d', data)[0], data[8:]
 
 
 class LVBytes(bytes):

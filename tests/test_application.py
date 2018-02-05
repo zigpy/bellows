@@ -5,8 +5,7 @@ import pytest
 
 import bellows.types as t
 from bellows.zigbee.application import ControllerApplication
-from bellows.zigbee.exceptions import DeliveryError
-from bellows.zigbee import device
+from zigpy.exceptions import DeliveryError
 
 
 @pytest.fixture
@@ -18,6 +17,9 @@ def app():
 @pytest.fixture
 def aps():
     f = t.EmberApsFrame()
+    f.profileId = 99
+    f.sourceEndpoint = 8
+    f.destinationEndpoint = 8
     f.sequence = 100
     return f
 
@@ -194,7 +196,7 @@ def test_dup_send_success(app, aps, ieee):
 
 def test_receive_invalid_message(app, aps, ieee):
     app._handle_reply = mock.MagicMock()
-    app._handle_message = mock.MagicMock()
+    app.handle_message = mock.MagicMock()
     aps.destinationEndpoint = 1
     aps.clusterId = 6
     app.ezsp_callback_handler(
@@ -202,7 +204,7 @@ def test_receive_invalid_message(app, aps, ieee):
         [None, aps, 0, 0, 0, 0, 0, b'\x08\x13\x0b\x00\x71']
     )
     assert app._handle_reply.call_count == 0
-    assert app._handle_message.call_count == 0
+    assert app.handle_message.call_count == 0
 
 
 def test_join_handler(app, ieee):
@@ -214,19 +216,6 @@ def test_join_handler(app, ieee):
     assert ieee in app.devices
 
 
-def test_join_handler_skip(app, ieee):
-    app._handle_join(1, ieee, None, None, None)
-    app.devices[ieee].status = device.Status.ZDO_INIT
-    app._handle_join(1, ieee, None, None, None)
-    assert app.devices[ieee].status == device.Status.ZDO_INIT
-
-
-def test_join_handler_change_id(app, ieee):
-    app._handle_join(1, ieee, None, None, None)
-    app._handle_join(2, ieee, None, None, None)
-    assert app.devices[ieee].nwk == 2
-
-
 def test_leave_handler(app, ieee):
     app.devices[ieee] = mock.sentinel.device
     app.ezsp_callback_handler(
@@ -236,17 +225,10 @@ def test_leave_handler(app, ieee):
     assert ieee in app.devices
 
 
-def test_remove(app, ieee):
-    app.devices[ieee] = mock.MagicMock()
+def test_force_remove(app, ieee):
+    dev = mock.MagicMock()
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(app.remove(ieee))
-    assert ieee not in app.devices
-
-
-def test_remove_nonexistent(app, ieee):
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(app.remove(ieee))
-    assert ieee not in app.devices
+    loop.run_until_complete(app.force_remove(dev))
 
 
 def test_sequence(app):
@@ -254,27 +236,6 @@ def test_sequence(app):
         seq = app.get_sequence()
         assert seq >= 0
         assert seq < 256
-
-
-def test_add_device(app, ieee):
-    app.add_device(ieee, 8)
-    app.add_device(ieee, 9)
-    assert app.get_device(ieee).nwk == 9
-
-
-def test_get_device_nwk(app, ieee):
-    dev = app.add_device(ieee, 8)
-    assert app.get_device(nwk=8) is dev
-
-
-def test_get_device_ieee(app, ieee):
-    dev = app.add_device(ieee, 8)
-    assert app.get_device(ieee=ieee) is dev
-
-
-def test_get_device_both(app, ieee):
-    dev = app.add_device(ieee, 8)
-    assert app.get_device(ieee=ieee, nwk=8) is dev
 
 
 def test_permit(app):
@@ -328,7 +289,7 @@ def test_permit_with_key_failed_set_policy(app, ieee):
         loop.run_until_complete(app.permit_with_key(ieee, bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]), 60))
 
 
-def _request(app, aps, returnvals, **kwargs):
+def _request(app, returnvals, **kwargs):
     @asyncio.coroutine
     def mocksend(method, nwk, aps_frame, seq, data):
         if app._pending[seq][1] is None:
@@ -340,30 +301,30 @@ def _request(app, aps, returnvals, **kwargs):
 
     app._ezsp.sendUnicast = mocksend
     loop = asyncio.get_event_loop()
-    return loop.run_until_complete(app.request(0x1234, aps, b'', **kwargs))
+    return loop.run_until_complete(app.request(0x1234, 9, 8, 7, 6, 5, b'', **kwargs))
 
 
-def test_request(app, aps):
-    assert _request(app, aps, [0]) == mock.sentinel.result
+def test_request(app):
+    assert _request(app, [0]) == mock.sentinel.result
 
 
 def test_request_without_reply(app, aps):
-    assert _request(app, aps, [0], expect_reply=False) == mock.sentinel.result
+    assert _request(app, [0], expect_reply=False) == mock.sentinel.result
 
 
-def test_request_fail(app, aps):
+def test_request_fail(app):
     with pytest.raises(DeliveryError):
-        _request(app, aps, [1])
+        _request(app, [1])
 
 
-def test_request_retry(app, aps):
+def test_request_retry(app):
     returnvals = [1, 0, 0]
-    assert _request(app, aps, returnvals, tries=2, delay=0) == mock.sentinel.result
+    assert _request(app, returnvals, tries=2, delay=0) == mock.sentinel.result
     assert returnvals == [0]
 
 
-def test_request_retry_fail(app, aps):
+def test_request_retry_fail(app):
     returnvals = [1, 1, 0, 0]
     with pytest.raises(DeliveryError):
-        assert _request(app, aps, returnvals, tries=2, delay=0)
+        assert _request(app, returnvals, tries=2, delay=0)
     assert returnvals == [0, 0]

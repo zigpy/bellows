@@ -1,6 +1,11 @@
 import enum
 
+import zigpy.types as ztypes
+
 from . import basic
+
+
+EmberEUI64 = ztypes.EUI64
 
 
 class NcpResetCode(basic.uint8_t, enum.Enum):
@@ -44,24 +49,6 @@ class EmberPanId(basic.uint16_t):
 class EmberMulticastId(basic.uint16_t):
     # 16-bit ZigBee multicast group identifier.
     pass
-
-
-class EmberEUI64(basic.fixed_list(8, basic.uint8_t)):
-    # EUI 64-bit ID (an IEEE address).
-    @classmethod
-    def deserialize(cls, data):
-        r, data = super().deserialize(data)
-        return cls(r[::-1]), data
-
-    def serialize(self):
-        assert self._length == len(self)
-        return b''.join([i.serialize() for i in self[::-1]])
-
-    def __repr__(self):
-        return ':'.join('%02x' % i for i in self)
-
-    def __hash__(self):
-        return hash(repr(self))
 
 
 class EmberLibraryStatus(basic.uint8_t):

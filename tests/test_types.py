@@ -33,25 +33,13 @@ def test_list():
     assert t.List(t.uint8_t).deserialize(b'\x0123') == (expected, b'')
 
 
-def test_single():
-    v = t.Single(1.25)
-    ser = v.serialize()
-    assert t.Single.deserialize(ser) == (1.25, b'')
-
-
-def test_double():
-    v = t.Double(1.25)
-    ser = v.serialize()
-    assert t.Double.deserialize(ser) == (1.25, b'')
-
-
 def test_struct():
     class TestStruct(t.EzspStruct):
         _fields = [('a', t.uint8_t), ('b', t.uint8_t)]
 
     ts = TestStruct()
-    ts.a = 0xaa
-    ts.b = 0xbb
+    ts.a = t.uint8_t(0xaa)
+    ts.b = t.uint8_t(0xbb)
     ts2 = TestStruct(ts)
     assert ts2.a == ts.a
     assert ts2.b == ts.b
@@ -60,6 +48,16 @@ def test_struct():
     assert 'TestStruct' in r
     assert r.startswith('<') and r.endswith('>')
 
+    s = ts2.serialize()
+    assert s == b'\xaa\xbb'
+
 
 def test_str():
     assert str(t.EzspStatus.deserialize(b'\0')[0]) == 'EzspStatus.SUCCESS'
+
+
+def test_ember_eui64():
+    ser = b'\x00\x01\x02\x03\x04\x05\x06\x07'
+    eui64, data = t.EmberEUI64.deserialize(ser)
+    assert data == b''
+    assert eui64.serialize() == ser
