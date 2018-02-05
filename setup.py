@@ -4,9 +4,9 @@ from setuptools import find_packages, setup
 
 setup(
     name="bellows",
-    version="0.4.0",
-    description="Library implementing EZSP and ZigBee",
-    url="http://github.com/rcloran/bellows",
+    version="0.5.0",
+    description="Library implementing EZSP",
+    url="http://github.com/zigpy/bellows",
     author="Russell Cloran",
     author_email="rcloran@gmail.com",
     license="GPL-3.0",
@@ -21,6 +21,7 @@ setup(
         'crccheck',
         'pure_pcapy3==1.0.1',
         'pyserial-asyncio',
+        'zigpy==0.0.1',
     ],
     dependency_links=[
         'https://github.com/rcloran/pure-pcapy-3/archive/e289c7d7566306dc02d8f4eb30c0358b41f40f26.zip#egg=pure_pcapy3-1.0.1',
