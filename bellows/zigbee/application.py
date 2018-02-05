@@ -43,6 +43,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         yield from self._cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xff)
         yield from self._cfg(c.CONFIG_KEY_TABLE_SIZE, 1)
         yield from self._cfg(c.CONFIG_TRANSIENT_KEY_TIMEOUT_S, 180, True)
+        yield from self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT, 60)
+        yield from self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 6)
 
     @asyncio.coroutine
     def startup(self, auto_form=False):
