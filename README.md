@@ -1,10 +1,10 @@
 # bellows
 
-[![Build Status](https://travis-ci.org/rcloran/bellows.svg?branch=master)](https://travis-ci.org/rcloran/bellows)
-[![Coverage](https://coveralls.io/repos/github/rcloran/bellows/badge.svg?branch=master)](https://coveralls.io/github/rcloran/bellows?branch=master)
+[![Build Status](https://travis-ci.org/zigpy/bellows.svg?branch=master)](https://travis-ci.org/zigpy/bellows)
+[![Coverage](https://coveralls.io/repos/github/zigpy/bellows/badge.svg?branch=master)](https://coveralls.io/github/zigpy/bellows?branch=master)
 
-`bellows` is a Python 3 project to implement ZigBee support for EmberZNet
-devices using the EZSP protocol.
+`bellows` is a Python 3 project to implement support for EmberZNet devices
+using the EZSP protocol.
 
 The goal is to use this project to add support for the ZigBee Network
 Coprocessor (NCP) in devices like the [Linear/Nortek/GoControl HubZ/QuickStick
