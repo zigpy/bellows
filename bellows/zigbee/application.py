@@ -46,6 +46,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         yield from self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT, 60)
         yield from self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 6)
 
+
     @asyncio.coroutine
     def startup(self, auto_form=False):
         """Perform a complete application startup"""
