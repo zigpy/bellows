@@ -227,8 +227,9 @@ def zcl(ctx, database, node, cluster, endpoint):
 @zcl.command()
 @click.pass_context
 @click.argument('attribute', type=click.IntRange(0, 65535))
+@opts.manufacturer
 @util.app
-def read_attribute(ctx, attribute):
+def read_attribute(ctx, attribute, manufacturer):
     app = ctx.obj['app']
     node = ctx.obj['node']
     endpoint_id = ctx.obj['endpoint']
@@ -238,7 +239,7 @@ def read_attribute(ctx, attribute):
     if cluster is None:
         return
 
-    v = yield from cluster.read_attributes([attribute], allow_cache=False)
+    v = yield from cluster.read_attributes([attribute], allow_cache=False, manufacturer=manufacturer)
     if not v:
         click.echo("Received empty response")
     elif attribute not in v[0]:
@@ -253,8 +254,9 @@ def read_attribute(ctx, attribute):
 @click.pass_context
 @click.argument('attribute', type=click.IntRange(0, 65535))
 @click.argument('value', type=click.IntRange(0, 65535))
+@opts.manufacturer
 @util.app
-def write_attribute(ctx, attribute, value):
+def write_attribute(ctx, attribute, value, manufacturer):
     app = ctx.obj['app']
     node = ctx.obj['node']
     endpoint_id = ctx.obj['endpoint']
@@ -264,7 +266,7 @@ def write_attribute(ctx, attribute, value):
     if cluster is None:
         return
 
-    v = yield from cluster.write_attributes({attribute: value})
+    v = yield from cluster.write_attributes({attribute: value}, manufacturer=manufacturer)
     click.echo(v)
 
 
@@ -291,8 +293,9 @@ def commands(ctx):
 @click.pass_context
 @click.argument('command')
 @click.argument('parameters', nargs=-1)
+@opts.manufacturer
 @util.app
-def command(ctx, command, parameters):
+def command(ctx, command, parameters, manufacturer):
     app = ctx.obj['app']
     node = ctx.obj['node']
     endpoint_id = ctx.obj['endpoint']
@@ -303,7 +306,7 @@ def command(ctx, command, parameters):
         return
 
     try:
-        v = yield from getattr(cluster, command)(*parameters)
+        v = yield from getattr(cluster, command)(*parameters, manufacturer=manufacturer)
         click.echo(v)
     except ValueError as e:
         click.echo(e)
