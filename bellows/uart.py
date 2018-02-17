@@ -17,6 +17,9 @@ class Gateway(asyncio.Protocol):
     XOFF = b'\x13'  # Stop transmission
     SUBSTITUTE = b'\x18'
     CANCEL = b'\x1A'  # Terminates a frame in progress
+    STUFF = 0x20
+    RANDOMIZE_START = 0x42
+    RANDOMIZE_SEQ = 0xB8
 
     RESERVED = FLAG + ESCAPE + XON + XOFF + SUBSTITUTE + CANCEL
 
@@ -215,12 +218,12 @@ class Gateway(asyncio.Protocol):
 
         Used only in data frames
         """
-        rand = 0x42
+        rand = self.RANDOMIZE_START
         out = b''
         for c in s:
             out += bytes([c ^ rand])
             if rand % 2:
-                rand = (rand >> 1) ^ 0xB8
+                rand = (rand >> 1) ^ self.RANDOMIZE_SEQ
             else:
                 rand = rand >> 1
         return out
@@ -230,7 +233,7 @@ class Gateway(asyncio.Protocol):
         out = b''
         for c in s:
             if c in self.RESERVED:
-                out += self.ESCAPE + bytes([c ^ 0x20])
+                out += self.ESCAPE + bytes([c ^ self.STUFF])
             else:
                 out += bytes([c])
         return out
@@ -241,9 +244,9 @@ class Gateway(asyncio.Protocol):
         escaped = False
         for c in s:
             if escaped:
-                out += bytes([c ^ 0x20])
+                out += bytes([c ^ self.STUFF])
                 escaped = False
-            elif c == 0x7D:
+            elif c in self.ESCAPE:
                 escaped = True
             else:
                 out += bytes([c])
