@@ -5,6 +5,7 @@ import binascii
 
 import click
 
+import bellows.types as t
 import bellows.ezsp
 import bellows.zigbee.application
 import zigpy.endpoint
@@ -137,7 +138,7 @@ def endpoints(ctx):
         return
 
     v = yield from dev.zdo.request(0x0005, dev.nwk)
-    if v[0] != 0:
+    if v[0] != t.EmberStatus.SUCCESS:
         click.echo("Non-success response: %s" % (v, ))
     else:
         click.echo(v[2])
@@ -157,7 +158,7 @@ def get_endpoint(ctx, endpoint):
         return
 
     v = yield from dev.zdo.request(0x0004, dev.nwk, endpoint)
-    if v[0] != 0:
+    if v[0] != t.EmberStatus.SUCCESS:
         click.echo("Non-success response: %s" % (v, ))
     else:
         click.echo(v[2])
