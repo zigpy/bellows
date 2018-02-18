@@ -40,7 +40,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         )
         yield from self._cfg(c.CONFIG_APPLICATION_ZDO_FLAGS, zdo)
         yield from self._cfg(c.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2)
-        yield from self._cfg(c.CONFIG_ADDRESS_TABLE_SIZE, 16 )
+        yield from self._cfg(c.CONFIG_ADDRESS_TABLE_SIZE, 16)
         yield from self._cfg(c.CONFIG_SOURCE_ROUTE_TABLE_SIZE, 8)
         yield from self._cfg(c.CONFIG_MAX_END_DEVICE_CHILDREN, 32)
         yield from self._cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xff)
