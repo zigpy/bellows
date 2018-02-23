@@ -159,7 +159,7 @@ def get_endpoint(ctx, endpoint):
     dev, endp = util.get_endpoint(app, node, endpoint)
     if endp is None:
         return
-      
+
     try:
         v = yield from dev.zdo.request(0x0004, dev.nwk, endpoint)
         if v[0] != t.EmberStatus.SUCCESS:
