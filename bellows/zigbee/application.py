@@ -53,13 +53,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         e = self._ezsp
 
         v = yield from e.networkInit()
-        if v[0] != 0:
+        if v[0] != t.EmberStatus.SUCCESS:
             if not auto_form:
                 raise Exception("Could not initialize network")
             yield from self.form_network()
 
         v = yield from e.getNetworkParameters()
-        assert v[0] == 0  # TODO: Better check
+        assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
         if v[1] != t.EmberNodeType.COORDINATOR:
             if not auto_form:
                 raise Exception("Network not configured as coordinator")
@@ -90,7 +90,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         initial_security_state = bellows.zigbee.util.zha_security(controller=True)
         v = yield from self._ezsp.setInitialSecurityState(initial_security_state)
-        assert v[0] == 0  # TODO: Better check
+        assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
 
         parameters = t.EmberNetworkParameters()
         parameters.panId = pan_id
@@ -109,7 +109,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     def _cfg(self, config_id, value, optional=False):
         v = yield from self._ezsp.setConfigurationValue(config_id, value)
         if not optional:
-            assert v[0] == 0  # TODO: Better check
+            assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
 
     @asyncio.coroutine
     def _policy(self):
@@ -119,17 +119,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             t.EzspPolicyId.TC_KEY_REQUEST_POLICY,
             t.EzspDecisionId.DENY_TC_KEY_REQUESTS,
         )
-        assert v[0] == 0  # TODO: Better check
+        assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
         v = yield from e.setPolicy(
             t.EzspPolicyId.APP_KEY_REQUEST_POLICY,
             t.EzspDecisionId.ALLOW_APP_KEY_REQUESTS,
         )
-        assert v[0] == 0  # TODO: Better check
+        assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
         v = yield from e.setPolicy(
             t.EzspPolicyId.TRUST_CENTER_POLICY,
             t.EzspDecisionId.ALLOW_PRECONFIGURED_KEY_JOINS,
         )
-        assert v[0] == 0  # TODO: Better check
+        assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
 
     @asyncio.coroutine
     def force_remove(self, dev):
@@ -141,7 +141,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if frame_name == 'incomingMessageHandler':
             self._handle_frame(*args)
         elif frame_name == 'messageSentHandler':
-            if args[4] != 0:
+            if args[4] != t.EmberStatus.SUCCESS:
                 self._handle_frame_failure(*args)
             else:
                 self._handle_frame_sent(*args)
@@ -237,7 +237,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.sequence = t.uint8_t(sequence)
 
         v = yield from self._ezsp.sendUnicast(self.direct, nwk, aps_frame, sequence, data)
-        if v[0] != 0:
+        if v[0] != t.EmberStatus.SUCCESS:
             self._pending.pop(sequence)
             send_fut.cancel()
             if expect_reply:
@@ -264,14 +264,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             raise Exception("Invalid install code")
 
         v = yield from self._ezsp.addTransientLinkKey(node, key)
-        if v[0] != 0:
+        if v[0] != t.EmberStatus.SUCCESS:
             raise Exception("Failed to set link key")
 
         v = yield from self._ezsp.setPolicy(
             t.EzspPolicyId.TC_KEY_REQUEST_POLICY,
             t.EzspDecisionId.GENERATE_NEW_TC_LINK_KEY,
         )
-        if v[0] != 0:
+        if v[0] != t.EmberStatus.SUCCESS:
             raise Exception("Failed to change policy to allow generation of new trust center keys")
 
         return self._ezsp.permitJoining(time_s, True)
