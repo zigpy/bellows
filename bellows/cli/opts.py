@@ -69,3 +69,10 @@ pan = click.option(
     '-P', '--pan-id',
     type=click.IntRange(0, 65535),
 )
+
+manufacturer = click.option(
+    '-m', '--manufacturer',
+    type=click.IntRange(0, 0xFFFF),
+    default=None,
+    help='send a manufacturer specific command'
+)
