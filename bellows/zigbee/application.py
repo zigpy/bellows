@@ -7,6 +7,7 @@ from zigpy.exceptions import DeliveryError
 import zigpy.application
 import zigpy.device
 import zigpy.util
+import zigpy.zdo
 
 import bellows.types as t
 import bellows.zigbee.util
@@ -256,6 +257,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def permit(self, time_s=60):
         assert 0 <= time_s <= 254
+        """"" send mgmt-permit-join to all router """
+        yield from self.send_zdo_broadcast(0x0036, 0x0000, 0x00, [time_s,0])
         return self._ezsp.permitJoining(time_s)
 
     def permit_with_key(self, node, code, time_s=60):
@@ -276,5 +279,26 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         )
         if v[0] != t.EmberStatus.SUCCESS:
             raise Exception("Failed to change policy to allow generation of new trust center keys")
-
+        
+        yield from self.send_zdo_broadcast(0x0036, 0x0000, 0x00, [time_s,0])
         return self._ezsp.permitJoining(time_s, True)
+
+    @asyncio.coroutine
+    def send_zdo_broadcast(self, command, grpid, radius,   args):
+        """ create aps_frame for zdo broadcast"""
+        aps_frame = t.EmberApsFrame()
+        aps_frame.profileId = t.uint16_t(0x0000) # 0 for zdo
+        aps_frame.clusterId =  t.uint16_t(command)
+        aps_frame.sourceEndpoint=  t.uint8_t(0) # endpoint 0x00 for zdo
+        aps_frame.destinationEndpoint =  t.uint8_t(0) # endpoint 0x00 for zdo
+        aps_frame.options = t.EmberApsOption(
+            t.EmberApsOption.APS_OPTION_NONE 
+        )
+        aps_frame.groupId =  t.uint16_t(grpid)
+        aps_frame.sequence = t.uint8_t(self.get_sequence())
+        radius=t.uint8_t(radius)
+        data= aps_frame.sequence.to_bytes(1, 'little')
+        schema =  zigpy.zdo.types.CLUSTERS[command][2]
+        data += t.serialize(args, schema)
+        LOGGER.debug("zdo-broadcast: %s - %s", aps_frame, data)
+        yield from self._ezsp.sendBroadcast( 0xfffd , aps_frame, radius , len(data), data)
