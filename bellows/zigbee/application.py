@@ -257,7 +257,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def permit(self, time_s=60):
         assert 0 <= time_s <= 254
-        """"" send mgmt-permit-join to all router """
+        """ send mgmt-permit-join to all router """
         yield from self.send_zdo_broadcast(0x0036, 0x0000, 0x00, [time_s,0])
         return self._ezsp.permitJoining(time_s)
 
@@ -280,6 +280,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if v[0] != t.EmberStatus.SUCCESS:
             raise Exception("Failed to change policy to allow generation of new trust center keys")
         
+        """ send mgmt-permit-join to all router """
         yield from self.send_zdo_broadcast(0x0036, 0x0000, 0x00, [time_s,0])
         return self._ezsp.permitJoining(time_s, True)
 
