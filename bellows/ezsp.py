@@ -51,7 +51,7 @@ class EZSP:
             0,    # Frame control. TODO.
             c[0]  # Frame ID
         ]
-        if self.ezsp_version == 5:
+        if self.ezsp_version == 5 or self.ezsp_version == 6:
             frame.insert(1, 0xFF)  # Legacy Frame ID
             frame.insert(1, 0x00)  # Ext frame control. TODO.
 
