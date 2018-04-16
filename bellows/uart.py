@@ -153,11 +153,10 @@ class Gateway(asyncio.Protocol):
         self._reset_future = asyncio.Future()
         return self._reset_future
 
-    @asyncio.coroutine
-    def _send_task(self):
+    async def _send_task(self):
         """Send queue handler"""
         while True:
-            item = yield from self._sendq.get()
+            item = await self._sendq.get()
             if item is self.Terminator:
                 break
             data, seq = item
@@ -167,7 +166,7 @@ class Gateway(asyncio.Protocol):
                 self._pending = (seq, asyncio.Future())
                 self.write(self._data_frame(data, seq, rxmit))
                 rxmit = 1
-                success = yield from self._pending[1]
+                success = await self._pending[1]
 
     def _handle_ack(self, control):
         """Handle an acknowledgement frame"""
@@ -251,15 +250,14 @@ class Gateway(asyncio.Protocol):
         return out
 
 
-@asyncio.coroutine
-def connect(port, baudrate, application, loop=None):
+async def connect(port, baudrate, application, loop=None):
     if loop is None:
         loop = asyncio.get_event_loop()
 
     connection_future = asyncio.Future()
     protocol = Gateway(application, connection_future)
 
-    transport, protocol = yield from serial_asyncio.create_serial_connection(
+    transport, protocol = await serial_asyncio.create_serial_connection(
         loop,
         lambda: protocol,
         url=port,
@@ -269,6 +267,6 @@ def connect(port, baudrate, application, loop=None):
         xonxoff=True,
     )
 
-    yield from connection_future
+    await connection_future
 
     return protocol

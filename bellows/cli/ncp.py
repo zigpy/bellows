@@ -10,7 +10,7 @@ from .main import main
 @click.option('-a', '--all', 'all_', is_flag=True)
 @click.pass_context
 @util.async
-def config(ctx, config, all_):
+async def config(ctx, config, all_):
     """Get/set configuration on the NCP"""
     click.secho(
         "NOTE: Configuration changes do not persist across resets",
@@ -22,11 +22,11 @@ def config(ctx, config, all_):
     if not (config or all_):
         raise click.BadOptionUsage("One of config or --all must be specified")
 
-    s = yield from util.setup(ctx.obj['device'], ctx.obj['baudrate'], util.print_cb)
+    s = await util.setup(ctx.obj['device'], ctx.obj['baudrate'], util.print_cb)
 
     if all_:
         for config in t.EzspConfigId:
-            v = yield from s.getConfigurationValue(config)
+            v = await s.getConfigurationValue(config)
             if v[0] == t.EzspStatus.ERROR_INVALID_ID:
                 continue
             click.echo("%s=%s" % (config.name, v[1]))
@@ -58,22 +58,22 @@ def config(ctx, config, all_):
         except ValueError as e:
             raise click.BadArgumentUsage("Invalid value: %s" % (e, ))
 
-        v = yield from s.setConfigurationValue(config, value)
+        v = await s.setConfigurationValue(config, value)
         click.echo(v)
         s.close()
         return
 
-    v = yield from s.getConfigurationValue(config)
+    v = await s.getConfigurationValue(config)
     click.echo(v)
 
 
 @main.command()
 @click.pass_context
 @util.async
-def info(ctx):
+async def info(ctx):
     """Get NCP information"""
-    s = yield from util.setup(ctx.obj['device'], ctx.obj['baudrate'])
-    yield from util.network_init(s)
+    s = await util.setup(ctx.obj['device'], ctx.obj['baudrate'])
+    await util.network_init(s)
 
     commands = [
         'getEui64',
@@ -84,7 +84,7 @@ def info(ctx):
     ]
 
     for c in commands:
-        v = yield from getattr(s, c)()
+        v = await getattr(s, c)()
         click.echo(v)
 
     s.close()

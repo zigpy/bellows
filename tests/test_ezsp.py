@@ -15,8 +15,7 @@ def ezsp_f():
 def test_connect(ezsp_f, monkeypatch):
     connected = False
 
-    @asyncio.coroutine
-    def mockconnect(*args, **kwargs):
+    async def mockconnect(*args, **kwargs):
         nonlocal connected
         connected = True
 
@@ -73,8 +72,7 @@ def _test_list_command(ezsp_f, mockcommand):
 
 
 def test_list_command(ezsp_f):
-    @asyncio.coroutine
-    def mockcommand(name, *args):
+    async def mockcommand(name, *args):
         assert name == 'startScan'
         ezsp_f.frame_received(b'\x01\x00\x1b')
         ezsp_f.frame_received(b'\x02\x00\x1b')
@@ -87,8 +85,7 @@ def test_list_command(ezsp_f):
 
 
 def test_list_command_initial_failure(ezsp_f):
-    @asyncio.coroutine
-    def mockcommand(name, *args):
+    async def mockcommand(name, *args):
         assert name == 'startScan'
         return [1]
 
@@ -97,8 +94,7 @@ def test_list_command_initial_failure(ezsp_f):
 
 
 def test_list_command_later_failure(ezsp_f):
-    @asyncio.coroutine
-    def mockcommand(name, *args):
+    async def mockcommand(name, *args):
         assert name == 'startScan'
         ezsp_f.frame_received(b'\x01\x00\x1b')
         ezsp_f.frame_received(b'\x02\x00\x1b')
@@ -111,8 +107,7 @@ def test_list_command_later_failure(ezsp_f):
 
 
 def _test_form_network(ezsp_f, initial_result, final_result):
-    @asyncio.coroutine
-    def mockcommand(name, *args):
+    async def mockcommand(name, *args):
         assert name == 'formNetwork'
         ezsp_f.frame_received(b'\x01\x00\x19' + final_result)
         return initial_result
