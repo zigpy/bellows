@@ -4,7 +4,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="bellows",
-    version="0.5.1",
+    version="0.5.2",
     description="Library implementing EZSP",
     url="http://github.com/zigpy/bellows",
     author="Russell Cloran",
