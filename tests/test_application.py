@@ -244,6 +244,7 @@ def test_permit(app):
     assert app._ezsp.permitJoining.call_count == 1
     assert app.send_zdo_broadcast.call_count == 1
 
+
 def test_permit_with_key(app):
     app._ezsp.addTransientLinkKey = get_mock_coro([0])
     app._ezsp.setPolicy = get_mock_coro([0])
@@ -256,6 +257,7 @@ def test_permit_with_key(app):
     assert app._ezsp.permitJoining.call_count == 1
     assert app.send_zdo_broadcast.call_count == 1
 
+
 def test_permit_with_key_ieee(app, ieee):
     app._ezsp.addTransientLinkKey = get_mock_coro([0])
     app._ezsp.setPolicy = get_mock_coro([0])
@@ -267,6 +269,7 @@ def test_permit_with_key_ieee(app, ieee):
     assert app._ezsp.addTransientLinkKey.call_count == 1
     assert app._ezsp.permitJoining.call_count == 1
     assert app.send_zdo_broadcast.call_count == 1
+
 
 def test_permit_with_key_invalid_install_code(app, ieee):
     loop = asyncio.get_event_loop()
