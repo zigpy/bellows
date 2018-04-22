@@ -239,7 +239,10 @@ def test_sequence(app):
 
 
 def test_permit(app):
-    app.send_zdo_broadcast = get_mock_coro([0])
+    @asyncio.coroutine
+    def mocksend(command, grpid, radius, args):
+        return
+    app.send_zdo_broadcast = mocksend
     app.permit(60)
     assert app._ezsp.permitJoining.call_count == 1
     assert app.send_zdo_broadcast.call_count == 1
