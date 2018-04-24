@@ -81,7 +81,7 @@ class Gateway(asyncio.Protocol):
                     self.write(self._ack_frame())
                 else:
                     self.write(self._nak_frame())
-                # Make sure that we also handle the next frame if it is already recevied
+                # Make sure that we also handle the next frame if it is already received
                 return self._extract_frame(rest)
             else:
                 self._nak_count = 0
