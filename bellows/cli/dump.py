@@ -39,15 +39,14 @@ def dump(ctx, channel, outfile):
             ctx.obj['ezsp'].close()
 
 
-@asyncio.coroutine
-def _dump(ctx, channel, outfile):
-    s = yield from util.setup(ctx.obj['device'], ctx.obj['baudrate'])
+async def _dump(ctx, channel, outfile):
+    s = await util.setup(ctx.obj['device'], ctx.obj['baudrate'])
     ctx.obj['ezsp'] = s
 
-    v = yield from s.mfglibStart(True)
+    v = await s.mfglibStart(True)
     util.check(v[0], "Unable to start mfglib")
 
-    v = yield from s.mfglibSetChannel(channel)
+    v = await s.mfglibSetChannel(channel)
     util.check(v[0], "Unable to set channel")
 
     pcap = pure_pcapy.Dumper(outfile, 128, 195)  # DLT_IEEE_15_4
@@ -69,4 +68,4 @@ def _dump(ctx, channel, outfile):
     s.add_callback(cb)
 
     while True:
-        yield from asyncio.sleep(1)
+        await asyncio.sleep(1)
