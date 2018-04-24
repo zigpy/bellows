@@ -21,13 +21,13 @@ LOGGER = logging.getLogger(__name__)
 @opts.pan
 @click.pass_context
 @util.async
-def join(ctx, channels, pan_id, extended_pan_id):
+async def join(ctx, channels, pan_id, extended_pan_id):
     """Join an existing ZigBee network as an end device"""
     def cb(fut, frame_name, response):
         if frame_name == 'stackStatusHandler':
             fut.set_result(response)
 
-    s = yield from util.setup(ctx.obj['device'], ctx.obj['baudrate'])
+    s = await util.setup(ctx.obj['device'], ctx.obj['baudrate'])
 
     channel = None
 
@@ -45,7 +45,7 @@ def join(ctx, channels, pan_id, extended_pan_id):
         click.echo("PAN not provided, scanning channels %s..." % (
             ' '.join(map(str, channels)),
         ))
-        v = yield from s.startScan(scan_type, channel_mask, 3)
+        v = await s.startScan(scan_type, channel_mask, 3)
 
         networks = [n[0] for n in v if n[0].allowingJoin]
         if len(networks) == 0:
@@ -74,16 +74,16 @@ def join(ctx, channels, pan_id, extended_pan_id):
     if extended_pan_id is None:
         extended_pan_id = t.fixed_list(8, t.uint8_t)([t.uint8_t(0)] * 8)
 
-    v = yield from util.network_init(s)
+    v = await util.network_init(s)
 
     if v[0] == t.EmberStatus.SUCCESS:
         LOGGER.debug("Network was up, leaving...")
-        v = yield from s.leaveNetwork()
+        v = await s.leaveNetwork()
         util.check(v[0], "Failure leaving network: %s" % (v[0], ))
-        yield from asyncio.sleep(1)  # TODO
+        await asyncio.sleep(1)  # TODO
 
     initial_security_state = zutil.zha_security()
-    v = yield from s.setInitialSecurityState(initial_security_state)
+    v = await s.setInitialSecurityState(initial_security_state)
     util.check(v[0], "Setting security state failed: %s" % (v[0], ))
 
     parameters = t.EmberNetworkParameters()
@@ -99,9 +99,9 @@ def join(ctx, channels, pan_id, extended_pan_id):
 
     fut = asyncio.Future()
     cbid = s.add_callback(functools.partial(cb, fut))
-    v = yield from s.joinNetwork(t.EmberNodeType.END_DEVICE, parameters)
+    v = await s.joinNetwork(t.EmberNodeType.END_DEVICE, parameters)
     util.check(v[0], "Joining network failed: %s" % (v[0], ))
-    v = yield from fut
+    v = await fut
     click.echo(v)
 
     s.remove_callback(cbid)
@@ -112,14 +112,14 @@ def join(ctx, channels, pan_id, extended_pan_id):
 @main.command()
 @click.pass_context
 @util.async
-def leave(ctx):
+async def leave(ctx):
     """Leave the ZigBee network"""
-    s = yield from util.setup(ctx.obj['device'], ctx.obj['baudrate'])
-    v = yield from util.network_init(s)
+    s = await util.setup(ctx.obj['device'], ctx.obj['baudrate'])
+    v = await util.network_init(s)
     if v[0] == t.EmberStatus.NOT_JOINED:
         click.echo("Not joined, not leaving")
     else:
-        v = yield from s.leaveNetwork()
+        v = await s.leaveNetwork()
         util.check(v[0], "Failure leaving network: %s" % (v[0], ))
 
     s.close()
@@ -131,9 +131,9 @@ def leave(ctx):
 @click.option('-e', '--energy', 'energy_scan', is_flag=True)
 @click.pass_context
 @util.async
-def scan(ctx, channels, duration_ms, energy_scan):
+async def scan(ctx, channels, duration_ms, energy_scan):
     """Scan for networks or radio interference"""
-    s = yield from util.setup(ctx.obj['device'], ctx.obj['baudrate'])
+    s = await util.setup(ctx.obj['device'], ctx.obj['baudrate'])
 
     channel_mask = util.channel_mask(channels)
     click.echo("Scanning channels %s" % (' '.join(map(str, channels)), ))
@@ -152,7 +152,7 @@ def scan(ctx, channels, duration_ms, energy_scan):
     if energy_scan:
         scan_type = t.EzspNetworkScanType.ENERGY_SCAN
 
-    v = yield from s.startScan(scan_type, channel_mask, duration_symbol_exp)
+    v = await s.startScan(scan_type, channel_mask, duration_symbol_exp)
     for network in v:
         click.echo(network)
 
