@@ -30,22 +30,17 @@ def ieee(init=0):
 
 
 def get_mock_coro(return_value):
-    @asyncio.coroutine
-    def mock_coro(*args, **kwargs):
+    async def mock_coro(*args, **kwargs):
         return return_value
 
     return mock.Mock(wraps=mock_coro)
 
 
 def _test_startup(app, nwk_type, auto_form=False, init=0):
-    # This is a fairly brittle and pointless test. Except the point is just
-    # to allow startup to run all its paths and check types etc.
-    @asyncio.coroutine
-    def mockezsp(*args, **kwargs):
+    async def mockezsp(*args, **kwargs):
         return [0, nwk_type]
 
-    @asyncio.coroutine
-    def mockinit(*args, **kwargs):
+    async def mockinit(*args, **kwargs):
         return [init]
 
     app._ezsp._command = mockezsp
@@ -56,7 +51,9 @@ def _test_startup(app, nwk_type, auto_form=False, init=0):
     app._ezsp.getNodeId = mockezsp
     app._ezsp.getEui64 = mockezsp
     app._ezsp.leaveNetwork = mockezsp
-    app.form_network = mock.MagicMock()
+    app.form_network = mock.MagicMock(side_effect=asyncio.coroutine(mock.MagicMock()))
+    app._ezsp.reset.side_effect = asyncio.coroutine(mock.MagicMock())
+    app._ezsp.version.side_effect = asyncio.coroutine(mock.MagicMock())
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(app.startup(auto_form=auto_form))
@@ -88,6 +85,8 @@ def test_form_network(app):
     f = asyncio.Future()
     f.set_result([0])
     app._ezsp.setInitialSecurityState.side_effect = [f]
+    app._ezsp.formNetwork.side_effect = asyncio.coroutine(mock.MagicMock())
+    app._ezsp.setValue.side_effect = asyncio.coroutine(mock.MagicMock())
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(app.form_network())
@@ -226,6 +225,7 @@ def test_leave_handler(app, ieee):
 
 
 def test_force_remove(app, ieee):
+    app._ezsp.removeDevice.side_effect = asyncio.coroutine(mock.MagicMock())
     dev = mock.MagicMock()
     loop = asyncio.get_event_loop()
     loop.run_until_complete(app.force_remove(dev))
@@ -305,8 +305,7 @@ def test_permit_with_key_failed_set_policy(app, ieee):
 
 
 def _request(app, returnvals, **kwargs):
-    @asyncio.coroutine
-    def mocksend(method, nwk, aps_frame, seq, data):
+    async def mocksend(method, nwk, aps_frame, seq, data):
         if app._pending[seq][1] is None:
             app._pending[seq][0].set_result(mock.sentinel.result)
         else:
