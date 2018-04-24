@@ -87,17 +87,6 @@ def test_crc_error(gw):
     gw.write = mock.MagicMock()
     gw.data_received(b'L\xa1\x8e\x03\xcd\x07\xb9Y\xfbG%\xae\xbd~')
     assert gw.write.call_count == 1
-    assert gw._nak_count == 1
-    assert gw._application.frame_received.call_count == 0
-
-
-def test_3_crc_error(gw):
-    gw.write = mock.MagicMock()
-    gw.data_received(b'L\xa1\x8e\x03\xcd\x07\xb9Y\xfbG%\xae\xbd~')
-    gw.data_received(b'L\xa1\x8e\x03\xcd\x07\xb9Y\xfbG%\xae\xbd~')
-    gw.data_received(b'L\xa1\x8e\x03\xcd\x07\xb9Y\xfbG%\xae\xbd~')
-    assert gw.write.call_count == 3
-    assert gw._nak_count == 0
     assert gw._application.frame_received.call_count == 0
 
 
