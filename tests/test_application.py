@@ -92,20 +92,22 @@ def test_form_network(app):
     loop.run_until_complete(app.form_network())
 
 
-def _frame_handler(app, aps, ieee, endpoint, cluster=0, sender=3):
-    app.add_device(ieee, 3)
+def _frame_handler(app, aps, ieee, endpoint, cluster=0):
+    if ieee not in app.devices:
+        app.add_device(ieee, 3)
     app._ieee = [t.uint8_t(0)] * 8
     app._nwk = 0
-    aps.destinationEndpoint = endpoint
+    aps.sourceEndpoint = endpoint
     aps.clusterId = cluster
     app.ezsp_callback_handler(
         'incomingMessageHandler',
-        [None, aps, 1, 2, sender, 4, 5, b'\x01\x00\x00']
+        [None, aps, 1, 2, 3, 4, 5, b'\x01\x00\x00']
     )
 
 
 def test_frame_handler_unknown_device(app, aps, ieee):
-    return _frame_handler(app, aps, ieee, 0, sender=99)
+    app.add_device(ieee, 99)
+    return _frame_handler(app, aps, ieee, 0)
 
 
 def test_frame_handler_zdo(app, aps, ieee):
@@ -132,6 +134,8 @@ def test_frame_handler_zdo_reply_unknown(app, aps, ieee):
 
 
 def test_frame_handler_zcl(app, aps, ieee):
+    app.add_device(ieee, 3)
+    app.get_device(ieee).add_endpoint(1)
     return _frame_handler(app, aps, ieee, 1)
 
 

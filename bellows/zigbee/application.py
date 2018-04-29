@@ -150,17 +150,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def _handle_frame(self, message_type, aps_frame, lqi, rssi, sender, binding_index, address_index, message):
         try:
-            self.get_device(nwk=sender).radio_details(lqi, rssi)
+            device = self.get_device(nwk=sender)
         except KeyError:
             LOGGER.debug("No such device %s", sender)
+            return
 
-        if aps_frame.destinationEndpoint == 0:
-            deserialize = zigpy.zdo.deserialize
-        else:
-            deserialize = zigpy.zcl.deserialize
-
+        device.radio_details(lqi, rssi)
         try:
-            tsn, command_id, is_reply, args = deserialize(aps_frame.clusterId, message)
+            tsn, command_id, is_reply, args = self.deserialize(device, aps_frame.sourceEndpoint, aps_frame.clusterId, message)
         except ValueError as e:
             LOGGER.error("Failed to parse message (%s) on cluster %d, because %s", binascii.hexlify(message), aps_frame.clusterId, e)
             return
@@ -168,7 +165,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if is_reply:
             self._handle_reply(sender, aps_frame, tsn, command_id, args)
         else:
-            self.handle_message(False, sender, aps_frame.profileId, aps_frame.clusterId, aps_frame.sourceEndpoint, aps_frame.destinationEndpoint, tsn, command_id, args)
+            self.handle_message(device, sender, aps_frame.profileId, aps_frame.clusterId, aps_frame.sourceEndpoint, aps_frame.destinationEndpoint, tsn, command_id, args)
 
     def _handle_reply(self, sender, aps_frame, tsn, command_id, args):
         try:
@@ -185,7 +182,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             # We've already handled, don't drop through to device handler
             return
 
-        self.handle_message(True, sender, aps_frame.profileId, aps_frame.clusterId, aps_frame.sourceEndpoint, aps_frame.destinationEndpoint, tsn, command_id, args)
+        try:
+            device = self.get_device(nwk=sender)
+        except KeyError:
+            LOGGER.debug("No such device %s", sender)
+            return
+
+        self.handle_message(device, True, aps_frame.profileId, aps_frame.clusterId, aps_frame.sourceEndpoint, aps_frame.destinationEndpoint, tsn, command_id, args)
 
     def _handle_frame_failure(self, message_type, destination, aps_frame, message_tag, status, message):
         try:
