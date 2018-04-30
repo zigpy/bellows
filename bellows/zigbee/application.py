@@ -163,7 +163,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             return
 
         if is_reply:
-            self._handle_reply(sender, aps_frame, tsn, command_id, args)
+            self._handle_reply(device, aps_frame, tsn, command_id, args)
         else:
             self.handle_message(device, sender, aps_frame.profileId, aps_frame.clusterId, aps_frame.sourceEndpoint, aps_frame.destinationEndpoint, tsn, command_id, args)
 
@@ -182,13 +182,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             # We've already handled, don't drop through to device handler
             return
 
-        try:
-            device = self.get_device(nwk=sender)
-        except KeyError:
-            LOGGER.debug("No such device %s", sender)
-            return
-
-        self.handle_message(device, True, aps_frame.profileId, aps_frame.clusterId, aps_frame.sourceEndpoint, aps_frame.destinationEndpoint, tsn, command_id, args)
+        self.handle_message(sender, True, aps_frame.profileId, aps_frame.clusterId, aps_frame.sourceEndpoint, aps_frame.destinationEndpoint, tsn, command_id, args)
 
     def _handle_frame_failure(self, message_type, destination, aps_frame, message_tag, status, message):
         try:

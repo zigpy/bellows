@@ -95,8 +95,6 @@ def test_form_network(app):
 def _frame_handler(app, aps, ieee, endpoint, deserialize, cluster=0):
     if ieee not in app.devices:
         app.add_device(ieee, 3)
-    # app._ieee = [t.uint8_t(0)] * 8
-    # app._nwk = 0
     aps.sourceEndpoint = endpoint
     aps.clusterId = cluster
     app.deserialize = deserialize
