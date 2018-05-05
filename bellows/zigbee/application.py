@@ -165,7 +165,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if is_reply:
             self._handle_reply(device, aps_frame, tsn, command_id, args)
         else:
-            self.handle_message(device, sender, aps_frame.profileId, aps_frame.clusterId, aps_frame.sourceEndpoint, aps_frame.destinationEndpoint, tsn, command_id, args)
+            self.handle_message(device, False, aps_frame.profileId, aps_frame.clusterId, aps_frame.sourceEndpoint, aps_frame.destinationEndpoint, tsn, command_id, args)
 
     def _handle_reply(self, sender, aps_frame, tsn, command_id, args):
         try:
