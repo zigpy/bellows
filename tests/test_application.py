@@ -112,7 +112,7 @@ def test_frame_handler_unknown_device(app, aps, ieee):
 
 
 def test_frame_handler_zdo(app, aps, ieee):
-    _frame_handler(app, aps, ieee, 0, mock.MagicMock(return_value=(1, 1, False, [])))
+    _frame_handler(app, aps, ieee, 0, mock.MagicMock(return_value=(1, 1, False, [1])))
 
 
 def test_frame_handler_zdo_reply(app, aps, ieee):
