@@ -24,21 +24,19 @@ class EZSP:
         for name, details in self.COMMANDS.items():
             self.COMMANDS_BY_ID[details[0]] = (name, details[1], details[2])
 
-    @asyncio.coroutine
-    def connect(self, device, baudrate):
+    async def connect(self, device, baudrate):
         assert self._gw is None
-        self._gw = yield from uart.connect(device, baudrate, self)
+        self._gw = await uart.connect(device, baudrate, self)
 
     def reset(self):
         return self._gw.reset()
 
-    @asyncio.coroutine
-    def version(self):
+    async def version(self):
         version = self.ezsp_version
-        result = yield from self._command('version', version)
+        result = await self._command('version', version)
         if result[0] != version:
             LOGGER.debug("Switching to eszp version %d", result[0])
-            yield from self._command('version', result[0])
+            await self._command('version', result[0])
 
     def close(self):
         return self._gw.close()
@@ -51,7 +49,7 @@ class EZSP:
             0,    # Frame control. TODO.
             c[0]  # Frame ID
         ]
-        if self.ezsp_version == 5:
+        if self.ezsp_version >= 5:
             frame.insert(1, 0xFF)  # Legacy Frame ID
             frame.insert(1, 0x00)  # Ext frame control. TODO.
 
@@ -67,8 +65,7 @@ class EZSP:
         self._seq = (self._seq + 1) % 256
         return future
 
-    @asyncio.coroutine
-    def _list_command(self, name, item_frames, completion_frame, spos, *args):
+    async def _list_command(self, name, item_frames, completion_frame, spos, *args):
         """Run a command, returning result callbacks as a list"""
         fut = asyncio.Future()
         results = []
@@ -81,10 +78,10 @@ class EZSP:
 
         cbid = self.add_callback(cb)
         try:
-            v = yield from self._command(name, *args)
+            v = await self._command(name, *args)
             if v[0] != t.EmberStatus.SUCCESS:
                 raise Exception(v)
-            v = yield from fut
+            v = await fut
             if v[spos] != t.EmberStatus.SUCCESS:
                 raise Exception(v)
         finally:
@@ -121,8 +118,7 @@ class EZSP:
         0,
     )
 
-    @asyncio.coroutine
-    def formNetwork(self, parameters):  # noqa: N802
+    async def formNetwork(self, parameters):  # noqa: N802
         fut = asyncio.Future()
 
         def cb(frame_name, response):
@@ -131,11 +127,11 @@ class EZSP:
                 fut.set_result(response)
 
         self.add_callback(cb)
-        v = yield from self._command('formNetwork', parameters)
+        v = await self._command('formNetwork', parameters)
         if v[0] != t.EmberStatus.SUCCESS:
             raise Exception("Failure forming network: %s" % (v, ))
 
-        v = yield from fut
+        v = await fut
         if v[0] != t.EmberStatus.NETWORK_UP:
             raise Exception("Failure forming network: %s" % (v, ))
 
