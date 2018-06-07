@@ -11,8 +11,7 @@ def test_connect(monkeypatch):
     portmock = mock.MagicMock()
     appmock = mock.MagicMock()
 
-    @asyncio.coroutine
-    def mockconnect(loop, protocol_factory, **kwargs):
+    async def mockconnect(loop, protocol_factory, **kwargs):
         protocol = protocol_factory()
         loop.call_soon(protocol.connection_made, None)
         return None, protocol

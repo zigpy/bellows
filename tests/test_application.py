@@ -30,22 +30,17 @@ def ieee(init=0):
 
 
 def get_mock_coro(return_value):
-    @asyncio.coroutine
-    def mock_coro(*args, **kwargs):
+    async def mock_coro(*args, **kwargs):
         return return_value
 
     return mock.Mock(wraps=mock_coro)
 
 
 def _test_startup(app, nwk_type, auto_form=False, init=0):
-    # This is a fairly brittle and pointless test. Except the point is just
-    # to allow startup to run all its paths and check types etc.
-    @asyncio.coroutine
-    def mockezsp(*args, **kwargs):
+    async def mockezsp(*args, **kwargs):
         return [0, nwk_type]
 
-    @asyncio.coroutine
-    def mockinit(*args, **kwargs):
+    async def mockinit(*args, **kwargs):
         return [init]
 
     app._ezsp._command = mockezsp
@@ -56,7 +51,9 @@ def _test_startup(app, nwk_type, auto_form=False, init=0):
     app._ezsp.getNodeId = mockezsp
     app._ezsp.getEui64 = mockezsp
     app._ezsp.leaveNetwork = mockezsp
-    app.form_network = mock.MagicMock()
+    app.form_network = mock.MagicMock(side_effect=asyncio.coroutine(mock.MagicMock()))
+    app._ezsp.reset.side_effect = asyncio.coroutine(mock.MagicMock())
+    app._ezsp.version.side_effect = asyncio.coroutine(mock.MagicMock())
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(app.startup(auto_form=auto_form))
@@ -88,34 +85,40 @@ def test_form_network(app):
     f = asyncio.Future()
     f.set_result([0])
     app._ezsp.setInitialSecurityState.side_effect = [f]
+    app._ezsp.formNetwork.side_effect = asyncio.coroutine(mock.MagicMock())
+    app._ezsp.setValue.side_effect = asyncio.coroutine(mock.MagicMock())
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(app.form_network())
 
 
-def _frame_handler(app, aps, ieee, endpoint, cluster=0, sender=3):
-    app.add_device(ieee, 3)
-    app._ieee = [t.uint8_t(0)] * 8
-    app._nwk = 0
-    aps.destinationEndpoint = endpoint
+def _frame_handler(app, aps, ieee, endpoint, deserialize, cluster=0):
+    if ieee not in app.devices:
+        app.add_device(ieee, 3)
+    aps.sourceEndpoint = endpoint
     aps.clusterId = cluster
+    app.deserialize = deserialize
     app.ezsp_callback_handler(
         'incomingMessageHandler',
-        [None, aps, 1, 2, sender, 4, 5, b'\x01\x00\x00']
+        [None, aps, 1, 2, 3, 4, 5, b'\x01\x00\x00']
     )
 
 
 def test_frame_handler_unknown_device(app, aps, ieee):
-    return _frame_handler(app, aps, ieee, 0, sender=99)
+    app.add_device(ieee, 99)
+    deserialize = mock.MagicMock()
+    _frame_handler(app, aps, ieee, 0, deserialize)
+    assert deserialize.call_count == 0
 
 
 def test_frame_handler_zdo(app, aps, ieee):
-    return _frame_handler(app, aps, ieee, 0)
+    _frame_handler(app, aps, ieee, 0, mock.MagicMock(return_value=(1, 1, False, [1])))
 
 
 def test_frame_handler_zdo_reply(app, aps, ieee):
     send_fut, reply_fut = app._pending[1] = (mock.MagicMock(), mock.MagicMock())
-    _frame_handler(app, aps, ieee, 0, 0x8000)
+    deserialize = mock.MagicMock(return_value=(1, 1, True, []))
+    _frame_handler(app, aps, ieee, 0, deserialize, 0x8000)
     assert send_fut.set_result.call_count == 0
     assert reply_fut.set_result.call_count == 1
 
@@ -123,17 +126,28 @@ def test_frame_handler_zdo_reply(app, aps, ieee):
 def test_frame_handler_dup_zdo_reply(app, aps, ieee):
     send_fut, reply_fut = app._pending[1] = (mock.MagicMock(), mock.MagicMock())
     reply_fut.set_result.side_effect = asyncio.futures.InvalidStateError()
-    _frame_handler(app, aps, ieee, 0, 0x8000)
+    deserialize = mock.MagicMock(return_value=(1, 1, True, []))
+    _frame_handler(app, aps, ieee, 0, deserialize, 0x8000)
     assert send_fut.set_result.call_count == 0
     assert reply_fut.set_result.call_count == 1
 
 
 def test_frame_handler_zdo_reply_unknown(app, aps, ieee):
-    _frame_handler(app, aps, ieee, 0, 0x8000)
+    app.handle_message = mock.MagicMock()
+    deserialize = mock.MagicMock(return_value=(1, 1, True, []))
+    _frame_handler(app, aps, ieee, 0, deserialize, 0x8000)
+    # An unknown reply drops through to device's message handling code
+    assert app.handle_message.call_count == 1
 
 
-def test_frame_handler_zcl(app, aps, ieee):
-    return _frame_handler(app, aps, ieee, 1)
+def test_frame_handler_bad_message(app, aps, ieee, caplog):
+    deserialize = mock.MagicMock(side_effect=ValueError)
+    app._handle_reply = mock.MagicMock()
+    app.handle_message = mock.MagicMock()
+    _frame_handler(app, aps, ieee, 0, deserialize)
+    assert any(record.levelname == 'ERROR' for record in caplog.records)
+    assert app._handle_reply.call_count == 0
+    assert app.handle_message.call_count == 0
 
 
 def test_send_failure(app, aps, ieee):
@@ -226,6 +240,7 @@ def test_leave_handler(app, ieee):
 
 
 def test_force_remove(app, ieee):
+    app._ezsp.removeDevice.side_effect = asyncio.coroutine(mock.MagicMock())
     dev = mock.MagicMock()
     loop = asyncio.get_event_loop()
     loop.run_until_complete(app.force_remove(dev))
@@ -290,8 +305,7 @@ def test_permit_with_key_failed_set_policy(app, ieee):
 
 
 def _request(app, returnvals, **kwargs):
-    @asyncio.coroutine
-    def mocksend(method, nwk, aps_frame, seq, data):
+    async def mocksend(method, nwk, aps_frame, seq, data):
         if app._pending[seq][1] is None:
             app._pending[seq][0].set_result(mock.sentinel.result)
         else:
