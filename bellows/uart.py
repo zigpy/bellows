@@ -138,7 +138,9 @@ class Gateway(asyncio.Protocol):
             LOGGER.warn("Reset future is None")
             return
 
-        self._reset_future.set_result(True)
+        # Make sure that the reset_future is not done
+        if not self._reset_future.done():
+            self._reset_future.set_result(True)
 
     def error_frame_received(self, data):
         """Error frame receive handler"""
