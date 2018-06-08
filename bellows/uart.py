@@ -67,7 +67,17 @@ class Gateway(asyncio.Protocol):
         """Extract a frame from the data buffer"""
         if self.FLAG in data:
             place = data.find(self.FLAG)
-            return self._unstuff(data[:place + 1]), data[place + 1:]
+            frame = self._unstuff(data[:place + 1])
+            rest = data[place + 1:]
+            crc = binascii.crc_hqx(frame[:-3], 0xffff)
+            crc = bytes([crc >> 8, crc % 256])
+            if crc != frame[-3:-1]:
+                LOGGER.error("CRC error in frame %s (%s != %s)", binascii.hexlify(frame), binascii.hexlify(frame[-3:-1]), binascii.hexlify(crc))
+                self.write(self._nak_frame())
+                # Make sure that we also handle the next frame if it is already received
+                return self._extract_frame(rest)
+
+            return frame, rest
         return None, data
 
     def frame_received(self, data):
@@ -198,6 +208,12 @@ class Gateway(asyncio.Protocol):
         """Construct a acknowledgement frame"""
         assert 0 <= self._rec_seq < 8
         control = bytes([0b10000000 | (self._rec_seq & 0b00000111)])
+        return self._frame(control, b'')
+
+    def _nak_frame(self):
+        """Construct a negative acknowledgement frame"""
+        assert 0 <= self._rec_seq < 8
+        control = bytes([0b10100000 | (self._rec_seq & 0b00000111)])
         return self._frame(control, b'')
 
     def _rst_frame(self):
