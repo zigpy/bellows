@@ -18,6 +18,7 @@ COMMANDS = {
     'setGpioRadioPowerMask': (0xAE, (t.uint32_t, ), ()),
     'setCtune': (0xF5, (t.uint16_t, ), ()),
     'getCtune': (0xF6, (), (t.uint16_t, )),
+    # EZSP 6.3: sendLinkPowerDeltaRequest
     'setChannelMap': (0xF7, (t.uint8_t, t.uint8_t), ()),
     # 5. Utilities Frames
     'nop': (0x05, (), ()),
@@ -49,6 +50,7 @@ COMMANDS = {
     # 6. Networking Frames
     'setManufacturerCode': (0x15, (t.uint16_t, ), ()),
     'setPowerDescriptor': (0x16, (t.uint16_t, ), ()),
+    # EZSP 6.3: -- unassigned --
     'networkInitExtended': (0x70, (t.EmberNetworkInitStruct, ), (t.EmberStatus, )),
     'networkState': (0x18, (), (t.EmberNetworkStatus, )),
     'stackStatusHandler': (0x19, (), (t.EmberStatus, )),
@@ -210,33 +212,61 @@ COMMANDS = {
     'zllSetDataToken': (0xBD, (t.EmberTokTypeStackZllData, ), ()),
     'zllSetNonZllNetwork': (0xBF, (), ()),
     'isZllNetwork': (0xBE, (), (t.Bool, )),
+    # EZSP 6.3: RF4CE seems gone
     # 15 RF4CE Frames
+    # EZSP 6.3: setRoutingShortcutThreshold
     'rf4ceSetPairingTableEntry': (0xD0, (t.uint8_t, t.EmberRf4cePairingTableEntry), (t.EmberStatus, )),
+    # EZSP 6.3: getRoutingShortcutThreshold
     'rf4ceGetPairingTableEntry': (0xD1, (t.uint8_t, ), (t.EmberStatus, t.EmberRf4cePairingTableEntry)),
+    # EZSP 6.3: unusedPanIdFoundHandler
     'rf4ceDeletePairingTableEntry': (0xD2, (t.uint8_t, ), (t.EmberStatus, )),
+    # EZSP 6.3: findUnusedPanId
     'rf4ceKeyUpdate': (0xD3, (t.uint8_t, t.EmberKeyData), (t.EmberStatus, )),
+    # EZSP 6.3: zllSetRadioIdleMode
     'rf4ceSend': (0xD4, (t.uint8_t, t.uint8_t, t.uint16_t, t.EmberRf4ceTxOption, t.uint8_t, t.LVBytes), (t.EmberStatus, )),
+    # EZSP 6.3: setZllNodeType
     'rf4ceIncomingMessageHandler': (0xD5, (), (t.uint8_t, t.uint8_t, t.uint16_t, t.EmberRf4ceTxOption, t.LVBytes)),
+    # EZSP 6.3: setZllAdditionalState
     'rf4ceMessageSentHandler': (0xD6, (), (t.EmberStatus, t.uint8_t, t.EmberRf4ceTxOption, t.uint8_t, t.uint16_t, t.uint8_t, t.LVBytes)),
+    # EZSP 6.3: zllOperationInProgress
     'rf4ceStart': (0xD7, (t.EmberRf4ceNodeCapabilities, t.EmberRf4ceVendorInfo, t.int8s), (t.EmberStatus, )),
+    # EZSP 6.3: zllRxOnWhenIdleGetActive
     'rf4ceStop': (0xD8, (), (t.EmberStatus, )),
+    # EZSP 6.3: getZllPrimaryChannelMask
     'rf4ceDiscovery': (0xD9, (t.EmberPanId, t.EmberNodeId, t.uint8_t, t.uint16_t, t.LVBytes), (t.EmberStatus, )),
+    # EZSP 6.3: getZllSecondaryChannelMask
     'rf4ceDiscoveryCompleteHandler': (0xDA, (), (t.EmberStatus, )),
+    # EZSP 6.3: setZllPrimaryChannelMask
     'rf4ceDiscoveryRequestHandler': (0xDB, (), (t.EmberEUI64, t.uint8_t, t.EmberRf4ceVendorInfo, t.EmberRf4ceApplicationInfo, t.uint8_t, t.uint8_t)),
+    # EZSP 6.3: setZllSecondaryChannelMask
     'rf4ceDiscoveryResponseHandler': (0xDC, (), (t.Bool, t.uint8_t, t.EmberPanId, t.EmberEUI64, t.uint8_t, t.EmberRf4ceVendorInfo, t.EmberRf4ceApplicationInfo, t.uint8_t, t.uint8_t)),
+    # EZSP 6.3: gpSinkTableGetEntry
     'rf4ceEnableAutoDiscoveryResponse': (0xDD, (t.uint16_t, ), (t.EmberStatus, )),
+    # EZSP 6.3: gpSinkTableLookup
     'rf4ceAutoDiscoveryResponseCompleteHandler': (0xDE, (), (t.EmberStatus, t.EmberEUI64, t.uint8_t, t.EmberRf4ceVendorInfo, t.EmberRf4ceApplicationInfo, t.uint8_t)),
+    # EZSP 6.3: gpSinkTableSetEntry
     'rf4cePair': (0xDF, (t.uint8_t, t.EmberPanId, t.EmberEUI64, t.uint8_t), (t.EmberStatus, )),
+    # EZSP 6.3: gpSinkTableRemoveEntry
     'rf4cePairCompleteHandler': (0xE0, (), (t.EmberStatus, t.uint8_t, t.EmberRf4ceVendorInfo, t.EmberRf4ceApplicationInfo)),
+    # EZSP 6.3: gpSinkTableFindOrAllocateEntry
     'rf4cePairRequestHandler': (0xE1, (), (t.EmberStatus, t.uint8_t, t.EmberEUI64, t.uint8_t, t.EmberRf4ceVendorInfo, t.EmberRf4ceApplicationInfo, t.uint8_t)),
+    # EZSP 6.3: gpClearSinkTable
     'rf4ceUnpair': (0xE2, (t.uint8_t, ), (t.EmberStatus, )),
+    # EZSP 6.3: -- unassigned --
     'rf4ceUnpairHandler': (0xE3, (), (t.uint8_t, )),
+    # EZSP 6.3: -- unassigned --
     'rf4ceUnpairCompleteHandler': (0xE4, (), (t.uint8_t, )),
+    # EZSP 6.3: -- unassigned --
     'rf4ceSetPowerSavingParameters': (0xE5, (t.uint32_t, t.uint32_t), (t.EmberStatus, )),
+    # EZSP 6.3: -- unassigned --
     'rf4ceSetFrequencyAgilityParameters': (0xE6, (t.uint8_t, t.uint8_t, t.int8s, t.uint16_t, t.uint8_t), (t.EmberStatus, )),
+    # EZSP 6.3: -- unassigned --
     'rf4ceSetApplicationInfo': (0xE7, (t.EmberRf4ceApplicationInfo, ), (t.EmberStatus, )),
+    # EZSP 6.3: -- unassigned --
     'rf4ceGetApplicationInfo': (0xEF, (), (t.EmberStatus, t.EmberRf4ceApplicationInfo)),
+    # EZSP 6.3: -- unassigned --
     'rf4ceGetMaxPayload': (0xF3, (t.uint8_t, t.EmberRf4ceTxOption), (t.uint8_t, )),
+    # EZSP 6.3: -- unassigned --
     'rf4ceGetNetworkParameters': (0xF4, (), (t.EmberStatus, t.EmberNodeType, t.EmberNetworkParameters)),
     # 16 Green Power Frames
     'gpProxyTableProcessGpPairing': (0xC9, (t.uint32_t, t.EmberGpAddress, t.uint8_t, t.uint16_t, t.uint16_t, t.uint16_t, t.fixed_list(8, t.uint8_t), t.EmberKeyData), ()),
@@ -244,3 +274,7 @@ COMMANDS = {
     'dGpSentHandler': (0xC7, (), (t.EmberStatus, t.uint8_t)),
     'gpepIncomingMessageHandler': (0xC5, (), (t.EmberStatus, t.uint8_t, t.uint8_t, t.EmberGpAddress, t.EmberGpSecurityLevel, t.EmberGpKeyType, t.Bool, t.Bool, t.uint32_t, t.uint8_t, t.uint32_t, t.EmberGpSinkListEntry, t.LVBytes)),
 }
+
+if __name__ == "__main__":
+	for k,v in sorted(COMMANDS.items(), key=lambda i: i[1][0]):
+		print("%2x: %s" % (v[0], k))
