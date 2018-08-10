@@ -9,7 +9,7 @@ from .main import main
 @click.argument('config', required=False)
 @click.option('-a', '--all', 'all_', is_flag=True)
 @click.pass_context
-@util.async
+@util.background
 async def config(ctx, config, all_):
     """Get/set configuration on the NCP"""
     click.secho(
@@ -69,7 +69,7 @@ async def config(ctx, config, all_):
 
 @main.command()
 @click.pass_context
-@util.async
+@util.background
 async def info(ctx):
     """Get NCP information"""
     s = await util.setup(ctx.obj['device'], ctx.obj['baudrate'])

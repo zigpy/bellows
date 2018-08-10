@@ -20,7 +20,7 @@ LOGGER = logging.getLogger(__name__)
 @opts.extended_pan
 @opts.pan
 @click.pass_context
-@util.async
+@util.background
 async def join(ctx, channels, pan_id, extended_pan_id):
     """Join an existing ZigBee network as an end device"""
     def cb(fut, frame_name, response):
@@ -111,7 +111,7 @@ async def join(ctx, channels, pan_id, extended_pan_id):
 
 @main.command()
 @click.pass_context
-@util.async
+@util.background
 async def leave(ctx):
     """Leave the ZigBee network"""
     s = await util.setup(ctx.obj['device'], ctx.obj['baudrate'])
@@ -130,7 +130,7 @@ async def leave(ctx):
 @opts.duration_ms
 @click.option('-e', '--energy', 'energy_scan', is_flag=True)
 @click.pass_context
-@util.async
+@util.background
 async def scan(ctx, channels, duration_ms, energy_scan):
     """Scan for networks or radio interference"""
     s = await util.setup(ctx.obj['device'], ctx.obj['baudrate'])

@@ -33,7 +33,7 @@ class ZigbeeNodeParamType(click.ParamType):
         return t.EmberEUI64([t.uint8_t(p, base=16) for p in value.split(':')])
 
 
-def async(f):
+def background(f):
     @functools.wraps(f)
     def inner(*args, **kwargs):
         loop = asyncio.get_event_loop()
