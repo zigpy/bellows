@@ -1092,6 +1092,8 @@ class EmberNodeType(basic.uint8_t, enum.Enum):
     RF4CE_TARGET = 0x06
     # RF4CE controller node.
     RF4CE_CONTROLLER = 0x07
+    # Device is not joined or no network is formed.
+    UNKNOWN_NODE_TYPE = 0xFF
 
 
 class EmberNetworkStatus(basic.uint8_t, enum.Enum):
