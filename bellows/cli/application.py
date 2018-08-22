@@ -20,7 +20,7 @@ from .main import main
 @opts.extended_pan
 @opts.pan
 @click.pass_context
-async def form(ctx, database, channel, pan_id, extended_pan_id):
+def form(ctx, database, channel, pan_id, extended_pan_id):
     """Form a new ZigBee network"""
     ctx.obj['database_file'] = database
 
@@ -36,7 +36,7 @@ async def form(ctx, database, channel, pan_id, extended_pan_id):
 @opts.database_file
 @opts.duration_s
 @click.pass_context
-async def permit(ctx, database, duration_s):
+def permit(ctx, database, duration_s):
     """Allow devices to join this ZigBee network"""
     ctx.obj['database_file'] = database
 
@@ -57,7 +57,7 @@ async def permit(ctx, database, duration_s):
 @opts.database_file
 @opts.duration_s
 @click.pass_context
-async def permit_with_key(ctx, database, duration_s, node, code):
+def permit_with_key(ctx, database, duration_s, node, code):
     """Allow devices to join this ZigBee network using an install code"""
     ctx.obj['database_file'] = database
     code = binascii.unhexlify(code)
