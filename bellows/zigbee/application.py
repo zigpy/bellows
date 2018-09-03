@@ -241,7 +241,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         v = await send_fut
         if expect_reply:
             # Wait for reply
-            v = await asyncio.wait_for(reply_fut, timeout)
+            try:
+                v = await asyncio.wait_for(reply_fut, timeout)
+            except:  # noqa: E722
+                # If we timeout (or fail for any reason), clear the future
+                self._pending.pop(sequence)
+                raise
         return v
 
     def permit(self, time_s=60):

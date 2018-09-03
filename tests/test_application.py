@@ -304,13 +304,14 @@ def test_permit_with_key_failed_set_policy(app, ieee):
         loop.run_until_complete(app.permit_with_key(ieee, bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]), 60))
 
 
-def _request(app, returnvals, **kwargs):
+def _request(app, returnvals, do_reply=True, **kwargs):
     async def mocksend(method, nwk, aps_frame, seq, data):
         if app._pending[seq][1] is None:
             app._pending[seq][0].set_result(mock.sentinel.result)
         else:
             app._pending[seq][0].set_result(True)
-            app._pending[seq][1].set_result(mock.sentinel.result)
+            if do_reply:
+                app._pending[seq][1].set_result(mock.sentinel.result)
         return [returnvals.pop(0)]
 
     app._ezsp.sendUnicast = mocksend
@@ -342,3 +343,9 @@ def test_request_retry_fail(app):
     with pytest.raises(DeliveryError):
         assert _request(app, returnvals, tries=2, delay=0)
     assert returnvals == [0, 0]
+
+
+def test_request_reply_timeout(app):
+    with pytest.raises(asyncio.TimeoutError):
+        _request(app, [0], do_reply=False, expect_reply=True, timeout=0.1)
+    assert app._pending == {}
