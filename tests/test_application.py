@@ -44,6 +44,7 @@ def _test_startup(app, nwk_type, auto_form=False, init=0):
         return [init]
 
     app._ezsp._command = mockezsp
+    app._ezsp.addEndpoint = mockezsp
     app._ezsp.setConfigurationValue = mockezsp
     app._ezsp.networkInit = mockinit
     app._ezsp.getNetworkParameters = mockezsp
