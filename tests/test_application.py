@@ -350,3 +350,23 @@ def test_request_reply_timeout(app):
     with pytest.raises(asyncio.TimeoutError):
         _request(app, [0], do_reply=False, expect_reply=True, timeout=0.1)
     assert app._pending == {}
+
+
+@pytest.mark.asyncio
+async def test_broadcast(app):
+    (profile, cluster, src_ep, dst_ep, grpid, radius, tsn, data) = (
+        0x260, 1, 2, 3, 0x0100, 0x06, 210, b'\x02\x01\x00'
+    )
+
+    async def mocksend(nwk, aps, radiusm, tsn, data):
+        app._pending[tsn][0].set_result(mock.sentinel.result)
+        return [0]
+
+    app._ezsp.sendBroadcast.side_effect = mocksend
+
+    await app.broadcast(
+        profile, cluster, src_ep, dst_ep, grpid, radius, tsn, data)
+    assert app._ezsp.sendBroadcast.call_count == 1
+    assert app._ezsp.sendBroadcast.call_args[0][2] == radius
+    assert app._ezsp.sendBroadcast.call_args[0][3] == tsn
+    assert app._ezsp.sendBroadcast.call_args[0][4] == data

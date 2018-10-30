@@ -4,9 +4,11 @@ import logging
 import os
 
 from zigpy.exceptions import DeliveryError
+from zigpy.types import BroadcastAddress
 import zigpy.application
 import zigpy.device
 import zigpy.util
+import zigpy.zdo
 
 import bellows.types as t
 import bellows.zigbee.util
@@ -257,6 +259,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         # Wait for messageSentHandler message
         v = await send_fut
+
         if expect_reply:
             # Wait for reply
             try:
@@ -291,3 +294,33 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             raise Exception("Failed to change policy to allow generation of new trust center keys")
 
         return self._ezsp.permitJoining(time_s, True)
+
+    async def broadcast(self, profile, cluster, src_ep, dst_ep, grpid, radius,
+                        sequence, data,
+                        broadcast_address=BroadcastAddress.RX_ON_WHEN_IDLE):
+        assert sequence not in self._pending
+        send_fut = asyncio.Future()
+        self._pending[sequence] = (send_fut, None)
+
+        aps_frame = t.EmberApsFrame()
+        aps_frame.profileId = t.uint16_t(profile)
+        aps_frame.clusterId = t.uint16_t(cluster)
+        aps_frame.sourceEndpoint = t.uint8_t(src_ep)
+        aps_frame.destinationEndpoint = t.uint8_t(dst_ep)
+        aps_frame.options = t.EmberApsOption(
+            t.EmberApsOption.APS_OPTION_NONE
+        )
+        aps_frame.groupId = t.uint16_t(grpid)
+        aps_frame.sequence = t.uint8_t(sequence)
+
+        LOGGER.debug("broadcast: %s - %s", aps_frame, data)
+        v = await self._ezsp.sendBroadcast(broadcast_address, aps_frame,
+                                           radius, sequence, data)
+        if v[0] != t.EmberStatus.SUCCESS:
+            self._pending.pop(sequence)
+            send_fut.cancel()
+            raise DeliveryError("Broadcast failure: %s", v[0])
+
+        # Wait for messageSentHandler message
+        v = await send_fut
+        return v
