@@ -255,7 +255,7 @@ def test_sequence(app):
 
 
 def test_permit(app):
-    app.permit(60)
+    app.permit_ncp(60)
     assert app._ezsp.permitJoining.call_count == 1
 
 

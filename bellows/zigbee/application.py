@@ -270,7 +270,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 raise
         return v
 
-    def permit(self, time_s=60):
+    def permit_ncp(self, time_s=60):
         assert 0 <= time_s <= 254
         return self._ezsp.permitJoining(time_s)
 
