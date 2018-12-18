@@ -370,3 +370,23 @@ async def test_broadcast(app):
     assert app._ezsp.sendBroadcast.call_args[0][2] == radius
     assert app._ezsp.sendBroadcast.call_args[0][3] == tsn
     assert app._ezsp.sendBroadcast.call_args[0][4] == data
+
+
+@pytest.mark.asyncio
+async def test_broadcast_fail(app):
+    (profile, cluster, src_ep, dst_ep, grpid, radius, tsn, data) = (
+        0x260, 1, 2, 3, 0x0100, 0x06, 210, b'\x02\x01\x00'
+    )
+
+    async def mocksend(nwk, aps, radiusm, tsn, data):
+        return [t.EmberStatus.ERR_FATAL]
+
+    app._ezsp.sendBroadcast.side_effect = mocksend
+
+    with pytest.raises(DeliveryError):
+        await app.broadcast(
+            profile, cluster, src_ep, dst_ep, grpid, radius, tsn, data)
+        assert app._ezsp.sendBroadcast.call_count == 1
+        assert app._ezsp.sendBroadcast.call_args[0][2] == radius
+        assert app._ezsp.sendBroadcast.call_args[0][3] == tsn
+        assert app._ezsp.sendBroadcast.call_args[0][4] == data
