@@ -48,6 +48,24 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT, 60)
         await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 6)
 
+        await self.add_endpoint(
+            output_clusters=[zigpy.zcl.clusters.security.IasZone.cluster_id]
+        )
+
+    async def add_endpoint(self, endpoint=1,
+                           profile_id=zigpy.profiles.zha.PROFILE_ID,
+                           device_id=0xbeef,
+                           app_flags=0x00,
+                           input_clusters=[],
+                           output_clusters=[]):
+        """Add endpoint."""
+        res = await self._ezsp.addEndpoint(
+            endpoint, profile_id, device_id, app_flags,
+            len(input_clusters), len(output_clusters),
+            input_clusters, output_clusters
+        )
+        LOGGER.debug("Ezsp adding endpoint: %s", res)
+
     async def startup(self, auto_form=False):
         """Perform a complete application startup"""
         await self.initialize()
