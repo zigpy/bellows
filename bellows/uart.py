@@ -135,7 +135,7 @@ class Gateway(asyncio.Protocol):
             return
 
         if self._reset_future is None:
-            LOGGER.warn("Reset future is None")
+            LOGGER.warning("Reset future is None")
             return
 
         # Make sure that the reset_future is not done
