@@ -124,12 +124,10 @@ class Gateway(asyncio.Protocol):
         """Reset acknowledgement frame receive handler"""
         self._send_seq = 0
         self._rec_seq = 0
-        try:
-            code = t.NcpResetCode(data[2])
-        except ValueError:
-            code = t.NcpResetCode.ERROR_UNKNOWN_EM3XX_ERROR
+        code, version = self._get_error_code(data)
 
-        LOGGER.debug("RSTACK Version: %d Reason: %s frame: %s", data[1], code.name, binascii.hexlify(data))
+        LOGGER.debug("RSTACK Version: %d Reason: %s frame: %s", version,
+                     code.name, binascii.hexlify(data))
         # Only handle the frame, if it is a reply to our reset request
         if code is not t.NcpResetCode.RESET_SOFTWARE:
             return
@@ -142,9 +140,21 @@ class Gateway(asyncio.Protocol):
         if not self._reset_future.done():
             self._reset_future.set_result(True)
 
+    @staticmethod
+    def _get_error_code(data):
+        """Extracts error code from RSTACK or ERROR frames."""
+        try:
+            code = t.NcpResetCode(data[2])
+        except ValueError:
+            code = t.NcpResetCode.ERROR_UNKNOWN_EM3XX_ERROR
+        return code, data[1]
+
     def error_frame_received(self, data):
-        """Error frame receive handler"""
-        LOGGER.debug("Error frame: %s", binascii.hexlify(data))
+        """Error frame receive handler."""
+        error_code, version = self._get_error_code(data)
+        LOGGER.debug("Error code: %s, Version: %d, frame: %s", error_code.name,
+                     version, binascii.hexlify(data))
+        self._application.enter_failed_mode(error_code)
 
     def write(self, data):
         """Send data to the uart"""
