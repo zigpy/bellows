@@ -171,6 +171,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 self.handle_leave(args[0], args[1])
             else:
                 self.handle_join(args[0], args[1], args[4])
+        elif frame_name == '_reset_controller_application':
+            self._handle_reset_request(args[0])
 
     def _handle_frame(self, message_type, aps_frame, lqi, rssi, sender, binding_index, address_index, message):
         try:
@@ -224,6 +226,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             LOGGER.warning("Unexpected message send notification")
         except asyncio.futures.InvalidStateError as exc:
             LOGGER.debug("Invalid state on future - probably duplicate response: %s", exc)
+
+    def _handle_reset_request(self, error):
+        """Reinitialize application controller."""
+        LOGGER.debug("Restarting application controller. Cause: '%s'", error)
+        asyncio.ensure_future(self.startup())
 
     @zigpy.util.retryable_request
     async def request(self, nwk, profile, cluster, src_ep, dst_ep, sequence, data, expect_reply=True,

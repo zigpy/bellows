@@ -29,6 +29,14 @@ class EZSP:
         self._gw = await uart.connect(device, baudrate, self)
 
     def reset(self):
+        LOGGER.debug("Resetting EZSP")
+        for seq in self._awaiting:
+            future = self._awaiting[seq][2]
+            if not future.done():
+                future.cancel()
+        self._awaiting = {}
+        self._seq = 0
+        self._callbacks = {}
         return self._gw.reset()
 
     async def version(self):
@@ -117,6 +125,12 @@ class EZSP:
         'rf4ceDiscoveryCompleteHandler',
         0,
     )
+
+    def enter_failed_state(self, error):
+        """UART received error frame."""
+        LOGGER.error(
+            "NCP entered failed state. Requesting APP controller restart")
+        self.handle_callback('_reset_controller_application', [error])
 
     async def formNetwork(self, parameters):  # noqa: N802
         fut = asyncio.Future()
