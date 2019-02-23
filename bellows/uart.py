@@ -8,6 +8,7 @@ import bellows.types as t
 
 
 LOGGER = logging.getLogger(__name__)
+RESET_TIMEOUT = 5
 
 
 class Gateway(asyncio.Protocol):
