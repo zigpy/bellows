@@ -5,6 +5,7 @@ import logging
 import bellows.types as t
 import bellows.uart as uart
 from bellows.commands import COMMANDS
+from bellows.exception import EzspError
 
 
 EZSP_CMD_TIMEOUT = 3
@@ -18,6 +19,7 @@ class EZSP:
 
     def __init__(self):
         self._callbacks = {}
+        self._ezsp_event = asyncio.Event()
         self._seq = 0
         self._gw = None
         self._awaiting = {}
@@ -29,8 +31,9 @@ class EZSP:
         assert self._gw is None
         self._gw = await uart.connect(device, baudrate, self)
 
-    def reset(self):
+    async def reset(self):
         LOGGER.debug("Resetting EZSP")
+        self.stop_ezsp()
         for seq in self._awaiting:
             future = self._awaiting[seq][2]
             if not future.done():
@@ -38,7 +41,8 @@ class EZSP:
         self._awaiting = {}
         self._seq = 0
         self._callbacks = {}
-        return self._gw.reset()
+        await self._gw.reset()
+        self.start_ezsp()
 
     async def version(self):
         version = self.ezsp_version
@@ -66,6 +70,9 @@ class EZSP:
 
     def _command(self, name, *args):
         LOGGER.debug("Send command %s", name)
+        if not self.is_ezsp_running:
+            raise EzspError("EZSP is not running")
+
         data = self._ezsp_frame(name, *args)
         self._gw.data(data)
         c = self.COMMANDS[name]
@@ -131,6 +138,7 @@ class EZSP:
         """UART received error frame."""
         LOGGER.error(
             "NCP entered failed state. Requesting APP controller restart")
+        self.stop_ezsp()
         self.handle_callback('_reset_controller_application', [error])
 
     async def formNetwork(self, parameters):  # noqa: N802
@@ -209,3 +217,16 @@ class EZSP:
                 handler(*args)
             except Exception as e:
                 LOGGER.exception("Exception running handler", exc_info=e)
+
+    def start_ezsp(self):
+        """Mark EZSP as running."""
+        self._ezsp_event.set()
+
+    def stop_ezsp(self):
+        """Mark EZSP stopped."""
+        self._ezsp_event.clear()
+
+    @property
+    def is_ezsp_running(self):
+        """Return True if EZSP is running."""
+        return self._ezsp_event.is_set()

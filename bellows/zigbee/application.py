@@ -12,6 +12,7 @@ import zigpy.zdo
 
 import bellows.types as t
 import bellows.zigbee.util
+from bellows.exception import EzspError
 
 APS_ACK_TIMEOUT = 120
 APS_REPLY_TIMEOUT = 10
@@ -27,6 +28,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._ezsp = ezsp
         self._pending = Requests()
 
+    @zigpy.util.retryable(asyncio.TimeoutError, tries=5, delay=3)
     async def initialize(self):
         """Perform basic NCP initialization steps"""
         e = self._ezsp
