@@ -7,6 +7,7 @@ import bellows.uart as uart
 from bellows.commands import COMMANDS
 
 
+EZSP_CMD_TIMEOUT = 3
 LOGGER = logging.getLogger(__name__)
 
 
@@ -71,7 +72,7 @@ class EZSP:
         future = asyncio.Future()
         self._awaiting[self._seq] = (c[0], c[2], future)
         self._seq = (self._seq + 1) % 256
-        return future
+        return asyncio.wait_for(future, timeout=EZSP_CMD_TIMEOUT)
 
     async def _list_command(self, name, item_frames, completion_frame, spos, *args):
         """Run a command, returning result callbacks as a list"""
