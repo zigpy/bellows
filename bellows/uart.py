@@ -1,11 +1,11 @@
 import asyncio
 import binascii
 import logging
-import serial_asyncio
+
 import serial
+import serial_asyncio
 
 import bellows.types as t
-
 
 LOGGER = logging.getLogger(__name__)
 RESET_TIMEOUT = 5
@@ -169,6 +169,15 @@ class Gateway(asyncio.Protocol):
     def _reset_cleanup(self, future):
         """Delete reset future."""
         self._reset_future = None
+
+    def connection_lost(self, exc):
+        """Port was closed unexpectedly."""
+        if exc is None:
+            LOGGER.debug("Closed serial connection")
+            return
+
+        LOGGER.error("Lost serial connection: %s", exc)
+        self._application.connection_lost(exc)
 
     def reset(self):
         """Send a reset frame and init internal state."""

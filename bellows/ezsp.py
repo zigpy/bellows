@@ -7,7 +7,6 @@ import bellows.uart as uart
 from bellows.commands import COMMANDS
 from bellows.exception import EzspError
 
-
 EZSP_CMD_TIMEOUT = 3
 LOGGER = logging.getLogger(__name__)
 
@@ -18,7 +17,10 @@ class EZSP:
     ezsp_version = 4
 
     def __init__(self):
+        self._awaiting = {}
+        self._baudrate = None
         self._callbacks = {}
+        self._device = None
         self._ezsp_event = asyncio.Event()
         self._seq = 0
         self._gw = None
@@ -29,7 +31,15 @@ class EZSP:
 
     async def connect(self, device, baudrate):
         assert self._gw is None
+        self._baudrate = baudrate
+        self._device = device
         self._gw = await uart.connect(device, baudrate, self)
+
+    def reconnect(self):
+        """Reconnect using saved parameters."""
+        LOGGER.debug("Reconnecting %s serial port on %s bauds",
+                     self._device, self._baudrate)
+        return self.connect(self._device, self._baudrate)
 
     async def reset(self):
         LOGGER.debug("Resetting EZSP")
@@ -39,8 +49,8 @@ class EZSP:
             if not future.done():
                 future.cancel()
         self._awaiting = {}
-        self._seq = 0
         self._callbacks = {}
+        self._seq = 0
         await self._gw.reset()
         self.start_ezsp()
 
@@ -52,7 +62,9 @@ class EZSP:
             await self._command('version', result[0])
 
     def close(self):
-        return self._gw.close()
+        if self._gw:
+            self._gw.close()
+            self._gw = None
 
     def _ezsp_frame(self, name, *args):
         c = self.COMMANDS[name]
@@ -133,6 +145,11 @@ class EZSP:
         'rf4ceDiscoveryCompleteHandler',
         0,
     )
+
+    def connection_lost(self, exc):
+        """Lost serial connection."""
+        LOGGER.debug("%s connection lost unexpectedly: %s", self._device, exc)
+        self.enter_failed_state("Serial connection loss: {}".format(exc))
 
     def enter_failed_state(self, error):
         """UART received error frame."""

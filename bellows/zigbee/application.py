@@ -3,6 +3,7 @@ import binascii
 import logging
 import os
 
+from serial import SerialException
 from zigpy.exceptions import DeliveryError
 from zigpy.types import BroadcastAddress
 import zigpy.application
@@ -16,6 +17,9 @@ from bellows.exception import EzspError
 
 APS_ACK_TIMEOUT = 120
 APS_REPLY_TIMEOUT = 10
+MAX_WATCHDOG_FAILURES = 4
+RESET_ATTEMPT_BACKOFF_TIME = 5
+WATCHDOG_WAKE_PERIOD = 10
 
 LOGGER = logging.getLogger(__name__)
 
@@ -25,10 +29,22 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def __init__(self, ezsp, database_file=None):
         super().__init__(database_file=database_file)
+        self._ctrl_event = asyncio.Event()
         self._ezsp = ezsp
         self._pending = Requests()
+        self._watchdog_task = None
+        self._reset_task = None
 
-    @zigpy.util.retryable(asyncio.TimeoutError, tries=5, delay=3)
+    @property
+    def controller_event(self):
+        """Return asyncio.Event for controller app."""
+        return self._ctrl_event
+
+    @property
+    def is_controller_running(self):
+        """Return True if controller was successfuly initialized."""
+        return self.controller_event.is_set()
+
     async def initialize(self):
         """Perform basic NCP initialization steps"""
         e = self._ezsp
@@ -103,6 +119,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._ieee = ieee[0]
 
         e.add_callback(self.ezsp_callback_handler)
+        self.controller_event.set()
+        self._watchdog_task = asyncio.ensure_future(self._watchdog())
 
     async def form_network(self, channel=15, pan_id=None, extended_pan_id=None):
         channel = t.uint8_t(channel)
@@ -231,8 +249,39 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def _handle_reset_request(self, error):
         """Reinitialize application controller."""
-        LOGGER.debug("Restarting application controller. Cause: '%s'", error)
-        asyncio.ensure_future(self.startup())
+        LOGGER.debug("Resetting ControllerApplication. Cause: '%s'", error)
+        self.controller_event.clear()
+        if self._reset_task:
+            LOGGER.debug("Preempting ControllerApplication reset")
+            self._reset_task.cancel()
+            return
+
+        return asyncio.ensure_future(self._reset_controller_forever())
+
+    async def _reset_controller_forever(self):
+        """Keep trying to reset controller until we succeed."""
+        self._watchdog_task.cancel()
+        while True:
+            self._reset_task = asyncio.ensure_future(self._reset_controller())
+            try:
+                await self._reset_task
+                break
+            except asyncio.CancelledError:
+                LOGGER.debug("ControllerApplication reset preempted")
+                continue
+            except (asyncio.TimeoutError, SerialException) as exc:
+                LOGGER.debug(
+                    "ControllerApplication reset unsuccessful: %s", str(exc))
+            await asyncio.sleep(RESET_ATTEMPT_BACKOFF_TIME)
+
+        self._reset_task = None
+        LOGGER.debug("ControllerApplication successfully reset")
+
+    async def _reset_controller(self):
+        """Reset Controller."""
+        self._ezsp.close()
+        await self._ezsp.reconnect()
+        await self.startup()
 
     @zigpy.util.retryable_request
     async def request(self, nwk, profile, cluster, src_ep, dst_ep, sequence, data, expect_reply=True,
@@ -310,6 +359,25 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             # Wait for messageSentHandler message
             res = await asyncio.wait_for(req.send, timeout=APS_ACK_TIMEOUT)
         return res
+
+    async def _watchdog(self):
+        """Watchdog handler."""
+        LOGGER.debug("Starting EZSP watchdog")
+        failures = 0
+        await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
+        while True:
+            try:
+                await self._ezsp.nop()
+                failures = 0
+            except (asyncio.TimeoutError, EzspError) as exc:
+                LOGGER.warning("Watchdog heartbeat timeout: %s", str(exc))
+                failures += 1
+                if failures > MAX_WATCHDOG_FAILURES:
+                    break
+            await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
+
+        self._handle_reset_request(
+            "Watchdog timeout. Heartbeat timeouts: {}".format(failures))
 
 
 class Requests(dict):
