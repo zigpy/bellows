@@ -192,7 +192,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             else:
                 self.handle_join(args[0], args[1], args[4])
         elif frame_name == '_reset_controller_application':
-            self._handle_reset_request(args[0])
+            self._handle_reset_request(*args)
 
     def _handle_frame(self, message_type, aps_frame, lqi, rssi, sender, binding_index, address_index, message):
         try:
@@ -247,13 +247,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         except asyncio.futures.InvalidStateError as exc:
             LOGGER.debug("Invalid state on future - probably duplicate response: %s", exc)
 
-    def _handle_reset_request(self, error):
+    def _handle_reset_request(self, error, preempt):
         """Reinitialize application controller."""
         LOGGER.debug("Resetting ControllerApplication. Cause: '%s'", error)
         self.controller_event.clear()
         if self._reset_task:
-            LOGGER.debug("Preempting ControllerApplication reset")
-            self._reset_task.cancel()
+            if preempt:
+                LOGGER.debug("Preempting ControllerApplication reset")
+                self._reset_task.cancel()
+            else:
+                LOGGER.debug(
+                    "A ControllerApplication reset task is already running")
             return
 
         return asyncio.ensure_future(self._reset_controller_forever())
@@ -377,7 +381,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
 
         self._handle_reset_request(
-            "Watchdog timeout. Heartbeat timeouts: {}".format(failures))
+            "Watchdog timeout. Heartbeat timeouts: {}".format(failures),
+            preempt=True)
 
 
 class Requests(dict):
