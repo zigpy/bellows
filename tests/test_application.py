@@ -5,6 +5,7 @@ import pytest
 
 import bellows.types as t
 import bellows.zigbee.application
+from bellows.exception import EzspError
 from zigpy.exceptions import DeliveryError
 
 
@@ -312,6 +313,8 @@ def test_permit_with_key_failed_set_policy(app, ieee):
 def _request(app, returnvals, do_reply=True, send_ack_received=True,
              send_ack_success=True, **kwargs):
     async def mocksend(method, nwk, aps_frame, seq, data):
+        if not ezsp_operational:
+            raise EzspError
         req = app._pending[seq]
         if send_ack_received:
             if send_ack_success:
@@ -355,6 +358,13 @@ def test_request_retry(app):
     assert returnvals == [0]
 
 
+def test_request_ezsp_failed(app):
+    with pytest.raises(asyncio.TimeoutError):
+        _request(app, [1], do_reply=True, ezsp_operational=False,
+                 expect_reply=True)
+        assert len(app._pending) == 0
+
+
 def test_request_retry_fail(app):
     returnvals = [1, 1, 0, 0]
     with pytest.raises(DeliveryError):
@@ -391,12 +401,15 @@ def test_request_send_timeout_reply_success(app):
 
 
 @pytest.mark.asyncio
-async def _test_broadcast(app, broadcast_success=True, send_timeout=False):
+async def _test_broadcast(app, broadcast_success=True, send_timeout=False,
+                          ezsp_running=True):
     (profile, cluster, src_ep, dst_ep, grpid, radius, tsn, data) = (
         0x260, 1, 2, 3, 0x0100, 0x06, 210, b'\x02\x01\x00'
     )
 
     async def mock_send(nwk, aps, radiusm, tsn, data):
+        if not ezsp_running:
+            raise EzspError
         if broadcast_success:
             if not send_timeout:
                 app._pending[tsn].send.set_result(mock.sentinel.result)
@@ -433,3 +446,143 @@ async def test_broadcast_send_timeout(app):
     with pytest.raises(asyncio.TimeoutError):
         await _test_broadcast(app, send_timeout=True)
     assert len(app._pending) == 0
+
+
+@pytest.mark.asyncio
+async def test_broadcast_ezsp_fail(app):
+    with pytest.raises(EzspError):
+        await _test_broadcast(app, ezsp_running=False)
+    assert len(app._pending) == 0
+
+
+def test_is_controller_running(app):
+    app._ctrl_event.clear()
+    assert app.is_controller_running is False
+    app._ctrl_event.set()
+    assert app.is_controller_running is True
+
+
+def test_reset_frame(app):
+    app._handle_reset_request = mock.MagicMock(
+        spec_set=app._handle_reset_request)
+    app.ezsp_callback_handler('_reset_controller_application',
+                              [mock.sentinel.error, mock.sentinel.preempt])
+    assert app._handle_reset_request.call_count == 1
+    assert app._handle_reset_request.call_args[0][0] is mock.sentinel.error
+    assert app._handle_reset_request.call_args[0][1] is mock.sentinel.preempt
+
+
+@pytest.mark.asyncio
+async def test_handle_reset_req(app):
+    # no active reset task, no reset task preemption
+    app._ctrl_event.set()
+    assert app._reset_task is None
+    reset_ctrl_mock = asyncio.coroutine(mock.MagicMock())
+    app._reset_controller_forever = mock.MagicMock(side_effect=reset_ctrl_mock)
+
+    ret = app._handle_reset_request(mock.sentinel.error, False)
+
+    assert asyncio.isfuture(ret)
+    assert app._ctrl_event.is_set() is False
+    await ret
+    assert app._reset_controller_forever.call_count == 1
+
+
+def test_handle_reset_req_existing(app):
+    # active reset task, no reset task preemption
+    app._ctrl_event.set()
+    assert app._reset_task is None
+    app._reset_task = asyncio.Future()
+    reset_ctrl_mock = asyncio.coroutine(mock.MagicMock())
+    app._reset_controller_forever = mock.MagicMock(side_effect=reset_ctrl_mock)
+
+    ret = app._handle_reset_request(mock.sentinel.error, False)
+
+    assert ret is None
+    assert app._ctrl_event.is_set() is False
+    assert app._reset_controller_forever.call_count == 0
+    assert app._reset_task.done() is False
+
+
+def test_handle_reset_req_existing_preempt(app):
+    # active reset task, preempt reset task
+    app._ctrl_event.set()
+    assert app._reset_task is None
+    app._reset_task = asyncio.Future()
+    reset_ctrl_mock = asyncio.coroutine(mock.MagicMock())
+    app._reset_controller_forever = mock.MagicMock(side_effect=reset_ctrl_mock)
+
+    ret = app._handle_reset_request(mock.sentinel.error, True)
+
+    assert ret is None
+    assert app._ctrl_event.is_set() is False
+    assert app._reset_controller_forever.call_count == 0
+    assert app._reset_task.done() is True
+    assert app._reset_task.cancelled() is True
+
+
+@pytest.mark.asyncio
+async def test_reset_controller_forever(app, monkeypatch):
+    from bellows.zigbee import application
+
+    monkeypatch.setattr(application, 'RESET_ATTEMPT_BACKOFF_TIME', 0.1)
+    app._watchdog_task = asyncio.Future()
+
+    reset_succ_on_try = reset_call_count = 2
+
+    async def reset_controller_mock():
+        nonlocal reset_succ_on_try
+        if reset_succ_on_try:
+            reset_succ_on_try -= 1
+            if reset_succ_on_try % 2:
+                raise asyncio.TimeoutError
+            else:
+                raise asyncio.CancelledError
+        return
+
+    app._reset_controller = mock.MagicMock(side_effect=reset_controller_mock)
+
+    await app._reset_controller_forever()
+
+    assert app._watchdog_task.cancelled() is True
+    assert app._reset_controller.call_count == reset_call_count + 1
+    assert app._reset_task is None
+
+
+@pytest.mark.asyncio
+async def test_reset_controller_routine(app):
+    reconn_mock = asyncio.coroutine(mock.MagicMock())
+    app._ezsp.reconnect = mock.MagicMock(side_effect=reconn_mock)
+    startup_mock = asyncio.coroutine(mock.MagicMock())
+    app.startup = mock.MagicMock(side_effect=startup_mock)
+
+    await app._reset_controller()
+
+    assert app._ezsp.close.call_count == 1
+    assert app._ezsp.reconnect.call_count == 1
+    assert app.startup.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_watchdog(app, monkeypatch):
+    from bellows.zigbee import application
+    monkeypatch.setattr(application, 'WATCHDOG_WAKE_PERIOD', 0.1)
+    nop_success = 3
+
+    async def nop_mock():
+        nonlocal nop_success
+        if nop_success:
+            nop_success -= 1
+            if nop_success % 2:
+                raise EzspError
+            else:
+                return
+        raise asyncio.TimeoutError
+
+    app._ezsp.nop = mock.MagicMock(side_effect=nop_mock)
+    app._handle_reset_request = mock.MagicMock()
+
+    await app._watchdog()
+
+    assert app._ezsp.nop.call_count > 4
+    assert app._handle_reset_request.call_count == 1
