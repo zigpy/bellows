@@ -129,8 +129,9 @@ class Gateway(asyncio.Protocol):
 
         LOGGER.debug("RSTACK Version: %d Reason: %s frame: %s", version,
                      code.name, binascii.hexlify(data))
-        # Only handle the frame, if it is a reply to our reset request
+        # not a reset we've requested. Signal application reset
         if code is not t.NcpResetCode.RESET_SOFTWARE:
+            self._application.enter_failed_state(code, preempt=True)
             return
 
         if self._reset_future is None:
