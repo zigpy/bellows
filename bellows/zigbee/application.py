@@ -22,7 +22,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     def __init__(self, ezsp, database_file=None):
         super().__init__(database_file=database_file)
         self._ezsp = ezsp
-        self._pending = {}
+        self._pending = Requests()
 
     async def initialize(self):
         """Perform basic NCP initialization steps"""
@@ -236,7 +236,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.groupId = t.uint16_t(0)
         aps_frame.sequence = t.uint8_t(sequence)
 
-        with send_request(self._pending, sequence, expect_reply) as req:
+        with self._pending.new(sequence, expect_reply) as req:
             v = await self._ezsp.sendUnicast(self.direct, nwk, aps_frame,
                                              sequence, data)
             if v[0] != t.EmberStatus.SUCCESS:
@@ -288,7 +288,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.sequence = t.uint8_t(sequence)
 
         LOGGER.debug("broadcast: %s - %s", aps_frame, data)
-        with send_request(self._pending, sequence) as req:
+        with self._pending.new(sequence) as req:
             v = await self._ezsp.sendBroadcast(broadcast_address, aps_frame,
                                                radius, sequence, data)
             if v[0] != t.EmberStatus.SUCCESS:
@@ -299,7 +299,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         return v
 
 
-class send_request:
+class Requests(dict):
+    def new(self, sequence, expect_reply=False):
+        """Wrap new request into a context manager."""
+        return Request(self, sequence, expect_reply)
+
+
+class Request:
     """Context manager."""
 
     def __init__(self, pending, sequence, expect_reply=False):
@@ -340,5 +346,3 @@ class send_request:
         self._pending.pop(self.sequence)
 
         return not exc_type
-
-
