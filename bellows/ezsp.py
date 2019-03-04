@@ -62,6 +62,7 @@ class EZSP:
             await self._command('version', result[0])
 
     def close(self):
+        self.stop_ezsp()
         if self._gw:
             self._gw.close()
             self._gw = None
