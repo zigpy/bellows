@@ -7,3 +7,7 @@ class BellowsException(ZigbeeException):
 
 class EzspError(BellowsException):
     pass
+
+
+class ControllerError(BellowsException):
+    pass

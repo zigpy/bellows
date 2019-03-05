@@ -13,7 +13,7 @@ import zigpy.zdo
 
 import bellows.types as t
 import bellows.zigbee.util
-from bellows.exception import EzspError
+from bellows.exception import ControllerError, EzspError
 
 APS_ACK_TIMEOUT = 120
 APS_REPLY_TIMEOUT = 10
@@ -43,7 +43,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     @property
     def is_controller_running(self):
         """Return True if controller was successfuly initialized."""
-        return self.controller_event.is_set()
+        return self.controller_event.is_set() and self._ezsp.is_ezsp_running
 
     async def initialize(self):
         """Perform basic NCP initialization steps"""
@@ -290,6 +290,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     @zigpy.util.retryable_request
     async def request(self, nwk, profile, cluster, src_ep, dst_ep, sequence, data, expect_reply=True,
                       timeout=APS_REPLY_TIMEOUT):
+        if not self.is_controller_running:
+            raise ControllerError("ApplicationController is not running")
+
         aps_frame = t.EmberApsFrame()
         aps_frame.profileId = t.uint16_t(profile)
         aps_frame.clusterId = t.uint16_t(cluster)
@@ -342,6 +345,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def broadcast(self, profile, cluster, src_ep, dst_ep, grpid, radius,
                         sequence, data,
                         broadcast_address=BroadcastAddress.RX_ON_WHEN_IDLE):
+        if not self.is_controller_running:
+            raise ControllerError("ApplicationController is not running")
+
         aps_frame = t.EmberApsFrame()
         aps_frame.profileId = t.uint16_t(profile)
         aps_frame.clusterId = t.uint16_t(cluster)
@@ -371,6 +377,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
         while True:
             try:
+                await asyncio.wait_for(self.controller_event.wait(),
+                                       timeout=WATCHDOG_WAKE_PERIOD)
                 await self._ezsp.nop()
                 failures = 0
             except (asyncio.TimeoutError, EzspError) as exc:

@@ -5,15 +5,18 @@ import pytest
 
 import bellows.types as t
 import bellows.zigbee.application
-from bellows.exception import EzspError
+from bellows.exception import ControllerError, EzspError
 from zigpy.exceptions import DeliveryError
 
 
 @pytest.fixture
 def app(monkeypatch):
     ezsp = mock.MagicMock()
+    type(ezsp).is_ezsp_running = mock.PropertyMock(return_value=True)
     monkeypatch.setattr(bellows.zigbee.application, 'APS_ACK_TIMEOUT', 0.1)
-    return bellows.zigbee.application.ControllerApplication(ezsp)
+    ctrl = bellows.zigbee.application.ControllerApplication(ezsp)
+    ctrl._ctrl_event.set()
+    return ctrl
 
 
 @pytest.fixture
@@ -311,7 +314,7 @@ def test_permit_with_key_failed_set_policy(app, ieee):
 
 
 def _request(app, returnvals, do_reply=True, send_ack_received=True,
-             send_ack_success=True, **kwargs):
+             send_ack_success=True, ezsp_operational=True, **kwargs):
     async def mocksend(method, nwk, aps_frame, seq, data):
         if not ezsp_operational:
             raise EzspError
@@ -359,7 +362,7 @@ def test_request_retry(app):
 
 
 def test_request_ezsp_failed(app):
-    with pytest.raises(asyncio.TimeoutError):
+    with pytest.raises(EzspError):
         _request(app, [1], do_reply=True, ezsp_operational=False,
                  expect_reply=True)
         assert len(app._pending) == 0
@@ -398,6 +401,13 @@ def test_request_send_timeout_reply_success(app):
         assert _request(app, [0], do_reply=True, expect_reply=True,
                         send_ack_received=False, timeout=0.1)
     assert app._pending == {}
+
+
+def test_request_ctrl_not_running(app):
+    app._ctrl_event.clear()
+    with pytest.raises(ControllerError):
+        _request(app, [0], do_reply=False, expect_reply=True,
+                 send_ack_received=False, timeout=0.1)
 
 
 @pytest.mark.asyncio
@@ -455,11 +465,41 @@ async def test_broadcast_ezsp_fail(app):
     assert len(app._pending) == 0
 
 
+@pytest.mark.asyncio
+async def test_broadcast_ctrl_not_running(app):
+    app._ctrl_event.clear()
+    (profile, cluster, src_ep, dst_ep, grpid, radius, tsn, data) = (
+        0x260, 1, 2, 3, 0x0100, 0x06, 210, b'\x02\x01\x00'
+    )
+
+    async def mocksend(nwk, aps, radiusm, tsn, data):
+        raise EzspError
+
+    app._ezsp.sendBroadcast.side_effect = mocksend
+
+    with pytest.raises(ControllerError):
+        await app.broadcast(
+            profile, cluster, src_ep, dst_ep, grpid, radius, tsn, data)
+        assert len(app._pending) == 0
+        assert app._ezsp.sendBroadcast.call_count == 0
+
+
 def test_is_controller_running(app):
+    ezsp_running = mock.PropertyMock(return_value=False)
+    type(app._ezsp).is_ezsp_running = ezsp_running
+    app._ctrl_event.clear()
+    assert app.is_controller_running is False
+    app._ctrl_event.set()
+    assert app.is_controller_running is False
+    assert ezsp_running.call_count == 1
+
+    ezsp_running = mock.PropertyMock(return_value=True)
+    type(app._ezsp).is_ezsp_running = ezsp_running
     app._ctrl_event.clear()
     assert app.is_controller_running is False
     app._ctrl_event.set()
     assert app.is_controller_running is True
+    assert ezsp_running.call_count == 1
 
 
 def test_reset_frame(app):
@@ -581,6 +621,7 @@ async def test_watchdog(app, monkeypatch):
 
     app._ezsp.nop = mock.MagicMock(side_effect=nop_mock)
     app._handle_reset_request = mock.MagicMock()
+    app._ctrl_event.set()
 
     await app._watchdog()
 
