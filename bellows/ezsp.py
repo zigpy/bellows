@@ -7,7 +7,7 @@ import bellows.uart as uart
 from bellows.commands import COMMANDS
 from bellows.exception import EzspError
 
-EZSP_CMD_TIMEOUT = 3
+EZSP_CMD_TIMEOUT = 10
 LOGGER = logging.getLogger(__name__)
 
 
@@ -210,7 +210,14 @@ class EZSP:
             expected_id, schema, future = self._awaiting.pop(sequence)
             assert expected_id == frame_id
             result, data = t.deserialize(data, schema)
-            future.set_result(result)
+            try:
+                future.set_result(result)
+            except asyncio.InvalidStateError as exc:
+                LOGGER.debug(
+                    "Error processing %s response. %s command timed out?",
+                    sequence, self.COMMANDS_BY_ID.get(expected_id,
+                                                      [expected_id])[0]
+                )
         else:
             schema = self.COMMANDS_BY_ID[frame_id][2]
             frame_name = self.COMMANDS_BY_ID[frame_id][0]

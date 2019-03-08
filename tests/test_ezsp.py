@@ -190,6 +190,20 @@ def test_receive_reply(ezsp_f):
     assert ezsp_f.handle_callback.call_count == 0
 
 
+def test_receive_reply_after_timeout(ezsp_f):
+    ezsp_f.handle_callback = mock.MagicMock()
+    callback_mock = mock.MagicMock(spec_set=asyncio.Future)
+    callback_mock.set_result.side_effect = asyncio.InvalidStateError()
+    ezsp_f._awaiting[0] = (0, ezsp_f.COMMANDS['version'][2], callback_mock)
+    ezsp_f.frame_received(b'\x00\xff\x00\x04\x05\x06')
+
+    assert 0 not in ezsp_f._awaiting
+    assert callback_mock.set_exception.call_count == 0
+    assert callback_mock.set_result.call_count == 1
+    callback_mock.set_result.assert_called_once_with([4, 5, 6])
+    assert ezsp_f.handle_callback.call_count == 0
+
+
 def test_callback(ezsp_f):
     testcb = mock.MagicMock()
 

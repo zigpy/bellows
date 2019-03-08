@@ -378,7 +378,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         while True:
             try:
                 await asyncio.wait_for(self.controller_event.wait(),
-                                       timeout=WATCHDOG_WAKE_PERIOD)
+                                       timeout=WATCHDOG_WAKE_PERIOD * 2)
                 await self._ezsp.nop()
                 failures = 0
             except (asyncio.TimeoutError, EzspError) as exc:

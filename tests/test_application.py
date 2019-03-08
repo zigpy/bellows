@@ -13,7 +13,6 @@ from zigpy.exceptions import DeliveryError
 def app(monkeypatch):
     ezsp = mock.MagicMock()
     type(ezsp).is_ezsp_running = mock.PropertyMock(return_value=True)
-    monkeypatch.setattr(bellows.zigbee.application, 'APS_ACK_TIMEOUT', 0.1)
     ctrl = bellows.zigbee.application.ControllerApplication(ezsp)
     ctrl._ctrl_event.set()
     return ctrl
@@ -406,8 +405,7 @@ def test_request_send_timeout_reply_success(app):
 def test_request_ctrl_not_running(app):
     app._ctrl_event.clear()
     with pytest.raises(ControllerError):
-        _request(app, [0], do_reply=False, expect_reply=True,
-                 send_ack_received=False, timeout=0.1)
+        _request(app, [0], do_reply=False, expect_reply=True, timeout=0.1)
 
 
 @pytest.mark.asyncio
