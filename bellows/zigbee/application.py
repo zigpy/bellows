@@ -22,7 +22,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     def __init__(self, ezsp, database_file=None):
         super().__init__(database_file=database_file)
         self._ezsp = ezsp
-        self._pending = {}
+        self._pending = Requests()
 
     async def initialize(self):
         """Perform basic NCP initialization steps"""
@@ -190,11 +190,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def _handle_reply(self, sender, aps_frame, tsn, command_id, args):
         try:
-            send_fut, reply_fut = self._pending[tsn]
-            if send_fut.done():
-                self._pending.pop(tsn)
-            if reply_fut:
-                reply_fut.set_result(args)
+            request = self._pending[tsn]
+            if request.reply:
+                request.reply.set_result(args)
             return
         except KeyError:
             LOGGER.warning("Unexpected response TSN=%s command=%s args=%s", tsn, command_id, args)
@@ -207,10 +205,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def _handle_frame_failure(self, message_type, destination, aps_frame, message_tag, status, message):
         try:
-            send_fut, reply_fut = self._pending.pop(message_tag)
-            send_fut.set_exception(DeliveryError("Message send failure: %s" % (status, )))
-            if reply_fut:
-                reply_fut.cancel()
+            request = self._pending[message_tag]
+            request.send.set_exception(
+                DeliveryError("Message send failure: %s" % (status, )))
         except KeyError:
             LOGGER.warning("Unexpected message send failure")
         except asyncio.futures.InvalidStateError as exc:
@@ -218,12 +215,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def _handle_frame_sent(self, message_type, destination, aps_frame, message_tag, status, message):
         try:
-            send_fut, reply_fut = self._pending[message_tag]
-            # Sometimes messageSendResult and a reply come out of order
-            # If we've already handled the reply, delete pending
-            if reply_fut is None or reply_fut.done():
-                self._pending.pop(message_tag)
-            send_fut.set_result(True)
+            request = self._pending[message_tag]
+            request.send.set_result(True)
         except KeyError:
             LOGGER.warning("Unexpected message send notification")
         except asyncio.futures.InvalidStateError as exc:
@@ -231,13 +224,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     @zigpy.util.retryable_request
     async def request(self, nwk, profile, cluster, src_ep, dst_ep, sequence, data, expect_reply=True, timeout=10):
-        assert sequence not in self._pending
-        send_fut = asyncio.Future()
-        reply_fut = None
-        if expect_reply:
-            reply_fut = asyncio.Future()
-        self._pending[sequence] = (send_fut, reply_fut)
-
         aps_frame = t.EmberApsFrame()
         aps_frame.profileId = t.uint16_t(profile)
         aps_frame.clusterId = t.uint16_t(cluster)
@@ -250,25 +236,16 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.groupId = t.uint16_t(0)
         aps_frame.sequence = t.uint8_t(sequence)
 
-        v = await self._ezsp.sendUnicast(self.direct, nwk, aps_frame, sequence, data)
-        if v[0] != t.EmberStatus.SUCCESS:
-            self._pending.pop(sequence)
-            send_fut.cancel()
+        with self._pending.new(sequence, expect_reply) as req:
+            v = await self._ezsp.sendUnicast(self.direct, nwk, aps_frame,
+                                             sequence, data)
+            if v[0] != t.EmberStatus.SUCCESS:
+                raise DeliveryError("Message send failure %s" % (v[0], ))
+
+            v = await req.send
+
             if expect_reply:
-                reply_fut.cancel()
-            raise DeliveryError("Message send failure %s" % (v[0], ))
-
-        # Wait for messageSentHandler message
-        v = await send_fut
-
-        if expect_reply:
-            # Wait for reply
-            try:
-                v = await asyncio.wait_for(reply_fut, timeout)
-            except:  # noqa: E722
-                # If we timeout (or fail for any reason), clear the future
-                self._pending.pop(sequence)
-                raise
+                return await asyncio.wait_for(req.reply, timeout)
         return v
 
     def permit_ncp(self, time_s=60):
@@ -299,10 +276,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def broadcast(self, profile, cluster, src_ep, dst_ep, grpid, radius,
                         sequence, data,
                         broadcast_address=BroadcastAddress.RX_ON_WHEN_IDLE):
-        assert sequence not in self._pending
-        send_fut = asyncio.Future()
-        self._pending[sequence] = (send_fut, None)
-
         aps_frame = t.EmberApsFrame()
         aps_frame.profileId = t.uint16_t(profile)
         aps_frame.clusterId = t.uint16_t(cluster)
@@ -315,13 +288,61 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.sequence = t.uint8_t(sequence)
 
         LOGGER.debug("broadcast: %s - %s", aps_frame, data)
-        v = await self._ezsp.sendBroadcast(broadcast_address, aps_frame,
-                                           radius, sequence, data)
-        if v[0] != t.EmberStatus.SUCCESS:
-            self._pending.pop(sequence)
-            send_fut.cancel()
-            raise DeliveryError("Broadcast failure: %s", v[0])
+        with self._pending.new(sequence) as req:
+            v = await self._ezsp.sendBroadcast(broadcast_address, aps_frame,
+                                               radius, sequence, data)
+            if v[0] != t.EmberStatus.SUCCESS:
+                raise DeliveryError("Broadcast failure: %s", v[0])
 
-        # Wait for messageSentHandler message
-        v = await send_fut
+            # Wait for messageSentHandler message
+            v = await req.send
         return v
+
+
+class Requests(dict):
+    def new(self, sequence, expect_reply=False):
+        """Wrap new request into a context manager."""
+        return Request(self, sequence, expect_reply)
+
+
+class Request:
+    """Context manager."""
+
+    def __init__(self, pending, sequence, expect_reply=False):
+        """Init context manager for sendUnicast/sendBroadcast."""
+        assert sequence not in pending
+        self._pending = pending
+        self._reply_fut = None
+        if expect_reply:
+            self._reply_fut = asyncio.Future()
+        self._send_fut = asyncio.Future()
+        self._sequence = sequence
+
+    @property
+    def reply(self):
+        """Reply Future."""
+        return self._reply_fut
+
+    @property
+    def sequence(self):
+        """Send Future."""
+        return self._sequence
+
+    @property
+    def send(self):
+        return self._send_fut
+
+    def __enter__(self):
+        """Return context manager."""
+        self._pending[self.sequence] = self
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        """Clean up pending on exit."""
+        if not self.send.done():
+            self.send.cancel()
+        if self.reply and not self.reply.done():
+            self.reply.cancel()
+        self._pending.pop(self.sequence)
+
+        return not exc_type

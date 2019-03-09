@@ -117,20 +117,20 @@ def test_frame_handler_zdo(app, aps, ieee):
 
 
 def test_frame_handler_zdo_reply(app, aps, ieee):
-    send_fut, reply_fut = app._pending[1] = (mock.MagicMock(), mock.MagicMock())
+    request = app._pending[1] = mock.MagicMock()
     deserialize = mock.MagicMock(return_value=(1, 1, True, []))
     _frame_handler(app, aps, ieee, 0, deserialize, 0x8000)
-    assert send_fut.set_result.call_count == 0
-    assert reply_fut.set_result.call_count == 1
+    assert request.send.set_result.call_count == 0
+    assert request.reply.set_result.call_count == 1
 
 
 def test_frame_handler_dup_zdo_reply(app, aps, ieee):
-    send_fut, reply_fut = app._pending[1] = (mock.MagicMock(), mock.MagicMock())
-    reply_fut.set_result.side_effect = asyncio.futures.InvalidStateError()
+    req = app._pending[1] = mock.MagicMock()
+    req.reply.set_result.side_effect = asyncio.futures.InvalidStateError()
     deserialize = mock.MagicMock(return_value=(1, 1, True, []))
     _frame_handler(app, aps, ieee, 0, deserialize, 0x8000)
-    assert send_fut.set_result.call_count == 0
-    assert reply_fut.set_result.call_count == 1
+    assert req.send.set_result.call_count == 0
+    assert req.reply.set_result.call_count == 1
 
 
 def test_frame_handler_zdo_reply_unknown(app, aps, ieee):
@@ -152,24 +152,24 @@ def test_frame_handler_bad_message(app, aps, ieee, caplog):
 
 
 def test_send_failure(app, aps, ieee):
-    send_fut, reply_fut = app._pending[254] = (mock.MagicMock(), mock.MagicMock())
+    req = app._pending[254] = mock.MagicMock()
     app.ezsp_callback_handler(
         'messageSentHandler',
         [None, None, None, 254, 1, b'']
     )
-    assert send_fut.set_exception.call_count == 1
-    assert reply_fut.set_exception.call_count == 0
+    assert req.send.set_exception.call_count == 1
+    assert req.reply.set_exception.call_count == 0
 
 
 def test_dup_send_failure(app, aps, ieee):
-    send_fut, reply_fut = app._pending[254] = (mock.MagicMock(), mock.MagicMock())
-    send_fut.set_exception.side_effect = asyncio.futures.InvalidStateError()
+    req = app._pending[254] = mock.MagicMock()
+    req.send.set_exception.side_effect = asyncio.futures.InvalidStateError()
     app.ezsp_callback_handler(
         'messageSentHandler',
         [None, None, None, 254, 1, b'']
     )
-    assert send_fut.set_exception.call_count == 1
-    assert reply_fut.set_exception.call_count == 0
+    assert req.send.set_exception.call_count == 1
+    assert req.reply.set_exception.call_count == 0
 
 
 def test_send_failure_unexpected(app, aps, ieee):
@@ -180,14 +180,15 @@ def test_send_failure_unexpected(app, aps, ieee):
 
 
 def test_send_success(app, aps, ieee):
-    send_fut, reply_fut = app._pending[253] = (mock.MagicMock(), mock.MagicMock())
+    req = app._pending[253] = mock.MagicMock()
     app.ezsp_callback_handler(
         'messageSentHandler',
         [None, None, None, 253, 0, b'']
     )
-    assert send_fut.set_exception.call_count == 0
-    assert send_fut.set_result.call_count == 1
-    assert reply_fut.set_result.call_count == 0
+    assert req.send.set_exception.call_count == 0
+    assert req.send.set_result.call_count == 1
+    assert req.reply.set_exception.call_count == 0
+    assert req.reply.set_result.call_count == 0
 
 
 def test_unexpected_send_success(app, aps, ieee):
@@ -198,15 +199,16 @@ def test_unexpected_send_success(app, aps, ieee):
 
 
 def test_dup_send_success(app, aps, ieee):
-    send_fut, reply_fut = app._pending[253] = (mock.MagicMock(), mock.MagicMock())
-    send_fut.set_result.side_effect = asyncio.futures.InvalidStateError()
+    req = app._pending[253] = mock.MagicMock()
+    req.send.set_result.side_effect = asyncio.futures.InvalidStateError()
     app.ezsp_callback_handler(
         'messageSentHandler',
         [None, None, None, 253, 0, b'']
     )
-    assert send_fut.set_exception.call_count == 0
-    assert send_fut.set_result.call_count == 1
-    assert reply_fut.set_result.call_count == 0
+    assert req.send.set_exception.call_count == 0
+    assert req.send.set_result.call_count == 1
+    assert req.reply.set_exception.call_count == 0
+    assert req.reply.set_result.call_count == 0
 
 
 def test_receive_invalid_message(app, aps, ieee):
@@ -307,17 +309,20 @@ def test_permit_with_key_failed_set_policy(app, ieee):
 
 def _request(app, returnvals, do_reply=True, **kwargs):
     async def mocksend(method, nwk, aps_frame, seq, data):
-        if app._pending[seq][1] is None:
-            app._pending[seq][0].set_result(mock.sentinel.result)
+        req = app._pending[seq]
+        if req.reply is None:
+            req.send.set_result(mock.sentinel.result)
         else:
-            app._pending[seq][0].set_result(True)
+            req.send.set_result(True)
             if do_reply:
-                app._pending[seq][1].set_result(mock.sentinel.result)
+                req.reply.set_result(mock.sentinel.result)
         return [returnvals.pop(0)]
 
     app._ezsp.sendUnicast = mocksend
     loop = asyncio.get_event_loop()
-    return loop.run_until_complete(app.request(0x1234, 9, 8, 7, 6, 5, b'', **kwargs))
+    res = loop.run_until_complete(app.request(0x1234, 9, 8, 7, 6, 5, b'', **kwargs))
+    assert len(app._pending) == 0
+    return res
 
 
 def test_request(app):
@@ -359,7 +364,7 @@ async def test_broadcast(app):
     )
 
     async def mocksend(nwk, aps, radiusm, tsn, data):
-        app._pending[tsn][0].set_result(mock.sentinel.result)
+        app._pending[tsn].send.set_result(mock.sentinel.result)
         return [0]
 
     app._ezsp.sendBroadcast.side_effect = mocksend
@@ -370,6 +375,7 @@ async def test_broadcast(app):
     assert app._ezsp.sendBroadcast.call_args[0][2] == radius
     assert app._ezsp.sendBroadcast.call_args[0][3] == tsn
     assert app._ezsp.sendBroadcast.call_args[0][4] == data
+    assert len(app._pending) == 0
 
 
 @pytest.mark.asyncio
@@ -390,3 +396,4 @@ async def test_broadcast_fail(app):
         assert app._ezsp.sendBroadcast.call_args[0][2] == radius
         assert app._ezsp.sendBroadcast.call_args[0][3] == tsn
         assert app._ezsp.sendBroadcast.call_args[0][4] == data
+        assert len(app._pending) == 0
