@@ -13,6 +13,9 @@ import zigpy.zdo
 import bellows.types as t
 import bellows.zigbee.util
 
+APS_ACK_TIMEOUT = 120
+APS_REPLY_TIMEOUT = 10
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -223,7 +226,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             LOGGER.debug("Invalid state on future - probably duplicate response: %s", exc)
 
     @zigpy.util.retryable_request
-    async def request(self, nwk, profile, cluster, src_ep, dst_ep, sequence, data, expect_reply=True, timeout=10):
+    async def request(self, nwk, profile, cluster, src_ep, dst_ep, sequence, data, expect_reply=True,
+                      timeout=APS_REPLY_TIMEOUT):
         aps_frame = t.EmberApsFrame()
         aps_frame.profileId = t.uint16_t(profile)
         aps_frame.clusterId = t.uint16_t(cluster)
@@ -237,16 +241,16 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.sequence = t.uint8_t(sequence)
 
         with self._pending.new(sequence, expect_reply) as req:
-            v = await self._ezsp.sendUnicast(self.direct, nwk, aps_frame,
-                                             sequence, data)
-            if v[0] != t.EmberStatus.SUCCESS:
-                raise DeliveryError("Message send failure %s" % (v[0], ))
+            res = await self._ezsp.sendUnicast(self.direct, nwk, aps_frame,
+                                               sequence, data)
+            if res[0] != t.EmberStatus.SUCCESS:
+                raise DeliveryError("Message send failure %s" % (res[0], ))
 
-            v = await req.send
+            res = await asyncio.wait_for(req.send, timeout=APS_ACK_TIMEOUT)
 
             if expect_reply:
-                return await asyncio.wait_for(req.reply, timeout)
-        return v
+                res = await asyncio.wait_for(req.reply, timeout)
+        return res
 
     def permit_ncp(self, time_s=60):
         assert 0 <= time_s <= 254
@@ -289,14 +293,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         LOGGER.debug("broadcast: %s - %s", aps_frame, data)
         with self._pending.new(sequence) as req:
-            v = await self._ezsp.sendBroadcast(broadcast_address, aps_frame,
-                                               radius, sequence, data)
-            if v[0] != t.EmberStatus.SUCCESS:
-                raise DeliveryError("Broadcast failure: %s", v[0])
+            res = await self._ezsp.sendBroadcast(broadcast_address, aps_frame,
+                                                 radius, sequence, data)
+            if res[0] != t.EmberStatus.SUCCESS:
+                raise DeliveryError("Broadcast failure: %s", res[0])
 
             # Wait for messageSentHandler message
-            v = await req.send
-        return v
+            res = await asyncio.wait_for(req.send, timeout=APS_ACK_TIMEOUT)
+        return res
 
 
 class Requests(dict):
