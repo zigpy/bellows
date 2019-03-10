@@ -231,7 +231,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 request.reply.set_result(args)
             return
         except KeyError:
-            LOGGER.warning("Unexpected response TSN=%s command=%s args=%s", tsn, command_id, args)
+            LOGGER.debug("Unexpected response TSN=%s command=%s args=%s", tsn, command_id, args)
         except asyncio.futures.InvalidStateError as exc:
             LOGGER.debug("Invalid state on future - probably duplicate response: %s", exc)
             # We've already handled, don't drop through to device handler
@@ -245,7 +245,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             request.send.set_exception(
                 DeliveryError("Message send failure: %s" % (status, )))
         except KeyError:
-            LOGGER.warning("Unexpected message send failure")
+            LOGGER.debug("Unexpected message send failure")
         except asyncio.futures.InvalidStateError as exc:
             LOGGER.debug("Invalid state on future - probably duplicate response: %s", exc)
 
@@ -254,7 +254,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             request = self._pending[message_tag]
             request.send.set_result(True)
         except KeyError:
-            LOGGER.warning("Unexpected message send notification")
+            LOGGER.debug("Unexpected message send notification")
         except asyncio.futures.InvalidStateError as exc:
             LOGGER.debug("Invalid state on future - probably duplicate response: %s", exc)
 
