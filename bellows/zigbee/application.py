@@ -122,6 +122,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self.controller_event.set()
         self._watchdog_task = asyncio.ensure_future(self._watchdog())
 
+    async def shutdown(self):
+        """Shutdown and cleanup ControllerApplication."""
+        LOGGER.info("Shutting down ControllerApplication")
+        self.controller_event.clear()
+        if self._watchdog_task and not self._watchdog_task.done():
+            LOGGER.debug("Cancelling watchdog")
+            self._watchdog_task.cancel()
+        if self._reset_task and not self._reset_task.done():
+            self._reset_task.cancel()
+        self._ezsp.close()
+
     async def form_network(self, channel=15, pan_id=None, extended_pan_id=None):
         channel = t.uint8_t(channel)
 
@@ -284,6 +295,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def _reset_controller(self):
         """Reset Controller."""
         self._ezsp.close()
+        await asyncio.sleep(0.5)
         await self._ezsp.reconnect()
         await self.startup()
 

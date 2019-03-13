@@ -625,3 +625,19 @@ async def test_watchdog(app, monkeypatch):
 
     assert app._ezsp.nop.call_count > 4
     assert app._handle_reset_request.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_shutdown(app):
+    reset_f = asyncio.Future()
+    watchdog_f = asyncio.Future()
+    app._reset_task = reset_f
+    app._watchdog_task = watchdog_f
+
+    await app.shutdown()
+    assert app.controller_event.is_set() is False
+    assert reset_f.done() is True
+    assert reset_f.cancelled() is True
+    assert watchdog_f.done() is True
+    assert watchdog_f.cancelled() is True
+    assert app._ezsp.close.call_count == 1
