@@ -293,9 +293,7 @@ def test_connection_lost(ezsp_f):
 def test_enter_failed_state(ezsp_f):
     ezsp_f.stop_ezsp = mock.MagicMock(spec_set=ezsp_f.stop_ezsp)
     ezsp_f.handle_callback = mock.MagicMock(spec_set=ezsp_f.handle_callback)
-    ezsp_f.enter_failed_state(mock.sentinel.error, mock.sentinel.preempt)
+    ezsp_f.enter_failed_state(mock.sentinel.error)
     assert ezsp_f.stop_ezsp.call_count == 1
     assert ezsp_f.handle_callback.call_count == 1
-    assert isinstance(ezsp_f.handle_callback.call_args[0][1], list)
-    assert ezsp_f.handle_callback.call_args[0][1][0] is mock.sentinel.error
-    assert ezsp_f.handle_callback.call_args[0][1][1] is mock.sentinel.preempt
+    assert ezsp_f.handle_callback.call_args[0][1][0] == mock.sentinel.error

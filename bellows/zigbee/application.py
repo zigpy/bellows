@@ -42,7 +42,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     @property
     def is_controller_running(self):
-        """Return True if controller was successfuly initialized."""
+        """Return True if controller was successfully initialized."""
         return self.controller_event.is_set() and self._ezsp.is_ezsp_running
 
     async def initialize(self):
@@ -258,32 +258,23 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         except asyncio.futures.InvalidStateError as exc:
             LOGGER.debug("Invalid state on future - probably duplicate response: %s", exc)
 
-    def _handle_reset_request(self, error, preempt):
+    def _handle_reset_request(self, error):
         """Reinitialize application controller."""
         LOGGER.debug("Resetting ControllerApplication. Cause: '%s'", error)
         self.controller_event.clear()
         if self._reset_task:
-            if preempt:
-                LOGGER.debug("Preempting ControllerApplication reset")
-                self._reset_task.cancel()
-            else:
-                LOGGER.debug(
-                    "A ControllerApplication reset task is already running")
-            return
+            LOGGER.debug("Preempting ControllerApplication reset")
+            self._reset_task.cancel()
 
-        return asyncio.ensure_future(self._reset_controller_forever())
+        self._reset_task = asyncio.ensure_future(self._reset_controller_loop())
 
-    async def _reset_controller_forever(self):
+    async def _reset_controller_loop(self):
         """Keep trying to reset controller until we succeed."""
         self._watchdog_task.cancel()
         while True:
-            self._reset_task = asyncio.ensure_future(self._reset_controller())
             try:
-                await self._reset_task
+                await self._reset_controller()
                 break
-            except asyncio.CancelledError:
-                LOGGER.debug("ControllerApplication reset preempted")
-                continue
             except (asyncio.TimeoutError, SerialException) as exc:
                 LOGGER.debug(
                     "ControllerApplication reset unsuccessful: %s", str(exc))
@@ -401,8 +392,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
 
         self._handle_reset_request(
-            "Watchdog timeout. Heartbeat timeouts: {}".format(failures),
-            preempt=True)
+            "Watchdog timeout. Heartbeat timeouts: {}".format(failures))
 
 
 class Requests(dict):

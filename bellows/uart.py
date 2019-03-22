@@ -131,7 +131,7 @@ class Gateway(asyncio.Protocol):
                      code.name, binascii.hexlify(data))
         # not a reset we've requested. Signal application reset
         if code is not t.NcpResetCode.RESET_SOFTWARE:
-            self._application.enter_failed_state(code, preempt=True)
+            self._application.enter_failed_state(code)
             return
 
         if self._reset_future is None:

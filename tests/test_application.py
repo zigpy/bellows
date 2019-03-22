@@ -14,6 +14,7 @@ def app(monkeypatch):
     ezsp = mock.MagicMock()
     type(ezsp).is_ezsp_running = mock.PropertyMock(return_value=True)
     ctrl = bellows.zigbee.application.ControllerApplication(ezsp)
+    monkeypatch.setattr(bellows.zigbee.application, 'APS_ACK_TIMEOUT', 0.1)
     ctrl._ctrl_event.set()
     return ctrl
 
@@ -504,10 +505,9 @@ def test_reset_frame(app):
     app._handle_reset_request = mock.MagicMock(
         spec_set=app._handle_reset_request)
     app.ezsp_callback_handler('_reset_controller_application',
-                              [mock.sentinel.error, mock.sentinel.preempt])
+                              (mock.sentinel.error, ))
     assert app._handle_reset_request.call_count == 1
     assert app._handle_reset_request.call_args[0][0] is mock.sentinel.error
-    assert app._handle_reset_request.call_args[0][1] is mock.sentinel.preempt
 
 
 @pytest.mark.asyncio
@@ -516,51 +516,38 @@ async def test_handle_reset_req(app):
     app._ctrl_event.set()
     assert app._reset_task is None
     reset_ctrl_mock = asyncio.coroutine(mock.MagicMock())
-    app._reset_controller_forever = mock.MagicMock(side_effect=reset_ctrl_mock)
+    app._reset_controller_loop = mock.MagicMock(side_effect=reset_ctrl_mock)
 
-    ret = app._handle_reset_request(mock.sentinel.error, False)
+    app._handle_reset_request(mock.sentinel.error)
 
-    assert asyncio.isfuture(ret)
+    assert asyncio.isfuture(app._reset_task)
     assert app._ctrl_event.is_set() is False
-    await ret
-    assert app._reset_controller_forever.call_count == 1
-
-
-def test_handle_reset_req_existing(app):
-    # active reset task, no reset task preemption
-    app._ctrl_event.set()
-    assert app._reset_task is None
-    app._reset_task = asyncio.Future()
-    reset_ctrl_mock = asyncio.coroutine(mock.MagicMock())
-    app._reset_controller_forever = mock.MagicMock(side_effect=reset_ctrl_mock)
-
-    ret = app._handle_reset_request(mock.sentinel.error, False)
-
-    assert ret is None
-    assert app._ctrl_event.is_set() is False
-    assert app._reset_controller_forever.call_count == 0
-    assert app._reset_task.done() is False
-
-
-def test_handle_reset_req_existing_preempt(app):
-    # active reset task, preempt reset task
-    app._ctrl_event.set()
-    assert app._reset_task is None
-    app._reset_task = asyncio.Future()
-    reset_ctrl_mock = asyncio.coroutine(mock.MagicMock())
-    app._reset_controller_forever = mock.MagicMock(side_effect=reset_ctrl_mock)
-
-    ret = app._handle_reset_request(mock.sentinel.error, True)
-
-    assert ret is None
-    assert app._ctrl_event.is_set() is False
-    assert app._reset_controller_forever.call_count == 0
-    assert app._reset_task.done() is True
-    assert app._reset_task.cancelled() is True
+    await app._reset_task
+    assert app._reset_controller_loop.call_count == 1
 
 
 @pytest.mark.asyncio
-async def test_reset_controller_forever(app, monkeypatch):
+async def test_handle_reset_req_existing_preempt(app):
+    # active reset task, preempt reset task
+    app._ctrl_event.set()
+    assert app._reset_task is None
+    old_reset = asyncio.Future()
+    app._reset_task = old_reset
+    reset_ctrl_mock = asyncio.coroutine(mock.MagicMock())
+    app._reset_controller_loop = mock.MagicMock(side_effect=reset_ctrl_mock)
+
+    app._handle_reset_request(mock.sentinel.error)
+
+    assert asyncio.isfuture(app._reset_task)
+    await app._reset_task
+    assert app._ctrl_event.is_set() is False
+    assert app._reset_controller_loop.call_count == 1
+    assert old_reset.done() is True
+    assert old_reset.cancelled() is True
+
+
+@pytest.mark.asyncio
+async def test_reset_controller_loop(app, monkeypatch):
     from bellows.zigbee import application
 
     monkeypatch.setattr(application, 'RESET_ATTEMPT_BACKOFF_TIME', 0.1)
@@ -572,18 +559,16 @@ async def test_reset_controller_forever(app, monkeypatch):
         nonlocal reset_succ_on_try
         if reset_succ_on_try:
             reset_succ_on_try -= 1
-            if reset_succ_on_try % 2:
+            if reset_succ_on_try > 0:
                 raise asyncio.TimeoutError
-            else:
-                raise asyncio.CancelledError
         return
 
     app._reset_controller = mock.MagicMock(side_effect=reset_controller_mock)
 
-    await app._reset_controller_forever()
+    await app._reset_controller_loop()
 
     assert app._watchdog_task.cancelled() is True
-    assert app._reset_controller.call_count == reset_call_count + 1
+    assert app._reset_controller.call_count == reset_call_count
     assert app._reset_task is None
 
 

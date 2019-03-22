@@ -150,15 +150,14 @@ class EZSP:
     def connection_lost(self, exc):
         """Lost serial connection."""
         LOGGER.debug("%s connection lost unexpectedly: %s", self._device, exc)
-        self.enter_failed_state("Serial connection loss: {}".format(exc),
-                                preempt=True)
+        self.enter_failed_state("Serial connection loss: {}".format(exc))
 
-    def enter_failed_state(self, error, preempt=False):
+    def enter_failed_state(self, error):
         """UART received error frame."""
         LOGGER.error(
             "NCP entered failed state. Requesting APP controller restart")
         self.stop_ezsp()
-        self.handle_callback('_reset_controller_application', [error, preempt])
+        self.handle_callback('_reset_controller_application', (error, ))
 
     async def formNetwork(self, parameters):  # noqa: N802
         fut = asyncio.Future()
