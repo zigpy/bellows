@@ -26,6 +26,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         super().__init__(database_file=database_file)
         self._ezsp = ezsp
         self._pending = Requests()
+        self._in_flight_msg = None
 
     async def initialize(self):
         """Perform basic NCP initialization steps"""
@@ -53,6 +54,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT, 60)
         await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8)
         await self._cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xff)
+
+        status, count = await e.getConfigurationValue(
+            c.CONFIG_APS_UNICAST_MESSAGE_COUNT)
+        assert status == t.EmberStatus.SUCCESS
+        self._in_flight_msg = asyncio.Semaphore(count)
+        LOGGER.debug("APS_UNICAST_MESSAGE_COUNT is set to %s", count)
 
         await self.add_endpoint(
             output_clusters=[zigpy.zcl.clusters.security.IasZone.cluster_id]
@@ -241,12 +248,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.sequence = t.uint8_t(sequence)
 
         with self._pending.new(sequence, expect_reply) as req:
-            res = await self._ezsp.sendUnicast(self.direct, nwk, aps_frame,
-                                               sequence, data)
-            if res[0] != t.EmberStatus.SUCCESS:
-                raise DeliveryError("Message send failure %s" % (res[0], ))
+            async with self._in_flight_msg:
+                res = await self._ezsp.sendUnicast(self.direct, nwk, aps_frame,
+                                                   sequence, data)
+                if res[0] != t.EmberStatus.SUCCESS:
+                    raise DeliveryError("Message send failure %s" % (res[0], ))
 
-            res = await asyncio.wait_for(req.send, timeout=APS_ACK_TIMEOUT)
+                res = await asyncio.wait_for(req.send, timeout=APS_ACK_TIMEOUT)
 
             if expect_reply:
                 res = await asyncio.wait_for(req.reply, timeout)
@@ -293,13 +301,16 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         LOGGER.debug("broadcast: %s - %s", aps_frame, data)
         with self._pending.new(sequence) as req:
-            res = await self._ezsp.sendBroadcast(broadcast_address, aps_frame,
-                                                 radius, sequence, data)
-            if res[0] != t.EmberStatus.SUCCESS:
-                raise DeliveryError("Broadcast failure: %s", res[0])
+            async with self._in_flight_msg:
+                res = await self._ezsp.sendBroadcast(broadcast_address,
+                                                     aps_frame, radius,
+                                                     sequence, data)
+                if res[0] != t.EmberStatus.SUCCESS:
+                    raise DeliveryError("Broadcast failure: %s", res[0])
 
-            # Wait for messageSentHandler message
-            res = await asyncio.wait_for(req.send, timeout=APS_ACK_TIMEOUT)
+                # Wait for messageSentHandler message
+                res = await asyncio.wait_for(req.send,
+                                             timeout=APS_ACK_TIMEOUT)
         return res
 
 
