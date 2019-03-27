@@ -149,7 +149,11 @@ def test_rstack_frame_received_out_of_order(gw):
 
 
 def test_error_frame_received(gw):
-    gw.frame_received(bytes([0b11000010]))
+    from bellows.types import NcpResetCode
+    gw.frame_received(b'\xc2\x02\x03\xd2\x0a\x7e')
+    efs = gw._application.enter_failed_state
+    assert efs.call_count == 1
+    assert efs.call_args[0][0] == NcpResetCode.RESET_WATCHDOG
 
 
 def test_unknown_frame_received(gw):
@@ -161,15 +165,39 @@ def test_close(gw):
     assert gw._transport.close.call_count == 1
 
 
-def test_reset(gw):
-    gw.reset()
+@pytest.mark.asyncio
+async def test_reset(gw):
+    gw._sendq.put_nowait(mock.sentinel.queue_item)
+    fut = asyncio.Future()
+    gw._pending = (mock.sentinel.seq, fut)
+    gw._transport.write.side_effect = lambda *args: gw._reset_future.set_result(
+        mock.sentinel.reset_result)
+    ret = gw.reset()
+
+    assert asyncio.iscoroutine(ret)
     assert gw._transport.write.call_count == 1
+    assert gw._send_seq == 0
+    assert gw._rec_seq == 0
+    assert len(gw._buffer) == 0
+    assert gw._sendq.empty()
+    assert fut.done()
+    assert gw._pending == (-1, None)
+
+    reset_result = await ret
+    assert reset_result is mock.sentinel.reset_result
+
+
+@pytest.mark.asyncio
+async def test_reset_timeout(gw, monkeypatch):
+    monkeypatch.setattr(uart, 'RESET_TIMEOUT', 0.1)
+    with pytest.raises(asyncio.TimeoutError):
+        await gw.reset()
 
 
 def test_reset_old(gw):
-    with pytest.raises(Exception):
-        gw._reset_future = mock.sentinel.future
-        gw.reset()
+    gw._reset_future = mock.sentinel.future
+    ret = gw.reset()
+    assert ret == mock.sentinel.future
     gw._transport.write.assert_not_called()
 
 
@@ -195,3 +223,17 @@ def test_data(gw):
     loop = asyncio.get_event_loop()
     loop.run_until_complete(gw._send_task())
     assert write_call_count == 4
+
+
+def test_connection_lost_exc(gw):
+    gw.connection_lost(mock.sentinel.exception)
+
+    conn_lost = gw._application.connection_lost
+    assert conn_lost.call_count == 1
+    assert conn_lost.call_args[0][0] is mock.sentinel.exception
+
+
+def test_connection_closed(gw):
+    gw.connection_lost(None)
+
+    assert gw._application.connection_lost.call_count == 0
