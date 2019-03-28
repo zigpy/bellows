@@ -16,6 +16,7 @@ def app(monkeypatch):
     ctrl = bellows.zigbee.application.ControllerApplication(ezsp)
     monkeypatch.setattr(bellows.zigbee.application, 'APS_ACK_TIMEOUT', 0.1)
     ctrl._ctrl_event.set()
+    ctrl._in_flight_msg = asyncio.Semaphore()
     return ctrl
 
 
@@ -49,6 +50,7 @@ def _test_startup(app, nwk_type, auto_form=False, init=0):
     async def mockinit(*args, **kwargs):
         return [init]
 
+    app._in_flight_msg = None
     app._ezsp._command = mockezsp
     app._ezsp.addEndpoint = mockezsp
     app._ezsp.setConfigurationValue = mockezsp
@@ -61,6 +63,8 @@ def _test_startup(app, nwk_type, auto_form=False, init=0):
     app.form_network = mock.MagicMock(side_effect=asyncio.coroutine(mock.MagicMock()))
     app._ezsp.reset.side_effect = asyncio.coroutine(mock.MagicMock())
     app._ezsp.version.side_effect = asyncio.coroutine(mock.MagicMock())
+    app._ezsp.getConfigurationValue.side_effect = asyncio.coroutine(
+        mock.MagicMock(return_value=(0, 1)))
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(app.startup(auto_form=auto_form))
