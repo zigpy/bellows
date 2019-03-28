@@ -19,7 +19,7 @@ setup(
         'click-log==0.2.0',
         'pure_pcapy3==1.0.1',
         'pyserial-asyncio',
-        'zigpy',
+        'zigpy-homeassistant',
     ],
     dependency_links=[
         'https://github.com/rcloran/pure-pcapy-3/archive/e289c7d7566306dc02d8f4eb30c0358b41f40f26.zip#egg=pure_pcapy3-1.0.1',
