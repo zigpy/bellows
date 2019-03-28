@@ -1,13 +1,14 @@
 import asyncio
 import binascii
 import logging
-import serial_asyncio
+
 import serial
+import serial_asyncio
 
 import bellows.types as t
 
-
 LOGGER = logging.getLogger(__name__)
+RESET_TIMEOUT = 5
 
 
 class Gateway(asyncio.Protocol):
@@ -124,14 +125,13 @@ class Gateway(asyncio.Protocol):
         """Reset acknowledgement frame receive handler"""
         self._send_seq = 0
         self._rec_seq = 0
-        try:
-            code = t.NcpResetCode(data[2])
-        except ValueError:
-            code = t.NcpResetCode.ERROR_UNKNOWN_EM3XX_ERROR
+        code, version = self._get_error_code(data)
 
-        LOGGER.debug("RSTACK Version: %d Reason: %s frame: %s", data[1], code.name, binascii.hexlify(data))
-        # Only handle the frame, if it is a reply to our reset request
+        LOGGER.debug("RSTACK Version: %d Reason: %s frame: %s", version,
+                     code.name, binascii.hexlify(data))
+        # not a reset we've requested. Signal application reset
         if code is not t.NcpResetCode.RESET_SOFTWARE:
+            self._application.enter_failed_state(code)
             return
 
         if self._reset_future is None:
@@ -142,9 +142,21 @@ class Gateway(asyncio.Protocol):
         if not self._reset_future.done():
             self._reset_future.set_result(True)
 
+    @staticmethod
+    def _get_error_code(data):
+        """Extracts error code from RSTACK or ERROR frames."""
+        try:
+            code = t.NcpResetCode(data[2])
+        except ValueError:
+            code = t.NcpResetCode.ERROR_UNKNOWN_EM3XX_ERROR
+        return code, data[1]
+
     def error_frame_received(self, data):
-        """Error frame receive handler"""
-        LOGGER.debug("Error frame: %s", binascii.hexlify(data))
+        """Error frame receive handler."""
+        error_code, version = self._get_error_code(data)
+        LOGGER.debug("Error code: %s, Version: %d, frame: %s", error_code.name,
+                     version, binascii.hexlify(data))
+        self._application.enter_failed_state(error_code)
 
     def write(self, data):
         """Send data to the uart"""
@@ -155,15 +167,40 @@ class Gateway(asyncio.Protocol):
         self._sendq.put_nowait(self.Terminator)
         self._transport.close()
 
-    def reset(self):
-        """Sends a reset frame"""
-        # TODO: It'd be nice to delete self._reset_future.
-        if self._reset_future is not None:
-            raise TypeError("reset can only be called on a new connection")
+    def _reset_cleanup(self, future):
+        """Delete reset future."""
+        self._reset_future = None
 
-        self.write(self._rst_frame())
+    def connection_lost(self, exc):
+        """Port was closed unexpectedly."""
+        if exc is None:
+            LOGGER.debug("Closed serial connection")
+            return
+
+        LOGGER.error("Lost serial connection: %s", exc)
+        self._application.connection_lost(exc)
+
+    def reset(self):
+        """Send a reset frame and init internal state."""
+        LOGGER.debug("Resetting ASH")
+        if self._reset_future is not None:
+            LOGGER.error(("received new reset request while an existing "
+                          "one is in progress"))
+            return self._reset_future
+
+        self._send_seq = 0
+        self._rec_seq = 0
+        self._buffer = b''
+        while not self._sendq.empty():
+            self._sendq.get_nowait()
+        if self._pending[1]:
+            self._pending[1].set_result(True)
+        self._pending = (-1, None)
+
         self._reset_future = asyncio.Future()
-        return self._reset_future
+        self._reset_future.add_done_callback(self._reset_cleanup)
+        self.write(self._rst_frame())
+        return asyncio.wait_for(self._reset_future, timeout=RESET_TIMEOUT)
 
     async def _send_task(self):
         """Send queue handler"""

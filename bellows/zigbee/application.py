@@ -3,6 +3,7 @@ import binascii
 import logging
 import os
 
+from serial import SerialException
 from zigpy.exceptions import DeliveryError
 from zigpy.types import BroadcastAddress
 import zigpy.application
@@ -12,6 +13,13 @@ import zigpy.zdo
 
 import bellows.types as t
 import bellows.zigbee.util
+from bellows.exception import ControllerError, EzspError
+
+APS_ACK_TIMEOUT = 120
+APS_REPLY_TIMEOUT = 10
+MAX_WATCHDOG_FAILURES = 4
+RESET_ATTEMPT_BACKOFF_TIME = 5
+WATCHDOG_WAKE_PERIOD = 10
 
 LOGGER = logging.getLogger(__name__)
 
@@ -21,8 +29,22 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def __init__(self, ezsp, database_file=None):
         super().__init__(database_file=database_file)
+        self._ctrl_event = asyncio.Event()
         self._ezsp = ezsp
-        self._pending = {}
+        self._pending = Requests()
+        self._watchdog_task = None
+        self._reset_task = None
+        self._in_flight_msg = None
+
+    @property
+    def controller_event(self):
+        """Return asyncio.Event for controller app."""
+        return self._ctrl_event
+
+    @property
+    def is_controller_running(self):
+        """Return True if controller was successfully initialized."""
+        return self.controller_event.is_set() and self._ezsp.is_ezsp_running
 
     async def initialize(self):
         """Perform basic NCP initialization steps"""
@@ -50,6 +72,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT, 60)
         await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8)
         await self._cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xff)
+
+        status, count = await e.getConfigurationValue(
+            c.CONFIG_APS_UNICAST_MESSAGE_COUNT)
+        assert status == t.EmberStatus.SUCCESS
+        self._in_flight_msg = asyncio.Semaphore(count)
+        LOGGER.debug("APS_UNICAST_MESSAGE_COUNT is set to %s", count)
 
         await self.add_endpoint(
             output_clusters=[zigpy.zcl.clusters.security.IasZone.cluster_id]
@@ -98,6 +126,19 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._ieee = ieee[0]
 
         e.add_callback(self.ezsp_callback_handler)
+        self.controller_event.set()
+        self._watchdog_task = asyncio.ensure_future(self._watchdog())
+
+    async def shutdown(self):
+        """Shutdown and cleanup ControllerApplication."""
+        LOGGER.info("Shutting down ControllerApplication")
+        self.controller_event.clear()
+        if self._watchdog_task and not self._watchdog_task.done():
+            LOGGER.debug("Cancelling watchdog")
+            self._watchdog_task.cancel()
+        if self._reset_task and not self._reset_task.done():
+            self._reset_task.cancel()
+        self._ezsp.close()
 
     async def form_network(self, channel=15, pan_id=None, extended_pan_id=None):
         channel = t.uint8_t(channel)
@@ -168,6 +209,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 self.handle_leave(args[0], args[1])
             else:
                 self.handle_join(args[0], args[1], args[4])
+        elif frame_name == '_reset_controller_application':
+            self._handle_reset_request(*args)
 
     def _handle_frame(self, message_type, aps_frame, lqi, rssi, sender, binding_index, address_index, message):
         try:
@@ -188,55 +231,93 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         else:
             self.handle_message(device, False, aps_frame.profileId, aps_frame.clusterId, aps_frame.sourceEndpoint, aps_frame.destinationEndpoint, tsn, command_id, args)
 
+    @staticmethod
+    def _dst_pp(addr, aps):
+        """Return format string and args."""
+        ep, cluster = aps.destinationEndpoint, aps.clusterId
+        return '[0x%04x:%s:0x%04x]: ', (addr, ep, cluster)
+
     def _handle_reply(self, sender, aps_frame, tsn, command_id, args):
         try:
-            send_fut, reply_fut = self._pending[tsn]
-            if send_fut.done():
-                self._pending.pop(tsn)
-            if reply_fut:
-                reply_fut.set_result(args)
+            request = self._pending[tsn]
+            if request.reply:
+                request.reply.set_result(args)
             return
         except KeyError:
-            LOGGER.warning("Unexpected response TSN=%s command=%s args=%s", tsn, command_id, args)
+            hdr, hdr_args = self._dst_pp(sender.nwk, aps_frame)
+            LOGGER.debug(hdr + "Unexpected response TSN=%s command=%s args=%s",
+                         *(hdr_args + (tsn, command_id, args)))
         except asyncio.futures.InvalidStateError as exc:
-            LOGGER.debug("Invalid state on future - probably duplicate response: %s", exc)
+            hdr, hdr_args = self._dst_pp(sender.nwk, aps_frame)
+            LOGGER.debug(hdr + "Invalid state on future - probably duplicate response: %s",
+                         *(hdr_args + (exc, )))
             # We've already handled, don't drop through to device handler
             return
 
         self.handle_message(sender, True, aps_frame.profileId, aps_frame.clusterId, aps_frame.sourceEndpoint, aps_frame.destinationEndpoint, tsn, command_id, args)
 
     def _handle_frame_failure(self, message_type, destination, aps_frame, message_tag, status, message):
+        hdr, hdr_args = self._dst_pp(destination, aps_frame)
         try:
-            send_fut, reply_fut = self._pending.pop(message_tag)
-            send_fut.set_exception(DeliveryError("Message send failure: %s" % (status, )))
-            if reply_fut:
-                reply_fut.cancel()
+            request = self._pending[message_tag]
+            msg = hdr + "message send failure: %s"
+            msg_args = (hdr_args + (status, ))
+            request.send.set_exception(DeliveryError(msg % msg_args))
         except KeyError:
-            LOGGER.warning("Unexpected message send failure")
+            LOGGER.debug(hdr + "Unexpected message send failure", *hdr_args)
         except asyncio.futures.InvalidStateError as exc:
-            LOGGER.debug("Invalid state on future - probably duplicate response: %s", exc)
+            LOGGER.debug(hdr + "Invalid state on future - probably duplicate response: %s",
+                         *(hdr_args + (exc, )))
 
     def _handle_frame_sent(self, message_type, destination, aps_frame, message_tag, status, message):
         try:
-            send_fut, reply_fut = self._pending[message_tag]
-            # Sometimes messageSendResult and a reply come out of order
-            # If we've already handled the reply, delete pending
-            if reply_fut is None or reply_fut.done():
-                self._pending.pop(message_tag)
-            send_fut.set_result(True)
+            request = self._pending[message_tag]
+            request.send.set_result(True)
         except KeyError:
-            LOGGER.warning("Unexpected message send notification")
+            hdr, hdr_args = self._dst_pp(destination, aps_frame)
+            LOGGER.debug(hdr + "Unexpected message send notification", *hdr_args)
         except asyncio.futures.InvalidStateError as exc:
-            LOGGER.debug("Invalid state on future - probably duplicate response: %s", exc)
+            hdr, hdr_args = self._dst_pp(destination, aps_frame)
+            LOGGER.debug(hdr + "Invalid state on future - probably duplicate response: %s",
+                         *(hdr_args + (exc, )))
+
+    def _handle_reset_request(self, error):
+        """Reinitialize application controller."""
+        LOGGER.debug("Resetting ControllerApplication. Cause: '%s'", error)
+        self.controller_event.clear()
+        if self._reset_task:
+            LOGGER.debug("Preempting ControllerApplication reset")
+            self._reset_task.cancel()
+
+        self._reset_task = asyncio.ensure_future(self._reset_controller_loop())
+
+    async def _reset_controller_loop(self):
+        """Keep trying to reset controller until we succeed."""
+        self._watchdog_task.cancel()
+        while True:
+            try:
+                await self._reset_controller()
+                break
+            except (asyncio.TimeoutError, SerialException) as exc:
+                LOGGER.debug(
+                    "ControllerApplication reset unsuccessful: %s", str(exc))
+            await asyncio.sleep(RESET_ATTEMPT_BACKOFF_TIME)
+
+        self._reset_task = None
+        LOGGER.debug("ControllerApplication successfully reset")
+
+    async def _reset_controller(self):
+        """Reset Controller."""
+        self._ezsp.close()
+        await asyncio.sleep(0.5)
+        await self._ezsp.reconnect()
+        await self.startup()
 
     @zigpy.util.retryable_request
-    async def request(self, nwk, profile, cluster, src_ep, dst_ep, sequence, data, expect_reply=True, timeout=10):
-        assert sequence not in self._pending
-        send_fut = asyncio.Future()
-        reply_fut = None
-        if expect_reply:
-            reply_fut = asyncio.Future()
-        self._pending[sequence] = (send_fut, reply_fut)
+    async def request(self, nwk, profile, cluster, src_ep, dst_ep, sequence, data, expect_reply=True,
+                      timeout=APS_REPLY_TIMEOUT):
+        if not self.is_controller_running:
+            raise ControllerError("ApplicationController is not running")
 
         aps_frame = t.EmberApsFrame()
         aps_frame.profileId = t.uint16_t(profile)
@@ -250,26 +331,21 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.groupId = t.uint16_t(0)
         aps_frame.sequence = t.uint8_t(sequence)
 
-        v = await self._ezsp.sendUnicast(self.direct, nwk, aps_frame, sequence, data)
-        if v[0] != t.EmberStatus.SUCCESS:
-            self._pending.pop(sequence)
-            send_fut.cancel()
+        with self._pending.new(sequence, expect_reply) as req:
+            async with self._in_flight_msg:
+                res = await self._ezsp.sendUnicast(self.direct, nwk, aps_frame,
+                                                   sequence, data)
+                if res[0] != t.EmberStatus.SUCCESS:
+                    hdr, hdr_args = self._dst_pp(nwk, aps_frame)
+                    msg = hdr + "message send failure: %s"
+                    msg_args = (hdr_args + (res[0], ))
+                    raise DeliveryError(msg % msg_args)
+
+                res = await asyncio.wait_for(req.send, timeout=APS_ACK_TIMEOUT)
+
             if expect_reply:
-                reply_fut.cancel()
-            raise DeliveryError("Message send failure %s" % (v[0], ))
-
-        # Wait for messageSentHandler message
-        v = await send_fut
-
-        if expect_reply:
-            # Wait for reply
-            try:
-                v = await asyncio.wait_for(reply_fut, timeout)
-            except:  # noqa: E722
-                # If we timeout (or fail for any reason), clear the future
-                self._pending.pop(sequence)
-                raise
-        return v
+                res = await asyncio.wait_for(req.reply, timeout)
+        return res
 
     def permit_ncp(self, time_s=60):
         assert 0 <= time_s <= 254
@@ -299,9 +375,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def broadcast(self, profile, cluster, src_ep, dst_ep, grpid, radius,
                         sequence, data,
                         broadcast_address=BroadcastAddress.RX_ON_WHEN_IDLE):
-        assert sequence not in self._pending
-        send_fut = asyncio.Future()
-        self._pending[sequence] = (send_fut, None)
+        if not self.is_controller_running:
+            raise ControllerError("ApplicationController is not running")
 
         aps_frame = t.EmberApsFrame()
         aps_frame.profileId = t.uint16_t(profile)
@@ -314,14 +389,88 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.groupId = t.uint16_t(grpid)
         aps_frame.sequence = t.uint8_t(sequence)
 
-        LOGGER.debug("broadcast: %s - %s", aps_frame, data)
-        v = await self._ezsp.sendBroadcast(broadcast_address, aps_frame,
-                                           radius, sequence, data)
-        if v[0] != t.EmberStatus.SUCCESS:
-            self._pending.pop(sequence)
-            send_fut.cancel()
-            raise DeliveryError("Broadcast failure: %s", v[0])
+        with self._pending.new(sequence) as req:
+            async with self._in_flight_msg:
+                res = await self._ezsp.sendBroadcast(broadcast_address,
+                                                     aps_frame, radius,
+                                                     sequence, data)
+                if res[0] != t.EmberStatus.SUCCESS:
+                    hdr, hdr_args = self._dst_pp(broadcast_address, aps_frame)
+                    msg = hdr + "Broadcast failure: %s"
+                    msg_args = (hdr_args + (res[0], ))
+                    raise DeliveryError(msg % msg_args)
 
-        # Wait for messageSentHandler message
-        v = await send_fut
-        return v
+                # Wait for messageSentHandler message
+                res = await asyncio.wait_for(req.send,
+                                             timeout=APS_ACK_TIMEOUT)
+        return res
+
+    async def _watchdog(self):
+        """Watchdog handler."""
+        LOGGER.debug("Starting EZSP watchdog")
+        failures = 0
+        await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
+        while True:
+            try:
+                await asyncio.wait_for(self.controller_event.wait(),
+                                       timeout=WATCHDOG_WAKE_PERIOD * 2)
+                await self._ezsp.nop()
+                failures = 0
+            except (asyncio.TimeoutError, EzspError) as exc:
+                LOGGER.warning("Watchdog heartbeat timeout: %s", str(exc))
+                failures += 1
+                if failures > MAX_WATCHDOG_FAILURES:
+                    break
+            await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
+
+        self._handle_reset_request(
+            "Watchdog timeout. Heartbeat timeouts: {}".format(failures))
+
+
+class Requests(dict):
+    def new(self, sequence, expect_reply=False):
+        """Wrap new request into a context manager."""
+        return Request(self, sequence, expect_reply)
+
+
+class Request:
+    """Context manager."""
+
+    def __init__(self, pending, sequence, expect_reply=False):
+        """Init context manager for sendUnicast/sendBroadcast."""
+        assert sequence not in pending
+        self._pending = pending
+        self._reply_fut = None
+        if expect_reply:
+            self._reply_fut = asyncio.Future()
+        self._send_fut = asyncio.Future()
+        self._sequence = sequence
+
+    @property
+    def reply(self):
+        """Reply Future."""
+        return self._reply_fut
+
+    @property
+    def sequence(self):
+        """Send Future."""
+        return self._sequence
+
+    @property
+    def send(self):
+        return self._send_fut
+
+    def __enter__(self):
+        """Return context manager."""
+        self._pending[self.sequence] = self
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        """Clean up pending on exit."""
+        if not self.send.done():
+            self.send.cancel()
+        if self.reply and not self.reply.done():
+            self.reply.cancel()
+        self._pending.pop(self.sequence)
+
+        return not exc_type

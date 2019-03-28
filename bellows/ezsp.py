@@ -5,8 +5,9 @@ import logging
 import bellows.types as t
 import bellows.uart as uart
 from bellows.commands import COMMANDS
+from bellows.exception import EzspError
 
-
+EZSP_CMD_TIMEOUT = 10
 LOGGER = logging.getLogger(__name__)
 
 
@@ -16,7 +17,11 @@ class EZSP:
     ezsp_version = 4
 
     def __init__(self):
+        self._awaiting = {}
+        self._baudrate = None
         self._callbacks = {}
+        self._device = None
+        self._ezsp_event = asyncio.Event()
         self._seq = 0
         self._gw = None
         self._awaiting = {}
@@ -26,10 +31,28 @@ class EZSP:
 
     async def connect(self, device, baudrate):
         assert self._gw is None
+        self._baudrate = baudrate
+        self._device = device
         self._gw = await uart.connect(device, baudrate, self)
 
-    def reset(self):
-        return self._gw.reset()
+    def reconnect(self):
+        """Reconnect using saved parameters."""
+        LOGGER.debug("Reconnecting %s serial port on %s bauds",
+                     self._device, self._baudrate)
+        return self.connect(self._device, self._baudrate)
+
+    async def reset(self):
+        LOGGER.debug("Resetting EZSP")
+        self.stop_ezsp()
+        for seq in self._awaiting:
+            future = self._awaiting[seq][2]
+            if not future.done():
+                future.cancel()
+        self._awaiting = {}
+        self._callbacks = {}
+        self._seq = 0
+        await self._gw.reset()
+        self.start_ezsp()
 
     async def version(self):
         version = self.ezsp_version
@@ -39,7 +62,10 @@ class EZSP:
             await self._command('version', result[0])
 
     def close(self):
-        return self._gw.close()
+        self.stop_ezsp()
+        if self._gw:
+            self._gw.close()
+            self._gw = None
 
     def _ezsp_frame(self, name, *args):
         c = self.COMMANDS[name]
@@ -57,13 +83,16 @@ class EZSP:
 
     def _command(self, name, *args):
         LOGGER.debug("Send command %s", name)
+        if not self.is_ezsp_running:
+            raise EzspError("EZSP is not running")
+
         data = self._ezsp_frame(name, *args)
         self._gw.data(data)
         c = self.COMMANDS[name]
         future = asyncio.Future()
         self._awaiting[self._seq] = (c[0], c[2], future)
         self._seq = (self._seq + 1) % 256
-        return future
+        return asyncio.wait_for(future, timeout=EZSP_CMD_TIMEOUT)
 
     async def _list_command(self, name, item_frames, completion_frame, spos, *args):
         """Run a command, returning result callbacks as a list"""
@@ -118,6 +147,18 @@ class EZSP:
         0,
     )
 
+    def connection_lost(self, exc):
+        """Lost serial connection."""
+        LOGGER.debug("%s connection lost unexpectedly: %s", self._device, exc)
+        self.enter_failed_state("Serial connection loss: {}".format(exc))
+
+    def enter_failed_state(self, error):
+        """UART received error frame."""
+        LOGGER.error(
+            "NCP entered failed state. Requesting APP controller restart")
+        self.stop_ezsp()
+        self.handle_callback('_reset_controller_application', (error, ))
+
     async def formNetwork(self, parameters):  # noqa: N802
         fut = asyncio.Future()
 
@@ -168,7 +209,14 @@ class EZSP:
             expected_id, schema, future = self._awaiting.pop(sequence)
             assert expected_id == frame_id
             result, data = t.deserialize(data, schema)
-            future.set_result(result)
+            try:
+                future.set_result(result)
+            except asyncio.InvalidStateError as exc:
+                LOGGER.debug(
+                    "Error processing %s response. %s command timed out?",
+                    sequence, self.COMMANDS_BY_ID.get(expected_id,
+                                                      [expected_id])[0]
+                )
         else:
             schema = self.COMMANDS_BY_ID[frame_id][2]
             frame_name = self.COMMANDS_BY_ID[frame_id][0]
@@ -194,3 +242,16 @@ class EZSP:
                 handler(*args)
             except Exception as e:
                 LOGGER.exception("Exception running handler", exc_info=e)
+
+    def start_ezsp(self):
+        """Mark EZSP as running."""
+        self._ezsp_event.set()
+
+    def stop_ezsp(self):
+        """Mark EZSP stopped."""
+        self._ezsp_event.clear()
+
+    @property
+    def is_ezsp_running(self):
+        """Return True if EZSP is running."""
+        return self._ezsp_event.is_set()
