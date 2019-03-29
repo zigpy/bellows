@@ -3,8 +3,8 @@
 from setuptools import find_packages, setup
 
 setup(
-    name="bellows",
-    version="0.7.1",
+    name="bellows-homeassistant",
+    version="0.7.2",
     description="Library implementing EZSP",
     url="http://github.com/zigpy/bellows",
     author="Russell Cloran",
