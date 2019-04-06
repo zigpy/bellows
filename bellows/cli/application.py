@@ -17,8 +17,8 @@ from .main import main
 @main.command()
 @opts.database_file
 @opts.channel
-@opts.extended_pan
 @opts.pan
+@opts.extended_pan
 @click.pass_context
 def form(ctx, database, channel, pan_id, extended_pan_id):
     """Form a new ZigBee network"""
