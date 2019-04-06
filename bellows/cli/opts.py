@@ -70,6 +70,11 @@ pan = click.option(
     type=click.IntRange(0, 65535),
 )
 
+network_key = click.option(
+    '-N', '--network-key',
+    type=click.STRING,
+)
+
 manufacturer = click.option(
     '-m', '--manufacturer',
     type=click.IntRange(0, 0xFFFF),

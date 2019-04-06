@@ -3,7 +3,7 @@ import os
 import bellows.types as t
 
 
-def zha_security(controller=False):
+def zha_security(controller=False, network_key=None):
     empty_key_data = t.EmberKeyData()
     empty_key_data.contents = t.fixed_list(16, t.uint8_t)([t.uint8_t(0)] * 16)
     zha_key = t.EmberKeyData()
@@ -29,8 +29,9 @@ def zha_security(controller=False):
             t.EmberInitialSecurityBitmask.HAVE_NETWORK_KEY
         )
         isc.bitmask = t.uint16_t(isc.bitmask)
-        random_key = t.fixed_list(16, t.uint8_t)(
-            [t.uint8_t(x) for x in os.urandom(16)]
-        )
-        isc.networkKey = random_key
+        if network_key is None:
+            network_key = t.fixed_list(16, t.uint8_t)(
+                [t.uint8_t(x) for x in os.urandom(16)]
+            )
+        isc.networkKey = network_key
     return isc

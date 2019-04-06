@@ -19,8 +19,9 @@ from .main import main
 @opts.channel
 @opts.pan
 @opts.extended_pan
+@opts.network_key
 @click.pass_context
-def form(ctx, database, channel, pan_id, extended_pan_id):
+def form(ctx, database, channel, pan_id, extended_pan_id, network_key):
     """Form a new ZigBee network"""
     ctx.obj['database_file'] = database
 
@@ -30,7 +31,7 @@ def form(ctx, database, channel, pan_id, extended_pan_id):
     async def inner(ctx):
         app = ctx.obj['app']
         await app.initialize()
-        await app.form_network(channel, pan_id, extended_pan_id)
+        await app.form_network(channel, pan_id, extended_pan_id, network_key)
 
     return util.app(inner, app_startup=False)(ctx)
 

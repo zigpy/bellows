@@ -140,7 +140,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._reset_task.cancel()
         self._ezsp.close()
 
-    async def form_network(self, channel=15, pan_id=None, extended_pan_id=[0] * 8):
+    async def form_network(self, channel=15, pan_id=None, extended_pan_id=[0] * 8, network_key=None):
         channel = t.uint8_t(channel)
 
         if pan_id is None:
@@ -149,7 +149,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         extended_pan_id = t.fixed_list(8, t.uint8_t)([x for x in extended_pan_id])
 
-        initial_security_state = bellows.zigbee.util.zha_security(controller=True)
+        if network_key is not None:
+            network_key = t.fixed_list(16, t.uint8_t)(
+                [t.uint8_t(x) for x in binascii.unhexlify(network_key)]
+            )
+
+        initial_security_state = bellows.zigbee.util.zha_security(controller=True, network_key=network_key)
         v = await self._ezsp.setInitialSecurityState(initial_security_state)
         assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
 
