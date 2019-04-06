@@ -24,6 +24,9 @@ def form(ctx, database, channel, pan_id, extended_pan_id):
     """Form a new ZigBee network"""
     ctx.obj['database_file'] = database
 
+    if isinstance(extended_pan_id, str):
+        extended_pan_id = util.parse_epan(extended_pan_id)
+
     async def inner(ctx):
         app = ctx.obj['app']
         await app.initialize()

@@ -140,15 +140,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._reset_task.cancel()
         self._ezsp.close()
 
-    async def form_network(self, channel=15, pan_id=None, extended_pan_id=None):
+    async def form_network(self, channel=15, pan_id=None, extended_pan_id=[0] * 8):
         channel = t.uint8_t(channel)
 
         if pan_id is None:
             pan_id = t.uint16_t.from_bytes(os.urandom(2), 'little')
         pan_id = t.uint16_t(pan_id)
 
-        if extended_pan_id is None:
-            extended_pan_id = t.fixed_list(8, t.uint8_t)([t.uint8_t(0)] * 8)
+        extended_pan_id = t.fixed_list(8, t.uint8_t)([x for x in extended_pan_id])
 
         initial_security_state = bellows.zigbee.util.zha_security(controller=True)
         v = await self._ezsp.setInitialSecurityState(initial_security_state)
