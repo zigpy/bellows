@@ -36,19 +36,19 @@ class EmberRf4ceApplicationCapabilities(basic.uint8_t):
     pass
 
 
-class EmberNodeId(basic.uint16_t):
+class EmberNodeId(basic.HexRepr, basic.uint16_t):
     # 16-bit ZigBee network address.
-    pass
+    _hex_len = 4
 
 
-class EmberPanId(basic.uint16_t):
+class EmberPanId(basic.HexRepr, basic.uint16_t):
     # 802.15.4 PAN ID.
-    pass
+    _hex_len = 4
 
 
-class EmberMulticastId(basic.uint16_t):
+class EmberMulticastId(basic.HexRepr, basic.uint16_t):
     # 16-bit ZigBee multicast group identifier.
-    pass
+    _hex_len = 4
 
 
 class EmberLibraryStatus(basic.uint8_t):
