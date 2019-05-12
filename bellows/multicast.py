@@ -29,6 +29,11 @@ class Multicast:
                 self._available.add(i)
 
     async def subscribe(self, group_id) -> t.EmberStatus:
+        if group_id in self._multicast:
+            LOGGER.debug("%s is already subscribed",
+                         t.EmberMulticastId(group_id))
+            return t.EmberStatus.SUCCESS
+
         try:
             idx = self._available.pop()
         except KeyError:
