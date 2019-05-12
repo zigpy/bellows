@@ -14,6 +14,7 @@ import zigpy.zdo
 import bellows.types as t
 import bellows.zigbee.util
 from bellows.exception import ControllerError, EzspError
+import bellows.multicast
 
 APS_ACK_TIMEOUT = 120
 APS_REPLY_TIMEOUT = 5
@@ -32,6 +33,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         super().__init__(database_file=database_file)
         self._ctrl_event = asyncio.Event()
         self._ezsp = ezsp
+        self._multicast = bellows.multicast.Multicast(ezsp)
         self._pending = Requests()
         self._watchdog_task = None
         self._reset_task = None
@@ -46,6 +48,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     def is_controller_running(self):
         """Return True if controller was successfully initialized."""
         return self.controller_event.is_set() and self._ezsp.is_ezsp_running
+
+    @property
+    def multicast(self):
+        """Return EZSP MulticastController."""
+        return self._multicast
 
     async def initialize(self):
         """Perform basic NCP initialization steps"""
@@ -72,6 +79,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._cfg(c.CONFIG_TRANSIENT_KEY_TIMEOUT_S, 180, True)
         await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT, 60)
         await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8)
+        await self._cfg(c.CONFIG_MULTICAST_TABLE_SIZE,
+                        self.multicast.TABLE_SIZE)
         await self._cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xff)
 
         status, count = await e.getConfigurationValue(
@@ -83,6 +92,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self.add_endpoint(
             output_clusters=[zigpy.zcl.clusters.security.IasZone.cluster_id]
         )
+        await self.multicast.initialize()
 
     async def add_endpoint(self, endpoint=1,
                            profile_id=zigpy.profiles.zha.PROFILE_ID,
