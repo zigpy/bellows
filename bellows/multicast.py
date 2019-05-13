@@ -14,7 +14,7 @@ class Multicast:
         self._multicast = {}
         self._available = set()
 
-    async def initialize(self) -> None:
+    async def _initialize(self) -> None:
         e = self._ezsp
         for i in range(0, self.TABLE_SIZE):
             status, entry = await e.getMulticastTableEntry(i)
@@ -27,6 +27,11 @@ class Multicast:
                 self._multicast[entry.multicastId] = (entry, i)
             else:
                 self._available.add(i)
+
+    async def startup(self, coordinator) -> None:
+        await self._initialize()
+        for group_id in coordinator.member_of:
+            await self.subscribe(group_id)
 
     async def subscribe(self, group_id) -> t.EmberStatus:
         if group_id in self._multicast:

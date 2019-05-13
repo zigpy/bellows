@@ -5,6 +5,7 @@ import os
 
 from serial import SerialException
 from zigpy.exceptions import DeliveryError
+from zigpy.quirks import CustomDevice
 from zigpy.types import BroadcastAddress
 import zigpy.application
 import zigpy.device
@@ -92,7 +93,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self.add_endpoint(
             output_clusters=[zigpy.zcl.clusters.security.IasZone.cluster_id]
         )
-        await self.multicast.initialize()
 
     async def add_endpoint(self, endpoint=1,
                            profile_id=zigpy.profiles.zha.PROFILE_ID,
@@ -136,14 +136,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         ieee = await e.getEui64()
         self._ieee = ieee[0]
 
-        dev = self.add_device(self._ieee, self._nwk)
-        dev.node_desc = zigpy.zdo.types.NodeDescriptor(
-            0, 0, 0b00001110, 0, 0, 0, 0, 0, 0)
-        LOGGER.debug("EZSP nwk=0x%04x, IEEE=%s", self._nwk, str(self._ieee))
-
         e.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
         self._watchdog_task = asyncio.ensure_future(self._watchdog())
+
+        self.handle_join(self.nwk, self.ieee, 0)
+        LOGGER.debug("EZSP nwk=0x%04x, IEEE=%s", self._nwk, str(self._ieee))
+        await self.multicast.startup(self.get_device(self.ieee))
 
     async def shutdown(self):
         """Shutdown and cleanup ControllerApplication."""
@@ -495,3 +494,41 @@ class Request:
         self._pending.pop(self.sequence)
 
         return not exc_type
+
+
+class EZSPCoordinator(CustomDevice):
+    """Zigpy Device representing Coordinator."""
+    signature = {
+        1: {
+            'profile_id': 0x0104,
+            'device_type': 0xbeef,
+            'input_clusters': [],
+            'output_clusters': [zigpy.zcl.clusters.security.IasZone.cluster_id]
+        }
+    }
+
+    async def add_to_group(self, grp_id: int,
+                           name: str = None) -> t.EmberStatus:
+        if grp_id in self.member_of:
+            return t.EmberStatus.SUCCESS
+
+        status = await self.application.multicast.subscribe(grp_id)
+        if status != t.EmberStatus.SUCCESS:
+            self.debug("Couldn't subscrib to 0x%04x group", grp_id)
+            return status
+
+        group = self.application.groups.add_group(grp_id, name)
+        group.add_member(self)
+        return status
+
+    async def remove_from_group(self, grp_id: int) -> t.EmberStatus:
+        if grp_id not in self.member_of:
+            return t.EmberStatus.SUCCESS
+
+        status = await self.application.multicast.unsubscribe(grp_id)
+        if status != t.EmberStatus.SUCCESS:
+            self.debug("Couldn't unsubscribe 0x%04x group", grp_id)
+            return status
+
+        self.application.groups[grp_id].remove_member(self)
+        return status
