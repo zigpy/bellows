@@ -2,6 +2,7 @@ import asyncio
 from unittest import mock
 
 import pytest
+from zigpy.endpoint import Endpoint
 
 import bellows.ezsp
 import bellows.multicast
@@ -61,9 +62,15 @@ async def test_initialize_fail(multicast):
 
 @pytest.mark.asyncio
 async def test_startup(multicast):
+
     coordinator = mock.MagicMock()
-    coordinator.member_of = [mock.sentinel.grp, mock.sentinel.grp,
-                             mock.sentinel.grp]
+    ep1 = mock.MagicMock(spec_set=Endpoint)
+    ep1.member_of = [mock.sentinel.grp, mock.sentinel.grp,
+                     mock.sentinel.grp]
+    coordinator.endpoints = {
+        0: mock.sentinel.ZDO,
+        1: ep1
+    }
     multicast._initialize = mock.MagicMock()
     multicast._initialize.side_effect = asyncio.coroutine(mock.MagicMock())
     multicast.subscribe = mock.MagicMock()
@@ -71,7 +78,7 @@ async def test_startup(multicast):
     await multicast.startup(coordinator)
 
     assert multicast._initialize.call_count == 1
-    assert multicast.subscribe.call_count == len(coordinator.member_of)
+    assert multicast.subscribe.call_count == len(ep1.member_of)
     assert multicast.subscribe.call_args[0][0] == mock.sentinel.grp
 
 
