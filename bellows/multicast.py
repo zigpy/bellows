@@ -30,8 +30,11 @@ class Multicast:
 
     async def startup(self, coordinator) -> None:
         await self._initialize()
-        for group_id in coordinator.member_of:
-            await self.subscribe(group_id)
+        for ep_id, ep in coordinator.endpoints.items():
+            if ep_id == 0:
+                continue
+            for group_id in ep.member_of:
+                await self.subscribe(group_id)
 
     async def subscribe(self, group_id) -> t.EmberStatus:
         if group_id in self._multicast:

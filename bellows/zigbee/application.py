@@ -5,7 +5,7 @@ import os
 
 from serial import SerialException
 from zigpy.exceptions import DeliveryError
-from zigpy.quirks import CustomDevice
+from zigpy.quirks import CustomDevice, CustomEndpoint
 from zigpy.types import BroadcastAddress
 import zigpy.application
 import zigpy.device
@@ -498,6 +498,36 @@ class Request:
 
 class EZSPCoordinator(CustomDevice):
     """Zigpy Device representing Coordinator."""
+
+    class EZSPEndpoint(CustomEndpoint):
+        async def add_to_group(self, grp_id: int,
+                               name: str = None) -> t.EmberStatus:
+            if grp_id in self.member_of:
+                return t.EmberStatus.SUCCESS
+
+            app = self.device.application
+            status = await app.multicast.subscribe(grp_id)
+            if status != t.EmberStatus.SUCCESS:
+                self.debug("Couldn't subscribe to 0x%04x group", grp_id)
+                return status
+
+            group = app.groups.add_group(grp_id, name)
+            group.add_member(self)
+            return status
+
+        async def remove_from_group(self, grp_id: int) -> t.EmberStatus:
+            if grp_id not in self.member_of:
+                return t.EmberStatus.SUCCESS
+
+            app = self.device.application
+            status = await app.multicast.unsubscribe(grp_id)
+            if status != t.EmberStatus.SUCCESS:
+                self.debug("Couldn't unsubscribe 0x%04x group", grp_id)
+                return status
+
+            app.groups[grp_id].remove_member(self)
+            return status
+
     signature = {
         1: {
             'profile_id': 0x0104,
@@ -507,28 +537,8 @@ class EZSPCoordinator(CustomDevice):
         }
     }
 
-    async def add_to_group(self, grp_id: int,
-                           name: str = None) -> t.EmberStatus:
-        if grp_id in self.member_of:
-            return t.EmberStatus.SUCCESS
-
-        status = await self.application.multicast.subscribe(grp_id)
-        if status != t.EmberStatus.SUCCESS:
-            self.debug("Couldn't subscrib to 0x%04x group", grp_id)
-            return status
-
-        group = self.application.groups.add_group(grp_id, name)
-        group.add_member(self)
-        return status
-
-    async def remove_from_group(self, grp_id: int) -> t.EmberStatus:
-        if grp_id not in self.member_of:
-            return t.EmberStatus.SUCCESS
-
-        status = await self.application.multicast.unsubscribe(grp_id)
-        if status != t.EmberStatus.SUCCESS:
-            self.debug("Couldn't unsubscribe 0x%04x group", grp_id)
-            return status
-
-        self.application.groups[grp_id].remove_member(self)
-        return status
+    replacement = {
+        'endpoints': {
+            1: (EZSPEndpoint, {})
+        }
+    }
