@@ -1,4 +1,5 @@
 import asyncio
+import binascii
 import functools
 import logging
 
@@ -82,7 +83,7 @@ class EZSP:
         return bytes(frame) + data
 
     def _command(self, name, *args):
-        LOGGER.debug("Send command %s", name)
+        LOGGER.debug("Send command %s: %s", name, args)
         if not self.is_ezsp_running:
             raise EzspError("EZSP is not running")
 
@@ -200,9 +201,9 @@ class EZSP:
 
         frame_name = self.COMMANDS_BY_ID[frame_id][0]
         LOGGER.debug(
-            "Application frame %s (%s) received",
+            "Application frame %s (%s) received: %s",
             frame_id,
-            frame_name,
+            frame_name, binascii.hexlify(data)
         )
 
         if sequence in self._awaiting:
