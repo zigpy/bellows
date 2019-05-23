@@ -338,7 +338,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.sequence = t.uint8_t(sequence)
 
         dev = self.get_device(nwk=nwk)
-        if dev.node_desc.is_end_device:
+        if dev.node_desc.is_end_device in (True, None):
             LOGGER.debug("Extending timeout for %s/0x%04x", dev.ieee, nwk)
             await self._ezsp.setExtendedTimeout(dev.ieee, True)
             timeout = APS_REPLY_TIMEOUT_EXTENDED
