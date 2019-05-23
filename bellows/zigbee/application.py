@@ -5,6 +5,7 @@ import os
 
 from serial import SerialException
 from zigpy.exceptions import DeliveryError
+from zigpy.quirks import CustomDevice, CustomEndpoint
 from zigpy.types import BroadcastAddress
 import zigpy.application
 import zigpy.device
@@ -14,6 +15,7 @@ import zigpy.zdo
 import bellows.types as t
 import bellows.zigbee.util
 from bellows.exception import ControllerError, EzspError
+import bellows.multicast
 
 APS_ACK_TIMEOUT = 120
 APS_REPLY_TIMEOUT = 5
@@ -32,6 +34,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         super().__init__(database_file=database_file)
         self._ctrl_event = asyncio.Event()
         self._ezsp = ezsp
+        self._multicast = bellows.multicast.Multicast(ezsp)
         self._pending = Requests()
         self._watchdog_task = None
         self._reset_task = None
@@ -46,6 +49,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     def is_controller_running(self):
         """Return True if controller was successfully initialized."""
         return self.controller_event.is_set() and self._ezsp.is_ezsp_running
+
+    @property
+    def multicast(self):
+        """Return EZSP MulticastController."""
+        return self._multicast
 
     async def initialize(self):
         """Perform basic NCP initialization steps"""
@@ -72,6 +80,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._cfg(c.CONFIG_TRANSIENT_KEY_TIMEOUT_S, 180, True)
         await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT, 60)
         await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8)
+        await self._cfg(c.CONFIG_MULTICAST_TABLE_SIZE,
+                        self.multicast.TABLE_SIZE)
         await self._cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xff)
 
         status, count = await e.getConfigurationValue(
@@ -126,14 +136,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         ieee = await e.getEui64()
         self._ieee = ieee[0]
 
-        dev = self.add_device(self._ieee, self._nwk)
-        dev.node_desc = zigpy.zdo.types.NodeDescriptor(
-            0, 0, 0b00001110, 0, 0, 0, 0, 0, 0)
-        LOGGER.debug("EZSP nwk=0x%04x, IEEE=%s", self._nwk, str(self._ieee))
-
         e.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
         self._watchdog_task = asyncio.ensure_future(self._watchdog())
+
+        self.handle_join(self.nwk, self.ieee, 0)
+        LOGGER.debug("EZSP nwk=0x%04x, IEEE=%s", self._nwk, str(self._ieee))
+        await self.multicast.startup(self.get_device(self.ieee))
 
     async def shutdown(self):
         """Shutdown and cleanup ControllerApplication."""
@@ -485,3 +494,51 @@ class Request:
         self._pending.pop(self.sequence)
 
         return not exc_type
+
+
+class EZSPCoordinator(CustomDevice):
+    """Zigpy Device representing Coordinator."""
+
+    class EZSPEndpoint(CustomEndpoint):
+        async def add_to_group(self, grp_id: int,
+                               name: str = None) -> t.EmberStatus:
+            if grp_id in self.member_of:
+                return t.EmberStatus.SUCCESS
+
+            app = self.device.application
+            status = await app.multicast.subscribe(grp_id)
+            if status != t.EmberStatus.SUCCESS:
+                self.debug("Couldn't subscribe to 0x%04x group", grp_id)
+                return status
+
+            group = app.groups.add_group(grp_id, name)
+            group.add_member(self)
+            return status
+
+        async def remove_from_group(self, grp_id: int) -> t.EmberStatus:
+            if grp_id not in self.member_of:
+                return t.EmberStatus.SUCCESS
+
+            app = self.device.application
+            status = await app.multicast.unsubscribe(grp_id)
+            if status != t.EmberStatus.SUCCESS:
+                self.debug("Couldn't unsubscribe 0x%04x group", grp_id)
+                return status
+
+            app.groups[grp_id].remove_member(self)
+            return status
+
+    signature = {
+        1: {
+            'profile_id': 0x0104,
+            'device_type': 0xbeef,
+            'input_clusters': [],
+            'output_clusters': [zigpy.zcl.clusters.security.IasZone.cluster_id]
+        }
+    }
+
+    replacement = {
+        'endpoints': {
+            1: (EZSPEndpoint, {})
+        }
+    }
