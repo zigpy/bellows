@@ -17,6 +17,9 @@ def app(monkeypatch):
     type(ezsp).is_ezsp_running = mock.PropertyMock(return_value=True)
     ctrl = bellows.zigbee.application.ControllerApplication(ezsp)
     monkeypatch.setattr(bellows.zigbee.application, 'APS_ACK_TIMEOUT', 0.1)
+    monkeypatch.setattr(bellows.zigbee.application, 'APS_REPLY_TIMEOUT', 0.1)
+    monkeypatch.setattr(bellows.zigbee.application,
+                        'APS_REPLY_TIMEOUT_EXTENDED', 0.1)
     ctrl._ctrl_event.set()
     ctrl._in_flight_msg = asyncio.Semaphore()
     return ctrl
@@ -347,6 +350,8 @@ def _request(app, returnvals, do_reply=True, send_ack_received=True,
 
     app.get_device = mock_get_device
     app._ezsp.sendUnicast = mocksend
+    app._ezsp.setExtendedTimeout.side_effect = asyncio.coroutine(
+        mock.MagicMock())
     loop = asyncio.get_event_loop()
     res = loop.run_until_complete(app.request(0x1234, 9, 8, 7, 6, 5, b'', **kwargs))
     assert len(app._pending) == 0
@@ -433,6 +438,9 @@ def test_request_extended_timeout(app):
 
     assert _request(app, [0], is_an_end_dev=True) == mock.sentinel.result
     assert app._ezsp.setExtendedTimeout.call_count == 1
+
+    assert _request(app, [0], is_an_end_dev=None) == mock.sentinel.result
+    assert app._ezsp.setExtendedTimeout.call_count == 2
 
 
 @pytest.mark.asyncio
