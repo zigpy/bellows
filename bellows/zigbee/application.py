@@ -212,6 +212,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._ezsp.removeDevice(dev.nwk, dev.ieee, dev.ieee)
 
     def ezsp_callback_handler(self, frame_name, args):
+        LOGGER.debug("Received %s frame with %s", frame_name, args)
         if frame_name == 'incomingMessageHandler':
             self._handle_frame(*args)
         elif frame_name == 'messageSentHandler':
