@@ -97,16 +97,9 @@ COMMANDS = {
     'pollHandler': (0x44, (), (t.EmberNodeId, )),
     'incomingSenderEui64Handler': (0x62, (), (t.EmberEUI64, )),
     'incomingMessageHandler': (0x45, (), (t.EmberIncomingMessageType, t.EmberApsFrame, t.uint8_t, t.int8s, t.EmberNodeId, t.uint8_t, t.uint8_t, t.LVBytes)),
-    # TODO: LVBytes in incomingRouteRecordHandler is really a list of
-    #       uint16_t - decoding this frame will be incorrect, since the length
-    #       refers to the number of items in the list
-    'incomingRouteRecordHandler': (0x59, (), (t.EmberNodeId, t.EmberEUI64, t.uint8_t, t.int8s, t.LVBytes)),
+    'incomingRouteRecordHandler': (0x59, (), (t.EmberNodeId, t.EmberEUI64, t.uint8_t, t.int8s, t.LVList(t.EmberNodeId))),
     'changeSourceRouteHandler': (0xC4, (), (t.EmberNodeId, t.EmberNodeId, t.Bool)),
-    # TODO: LVBytes in setSourceRoute is really a list of uint16_t,
-    #       serializing the frame will produce something the NCP will fail
-    #       on, since the NCP expects the length to be number of items in the
-    #       list
-    # 'setSourceRoute': (0x5A, (t.EmberNodeId, t.LVBytes), (t.EmberStatus, )),
+    'setSourceRoute': (0x5A, (t.EmberNodeId, t.LVList(t.EmberNodeId)), (t.EmberStatus, )),
     'incomingManyToOneRouteRequestHandler': (0x7D, (), (t.EmberNodeId, t.EmberEUI64, t.uint8_t)),
     'incomingRouteErrorHandler': (0x80, (), (t.EmberStatus, t.EmberNodeId)),
     'addressTableEntryIsActive': (0x5B, (t.uint8_t, ), (t.Bool, )),

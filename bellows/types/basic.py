@@ -153,3 +153,13 @@ def fixed_list(length, itemtype):
         _itemtype = itemtype
 
     return FixedList
+
+
+class HexRepr:
+    _hex_len = 2
+
+    def __repr__(self):
+        return ('0x{:0' + str(self._hex_len) + 'x}').format(self)
+
+    def __str__(self):
+        return ('0x{:0' + str(self._hex_len) + 'x}').format(self)

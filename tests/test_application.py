@@ -8,6 +8,7 @@ import bellows.zigbee.application
 from bellows.exception import ControllerError, EzspError
 from zigpy.device import Device
 from zigpy.exceptions import DeliveryError
+from zigpy.zcl.clusters import security
 
 
 @pytest.fixture
@@ -16,6 +17,9 @@ def app(monkeypatch):
     type(ezsp).is_ezsp_running = mock.PropertyMock(return_value=True)
     ctrl = bellows.zigbee.application.ControllerApplication(ezsp)
     monkeypatch.setattr(bellows.zigbee.application, 'APS_ACK_TIMEOUT', 0.1)
+    monkeypatch.setattr(bellows.zigbee.application, 'APS_REPLY_TIMEOUT', 0.1)
+    monkeypatch.setattr(bellows.zigbee.application,
+                        'APS_REPLY_TIMEOUT_EXTENDED', 0.1)
     ctrl._ctrl_event.set()
     ctrl._in_flight_msg = asyncio.Semaphore()
     return ctrl
@@ -67,6 +71,7 @@ def _test_startup(app, nwk_type, ieee, auto_form=False, init=0):
     app._ezsp.version.side_effect = asyncio.coroutine(mock.MagicMock())
     app._ezsp.getConfigurationValue.side_effect = asyncio.coroutine(
         mock.MagicMock(return_value=(0, 1)))
+    app.multicast._initialize = mockezsp
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(app.startup(auto_form=auto_form))
@@ -345,6 +350,8 @@ def _request(app, returnvals, do_reply=True, send_ack_received=True,
 
     app.get_device = mock_get_device
     app._ezsp.sendUnicast = mocksend
+    app._ezsp.setExtendedTimeout.side_effect = asyncio.coroutine(
+        mock.MagicMock())
     loop = asyncio.get_event_loop()
     res = loop.run_until_complete(app.request(0x1234, 9, 8, 7, 6, 5, b'', **kwargs))
     assert len(app._pending) == 0
@@ -431,6 +438,9 @@ def test_request_extended_timeout(app):
 
     assert _request(app, [0], is_an_end_dev=True) == mock.sentinel.result
     assert app._ezsp.setExtendedTimeout.call_count == 1
+
+    assert _request(app, [0], is_an_end_dev=None) == mock.sentinel.result
+    assert app._ezsp.setExtendedTimeout.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -650,3 +660,171 @@ async def test_shutdown(app):
     assert watchdog_f.done() is True
     assert watchdog_f.cancelled() is True
     assert app._ezsp.close.call_count == 1
+
+
+@pytest.fixture
+def coordinator(app, ieee):
+    dev = Device(app, ieee, 0x0000)
+    ep = dev.add_endpoint(1)
+    ep.profile_id = 0x0104
+    ep.device_type = 0xbeef
+    ep.add_output_cluster(security.IasZone.cluster_id)
+    return bellows.zigbee.application.EZSPCoordinator(app, ieee, 0x0000, dev)
+
+
+@pytest.mark.asyncio
+async def test_ezsp_add_to_group(coordinator):
+    coordinator.application._multicast = mock.MagicMock()
+    mc = coordinator.application._multicast
+    mc.subscribe.side_effect = asyncio.coroutine(
+        mock.MagicMock(return_value=t.EmberStatus.SUCCESS)
+    )
+
+    grp_id = 0x2345
+    assert grp_id not in coordinator.endpoints[1].member_of
+    ret = await coordinator.add_to_group(grp_id)
+    assert ret is None
+    assert mc.subscribe.call_count == 1
+    assert mc.subscribe.call_args[0][0] == grp_id
+    assert grp_id in coordinator.endpoints[1].member_of
+
+
+@pytest.mark.asyncio
+async def test_ezsp_add_to_group_ep(coordinator):
+    coordinator.application._multicast = mock.MagicMock()
+    mc = coordinator.application._multicast
+    mc.subscribe.side_effect = asyncio.coroutine(
+        mock.MagicMock(return_value=t.EmberStatus.SUCCESS)
+    )
+
+    grp_id = 0x2345
+    assert grp_id not in coordinator.endpoints[1].member_of
+    ret = await coordinator.endpoints[1].add_to_group(grp_id)
+    assert ret == t.EmberStatus.SUCCESS
+    assert mc.subscribe.call_count == 1
+    assert mc.subscribe.call_args[0][0] == grp_id
+    assert grp_id in coordinator.endpoints[1].member_of
+
+    mc.reset_mock()
+    ret = await coordinator.endpoints[1].add_to_group(grp_id)
+    assert ret == t.EmberStatus.SUCCESS
+    assert mc.subscribe.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_ezsp_add_to_group_fail(coordinator):
+    coordinator.application._multicast = mock.MagicMock()
+    mc = coordinator.application._multicast
+    mc.subscribe.side_effect = asyncio.coroutine(
+        mock.MagicMock(return_value=t.EmberStatus.ERR_FATAL)
+    )
+
+    grp_id = 0x2345
+    assert grp_id not in coordinator.endpoints[1].member_of
+    ret = await coordinator.add_to_group(grp_id)
+    assert ret is None
+    assert mc.subscribe.call_count == 1
+    assert mc.subscribe.call_args[0][0] == grp_id
+    assert grp_id not in coordinator.endpoints[1].member_of
+
+
+@pytest.mark.asyncio
+async def test_ezsp_add_to_group_ep_fail(coordinator):
+    coordinator.application._multicast = mock.MagicMock()
+    mc = coordinator.application._multicast
+    mc.subscribe.side_effect = asyncio.coroutine(
+        mock.MagicMock(return_value=t.EmberStatus.ERR_FATAL)
+    )
+
+    grp_id = 0x2345
+    assert grp_id not in coordinator.endpoints[1].member_of
+    ret = await coordinator.endpoints[1].add_to_group(grp_id)
+    assert ret != t.EmberStatus.SUCCESS
+    assert ret is not None
+    assert mc.subscribe.call_count == 1
+    assert mc.subscribe.call_args[0][0] == grp_id
+    assert grp_id not in coordinator.endpoints[1].member_of
+
+
+@pytest.mark.asyncio
+async def test_ezsp_remove_from_group(coordinator):
+    coordinator.application._multicast = mock.MagicMock()
+    mc = coordinator.application._multicast
+    mc.unsubscribe.side_effect = asyncio.coroutine(
+        mock.MagicMock(return_value=t.EmberStatus.SUCCESS)
+    )
+
+    grp_id = 0x2345
+    grp = coordinator.application.groups.add_group(grp_id)
+    grp.add_member(coordinator.endpoints[1])
+
+    assert grp_id in coordinator.endpoints[1].member_of
+    ret = await coordinator.remove_from_group(grp_id)
+    assert ret is None
+    assert mc.unsubscribe.call_count == 1
+    assert mc.unsubscribe.call_args[0][0] == grp_id
+    assert grp_id not in coordinator.endpoints[1].member_of
+
+
+@pytest.mark.asyncio
+async def test_ezsp_remove_from_group_ep(coordinator):
+    coordinator.application._multicast = mock.MagicMock()
+    mc = coordinator.application._multicast
+    mc.unsubscribe.side_effect = asyncio.coroutine(
+        mock.MagicMock(return_value=t.EmberStatus.SUCCESS)
+    )
+
+    grp_id = 0x2345
+    grp = coordinator.application.groups.add_group(grp_id)
+    grp.add_member(coordinator.endpoints[1])
+
+    assert grp_id in coordinator.endpoints[1].member_of
+    ret = await coordinator.endpoints[1].remove_from_group(grp_id)
+    assert ret == t.EmberStatus.SUCCESS
+    assert mc.unsubscribe.call_count == 1
+    assert mc.unsubscribe.call_args[0][0] == grp_id
+    assert grp_id not in coordinator.endpoints[1].member_of
+
+    mc.reset_mock()
+    ret = await coordinator.endpoints[1].remove_from_group(grp_id)
+    assert ret == t.EmberStatus.SUCCESS
+    assert mc.subscribe.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_ezsp_remove_from_group_fail(coordinator):
+    coordinator.application._multicast = mock.MagicMock()
+    mc = coordinator.application._multicast
+    mc.unsubscribe.side_effect = asyncio.coroutine(
+        mock.MagicMock(return_value=t.EmberStatus.ERR_FATAL)
+    )
+
+    grp_id = 0x2345
+    grp = coordinator.application.groups.add_group(grp_id)
+    grp.add_member(coordinator.endpoints[1])
+
+    assert grp_id in coordinator.endpoints[1].member_of
+    ret = await coordinator.remove_from_group(grp_id)
+    assert ret is None
+    assert mc.unsubscribe.call_count == 1
+    assert mc.unsubscribe.call_args[0][0] == grp_id
+
+
+@pytest.mark.asyncio
+async def test_ezsp_remove_from_group_fail_ep(coordinator):
+    coordinator.application._multicast = mock.MagicMock()
+    mc = coordinator.application._multicast
+    mc.unsubscribe.side_effect = asyncio.coroutine(
+        mock.MagicMock(return_value=t.EmberStatus.ERR_FATAL)
+    )
+
+    grp_id = 0x2345
+    grp = coordinator.application.groups.add_group(grp_id)
+    grp.add_member(coordinator.endpoints[1])
+
+    assert grp_id in coordinator.endpoints[1].member_of
+    ret = await coordinator.endpoints[1].remove_from_group(grp_id)
+    assert ret != t.EmberStatus.SUCCESS
+    assert ret is not None
+    assert mc.unsubscribe.call_count == 1
+    assert mc.unsubscribe.call_args[0][0] == grp_id
