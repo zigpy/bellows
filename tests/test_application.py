@@ -6,6 +6,7 @@ import pytest
 import bellows.types as t
 import bellows.zigbee.application
 from bellows.exception import ControllerError, EzspError
+from zigpy.device import Device
 from zigpy.exceptions import DeliveryError
 
 
@@ -43,7 +44,7 @@ def get_mock_coro(return_value):
     return mock.Mock(wraps=mock_coro)
 
 
-def _test_startup(app, nwk_type, auto_form=False, init=0):
+def _test_startup(app, nwk_type, ieee, auto_form=False, init=0):
     async def mockezsp(*args, **kwargs):
         return [0, nwk_type]
 
@@ -58,7 +59,8 @@ def _test_startup(app, nwk_type, auto_form=False, init=0):
     app._ezsp.getNetworkParameters = mockezsp
     app._ezsp.setPolicy = mockezsp
     app._ezsp.getNodeId = mockezsp
-    app._ezsp.getEui64 = mockezsp
+    app._ezsp.getEui64.side_effect = asyncio.coroutine(
+        mock.MagicMock(return_value=[ieee]))
     app._ezsp.leaveNetwork = mockezsp
     app.form_network = mock.MagicMock(side_effect=asyncio.coroutine(mock.MagicMock()))
     app._ezsp.reset.side_effect = asyncio.coroutine(mock.MagicMock())
@@ -70,26 +72,26 @@ def _test_startup(app, nwk_type, auto_form=False, init=0):
     loop.run_until_complete(app.startup(auto_form=auto_form))
 
 
-def test_startup(app):
-    return _test_startup(app, t.EmberNodeType.COORDINATOR)
+def test_startup(app, ieee):
+    return _test_startup(app, t.EmberNodeType.COORDINATOR, ieee)
 
 
-def test_startup_no_status(app):
+def test_startup_no_status(app, ieee):
     with pytest.raises(Exception):
-        return _test_startup(app, None, init=1)
+        return _test_startup(app, None, ieee, init=1)
 
 
-def test_startup_no_status_form(app):
-    return _test_startup(app, None, auto_form=True, init=1)
+def test_startup_no_status_form(app, ieee):
+    return _test_startup(app, None, ieee, auto_form=True, init=1)
 
 
-def test_startup_end(app):
+def test_startup_end(app, ieee):
     with pytest.raises(Exception):
-        return _test_startup(app, t.EmberNodeType.SLEEPY_END_DEVICE)
+        return _test_startup(app, t.EmberNodeType.SLEEPY_END_DEVICE, ieee)
 
 
-def test_startup_end_form(app):
-    return _test_startup(app, t.EmberNodeType.SLEEPY_END_DEVICE, True)
+def test_startup_end_form(app, ieee):
+    return _test_startup(app, t.EmberNodeType.SLEEPY_END_DEVICE, ieee, True)
 
 
 def test_form_network(app):
@@ -318,7 +320,8 @@ def test_permit_with_key_failed_set_policy(app, ieee):
 
 
 def _request(app, returnvals, do_reply=True, send_ack_received=True,
-             send_ack_success=True, ezsp_operational=True, **kwargs):
+             send_ack_success=True, ezsp_operational=True, is_an_end_dev=None,
+             **kwargs):
     async def mocksend(method, nwk, aps_frame, seq, data):
         if not ezsp_operational:
             raise EzspError
@@ -334,6 +337,13 @@ def _request(app, returnvals, do_reply=True, send_ack_received=True,
                 req.reply.set_result(mock.sentinel.result)
         return [returnvals.pop(0)]
 
+    def mock_get_device(*args, **kwargs):
+        dev = Device(app, mock.sentinel.ieee, mock.sentinel.nwk)
+        dev.node_desc = mock.MagicMock()
+        dev.node_desc.is_end_device = is_an_end_dev
+        return dev
+
+    app.get_device = mock_get_device
     app._ezsp.sendUnicast = mocksend
     loop = asyncio.get_event_loop()
     res = loop.run_until_complete(app.request(0x1234, 9, 8, 7, 6, 5, b'', **kwargs))
@@ -411,6 +421,16 @@ def test_request_ctrl_not_running(app):
     app._ctrl_event.clear()
     with pytest.raises(ControllerError):
         _request(app, [0], do_reply=False, expect_reply=True, timeout=0.1)
+
+
+def test_request_extended_timeout(app):
+    app._ezsp.setExtendedTimeout.side_effect = asyncio.coroutine(
+        mock.MagicMock())
+    assert _request(app, [0], is_an_end_dev=False) == mock.sentinel.result
+    assert app._ezsp.setExtendedTimeout.call_count == 0
+
+    assert _request(app, [0], is_an_end_dev=True) == mock.sentinel.result
+    assert app._ezsp.setExtendedTimeout.call_count == 1
 
 
 @pytest.mark.asyncio

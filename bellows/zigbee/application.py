@@ -16,7 +16,8 @@ import bellows.zigbee.util
 from bellows.exception import ControllerError, EzspError
 
 APS_ACK_TIMEOUT = 120
-APS_REPLY_TIMEOUT = 10
+APS_REPLY_TIMEOUT = 5
+APS_REPLY_TIMEOUT_EXTENDED = 28
 MAX_WATCHDOG_FAILURES = 4
 RESET_ATTEMPT_BACKOFF_TIME = 5
 WATCHDOG_WAKE_PERIOD = 10
@@ -124,6 +125,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._nwk = nwk[0]
         ieee = await e.getEui64()
         self._ieee = ieee[0]
+
+        dev = self.add_device(self._ieee, self._nwk)
+        dev.node_desc = zigpy.zdo.types.NodeDescriptor(
+            0, 0, 0b00001110, 0, 0, 0, 0, 0, 0)
+        LOGGER.debug("EZSP nwk=0x%04x, IEEE=%s", self._nwk, str(self._ieee))
 
         e.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
@@ -335,6 +341,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.groupId = t.uint16_t(0)
         aps_frame.sequence = t.uint8_t(sequence)
 
+        dev = self.get_device(nwk=nwk)
+        if dev.node_desc.is_end_device:
+            LOGGER.debug("Extending timeout for %s/0x%04x", dev.ieee, nwk)
+            await self._ezsp.setExtendedTimeout(dev.ieee, True)
+            timeout = APS_REPLY_TIMEOUT_EXTENDED
         with self._pending.new(sequence, expect_reply) as req:
             async with self._in_flight_msg:
                 res = await self._ezsp.sendUnicast(self.direct, nwk, aps_frame,
