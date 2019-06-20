@@ -16,6 +16,8 @@ class Multicast:
 
     async def _initialize(self) -> None:
         e = self._ezsp
+        self._multicast = {}
+        self._available = set()
         for i in range(0, self.TABLE_SIZE):
             status, entry = await e.getMulticastTableEntry(i)
             if status != t.EmberStatus.SUCCESS:
