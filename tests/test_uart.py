@@ -3,17 +3,20 @@ from unittest import mock
 
 import serial_asyncio
 import pytest
+import threading
 
 from bellows import uart
 
 
-def test_connect(monkeypatch):
+@pytest.mark.asyncio
+async def test_connect(monkeypatch):
     portmock = mock.MagicMock()
     appmock = mock.MagicMock()
+    transport = mock.MagicMock()
 
     async def mockconnect(loop, protocol_factory, **kwargs):
         protocol = protocol_factory()
-        loop.call_soon(protocol.connection_made, None)
+        loop.call_soon(protocol.connection_made, transport)
         return None, protocol
 
     monkeypatch.setattr(
@@ -21,8 +24,38 @@ def test_connect(monkeypatch):
         'create_serial_connection',
         mockconnect,
     )
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(uart.connect(portmock, 115200, appmock))
+    await uart.connect(portmock, 115200, appmock, use_thread=False)
+
+    threads = [t for t in threading.enumerate() if 'bellows' in t.name]
+    assert len(threads) == 0
+
+
+@pytest.mark.asyncio
+async def test_connect_threaded(monkeypatch):
+
+    portmock = mock.MagicMock()
+    appmock = mock.MagicMock()
+    transport = mock.MagicMock()
+
+    async def mockconnect(loop, protocol_factory, **kwargs):
+        protocol = protocol_factory()
+        loop.call_soon(protocol.connection_made, transport)
+        return None, protocol
+
+    monkeypatch.setattr(
+        serial_asyncio,
+        'create_serial_connection',
+        mockconnect,
+    )
+    gw = await uart.connect(portmock, 115200, appmock)
+
+    # Need to close to release thread
+    gw.close()
+
+    # Ensure all threads are cleaned up
+    [t.join(1) for t in threading.enumerate() if 'bellows' in t.name]
+    threads = [t for t in threading.enumerate() if 'bellows' in t.name]
+    assert len(threads) == 0
 
 
 @pytest.fixture
@@ -167,14 +200,14 @@ def test_close(gw):
 
 @pytest.mark.asyncio
 async def test_reset(gw):
+    gw._loop = asyncio.get_event_loop()
     gw._sendq.put_nowait(mock.sentinel.queue_item)
     fut = asyncio.Future()
     gw._pending = (mock.sentinel.seq, fut)
     gw._transport.write.side_effect = lambda *args: gw._reset_future.set_result(
         mock.sentinel.reset_result)
-    ret = gw.reset()
+    reset_result = await gw.reset()
 
-    assert asyncio.iscoroutine(ret)
     assert gw._transport.write.call_count == 1
     assert gw._send_seq == 0
     assert gw._rec_seq == 0
@@ -183,21 +216,25 @@ async def test_reset(gw):
     assert fut.done()
     assert gw._pending == (-1, None)
 
-    reset_result = await ret
     assert reset_result is mock.sentinel.reset_result
 
 
 @pytest.mark.asyncio
 async def test_reset_timeout(gw, monkeypatch):
+    gw._loop = asyncio.get_event_loop()
     monkeypatch.setattr(uart, 'RESET_TIMEOUT', 0.1)
     with pytest.raises(asyncio.TimeoutError):
         await gw.reset()
 
 
-def test_reset_old(gw):
-    gw._reset_future = mock.sentinel.future
-    ret = gw.reset()
-    assert ret == mock.sentinel.future
+@pytest.mark.asyncio
+async def test_reset_old(gw):
+    gw._loop = asyncio.get_event_loop()
+    future = asyncio.get_event_loop().create_future()
+    future.set_result(mock.sentinel.result)
+    gw._reset_future = future
+    ret = await gw.reset()
+    assert ret == mock.sentinel.result
     gw._transport.write.assert_not_called()
 
 

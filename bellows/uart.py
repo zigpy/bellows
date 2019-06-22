@@ -5,6 +5,8 @@ import logging
 import serial
 import serial_asyncio
 
+from bellows.thread import EventLoopThread, ThreadsafeProxy
+
 import bellows.types as t
 
 LOGGER = logging.getLogger(__name__)
@@ -180,13 +182,13 @@ class Gateway(asyncio.Protocol):
         LOGGER.error("Lost serial connection: %s", exc)
         self._application.connection_lost(exc)
 
-    def reset(self):
+    async def reset(self):
         """Send a reset frame and init internal state."""
         LOGGER.debug("Resetting ASH")
         if self._reset_future is not None:
             LOGGER.error(("received new reset request while an existing "
                           "one is in progress"))
-            return self._reset_future
+            return await self._reset_future
 
         self._send_seq = 0
         self._rec_seq = 0
@@ -197,10 +199,10 @@ class Gateway(asyncio.Protocol):
             self._pending[1].set_result(True)
         self._pending = (-1, None)
 
-        self._reset_future = asyncio.Future()
+        self._reset_future = asyncio.get_event_loop().create_future()
         self._reset_future.add_done_callback(self._reset_cleanup)
         self.write(self._rst_frame())
-        return asyncio.wait_for(self._reset_future, timeout=RESET_TIMEOUT)
+        return await asyncio.wait_for(self._reset_future, timeout=RESET_TIMEOUT)
 
     async def _send_task(self):
         """Send queue handler"""
@@ -212,7 +214,7 @@ class Gateway(asyncio.Protocol):
             success = False
             rxmit = 0
             while not success:
-                self._pending = (seq, asyncio.Future())
+                self._pending = (seq, asyncio.get_event_loop().create_future())
                 self.write(self._data_frame(data, seq, rxmit))
                 rxmit = 1
                 success = await self._pending[1]
@@ -305,11 +307,10 @@ class Gateway(asyncio.Protocol):
         return out
 
 
-async def connect(port, baudrate, application, loop=None):
-    if loop is None:
-        loop = asyncio.get_event_loop()
+async def _connect(port, baudrate, application):
+    loop = asyncio.get_event_loop()
 
-    connection_future = asyncio.Future()
+    connection_future = loop.create_future()
     protocol = Gateway(application, connection_future)
 
     transport, protocol = await serial_asyncio.create_serial_connection(
@@ -323,5 +324,17 @@ async def connect(port, baudrate, application, loop=None):
     )
 
     await connection_future
+    protocol = ThreadsafeProxy(protocol, loop)
+    return protocol
 
+
+async def connect(port, baudrate, application, use_thread=True):
+    if use_thread:
+        application = ThreadsafeProxy(application, asyncio.get_event_loop())
+        thread = EventLoopThread()
+        await thread.start()
+        protocol = await thread.run_coroutine_threadsafe(_connect(port, baudrate, application))
+        thread.stop_when_all_tasks_complete()
+    else:
+        protocol = await _connect(port, baudrate, application)
     return protocol
