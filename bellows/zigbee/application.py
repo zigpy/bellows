@@ -530,15 +530,19 @@ class EZSPCoordinator(CustomDevice):
             return status
 
     signature = {
-        1: {
-            'profile_id': 0x0104,
-            'device_type': 0xbeef,
-            'input_clusters': [],
-            'output_clusters': [zigpy.zcl.clusters.security.IasZone.cluster_id]
-        }
+        'endpoints': {
+            1: {
+                'profile_id': 0x0104,
+                'device_type': 0xbeef,
+                'input_clusters': [],
+                'output_clusters': [zigpy.zcl.clusters.security.IasZone.cluster_id]
+            },
+        },
     }
 
     replacement = {
+        'manufacturer': 'Silicon Labs',
+        'model': 'EZSP',
         'endpoints': {
             1: (EZSPEndpoint, {})
         }
