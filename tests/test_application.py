@@ -343,7 +343,7 @@ def _request(app, returnvals, do_reply=True, send_ack_received=True,
         return [returnvals.pop(0)]
 
     def mock_get_device(*args, **kwargs):
-        dev = Device(app, mock.sentinel.ieee, mock.sentinel.nwk)
+        dev = Device(app, mock.sentinel.ieee, 0xaa55)
         dev.node_desc = mock.MagicMock()
         dev.node_desc.is_end_device = is_an_end_dev
         return dev
