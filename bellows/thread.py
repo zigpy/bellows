@@ -15,22 +15,10 @@ class EventLoopThread:
         self.loop = None
         self.thread_complete = None
 
-    async def _stop_all_tasks_task(self):
-        while True:
-            tasks = asyncio.Task.all_tasks(self.loop)
-            tasks = [task for task in tasks if not task.done() and task != asyncio.Task.current_task()]
-            if not tasks:
-                break
-            await asyncio.gather(*tasks)
-        self.loop.stop()
-
     def run_coroutine_threadsafe(self, coroutine):
         current_loop = asyncio.get_event_loop()
         future = asyncio.run_coroutine_threadsafe(coroutine, self.loop)
         return asyncio.wrap_future(future, loop=current_loop)
-
-    def stop_when_all_tasks_complete(self):
-        asyncio.run_coroutine_threadsafe(self._stop_all_tasks_task(), self.loop)
 
     def _thread_main(self, init_task):
         self.loop = asyncio.new_event_loop()

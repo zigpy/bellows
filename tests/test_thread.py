@@ -113,28 +113,6 @@ async def test_thread_run_coroutine_threadsafe(thread):
 
 
 @pytest.mark.asyncio
-async def test_thread_stop_when_all_tasks_complete(thread):
-    thread_loop = thread.loop
-    wait_future = thread.loop.create_future()
-
-    async def wait_for_future():
-        return await wait_future
-
-    thread.run_coroutine_threadsafe(wait_for_future())
-
-    thread.stop_when_all_tasks_complete()
-
-    await yield_other_thread(thread)
-    assert thread.loop.is_running()
-
-    thread.loop.call_soon_threadsafe(wait_future.set_result, None)
-
-    await thread.thread_complete
-    assert thread.loop is None
-    assert not thread_loop.is_running()
-
-
-@pytest.mark.asyncio
 async def test_proxy_callback(thread):
     obj = mock.MagicMock()
     proxy = ThreadsafeProxy(obj, thread.loop)

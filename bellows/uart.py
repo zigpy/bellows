@@ -29,7 +29,7 @@ class Gateway(asyncio.Protocol):
     class Terminator:
         pass
 
-    def __init__(self, application, connected_future=None):
+    def __init__(self, application, connected_future=None, connection_done_future=None):
         self._send_seq = 0
         self._rec_seq = 0
         self._buffer = b''
@@ -38,6 +38,7 @@ class Gateway(asyncio.Protocol):
         self._connected_future = connected_future
         self._sendq = asyncio.Queue()
         self._pending = (-1, None)
+        self._connection_done_future = connection_done_future
 
     def connection_made(self, transport):
         """Callback when the uart is connected"""
@@ -175,6 +176,8 @@ class Gateway(asyncio.Protocol):
 
     def connection_lost(self, exc):
         """Port was closed unexpectedly."""
+        if self._connection_done_future:
+            self._connection_done_future.set_result(exc)
         if exc is None:
             LOGGER.debug("Closed serial connection")
             return
@@ -311,7 +314,8 @@ async def _connect(port, baudrate, application):
     loop = asyncio.get_event_loop()
 
     connection_future = loop.create_future()
-    protocol = Gateway(application, connection_future)
+    connection_done_future = loop.create_future()
+    protocol = Gateway(application, connection_future, connection_done_future)
 
     transport, protocol = await serial_asyncio.create_serial_connection(
         loop,
@@ -324,8 +328,9 @@ async def _connect(port, baudrate, application):
     )
 
     await connection_future
-    protocol = ThreadsafeProxy(protocol, loop)
-    return protocol
+
+    thread_safe_protocol = ThreadsafeProxy(protocol, loop)
+    return thread_safe_protocol, connection_done_future
 
 
 async def connect(port, baudrate, application, use_thread=True):
@@ -333,8 +338,8 @@ async def connect(port, baudrate, application, use_thread=True):
         application = ThreadsafeProxy(application, asyncio.get_event_loop())
         thread = EventLoopThread()
         await thread.start()
-        protocol = await thread.run_coroutine_threadsafe(_connect(port, baudrate, application))
-        thread.stop_when_all_tasks_complete()
+        protocol, connection_done = await thread.run_coroutine_threadsafe(_connect(port, baudrate, application))
+        connection_done.add_done_callback(lambda _: thread.force_stop())
     else:
-        protocol = await _connect(port, baudrate, application)
+        protocol, _ = await _connect(port, baudrate, application)
     return protocol

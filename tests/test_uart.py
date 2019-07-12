@@ -47,6 +47,11 @@ async def test_connect_threaded(monkeypatch):
         'create_serial_connection',
         mockconnect,
     )
+
+    def on_transport_close():
+        gw.connection_lost(None)
+
+    transport.close.side_effect = on_transport_close
     gw = await uart.connect(portmock, 115200, appmock)
 
     # Need to close to release thread
