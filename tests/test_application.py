@@ -326,6 +326,7 @@ def test_permit_with_key_failed_set_policy(app, ieee):
 
 def _request(app, returnvals, do_reply=True, send_ack_received=True,
              send_ack_success=True, ezsp_operational=True, is_an_end_dev=None,
+             device_not_found=False,
              **kwargs):
     async def mocksend(method, nwk, aps_frame, seq, data):
         if not ezsp_operational:
@@ -343,6 +344,8 @@ def _request(app, returnvals, do_reply=True, send_ack_received=True,
         return [returnvals.pop(0)]
 
     def mock_get_device(*args, **kwargs):
+        if device_not_found:
+            raise KeyError
         dev = Device(app, mock.sentinel.ieee, 0xaa55)
         dev.node_desc = mock.MagicMock()
         dev.node_desc.is_end_device = is_an_end_dev
@@ -440,6 +443,11 @@ def test_request_extended_timeout(app):
     assert app._ezsp.setExtendedTimeout.call_count == 1
 
     assert _request(app, [0], is_an_end_dev=None) == mock.sentinel.result
+    assert app._ezsp.setExtendedTimeout.call_count == 2
+
+    assert _request(app, [0],
+                    is_an_end_dev=True,
+                    device_not_found=True) == mock.sentinel.result
     assert app._ezsp.setExtendedTimeout.call_count == 2
 
 
