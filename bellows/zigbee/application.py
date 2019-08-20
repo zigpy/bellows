@@ -347,11 +347,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.groupId = t.uint16_t(0)
         aps_frame.sequence = t.uint8_t(sequence)
 
-        dev = self.get_device(nwk=nwk)
-        if dev.node_desc.is_end_device in (True, None):
-            LOGGER.debug("Extending timeout for %s/0x%04x", dev.ieee, nwk)
-            await self._ezsp.setExtendedTimeout(dev.ieee, True)
-            timeout = APS_REPLY_TIMEOUT_EXTENDED
+        try:
+            dev = self.get_device(nwk=nwk)
+            if expect_reply and dev.node_desc.is_end_device in (True, None):
+                LOGGER.debug("Extending timeout for %s/0x%04x", dev.ieee, nwk)
+                await self._ezsp.setExtendedTimeout(dev.ieee, True)
+                timeout = APS_REPLY_TIMEOUT_EXTENDED
+        except KeyError:
+            pass
         with self._pending.new(sequence, expect_reply) as req:
             async with self._in_flight_msg:
                 res = await self._ezsp.sendUnicast(self.direct, nwk, aps_frame,
