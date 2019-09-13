@@ -16,8 +16,6 @@ from bellows.exception import ControllerError, EzspError
 import bellows.multicast
 
 APS_ACK_TIMEOUT = 120
-APS_REPLY_TIMEOUT = 5
-APS_REPLY_TIMEOUT_EXTENDED = 28
 MAX_WATCHDOG_FAILURES = 4
 RESET_ATTEMPT_BACKOFF_TIME = 5
 WATCHDOG_WAKE_PERIOD = 10
@@ -288,18 +286,19 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._ezsp.reconnect()
         await self.startup()
 
-    async def request(self, nwk, profile, cluster, src_ep, dst_ep, sequence, data,
-                      timeout=APS_ACK_TIMEOUT):
+    async def request(self, device, profile, cluster, src_ep, dst_ep, sequence, data,
+                      expect_reply=True, use_ieee=False):
         """Submit and send data out as an unicast transmission.
 
-        :param nwk: destination network address
+        :param device: destination device
         :param profile: Zigbee Profile ID to use for outgoing message
         :param cluster: cluster id where the message is being sent
         :param src_ep: source endpoint id
         :param dst_ep: destination endpoint id
         :param sequence: transaction sequence number of the message
-        :param data: zigbee message payload
-        :param timeout: how long to wait for transmission ACK
+        :param data: Zigbee message payload
+        :param expect_reply: True if this is essentially a request
+        :param use_ieee: use EUI64 for destination addressing
         :returns: return a tuple of a status and an error_message. Original requestor
                   has more context to provide a more meaningful error message
         """
@@ -319,14 +318,20 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.sequence = t.uint8_t(sequence)
         message_tag = self.get_sequence()
 
+        if use_ieee:
+            LOGGER.warning(("EUI64 addressing is not currently supported, "
+                            "reverting to NWK"))
+        if expect_reply and device.node_desc.is_end_device in (True, None):
+            LOGGER.debug("Extending timeout for %s/0x%04x", device.ieee, device.nwk)
+            await self._ezsp.setExtendedTimeout(device.ieee, True)
         with self._pending.new(message_tag) as req:
             async with self._in_flight_msg:
-                res = await self._ezsp.sendUnicast(self.direct, nwk, aps_frame,
+                res = await self._ezsp.sendUnicast(self.direct, device.nwk, aps_frame,
                                                    message_tag, data)
                 if res[0] != t.EmberStatus.SUCCESS:
                     return res[0], "EZSP sendUnicast failure: %s" % (res[0], )
 
-                res = await asyncio.wait_for(req.result, timeout)
+                res = await asyncio.wait_for(req.result, APS_ACK_TIMEOUT)
         return res
 
     def permit_ncp(self, time_s=60):
