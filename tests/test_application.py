@@ -16,9 +16,6 @@ def app(monkeypatch):
     type(ezsp).is_ezsp_running = mock.PropertyMock(return_value=True)
     ctrl = bellows.zigbee.application.ControllerApplication(ezsp)
     monkeypatch.setattr(bellows.zigbee.application, 'APS_ACK_TIMEOUT', 0.1)
-    monkeypatch.setattr(bellows.zigbee.application, 'APS_REPLY_TIMEOUT', 0.1)
-    monkeypatch.setattr(bellows.zigbee.application,
-                        'APS_REPLY_TIMEOUT_EXTENDED', 0.1)
     ctrl._ctrl_event.set()
     ctrl._in_flight_msg = asyncio.Semaphore()
     ctrl.handle_message = mock.MagicMock()
@@ -276,7 +273,7 @@ def test_permit_with_key_failed_set_policy(app, ieee):
 
 @pytest.mark.asyncio
 async def _request(app, send_success=True, send_ack_received=True, send_ack_success=True,
-                   ezsp_operational=True, **kwargs):
+                   ezsp_operational=True, is_end_device=False, **kwargs):
     async def mocksend(method, nwk, aps_frame, seq, data):
         if not ezsp_operational:
             raise EzspError
@@ -291,7 +288,11 @@ async def _request(app, send_success=True, send_ack_received=True, send_ack_succ
         return [2]
 
     app._ezsp.sendUnicast = mocksend
-    res = await app.request(0x1234, 9, 8, 7, 6, 5, b'', **kwargs)
+    app._ezsp.setExtendedTimeout = mock.MagicMock()
+    app._ezsp.setExtendedTimeout.side_effect = asyncio.coroutine(mock.MagicMock())
+    device = mock.MagicMock()
+    device.node_desc.is_end_device = is_end_device
+    res = await app.request(device, 9, 8, 7, 6, 5, b'', **kwargs)
     assert len(app._pending) == 0
     return res
 
@@ -305,7 +306,7 @@ async def test_request(app):
 @pytest.mark.asyncio
 async def test_request_ack_timeout(app, aps):
     with pytest.raises(asyncio.TimeoutError):
-        await _request(app, send_ack_received=False, timeout=0.1)
+        await _request(app, send_ack_received=False)
 
 
 @pytest.mark.asyncio
@@ -324,7 +325,7 @@ async def test_request_ezsp_failed(app):
 @pytest.mark.asyncio
 async def test_request_reply_timeout_send_timeout(app):
     with pytest.raises(asyncio.TimeoutError):
-        await _request(app, send_ack_received=False, timeout=0.1)
+        await _request(app, send_ack_received=False)
     assert app._pending == {}
 
 
@@ -332,7 +333,30 @@ async def test_request_reply_timeout_send_timeout(app):
 async def test_request_ctrl_not_running(app):
     app._ctrl_event.clear()
     with pytest.raises(ControllerError):
-        await _request(app, timeout=0.1)
+        await _request(app)
+
+
+@pytest.mark.asyncio
+async def test_request_use_ieee(app):
+    res = await _request(app, use_ieee=True)
+    assert res[0] == 0
+
+
+@pytest.mark.asyncio
+async def test_request_extended_timeout(app):
+    res = await _request(app)
+    assert res[0] == 0
+    assert app._ezsp.setExtendedTimeout.call_count == 0
+
+    res = await _request(app, is_end_device=None)
+    assert res[0] == 0
+    assert app._ezsp.setExtendedTimeout.call_count == 1
+    assert app._ezsp.setExtendedTimeout.call_args[0][1] is True
+
+    res = await _request(app, is_end_device=True)
+    assert res[0] == 0
+    assert app._ezsp.setExtendedTimeout.call_count == 1
+    assert app._ezsp.setExtendedTimeout.call_args[0][1] is True
 
 
 @pytest.mark.asyncio
