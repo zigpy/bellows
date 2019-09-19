@@ -1,16 +1,15 @@
 import asyncio
-import binascii
 import logging
 import os
 
 from serial import SerialException
-from zigpy.exceptions import DeliveryError
 from zigpy.quirks import CustomDevice, CustomEndpoint
 from zigpy.types import BroadcastAddress
 import zigpy.application
 import zigpy.device
 import zigpy.util
 import zigpy.zdo
+import zigpy.zdo.types as zdo_t
 
 import bellows.types as t
 import bellows.zigbee.util
@@ -18,8 +17,6 @@ from bellows.exception import ControllerError, EzspError
 import bellows.multicast
 
 APS_ACK_TIMEOUT = 120
-APS_REPLY_TIMEOUT = 5
-APS_REPLY_TIMEOUT_EXTENDED = 28
 MAX_WATCHDOG_FAILURES = 4
 RESET_ATTEMPT_BACKOFF_TIME = 5
 WATCHDOG_WAKE_PERIOD = 10
@@ -35,7 +32,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._ctrl_event = asyncio.Event()
         self._ezsp = ezsp
         self._multicast = bellows.multicast.Multicast(ezsp)
-        self._pending = Requests()
+        self._pending = zigpy.util.Requests()
         self._watchdog_task = None
         self._reset_task = None
         self._in_flight_msg = None
@@ -229,6 +226,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._handle_reset_request(*args)
 
     def _handle_frame(self, message_type, aps_frame, lqi, rssi, sender, binding_index, address_index, message):
+        if aps_frame.clusterId == zdo_t.ZDOCmd.Device_annce and \
+                aps_frame.destinationEnpoint == 0:
+            nwk, rest = t.uint16_t.deserialize(message[1:])
+            ieee, _ = t.EmberEUI64.deserialize(rest)
+            LOGGER.info("ZDO Device announce: 0x%04x, %s", nwk, ieee)
+            self.handle_join(nwk, ieee, 0)
         try:
             device = self.get_device(nwk=sender)
         except KeyError:
@@ -236,66 +239,27 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             return
 
         device.radio_details(lqi, rssi)
-        try:
-            tsn, command_id, is_reply, args = self.deserialize(device, aps_frame.sourceEndpoint, aps_frame.clusterId, message)
-        except ValueError as e:
-            LOGGER.error("Failed to parse message (%s) on cluster %d, because %s", binascii.hexlify(message), aps_frame.clusterId, e)
-            return
-
-        if is_reply:
-            self._handle_reply(device, aps_frame, tsn, command_id, args)
-        else:
-            self.handle_message(device, False, aps_frame.profileId, aps_frame.clusterId, aps_frame.sourceEndpoint, aps_frame.destinationEndpoint, tsn, command_id, args)
-
-    @staticmethod
-    def _dst_pp(addr, aps):
-        """Return format string and args."""
-        ep, cluster = aps.destinationEndpoint, aps.clusterId
-        return '[0x%04x:%s:0x%04x]: ', (addr, ep, cluster)
-
-    def _handle_reply(self, sender, aps_frame, tsn, command_id, args):
-        try:
-            request = self._pending[tsn]
-            if request.reply:
-                request.reply.set_result(args)
-            return
-        except KeyError:
-            hdr, hdr_args = self._dst_pp(sender.nwk, aps_frame)
-            LOGGER.debug(hdr + "Unexpected response TSN=%s command=%s args=%s",
-                         *(hdr_args + (tsn, command_id, args)))
-        except asyncio.futures.InvalidStateError as exc:
-            hdr, hdr_args = self._dst_pp(sender.nwk, aps_frame)
-            LOGGER.debug(hdr + "Invalid state on future - probably duplicate response: %s",
-                         *(hdr_args + (exc, )))
-            # We've already handled, don't drop through to device handler
-            return
-
-        self.handle_message(sender, True, aps_frame.profileId, aps_frame.clusterId, aps_frame.sourceEndpoint, aps_frame.destinationEndpoint, tsn, command_id, args)
+        self.handle_message(device, aps_frame.profileId, aps_frame.clusterId, aps_frame.sourceEndpoint, aps_frame.destinationEndpoint, message)
 
     def _handle_frame_failure(self, message_type, destination, aps_frame, message_tag, status, message):
-        hdr, hdr_args = self._dst_pp(destination, aps_frame)
         try:
             request = self._pending[message_tag]
-            msg = hdr + "message send failure: %s"
-            msg_args = (hdr_args + (status, ))
-            request.send.set_exception(DeliveryError(msg % msg_args))
+            request.result.set_result((status, 'message send failure'))
         except KeyError:
-            LOGGER.debug(hdr + "Unexpected message send failure", *hdr_args)
+            LOGGER.debug("Unexpected message send failure for message tag %s", message_tag)
         except asyncio.futures.InvalidStateError as exc:
-            LOGGER.debug(hdr + "Invalid state on future - probably duplicate response: %s",
-                         *(hdr_args + (exc, )))
+            LOGGER.debug("Invalid state on future for message tag %s - probably duplicate response: %s",
+                         message_tag, exc)
 
     def _handle_frame_sent(self, message_type, destination, aps_frame, message_tag, status, message):
         try:
             request = self._pending[message_tag]
-            request.send.set_result(True)
+            request.result.set_result((t.EmberStatus.SUCCESS, "message sent successfully"))
         except KeyError:
-            hdr, hdr_args = self._dst_pp(destination, aps_frame)
-            LOGGER.debug(hdr + "Unexpected message send notification", *hdr_args)
+            LOGGER.debug("Unexpected message send notification tag: %s", message_tag)
         except asyncio.futures.InvalidStateError as exc:
-            hdr, hdr_args = self._dst_pp(destination, aps_frame)
-            LOGGER.debug(hdr + "Invalid state on future - probably duplicate response: %s",
-                         *(hdr_args + (exc, )))
+            LOGGER.debug("Invalid state on future for message tag %s - probably duplicate response: %s",
+                         message_tag, exc)
 
     def _handle_reset_request(self, error):
         """Reinitialize application controller."""
@@ -329,9 +293,22 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._ezsp.reconnect()
         await self.startup()
 
-    @zigpy.util.retryable_request
-    async def request(self, nwk, profile, cluster, src_ep, dst_ep, sequence, data, expect_reply=True,
-                      timeout=APS_REPLY_TIMEOUT):
+    async def request(self, device, profile, cluster, src_ep, dst_ep, sequence, data,
+                      expect_reply=True, use_ieee=False):
+        """Submit and send data out as an unicast transmission.
+
+        :param device: destination device
+        :param profile: Zigbee Profile ID to use for outgoing message
+        :param cluster: cluster id where the message is being sent
+        :param src_ep: source endpoint id
+        :param dst_ep: destination endpoint id
+        :param sequence: transaction sequence number of the message
+        :param data: Zigbee message payload
+        :param expect_reply: True if this is essentially a request
+        :param use_ieee: use EUI64 for destination addressing
+        :returns: return a tuple of a status and an error_message. Original requestor
+                  has more context to provide a more meaningful error message
+        """
         if not self.is_controller_running:
             raise ControllerError("ApplicationController is not running")
 
@@ -346,29 +323,22 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         )
         aps_frame.groupId = t.uint16_t(0)
         aps_frame.sequence = t.uint8_t(sequence)
+        message_tag = self.get_sequence()
 
-        try:
-            dev = self.get_device(nwk=nwk)
-            if expect_reply and dev.node_desc.is_end_device in (True, None):
-                LOGGER.debug("Extending timeout for %s/0x%04x", dev.ieee, nwk)
-                await self._ezsp.setExtendedTimeout(dev.ieee, True)
-                timeout = APS_REPLY_TIMEOUT_EXTENDED
-        except KeyError:
-            pass
-        with self._pending.new(sequence, expect_reply) as req:
+        if use_ieee:
+            LOGGER.warning(("EUI64 addressing is not currently supported, "
+                            "reverting to NWK"))
+        if expect_reply and device.node_desc.is_end_device in (True, None):
+            LOGGER.debug("Extending timeout for %s/0x%04x", device.ieee, device.nwk)
+            await self._ezsp.setExtendedTimeout(device.ieee, True)
+        with self._pending.new(message_tag) as req:
             async with self._in_flight_msg:
-                res = await self._ezsp.sendUnicast(self.direct, nwk, aps_frame,
-                                                   sequence, data)
+                res = await self._ezsp.sendUnicast(self.direct, device.nwk, aps_frame,
+                                                   message_tag, data)
                 if res[0] != t.EmberStatus.SUCCESS:
-                    hdr, hdr_args = self._dst_pp(nwk, aps_frame)
-                    msg = hdr + "message send failure: %s"
-                    msg_args = (hdr_args + (res[0], ))
-                    raise DeliveryError(msg % msg_args)
+                    return res[0], "EZSP sendUnicast failure: %s" % (res[0], )
 
-                res = await asyncio.wait_for(req.send, timeout=APS_ACK_TIMEOUT)
-
-            if expect_reply:
-                res = await asyncio.wait_for(req.reply, timeout)
+                res = await asyncio.wait_for(req.result, APS_ACK_TIMEOUT)
         return res
 
     def permit_ncp(self, time_s=60):
@@ -399,6 +369,21 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def broadcast(self, profile, cluster, src_ep, dst_ep, grpid, radius,
                         sequence, data,
                         broadcast_address=BroadcastAddress.RX_ON_WHEN_IDLE):
+        """Submit and send data out as an unicast transmission.
+
+        :param profile: Zigbee Profile ID to use for outgoing message
+        :param cluster: cluster id where the message is being sent
+        :param src_ep: source endpoint id
+        :param dst_ep: destination endpoint id
+        :param: grpid: group id to address the broadcast to
+        :param radius: max radius of the broadcast
+        :param sequence: transaction sequence number of the message
+        :param data: zigbee message payload
+        :param timeout: how long to wait for transmission ACK
+        :param broadcast_address: broadcast address.
+        :returns: return a tuple of a status and an error_message. Original requestor
+                  has more context to provide a more meaningful error message
+        """
         if not self.is_controller_running:
             raise ControllerError("ApplicationController is not running")
 
@@ -412,20 +397,18 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         )
         aps_frame.groupId = t.uint16_t(grpid)
         aps_frame.sequence = t.uint8_t(sequence)
+        message_tag = self.get_sequence()
 
-        with self._pending.new(sequence) as req:
+        with self._pending.new(message_tag) as req:
             async with self._in_flight_msg:
                 res = await self._ezsp.sendBroadcast(broadcast_address,
                                                      aps_frame, radius,
-                                                     sequence, data)
+                                                     message_tag, data)
                 if res[0] != t.EmberStatus.SUCCESS:
-                    hdr, hdr_args = self._dst_pp(broadcast_address, aps_frame)
-                    msg = hdr + "Broadcast failure: %s"
-                    msg_args = (hdr_args + (res[0], ))
-                    raise DeliveryError(msg % msg_args)
+                    return res[0], "broadcast send failure"
 
                 # Wait for messageSentHandler message
-                res = await asyncio.wait_for(req.send,
+                res = await asyncio.wait_for(req.result,
                                              timeout=APS_ACK_TIMEOUT)
         return res
 
@@ -449,55 +432,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         self._handle_reset_request(
             "Watchdog timeout. Heartbeat timeouts: {}".format(failures))
-
-
-class Requests(dict):
-    def new(self, sequence, expect_reply=False):
-        """Wrap new request into a context manager."""
-        return Request(self, sequence, expect_reply)
-
-
-class Request:
-    """Context manager."""
-
-    def __init__(self, pending, sequence, expect_reply=False):
-        """Init context manager for sendUnicast/sendBroadcast."""
-        assert sequence not in pending
-        self._pending = pending
-        self._reply_fut = None
-        if expect_reply:
-            self._reply_fut = asyncio.Future()
-        self._send_fut = asyncio.Future()
-        self._sequence = sequence
-
-    @property
-    def reply(self):
-        """Reply Future."""
-        return self._reply_fut
-
-    @property
-    def sequence(self):
-        """Send Future."""
-        return self._sequence
-
-    @property
-    def send(self):
-        return self._send_fut
-
-    def __enter__(self):
-        """Return context manager."""
-        self._pending[self.sequence] = self
-        return self
-
-    def __exit__(self, exc_type, exc_value, exc_traceback):
-        """Clean up pending on exit."""
-        if not self.send.done():
-            self.send.cancel()
-        if self.reply and not self.reply.done():
-            self.reply.cancel()
-        self._pending.pop(self.sequence)
-
-        return not exc_type
 
 
 class EZSPCoordinator(CustomDevice):
