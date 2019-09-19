@@ -107,10 +107,10 @@ def test_form_network(app):
     loop.run_until_complete(app.form_network())
 
 
-def _frame_handler(app, aps, ieee, endpoint, cluster=0, data=b'\x01\x00\x00'):
+def _frame_handler(app, aps, ieee, src_ep, cluster=0, data=b'\x01\x00\x00'):
     if ieee not in app.devices:
         app.add_device(ieee, 3)
-    aps.sourceEndpoint = endpoint
+    aps.sourceEndpoint = src_ep
     aps.clusterId = cluster
     app.ezsp_callback_handler(
         'incomingMessageHandler',
@@ -119,15 +119,33 @@ def _frame_handler(app, aps, ieee, endpoint, cluster=0, data=b'\x01\x00\x00'):
 
 
 def test_frame_handler_unknown_device(app, aps, ieee):
+    app.handle_join = mock.MagicMock()
     app.add_device(ieee, 99)
     _frame_handler(app, aps, ieee, 0)
     assert app.handle_message.call_count == 0
+    assert app.handle_join.call_count == 0
 
 
 def test_frame_handler(app, aps, ieee):
-    _frame_handler(app, aps, ieee, 0, data=mock.sentinel.data)
+    app.handle_join = mock.MagicMock()
+    data = b'\x18\x19\x22\xaa\x55'
+    _frame_handler(app, aps, ieee, 0, data=data)
     assert app.handle_message.call_count == 1
-    assert app.handle_message.call_args[0][5] is mock.sentinel.data
+    assert app.handle_message.call_args[0][5] is data
+    assert app.handle_join.call_count == 0
+
+
+def test_frame_handler_zdo_annce(app, aps, ieee):
+    aps.destinationEndpoint = 0
+    app.handle_join = mock.MagicMock()
+    nwk = t.uint16_t(0xaa55)
+    data = b'\x18' + nwk.serialize() + ieee.serialize()
+    _frame_handler(app, aps, ieee, 0, cluster=0x0013, data=data)
+    assert app.handle_message.call_count == 1
+    assert app.handle_message.call_args[0][5] is data
+    assert app.handle_join.call_count == 1
+    assert app.handle_join.call_args[0][0] == nwk
+    assert app.handle_join.call_args[0][1] == ieee
 
 
 def test_send_failure(app, aps, ieee):

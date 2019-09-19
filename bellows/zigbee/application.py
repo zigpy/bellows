@@ -227,7 +227,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def _handle_frame(self, message_type, aps_frame, lqi, rssi, sender, binding_index, address_index, message):
         if aps_frame.clusterId == zdo_t.ZDOCmd.Device_annce and \
-                aps_frame.destinationEnpoint == 0:
+                aps_frame.destinationEndpoint == 0:
             nwk, rest = t.uint16_t.deserialize(message[1:])
             ieee, _ = t.EmberEUI64.deserialize(rest)
             LOGGER.info("ZDO Device announce: 0x%04x, %s", nwk, ieee)
