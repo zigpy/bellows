@@ -9,6 +9,7 @@ import zigpy.application
 import zigpy.device
 import zigpy.util
 import zigpy.zdo
+import zigpy.zdo.types as zdo_t
 
 import bellows.types as t
 import bellows.zigbee.util
@@ -225,6 +226,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._handle_reset_request(*args)
 
     def _handle_frame(self, message_type, aps_frame, lqi, rssi, sender, binding_index, address_index, message):
+        if aps_frame.clusterId == zdo_t.ZDOCmd.Device_annce and \
+                aps_frame.destinationEnpoint == 0:
+            nwk, rest = t.uint16_t.deserialize(message[1:])
+            ieee, _ = t.EmberEUI64.deserialize(rest)
+            LOGGER.info("ZDO Device announce: 0x%04x, %s", nwk, ieee)
+            self.handle_join(nwk, ieee, 0)
         try:
             device = self.get_device(nwk=sender)
         except KeyError:
