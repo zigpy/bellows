@@ -17,6 +17,8 @@ from bellows.exception import ControllerError, EzspError
 import bellows.multicast
 
 APS_ACK_TIMEOUT = 120
+EZSP_DEFAULT_RADIUS = 0
+EZSP_MULTICAST_NON_MEMBER_RADIUS = 3
 MAX_WATCHDOG_FAILURES = 4
 RESET_ATTEMPT_BACKOFF_TIME = 5
 WATCHDOG_WAKE_PERIOD = 10
@@ -296,6 +298,49 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await asyncio.sleep(0.5)
         await self._ezsp.reconnect()
         await self.startup()
+
+    async def mrequest(self, group_id, profile, cluster, src_ep, sequence, data,
+                       *, hops=EZSP_DEFAULT_RADIUS, non_member_radius=EZSP_MULTICAST_NON_MEMBER_RADIUS):
+        """Submit and send data out as a multicast transmission.
+
+        :param group_id: destination multicast address
+        :param profile: Zigbee Profile ID to use for outgoing message
+        :param cluster: cluster id where the message is being sent
+        :param src_ep: source endpoint id
+        :param sequence: transaction sequence number of the message
+        :param data: Zigbee message payload
+        :param hops: the message will be delivered to all nodes within this number of hops
+                     of the sender. A value of zero is converted to MAX_HOPS
+        :param non_member_radius: the number of hops that the message will be forwarded
+                                  by devices that are not members of the group. A value
+                                  of 7 or greater is treated as infinite
+        :returns: return a tuple of a status and an error_message. Original requestor
+                  has more context to provide a more meaningful error message
+        """
+        if not self.is_controller_running:
+            raise ControllerError("ApplicationController is not running")
+
+        aps_frame = t.EmberApsFrame()
+        aps_frame.profileId = t.uint16_t(profile)
+        aps_frame.clusterId = t.uint16_t(cluster)
+        aps_frame.sourceEndpoint = t.uint8_t(src_ep)
+        aps_frame.destinationEndpoint = t.uint8_t(src_ep)
+        aps_frame.options = t.EmberApsOption(
+            t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+        )
+        aps_frame.groupId = t.uint16_t(group_id)
+        aps_frame.sequence = t.uint8_t(sequence)
+        message_tag = self.get_sequence()
+
+        with self._pending.new(message_tag) as req:
+            async with self._in_flight_msg:
+                res = await self._ezsp.sendMulticast(aps_frame, hops, non_member_radius,
+                                                     message_tag, data)
+                if res[0] != t.EmberStatus.SUCCESS:
+                    return res[0], "EZSP sendMulticast failure: %s" % (res[0], )
+
+                res = await asyncio.wait_for(req.result, APS_ACK_TIMEOUT)
+        return res
 
     async def request(self, device, profile, cluster, src_ep, dst_ep, sequence, data,
                       expect_reply=True, use_ieee=False):
