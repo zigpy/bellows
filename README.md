@@ -19,17 +19,16 @@ This project is in early stages, so it is likely that APIs will change.
 
 Currently implemented features are:
 
- * EZSP UART Gateway Protocol
- * EZSP application protocol
- * CLI wrapping basic ZigBee network operations (eg, scanning and forming a
-   network)
- * ZDO functionality (with CLI)
- * ZCL functionality (with CLI)
- * An application framework with device state persistence
+* EZSP UART Gateway Protocol
+* EZSP application protocol
+* CLI wrapping basic ZigBee network operations (eg, scanning and forming a network)
+* ZDO functionality (with CLI)
+* ZCL functionality (with CLI)
+* An application framework with device state persistence
 
 An example use of the CLI:
 
-```
+```bash
 $ export EZSP_DEVICE=/dev/ttyUSB1
 $ bellows devices
 Device:
@@ -52,7 +51,5 @@ $ bellows zcl 00:0d:6f:00:05:7d:2d:34 1 1026 read_attribute 0
 
 ## Reference documentation
 
- * EZSP UART Gateway Protocol Reference:
-   https://www.silabs.com/Support%20Documents/TechnicalDocs/UG101.pdf
- * EZSP Reference Guide:
-   http://www.silabs.com/Support%20Documents/TechnicalDocs/UG100-EZSPReferenceGuide.pdf
+* [EZSP UART Gateway Protocol Reference](https://www.silabs.com/Support%20Documents/TechnicalDocs/UG101.pdf)
+* [EZSP Reference Guide](http://www.silabs.com/Support%20Documents/TechnicalDocs/UG100-EZSPReferenceGuide.pdf)
