@@ -68,6 +68,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
         )
         await self._cfg(c.CONFIG_APPLICATION_ZDO_FLAGS, zdo)
+        await self._cfg(c.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD, 2)
         await self._cfg(c.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2)
         await self._cfg(c.CONFIG_ADDRESS_TABLE_SIZE, 16)
         await self._cfg(c.CONFIG_SOURCE_ROUTE_TABLE_SIZE, 8)
