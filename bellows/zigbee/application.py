@@ -76,8 +76,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._cfg(c.CONFIG_INDIRECT_TRANSMISSION_TIMEOUT, 7680)
         await self._cfg(c.CONFIG_KEY_TABLE_SIZE, 1)
         await self._cfg(c.CONFIG_TRANSIENT_KEY_TIMEOUT_S, 180, True)
-        await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT, 60)
-        await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8)
+        if self._ezsp.ezsp_version >= 7:
+            await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT, 8)
+        else:
+            await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT, 60)
+            await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8)
         await self._cfg(c.CONFIG_MULTICAST_TABLE_SIZE,
                         self.multicast.TABLE_SIZE)
         await self._cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xff)
