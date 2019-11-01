@@ -15,7 +15,7 @@ LOGGER = logging.getLogger(__name__)
 class EZSP:
 
     COMMANDS = COMMANDS
-    ezsp_version = 4
+    EZSP_VERSION = 4
 
     def __init__(self):
         self._awaiting = {}
@@ -25,6 +25,7 @@ class EZSP:
         self._ezsp_event = asyncio.Event()
         self._seq = 0
         self._gw = None
+        self._ezsp_version = self.EZSP_VERSION
         self._awaiting = {}
         self.COMMANDS_BY_ID = {}
         for name, details in self.COMMANDS.items():
@@ -56,11 +57,12 @@ class EZSP:
         self.start_ezsp()
 
     async def version(self):
-        version = self.ezsp_version
-        result = await self._command('version', version)
-        if result[0] != version:
-            LOGGER.debug("Switching to eszp version %d", result[0])
-            await self._command('version', result[0])
+        ver, stack_type, stack_version = await self._command('version', self.ezsp_version)
+        if ver != self.version:
+            self._ezsp_version = ver
+            await self._command('version', ver)
+            LOGGER.debug("Switched to EZSP protocol version %d", self.ezsp_version)
+        LOGGER.info("EZSP Stack Type: %s, Stack Version: %s", stack_type, stack_version)
 
     def close(self):
         self.stop_ezsp()
@@ -224,9 +226,6 @@ class EZSP:
             result, data = t.deserialize(data, schema)
             self.handle_callback(frame_name, result)
 
-        if frame_id == 0x00:
-            self.ezsp_version = result[0]
-
     def add_callback(self, cb):
         id_ = hash(cb)
         while id_ in self._callbacks:
@@ -256,3 +255,8 @@ class EZSP:
     def is_ezsp_running(self):
         """Return True if EZSP is running."""
         return self._ezsp_event.is_set()
+
+    @property
+    def ezsp_version(self):
+        """Return protocol version."""
+        return self._ezsp_version

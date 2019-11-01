@@ -177,6 +177,12 @@ def test_receive_new(ezsp_f):
     assert ezsp_f.handle_callback.call_count == 1
 
 
+def test_receive_protocol_5(ezsp_f):
+    ezsp_f.handle_callback = mock.MagicMock()
+    ezsp_f.frame_received(b'\x01\x80\xff\x00\x00\x06\x02\x00')
+    assert ezsp_f.handle_callback.call_count == 1
+
+
 def test_receive_reply(ezsp_f):
     ezsp_f.handle_callback = mock.MagicMock()
     callback_mock = mock.MagicMock(spec_set=asyncio.Future)
@@ -246,29 +252,20 @@ def test_callback_exc(ezsp_f):
     assert testcb.call_count == 1
 
 
-def test_version_5(ezsp_f):
-    ezsp_f._gw = mock.MagicMock()
-    ezsp_f.start_ezsp()
-
-    ezsp_f.frame_received(b'\x00\x00\xff\x00\x00\x05\x05\x06')
-    assert ezsp_f.ezsp_version == 5
-
-    ezsp_f.getValue(1)
-    ezsp_f._gw.data.assert_called_once_with(bytes([0x00, 0x00, 0xFF, 0x00, 0xAA, 0x01]))
-
-
 def test_change_version(ezsp_f):
     loop = asyncio.get_event_loop()
+    version = 5
 
     def mockcommand(name, *args):
         assert name == 'version'
         ezsp_f.frame_received(b'\x01\x00\x1b')
         fut = asyncio.Future()
-        fut.set_result([5])
+        fut.set_result([version, 2, 2046])
         return fut
 
     ezsp_f._command = mockcommand
     loop.run_until_complete(ezsp_f.version())
+    assert ezsp_f.ezsp_version == version
 
 
 def test_stop_ezsp(ezsp_f):
@@ -297,3 +294,13 @@ def test_enter_failed_state(ezsp_f):
     assert ezsp_f.stop_ezsp.call_count == 1
     assert ezsp_f.handle_callback.call_count == 1
     assert ezsp_f.handle_callback.call_args[0][1][0] == mock.sentinel.error
+
+
+def test_ezsp_frame(ezsp_f):
+    ezsp_f._seq = 0x22
+    data = ezsp_f._ezsp_frame('version', 6)
+    assert data == b'\x22\x00\x00\x06'
+
+    ezsp_f._ezsp_version = 5
+    data = ezsp_f._ezsp_frame('version', 6)
+    assert data == b'\x22\x00\xff\x00\x00\x06'
