@@ -45,7 +45,7 @@ def get_mock_coro(return_value):
     return mock.Mock(wraps=mock_coro)
 
 
-def _test_startup(app, nwk_type, ieee, auto_form=False, init=0):
+def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4):
     async def mockezsp(*args, **kwargs):
         return [0, nwk_type]
 
@@ -53,6 +53,7 @@ def _test_startup(app, nwk_type, ieee, auto_form=False, init=0):
         return [init]
 
     app._in_flight_msg = None
+    type(app._ezsp).ezsp_version = mock.PropertyMock(return_value=ezsp_version)
     app._ezsp._command = mockezsp
     app._ezsp.addEndpoint = mockezsp
     app._ezsp.setConfigurationValue = mockezsp
@@ -76,6 +77,10 @@ def _test_startup(app, nwk_type, ieee, auto_form=False, init=0):
 
 def test_startup(app, ieee):
     return _test_startup(app, t.EmberNodeType.COORDINATOR, ieee)
+
+
+def test_startup_ezsp_ver7(app, ieee):
+    return _test_startup(app, t.EmberNodeType.COORDINATOR, ieee, ezsp_version=7)
 
 
 def test_startup_no_status(app, ieee):
