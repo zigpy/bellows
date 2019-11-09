@@ -19,14 +19,10 @@ async def test_connect(monkeypatch):
         loop.call_soon(protocol.connection_made, transport)
         return None, protocol
 
-    monkeypatch.setattr(
-        serial_asyncio,
-        'create_serial_connection',
-        mockconnect,
-    )
+    monkeypatch.setattr(serial_asyncio, "create_serial_connection", mockconnect)
     await uart.connect(portmock, 115200, appmock, use_thread=False)
 
-    threads = [t for t in threading.enumerate() if 'bellows' in t.name]
+    threads = [t for t in threading.enumerate() if "bellows" in t.name]
     assert len(threads) == 0
 
 
@@ -42,11 +38,7 @@ async def test_connect_threaded(monkeypatch):
         loop.call_soon(protocol.connection_made, transport)
         return None, protocol
 
-    monkeypatch.setattr(
-        serial_asyncio,
-        'create_serial_connection',
-        mockconnect,
-    )
+    monkeypatch.setattr(serial_asyncio, "create_serial_connection", mockconnect)
 
     def on_transport_close():
         gw.connection_lost(None)
@@ -58,8 +50,8 @@ async def test_connect_threaded(monkeypatch):
     gw.close()
 
     # Ensure all threads are cleaned up
-    [t.join(1) for t in threading.enumerate() if 'bellows' in t.name]
-    threads = [t for t in threading.enumerate() if 'bellows' in t.name]
+    [t.join(1) for t in threading.enumerate() if "bellows" in t.name]
+    threads = [t for t in threading.enumerate() if "bellows" in t.name]
     assert len(threads) == 0
 
 
@@ -71,79 +63,85 @@ def gw():
 
 
 def test_randomize(gw):
-    assert gw._randomize(b'\x00\x00\x00\x00\x00') == b'\x42\x21\xa8\x54\x2a'
-    assert gw._randomize(b'\x42\x21\xa8\x54\x2a') == b'\x00\x00\x00\x00\x00'
+    assert gw._randomize(b"\x00\x00\x00\x00\x00") == b"\x42\x21\xa8\x54\x2a"
+    assert gw._randomize(b"\x42\x21\xa8\x54\x2a") == b"\x00\x00\x00\x00\x00"
 
 
 def test_stuff(gw):
-    orig = b'\x00\x7E\x01\x7D\x02\x11\x03\x13\x04\x18\x05\x1a\x06'
-    stuff = b'\x00\x7D\x5E\x01\x7D\x5D\x02\x7D\x31\x03\x7D\x33\x04\x7D\x38\x05\x7D\x3a\x06'
+    orig = b"\x00\x7E\x01\x7D\x02\x11\x03\x13\x04\x18\x05\x1a\x06"
+    stuff = (
+        b"\x00\x7D\x5E\x01\x7D\x5D\x02\x7D\x31\x03\x7D\x33\x04\x7D\x38\x05\x7D\x3a\x06"
+    )
     assert gw._stuff(orig) == stuff
 
 
 def test_unstuff(gw):
-    orig = b'\x00\x7E\x01\x7D\x02\x11\x03\x13\x04\x18\x05\x1a\x06'
-    stuff = b'\x00\x7D\x5E\x01\x7D\x5D\x02\x7D\x31\x03\x7D\x33\x04\x7D\x38\x05\x7D\x3a\x06'
+    orig = b"\x00\x7E\x01\x7D\x02\x11\x03\x13\x04\x18\x05\x1a\x06"
+    stuff = (
+        b"\x00\x7D\x5E\x01\x7D\x5D\x02\x7D\x31\x03\x7D\x33\x04\x7D\x38\x05\x7D\x3a\x06"
+    )
     assert gw._unstuff(stuff) == orig
 
 
 def test_rst(gw):
-    assert gw._rst_frame() == b'\x1a\xc0\x38\xbc\x7e'
+    assert gw._rst_frame() == b"\x1a\xc0\x38\xbc\x7e"
 
 
 def test_data_frame(gw):
-    expected = b'\x42\x21\xa8\x54\x2a'
-    assert gw._data_frame(b'\x00\x00\x00\x00\x00', 0, False)[1:-3] == expected
+    expected = b"\x42\x21\xa8\x54\x2a"
+    assert gw._data_frame(b"\x00\x00\x00\x00\x00", 0, False)[1:-3] == expected
 
 
 def test_cancel_received(gw):
     gw.rst_frame_received = mock.MagicMock()
-    gw.data_received(b'garbage')
-    gw.data_received(b'\x1a\xc0\x38\xbc\x7e')
+    gw.data_received(b"garbage")
+    gw.data_received(b"\x1a\xc0\x38\xbc\x7e")
     assert gw.rst_frame_received.call_count == 1
-    assert gw._buffer == b''
+    assert gw._buffer == b""
 
 
 def test_substitute_received(gw):
     gw.rst_frame_received = mock.MagicMock()
-    gw.data_received(b'garbage')
-    gw.data_received(b'\x18\x38\xbc\x7epart')
-    gw.data_received(b'ial')
+    gw.data_received(b"garbage")
+    gw.data_received(b"\x18\x38\xbc\x7epart")
+    gw.data_received(b"ial")
     gw.rst_frame_received.assert_not_called()
-    assert gw._buffer == b'partial'
+    assert gw._buffer == b"partial"
 
 
 def test_partial_data_received(gw):
     gw.write = mock.MagicMock()
-    gw.data_received(b'\x54\x79\xa1\xb0')
-    gw.data_received(b'\x50\xf2\x6e\x7e')
+    gw.data_received(b"\x54\x79\xa1\xb0")
+    gw.data_received(b"\x50\xf2\x6e\x7e")
     assert gw.write.call_count == 1
     assert gw._application.frame_received.call_count == 1
 
 
 def test_crc_error(gw):
     gw.write = mock.MagicMock()
-    gw.data_received(b'L\xa1\x8e\x03\xcd\x07\xb9Y\xfbG%\xae\xbd~')
+    gw.data_received(b"L\xa1\x8e\x03\xcd\x07\xb9Y\xfbG%\xae\xbd~")
     assert gw.write.call_count == 1
     assert gw._application.frame_received.call_count == 0
 
 
 def test_crc_error_and_valid_frame(gw):
     gw.write = mock.MagicMock()
-    gw.data_received(b'L\xa1\x8e\x03\xcd\x07\xb9Y\xfbG%\xae\xbd~\x54\x79\xa1\xb0\x50\xf2\x6e\x7e')
+    gw.data_received(
+        b"L\xa1\x8e\x03\xcd\x07\xb9Y\xfbG%\xae\xbd~\x54\x79\xa1\xb0\x50\xf2\x6e\x7e"
+    )
     assert gw.write.call_count == 2
     assert gw._application.frame_received.call_count == 1
 
 
 def test_data_frame_received(gw):
     gw.write = mock.MagicMock()
-    gw.data_received(b'\x54\x79\xa1\xb0\x50\xf2\x6e\x7e')
+    gw.data_received(b"\x54\x79\xa1\xb0\x50\xf2\x6e\x7e")
     assert gw.write.call_count == 1
     assert gw._application.frame_received.call_count == 1
 
 
 def test_ack_frame_received(gw):
-    gw.data_received(b'\x86\x10\xbe\x7e')
+    gw.data_received(b"\x86\x10\xbe\x7e")
 
 
 def test_nak_frame_received(gw):
@@ -151,44 +149,45 @@ def test_nak_frame_received(gw):
 
 
 def test_rst_frame_received(gw):
-    gw.data_received(b'garbage\x1a\xc0\x38\xbc\x7e')
+    gw.data_received(b"garbage\x1a\xc0\x38\xbc\x7e")
 
 
 def test_rstack_frame_received(gw):
     gw._reset_future = mock.MagicMock()
     gw._reset_future.done = mock.MagicMock(return_value=False)
-    gw.data_received(b'\xc1\x02\x0b\nR\x7e')
+    gw.data_received(b"\xc1\x02\x0b\nR\x7e")
     assert gw._reset_future.done.call_count == 1
     assert gw._reset_future.set_result.call_count == 1
 
 
 def test_wrong_rstack_frame_received(gw):
     gw._reset_future = mock.MagicMock()
-    gw.data_received(b'\xc1\x02\x01\xab\x18\x7e')
+    gw.data_received(b"\xc1\x02\x01\xab\x18\x7e")
     assert gw._reset_future.set_result.call_count == 0
 
 
 def test_error_rstack_frame_received(gw):
     gw._reset_future = mock.MagicMock()
-    gw.data_received(b'\xc1\x02\x81\x3a\x90\x7e')
+    gw.data_received(b"\xc1\x02\x81\x3a\x90\x7e")
     assert gw._reset_future.set_result.call_count == 0
 
 
 def test_rstack_frame_received_nofut(gw):
-    gw.data_received(b'\xc1\x02\x0b\nR\x7e')
+    gw.data_received(b"\xc1\x02\x0b\nR\x7e")
 
 
 def test_rstack_frame_received_out_of_order(gw):
     gw._reset_future = mock.MagicMock()
     gw._reset_future.done = mock.MagicMock(return_value=True)
-    gw.data_received(b'\xc1\x02\x0b\nR\x7e')
+    gw.data_received(b"\xc1\x02\x0b\nR\x7e")
     assert gw._reset_future.done.call_count == 1
     assert gw._reset_future.set_result.call_count == 0
 
 
 def test_error_frame_received(gw):
     from bellows.types import NcpResetCode
-    gw.frame_received(b'\xc2\x02\x03\xd2\x0a\x7e')
+
+    gw.frame_received(b"\xc2\x02\x03\xd2\x0a\x7e")
     efs = gw._application.enter_failed_state
     assert efs.call_count == 1
     assert efs.call_args[0][0] == NcpResetCode.RESET_WATCHDOG
@@ -210,7 +209,8 @@ async def test_reset(gw):
     fut = asyncio.Future()
     gw._pending = (mock.sentinel.seq, fut)
     gw._transport.write.side_effect = lambda *args: gw._reset_future.set_result(
-        mock.sentinel.reset_result)
+        mock.sentinel.reset_result
+    )
     reset_result = await gw.reset()
 
     assert gw._transport.write.call_count == 1
@@ -227,7 +227,7 @@ async def test_reset(gw):
 @pytest.mark.asyncio
 async def test_reset_timeout(gw, monkeypatch):
     gw._loop = asyncio.get_event_loop()
-    monkeypatch.setattr(uart, 'RESET_TIMEOUT', 0.1)
+    monkeypatch.setattr(uart, "RESET_TIMEOUT", 0.1)
     with pytest.raises(asyncio.TimeoutError):
         await gw.reset()
 
@@ -248,7 +248,7 @@ def test_data(gw):
 
     def mockwrite(data):
         nonlocal loop, write_call_count
-        if data == b'\x10 @\xda}^Z~':
+        if data == b"\x10 @\xda}^Z~":
             print(write_call_count)
             loop.call_soon(gw._handle_nak, gw._pending[0])
         else:
@@ -257,9 +257,9 @@ def test_data(gw):
 
     gw.write = mockwrite
 
-    gw.data(b'foo')
-    gw.data(b'bar')
-    gw.data(b'baz')
+    gw.data(b"foo")
+    gw.data(b"bar")
+    gw.data(b"baz")
     gw._sendq.put_nowait(gw.Terminator)
 
     loop = asyncio.get_event_loop()

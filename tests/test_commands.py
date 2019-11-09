@@ -26,7 +26,7 @@ def test_parms():
 def test_handlers():
     """Test that handler methods only have responses"""
     for command, parms in commands.COMMANDS.items():
-        if not command.endswith('Handler'):
+        if not command.endswith("Handler"):
             continue
         assert len(parms[1]) == 0, command
         assert len(parms[2]) > 0, command

@@ -15,7 +15,7 @@ def app(monkeypatch):
     ezsp = mock.MagicMock()
     type(ezsp).is_ezsp_running = mock.PropertyMock(return_value=True)
     ctrl = bellows.zigbee.application.ControllerApplication(ezsp)
-    monkeypatch.setattr(bellows.zigbee.application, 'APS_ACK_TIMEOUT', 0.1)
+    monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.1)
     ctrl._ctrl_event.set()
     ctrl._in_flight_msg = asyncio.Semaphore()
     ctrl.handle_message = mock.MagicMock()
@@ -62,13 +62,15 @@ def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4):
     app._ezsp.setPolicy = mockezsp
     app._ezsp.getNodeId = mockezsp
     app._ezsp.getEui64.side_effect = asyncio.coroutine(
-        mock.MagicMock(return_value=[ieee]))
+        mock.MagicMock(return_value=[ieee])
+    )
     app._ezsp.leaveNetwork = mockezsp
     app.form_network = mock.MagicMock(side_effect=asyncio.coroutine(mock.MagicMock()))
     app._ezsp.reset.side_effect = asyncio.coroutine(mock.MagicMock())
     app._ezsp.version.side_effect = asyncio.coroutine(mock.MagicMock())
     app._ezsp.getConfigurationValue.side_effect = asyncio.coroutine(
-        mock.MagicMock(return_value=(0, 1)))
+        mock.MagicMock(return_value=(0, 1))
+    )
     app.multicast._initialize = mockezsp
 
     loop = asyncio.get_event_loop()
@@ -112,14 +114,13 @@ def test_form_network(app):
     loop.run_until_complete(app.form_network())
 
 
-def _frame_handler(app, aps, ieee, src_ep, cluster=0, data=b'\x01\x00\x00'):
+def _frame_handler(app, aps, ieee, src_ep, cluster=0, data=b"\x01\x00\x00"):
     if ieee not in app.devices:
         app.add_device(ieee, 3)
     aps.sourceEndpoint = src_ep
     aps.clusterId = cluster
     app.ezsp_callback_handler(
-        'incomingMessageHandler',
-        [None, aps, 1, 2, 3, 4, 5, data]
+        "incomingMessageHandler", [None, aps, 1, 2, 3, 4, 5, data]
     )
 
 
@@ -133,7 +134,7 @@ def test_frame_handler_unknown_device(app, aps, ieee):
 
 def test_frame_handler(app, aps, ieee):
     app.handle_join = mock.MagicMock()
-    data = b'\x18\x19\x22\xaa\x55'
+    data = b"\x18\x19\x22\xaa\x55"
     _frame_handler(app, aps, ieee, 0, data=data)
     assert app.handle_message.call_count == 1
     assert app.handle_message.call_args[0][5] is data
@@ -143,8 +144,8 @@ def test_frame_handler(app, aps, ieee):
 def test_frame_handler_zdo_annce(app, aps, ieee):
     aps.destinationEndpoint = 0
     app.handle_join = mock.MagicMock()
-    nwk = t.uint16_t(0xaa55)
-    data = b'\x18' + nwk.serialize() + ieee.serialize()
+    nwk = t.uint16_t(0xAA55)
+    data = b"\x18" + nwk.serialize() + ieee.serialize()
     _frame_handler(app, aps, ieee, 0, cluster=0x0013, data=data)
     assert app.handle_message.call_count == 1
     assert app.handle_message.call_args[0][5] is data
@@ -156,8 +157,7 @@ def test_frame_handler_zdo_annce(app, aps, ieee):
 def test_send_failure(app, aps, ieee):
     req = app._pending[254] = mock.MagicMock()
     app.ezsp_callback_handler(
-        'messageSentHandler',
-        [None, 0xbeed, aps, 254, mock.sentinel.status, b'']
+        "messageSentHandler", [None, 0xBEED, aps, 254, mock.sentinel.status, b""]
     )
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
@@ -168,25 +168,20 @@ def test_dup_send_failure(app, aps, ieee):
     req = app._pending[254] = mock.MagicMock()
     req.result.set_result.side_effect = asyncio.InvalidStateError()
     app.ezsp_callback_handler(
-        'messageSentHandler',
-        [None, 0xbeed, aps, 254, mock.sentinel.status, b'']
+        "messageSentHandler", [None, 0xBEED, aps, 254, mock.sentinel.status, b""]
     )
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
 
 
 def test_send_failure_unexpected(app, aps, ieee):
-    app.ezsp_callback_handler(
-        'messageSentHandler',
-        [None, 0xbeed, aps, 257, 1, b'']
-    )
+    app.ezsp_callback_handler("messageSentHandler", [None, 0xBEED, aps, 257, 1, b""])
 
 
 def test_send_success(app, aps, ieee):
     req = app._pending[253] = mock.MagicMock()
     app.ezsp_callback_handler(
-        'messageSentHandler',
-        [None, 0xbeed, aps, 253, mock.sentinel.success, b'']
+        "messageSentHandler", [None, 0xBEED, aps, 253, mock.sentinel.success, b""]
     )
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
@@ -194,37 +189,27 @@ def test_send_success(app, aps, ieee):
 
 
 def test_unexpected_send_success(app, aps, ieee):
-    app.ezsp_callback_handler(
-        'messageSentHandler',
-        [None, 0xbeed, aps, 253, 0, b'']
-    )
+    app.ezsp_callback_handler("messageSentHandler", [None, 0xBEED, aps, 253, 0, b""])
 
 
 def test_dup_send_success(app, aps, ieee):
     req = app._pending[253] = mock.MagicMock()
     req.result.set_result.side_effect = asyncio.InvalidStateError()
-    app.ezsp_callback_handler(
-        'messageSentHandler',
-        [None, 0xbeed, aps, 253, 0, b'']
-    )
+    app.ezsp_callback_handler("messageSentHandler", [None, 0xBEED, aps, 253, 0, b""])
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
 
 
 def test_join_handler(app, ieee):
     # Calls device.initialize, leaks a task
-    app.ezsp_callback_handler(
-        'trustCenterJoinHandler',
-        [1, ieee, None, None, None],
-    )
+    app.ezsp_callback_handler("trustCenterJoinHandler", [1, ieee, None, None, None])
     assert ieee in app.devices
 
 
 def test_leave_handler(app, ieee):
     app.devices[ieee] = mock.sentinel.device
     app.ezsp_callback_handler(
-        'trustCenterJoinHandler',
-        [1, ieee, t.EmberDeviceUpdate.DEVICE_LEFT, None, None]
+        "trustCenterJoinHandler", [1, ieee, t.EmberDeviceUpdate.DEVICE_LEFT, None, None]
     )
     assert ieee in app.devices
 
@@ -254,7 +239,13 @@ def test_permit_with_key(app):
     app.permit = get_mock_coro([0])
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(app.permit_with_key(bytes([1, 2, 3, 4, 5, 6, 7, 8]), bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]), 60))
+    loop.run_until_complete(
+        app.permit_with_key(
+            bytes([1, 2, 3, 4, 5, 6, 7, 8]),
+            bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
+            60,
+        )
+    )
 
     assert app._ezsp.addTransientLinkKey.call_count == 1
     assert app.permit.call_count == 1
@@ -266,7 +257,13 @@ def test_permit_with_key_ieee(app, ieee):
     app.permit = get_mock_coro([0])
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(app.permit_with_key(ieee, bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]), 60))
+    loop.run_until_complete(
+        app.permit_with_key(
+            ieee,
+            bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
+            60,
+        )
+    )
 
     assert app._ezsp.addTransientLinkKey.call_count == 1
     assert app.permit.call_count == 1
@@ -276,7 +273,11 @@ def test_permit_with_key_invalid_install_code(app, ieee):
     loop = asyncio.get_event_loop()
 
     with pytest.raises(Exception):
-        loop.run_until_complete(app.permit_with_key(ieee, bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]), 60))
+        loop.run_until_complete(
+            app.permit_with_key(
+                ieee, bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]), 60
+            )
+        )
 
 
 def test_permit_with_key_failed_add_key(app, ieee):
@@ -284,7 +285,13 @@ def test_permit_with_key_failed_add_key(app, ieee):
 
     loop = asyncio.get_event_loop()
     with pytest.raises(Exception):
-        loop.run_until_complete(app.permit_with_key(ieee, bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]), 60))
+        loop.run_until_complete(
+            app.permit_with_key(
+                ieee,
+                bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
+                60,
+            )
+        )
 
 
 def test_permit_with_key_failed_set_policy(app, ieee):
@@ -293,21 +300,34 @@ def test_permit_with_key_failed_set_policy(app, ieee):
 
     loop = asyncio.get_event_loop()
     with pytest.raises(Exception):
-        loop.run_until_complete(app.permit_with_key(ieee, bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]), 60))
+        loop.run_until_complete(
+            app.permit_with_key(
+                ieee,
+                bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
+                60,
+            )
+        )
 
 
 @pytest.mark.asyncio
-async def _request(app, send_success=True, send_ack_received=True, send_ack_success=True,
-                   ezsp_operational=True, is_end_device=False, **kwargs):
+async def _request(
+    app,
+    send_success=True,
+    send_ack_received=True,
+    send_ack_success=True,
+    ezsp_operational=True,
+    is_end_device=False,
+    **kwargs
+):
     async def mocksend(method, nwk, aps_frame, seq, data):
         if not ezsp_operational:
             raise EzspError
         req = app._pending[seq]
         if send_ack_received:
             if send_ack_success:
-                req.result.set_result((0, 'success'))
+                req.result.set_result((0, "success"))
             else:
-                req.result.set_result((102, 'failure'))
+                req.result.set_result((102, "failure"))
         if send_success:
             return [0]
         return [2]
@@ -317,7 +337,7 @@ async def _request(app, send_success=True, send_ack_received=True, send_ack_succ
     app._ezsp.setExtendedTimeout.side_effect = asyncio.coroutine(mock.MagicMock())
     device = mock.MagicMock()
     device.node_desc.is_end_device = is_end_device
-    res = await app.request(device, 9, 8, 7, 6, 5, b'', **kwargs)
+    res = await app.request(device, 9, 8, 7, 6, 5, b"", **kwargs)
     assert len(app._pending) == 0
     return res
 
@@ -385,10 +405,18 @@ async def test_request_extended_timeout(app):
 
 
 @pytest.mark.asyncio
-async def _test_broadcast(app, broadcast_success=True, send_timeout=False,
-                          ezsp_running=True):
+async def _test_broadcast(
+    app, broadcast_success=True, send_timeout=False, ezsp_running=True
+):
     (profile, cluster, src_ep, dst_ep, grpid, radius, tsn, data) = (
-        0x260, 1, 2, 3, 0x0100, 0x06, 210, b'\x02\x01\x00'
+        0x260,
+        1,
+        2,
+        3,
+        0x0100,
+        0x06,
+        210,
+        b"\x02\x01\x00",
     )
 
     async def mock_send(nwk, aps, radius, tsn, data):
@@ -396,7 +424,7 @@ async def _test_broadcast(app, broadcast_success=True, send_timeout=False,
             raise EzspError
         if broadcast_success:
             if not send_timeout:
-                app._pending[tsn].result.set_result((0, 'sendBroadcast failure'))
+                app._pending[tsn].result.set_result((0, "sendBroadcast failure"))
             return [0]
         else:
             return [t.EmberStatus.ERR_FATAL]
@@ -405,7 +433,8 @@ async def _test_broadcast(app, broadcast_success=True, send_timeout=False,
     app.get_sequence = mock.MagicMock(return_value=mock.sentinel.msg_tag)
 
     res = await app.broadcast(
-        profile, cluster, src_ep, dst_ep, grpid, radius, tsn, data)
+        profile, cluster, src_ep, dst_ep, grpid, radius, tsn, data
+    )
     assert app._ezsp.sendBroadcast.call_count == 1
     assert app._ezsp.sendBroadcast.call_args[0][2] == radius
     assert app._ezsp.sendBroadcast.call_args[0][3] == mock.sentinel.msg_tag
@@ -445,7 +474,14 @@ async def test_broadcast_ezsp_fail(app):
 async def test_broadcast_ctrl_not_running(app):
     app._ctrl_event.clear()
     (profile, cluster, src_ep, dst_ep, grpid, radius, tsn, data) = (
-        0x260, 1, 2, 3, 0x0100, 0x06, 210, b'\x02\x01\x00'
+        0x260,
+        1,
+        2,
+        3,
+        0x0100,
+        0x06,
+        210,
+        b"\x02\x01\x00",
     )
 
     async def mocksend(nwk, aps, radiusm, tsn, data):
@@ -454,8 +490,7 @@ async def test_broadcast_ctrl_not_running(app):
     app._ezsp.sendBroadcast.side_effect = mocksend
 
     with pytest.raises(ControllerError):
-        await app.broadcast(
-            profile, cluster, src_ep, dst_ep, grpid, radius, tsn, data)
+        await app.broadcast(profile, cluster, src_ep, dst_ep, grpid, radius, tsn, data)
         assert len(app._pending) == 0
         assert app._ezsp.sendBroadcast.call_count == 0
 
@@ -479,10 +514,8 @@ def test_is_controller_running(app):
 
 
 def test_reset_frame(app):
-    app._handle_reset_request = mock.MagicMock(
-        spec_set=app._handle_reset_request)
-    app.ezsp_callback_handler('_reset_controller_application',
-                              (mock.sentinel.error, ))
+    app._handle_reset_request = mock.MagicMock(spec_set=app._handle_reset_request)
+    app.ezsp_callback_handler("_reset_controller_application", (mock.sentinel.error,))
     assert app._handle_reset_request.call_count == 1
     assert app._handle_reset_request.call_args[0][0] is mock.sentinel.error
 
@@ -527,7 +560,7 @@ async def test_handle_reset_req_existing_preempt(app):
 async def test_reset_controller_loop(app, monkeypatch):
     from bellows.zigbee import application
 
-    monkeypatch.setattr(application, 'RESET_ATTEMPT_BACKOFF_TIME', 0.1)
+    monkeypatch.setattr(application, "RESET_ATTEMPT_BACKOFF_TIME", 0.1)
     app._watchdog_task = asyncio.Future()
 
     reset_succ_on_try = reset_call_count = 2
@@ -566,7 +599,8 @@ async def test_reset_controller_routine(app):
 @pytest.mark.asyncio
 async def test_watchdog(app, monkeypatch):
     from bellows.zigbee import application
-    monkeypatch.setattr(application, 'WATCHDOG_WAKE_PERIOD', 0.1)
+
+    monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.1)
     nop_success = 3
 
     async def nop_mock():
@@ -610,7 +644,7 @@ def coordinator(app, ieee):
     dev = Device(app, ieee, 0x0000)
     ep = dev.add_endpoint(1)
     ep.profile_id = 0x0104
-    ep.device_type = 0xbeef
+    ep.device_type = 0xBEEF
     ep.add_output_cluster(security.IasZone.cluster_id)
     return bellows.zigbee.application.EZSPCoordinator(app, ieee, 0x0000, dev)
 
@@ -774,23 +808,29 @@ async def test_ezsp_remove_from_group_fail_ep(coordinator):
 
 
 @pytest.mark.asyncio
-async def _mrequest(app, send_success=True, send_ack_received=True, send_ack_success=True,
-                    ezsp_operational=True, **kwargs):
+async def _mrequest(
+    app,
+    send_success=True,
+    send_ack_received=True,
+    send_ack_success=True,
+    ezsp_operational=True,
+    **kwargs
+):
     async def mocksend(method, nwk, aps_frame, seq, data):
         if not ezsp_operational:
             raise EzspError
         req = app._pending[seq]
         if send_ack_received:
             if send_ack_success:
-                req.result.set_result((0, 'success'))
+                req.result.set_result((0, "success"))
             else:
-                req.result.set_result((102, 'failure'))
+                req.result.set_result((102, "failure"))
         if send_success:
             return [0]
         return [2]
 
     app._ezsp.sendMulticast = mocksend
-    res = await app.mrequest(0x1234, 9, 8, 7, 6, b'', **kwargs)
+    res = await app.mrequest(0x1234, 9, 8, 7, 6, b"", **kwargs)
     assert len(app._pending) == 0
     return res
 
