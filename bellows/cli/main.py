@@ -12,9 +12,9 @@ from . import opts
 @opts.baudrate
 @click.pass_context
 def main(ctx, device, baudrate):
-    ctx.obj = {'device': device, 'baudrate': baudrate}
+    ctx.obj = {"device": device, "baudrate": baudrate}
     click_log.basic_config()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -10,7 +10,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 class EventLoopThread:
-    ''' Run a parallel event loop in a separate thread '''
+    """ Run a parallel event loop in a separate thread """
+
     def __init__(self):
         self.loop = None
         self.thread_complete = None
@@ -36,9 +37,9 @@ class EventLoopThread:
         if self.loop is not None and not self.loop.is_closed():
             return
 
-        executor_opts = {'max_workers': 1}
+        executor_opts = {"max_workers": 1}
         if sys.version_info[:2] >= (3, 6):
-            executor_opts['thread_name_prefix'] = __name__
+            executor_opts["thread_name_prefix"] = __name__
         executor = ThreadPoolExecutor(**executor_opts)
 
         thread_started_future = current_loop.create_future()
@@ -46,8 +47,11 @@ class EventLoopThread:
         async def init_task():
             current_loop.call_soon_threadsafe(thread_started_future.set_result, None)
 
-        # Use current loop so current loop has a reference to the long-running thread as one of its tasks
-        thread_complete = current_loop.run_in_executor(executor, self._thread_main, init_task())
+        # Use current loop so current loop has a reference to the long-running thread
+        # as one of its tasks
+        thread_complete = current_loop.run_in_executor(
+            executor, self._thread_main, init_task()
+        )
         self.thread_complete = thread_complete
         current_loop.call_soon(executor.shutdown, False)
         await thread_started_future
@@ -59,10 +63,11 @@ class EventLoopThread:
 
 
 class ThreadsafeProxy:
-    ''' Proxy class which enforces threadsafe non-blocking calls
+    """ Proxy class which enforces threadsafe non-blocking calls
         This class can be used to wrap an object to ensure any calls
         using that object's methods are done on a particular event loop
-    '''
+    """
+
     def __init__(self, obj, obj_loop):
         self._obj = obj
         self._obj_loop = obj_loop
@@ -70,8 +75,11 @@ class ThreadsafeProxy:
     def __getattr__(self, name):
         func = getattr(self._obj, name)
         if not callable(func):
-            raise TypeError("Can only use ThreadsafeProxy with callable attributes: {}.{}".format(
-                self._obj.__class__.__name__, name))
+            raise TypeError(
+                "Can only use ThreadsafeProxy with callable attributes: {}.{}".format(
+                    self._obj.__class__.__name__, name
+                )
+            )
 
         def func_wrapper(*args, **kwargs):
             loop = self._obj_loop
@@ -87,12 +95,17 @@ class ThreadsafeProxy:
                 future = asyncio.run_coroutine_threadsafe(call(), loop)
                 return asyncio.wrap_future(future, loop=curr_loop)
             else:
+
                 def check_result_wrapper():
                     result = call()
                     if result is not None:
-                        raise TypeError("ThreadsafeProxy can only wrap functions with no return value \
-                                        \nUse an async method to return values: {}.{}".format(
-                                        self._obj.__class__.__name__, name))
+                        raise TypeError(
+                            (
+                                "ThreadsafeProxy can only wrap functions with no return"
+                                "value \nUse an async method to return values: {}.{}"
+                            ).format(self._obj.__class__.__name__, name)
+                        )
 
                 loop.call_soon_threadsafe(check_result_wrapper)
+
         return func_wrapper

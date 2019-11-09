@@ -66,8 +66,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._cfg(c.CONFIG_SECURITY_LEVEL, 5)
         await self._cfg(c.CONFIG_SUPPORTED_NETWORKS, 1)
         zdo = (
-            t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS |
-            t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
+            t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS
+            | t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
         )
         await self._cfg(c.CONFIG_APPLICATION_ZDO_FLAGS, zdo)
         await self._cfg(c.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD, 2)
@@ -83,12 +83,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         else:
             await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT, 60)
             await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8)
-        await self._cfg(c.CONFIG_MULTICAST_TABLE_SIZE,
-                        self.multicast.TABLE_SIZE)
-        await self._cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xff)
+        await self._cfg(c.CONFIG_MULTICAST_TABLE_SIZE, self.multicast.TABLE_SIZE)
+        await self._cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xFF)
 
         status, count = await e.getConfigurationValue(
-            c.CONFIG_APS_UNICAST_MESSAGE_COUNT)
+            c.CONFIG_APS_UNICAST_MESSAGE_COUNT
+        )
         assert status == t.EmberStatus.SUCCESS
         self._in_flight_msg = asyncio.Semaphore(count)
         LOGGER.debug("APS_UNICAST_MESSAGE_COUNT is set to %s", count)
@@ -97,17 +97,25 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             output_clusters=[zigpy.zcl.clusters.security.IasZone.cluster_id]
         )
 
-    async def add_endpoint(self, endpoint=1,
-                           profile_id=zigpy.profiles.zha.PROFILE_ID,
-                           device_id=0xbeef,
-                           app_flags=0x00,
-                           input_clusters=[],
-                           output_clusters=[]):
+    async def add_endpoint(
+        self,
+        endpoint=1,
+        profile_id=zigpy.profiles.zha.PROFILE_ID,
+        device_id=0xBEEF,
+        app_flags=0x00,
+        input_clusters=[],
+        output_clusters=[],
+    ):
         """Add endpoint."""
         res = await self._ezsp.addEndpoint(
-            endpoint, profile_id, device_id, app_flags,
-            len(input_clusters), len(output_clusters),
-            input_clusters, output_clusters
+            endpoint,
+            profile_id,
+            device_id,
+            app_flags,
+            len(input_clusters),
+            len(output_clusters),
+            input_clusters,
+            output_clusters,
         )
         LOGGER.debug("Ezsp adding endpoint: %s", res)
 
@@ -162,7 +170,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         channel = t.uint8_t(channel)
 
         if pan_id is None:
-            pan_id = t.uint16_t.from_bytes(os.urandom(2), 'little')
+            pan_id = t.uint16_t.from_bytes(os.urandom(2), "little")
         pan_id = t.uint16_t(pan_id)
 
         if extended_pan_id is None:
@@ -194,8 +202,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         """Set up the policies for what the NCP should do"""
         e = self._ezsp
         v = await e.setPolicy(
-            t.EzspPolicyId.TC_KEY_REQUEST_POLICY,
-            t.EzspDecisionId.DENY_TC_KEY_REQUESTS,
+            t.EzspPolicyId.TC_KEY_REQUEST_POLICY, t.EzspDecisionId.DENY_TC_KEY_REQUESTS
         )
         assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
         v = await e.setPolicy(
@@ -216,24 +223,36 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def ezsp_callback_handler(self, frame_name, args):
         LOGGER.debug("Received %s frame with %s", frame_name, args)
-        if frame_name == 'incomingMessageHandler':
+        if frame_name == "incomingMessageHandler":
             self._handle_frame(*args)
-        elif frame_name == 'messageSentHandler':
+        elif frame_name == "messageSentHandler":
             if args[4] != t.EmberStatus.SUCCESS:
                 self._handle_frame_failure(*args)
             else:
                 self._handle_frame_sent(*args)
-        elif frame_name == 'trustCenterJoinHandler':
+        elif frame_name == "trustCenterJoinHandler":
             if args[2] == t.EmberDeviceUpdate.DEVICE_LEFT:
                 self.handle_leave(args[0], args[1])
             else:
                 self.handle_join(args[0], args[1], args[4])
-        elif frame_name == '_reset_controller_application':
+        elif frame_name == "_reset_controller_application":
             self._handle_reset_request(*args)
 
-    def _handle_frame(self, message_type, aps_frame, lqi, rssi, sender, binding_index, address_index, message):
-        if aps_frame.clusterId == zdo_t.ZDOCmd.Device_annce and \
-                aps_frame.destinationEndpoint == 0:
+    def _handle_frame(
+        self,
+        message_type,
+        aps_frame,
+        lqi,
+        rssi,
+        sender,
+        binding_index,
+        address_index,
+        message,
+    ):
+        if (
+            aps_frame.clusterId == zdo_t.ZDOCmd.Device_annce
+            and aps_frame.destinationEndpoint == 0
+        ):
             nwk, rest = t.uint16_t.deserialize(message[1:])
             ieee, _ = t.EmberEUI64.deserialize(rest)
             LOGGER.info("ZDO Device announce: 0x%04x, %s", nwk, ieee)
@@ -245,27 +264,54 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             return
 
         device.radio_details(lqi, rssi)
-        self.handle_message(device, aps_frame.profileId, aps_frame.clusterId, aps_frame.sourceEndpoint, aps_frame.destinationEndpoint, message)
+        self.handle_message(
+            device,
+            aps_frame.profileId,
+            aps_frame.clusterId,
+            aps_frame.sourceEndpoint,
+            aps_frame.destinationEndpoint,
+            message,
+        )
 
-    def _handle_frame_failure(self, message_type, destination, aps_frame, message_tag, status, message):
+    def _handle_frame_failure(
+        self, message_type, destination, aps_frame, message_tag, status, message
+    ):
         try:
             request = self._pending[message_tag]
-            request.result.set_result((status, 'message send failure'))
+            request.result.set_result((status, "message send failure"))
         except KeyError:
-            LOGGER.debug("Unexpected message send failure for message tag %s", message_tag)
+            LOGGER.debug(
+                "Unexpected message send failure for message tag %s", message_tag
+            )
         except asyncio.InvalidStateError as exc:
-            LOGGER.debug("Invalid state on future for message tag %s - probably duplicate response: %s",
-                         message_tag, exc)
+            LOGGER.debug(
+                (
+                    "Invalid state on future for message tag %s "
+                    "- probably duplicate response: %s"
+                ),
+                message_tag,
+                exc,
+            )
 
-    def _handle_frame_sent(self, message_type, destination, aps_frame, message_tag, status, message):
+    def _handle_frame_sent(
+        self, message_type, destination, aps_frame, message_tag, status, message
+    ):
         try:
             request = self._pending[message_tag]
-            request.result.set_result((t.EmberStatus.SUCCESS, "message sent successfully"))
+            request.result.set_result(
+                (t.EmberStatus.SUCCESS, "message sent successfully")
+            )
         except KeyError:
             LOGGER.debug("Unexpected message send notification tag: %s", message_tag)
         except asyncio.InvalidStateError as exc:
-            LOGGER.debug("Invalid state on future for message tag %s - probably duplicate response: %s",
-                         message_tag, exc)
+            LOGGER.debug(
+                (
+                    "Invalid state on future for message tag %s "
+                    "- probably duplicate response: %s"
+                ),
+                message_tag,
+                exc,
+            )
 
     def _handle_reset_request(self, error):
         """Reinitialize application controller."""
@@ -285,8 +331,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 await self._reset_controller()
                 break
             except (asyncio.TimeoutError, SerialException) as exc:
-                LOGGER.debug(
-                    "ControllerApplication reset unsuccessful: %s", str(exc))
+                LOGGER.debug("ControllerApplication reset unsuccessful: %s", str(exc))
             await asyncio.sleep(RESET_ATTEMPT_BACKOFF_TIME)
 
         self._reset_task = None
@@ -299,8 +344,18 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._ezsp.reconnect()
         await self.startup()
 
-    async def mrequest(self, group_id, profile, cluster, src_ep, sequence, data,
-                       *, hops=EZSP_DEFAULT_RADIUS, non_member_radius=EZSP_MULTICAST_NON_MEMBER_RADIUS):
+    async def mrequest(
+        self,
+        group_id,
+        profile,
+        cluster,
+        src_ep,
+        sequence,
+        data,
+        *,
+        hops=EZSP_DEFAULT_RADIUS,
+        non_member_radius=EZSP_MULTICAST_NON_MEMBER_RADIUS
+    ):
         """Submit and send data out as a multicast transmission.
 
         :param group_id: destination multicast address
@@ -309,8 +364,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         :param src_ep: source endpoint id
         :param sequence: transaction sequence number of the message
         :param data: Zigbee message payload
-        :param hops: the message will be delivered to all nodes within this number of hops
-                     of the sender. A value of zero is converted to MAX_HOPS
+        :param hops: the message will be delivered to all nodes within this number of
+                     hops of the sender. A value of zero is converted to MAX_HOPS
         :param non_member_radius: the number of hops that the message will be forwarded
                                   by devices that are not members of the group. A value
                                   of 7 or greater is treated as infinite
@@ -334,16 +389,27 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         with self._pending.new(message_tag) as req:
             async with self._in_flight_msg:
-                res = await self._ezsp.sendMulticast(aps_frame, hops, non_member_radius,
-                                                     message_tag, data)
+                res = await self._ezsp.sendMulticast(
+                    aps_frame, hops, non_member_radius, message_tag, data
+                )
                 if res[0] != t.EmberStatus.SUCCESS:
-                    return res[0], "EZSP sendMulticast failure: %s" % (res[0], )
+                    return res[0], "EZSP sendMulticast failure: %s" % (res[0],)
 
                 res = await asyncio.wait_for(req.result, APS_ACK_TIMEOUT)
         return res
 
-    async def request(self, device, profile, cluster, src_ep, dst_ep, sequence, data,
-                      expect_reply=True, use_ieee=False):
+    async def request(
+        self,
+        device,
+        profile,
+        cluster,
+        src_ep,
+        dst_ep,
+        sequence,
+        data,
+        expect_reply=True,
+        use_ieee=False,
+    ):
         """Submit and send data out as an unicast transmission.
 
         :param device: destination device
@@ -367,25 +433,27 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.sourceEndpoint = t.uint8_t(src_ep)
         aps_frame.destinationEndpoint = t.uint8_t(dst_ep)
         aps_frame.options = t.EmberApsOption(
-            t.EmberApsOption.APS_OPTION_RETRY |
-            t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+            t.EmberApsOption.APS_OPTION_RETRY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
         )
         aps_frame.groupId = t.uint16_t(0)
         aps_frame.sequence = t.uint8_t(sequence)
         message_tag = self.get_sequence()
 
         if use_ieee:
-            LOGGER.warning(("EUI64 addressing is not currently supported, "
-                            "reverting to NWK"))
+            LOGGER.warning(
+                ("EUI64 addressing is not currently supported, " "reverting to NWK")
+            )
         if expect_reply and device.node_desc.is_end_device in (True, None):
             LOGGER.debug("Extending timeout for %s/0x%04x", device.ieee, device.nwk)
             await self._ezsp.setExtendedTimeout(device.ieee, True)
         with self._pending.new(message_tag) as req:
             async with self._in_flight_msg:
-                res = await self._ezsp.sendUnicast(self.direct, device.nwk, aps_frame,
-                                                   message_tag, data)
+                res = await self._ezsp.sendUnicast(
+                    self.direct, device.nwk, aps_frame, message_tag, data
+                )
                 if res[0] != t.EmberStatus.SUCCESS:
-                    return res[0], "EZSP sendUnicast failure: %s" % (res[0], )
+                    return res[0], "EZSP sendUnicast failure: %s" % (res[0],)
 
                 res = await asyncio.wait_for(req.result, APS_ACK_TIMEOUT)
         return res
@@ -414,13 +482,24 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             t.EzspDecisionId.GENERATE_NEW_TC_LINK_KEY,
         )
         if v[0] != t.EmberStatus.SUCCESS:
-            raise Exception("Failed to change policy to allow generation of new trust center keys")
+            raise Exception(
+                "Failed to change policy to allow generation of new trust center keys"
+            )
 
         return await self.permit(time_s)
 
-    async def broadcast(self, profile, cluster, src_ep, dst_ep, grpid, radius,
-                        sequence, data,
-                        broadcast_address=BroadcastAddress.RX_ON_WHEN_IDLE):
+    async def broadcast(
+        self,
+        profile,
+        cluster,
+        src_ep,
+        dst_ep,
+        grpid,
+        radius,
+        sequence,
+        data,
+        broadcast_address=BroadcastAddress.RX_ON_WHEN_IDLE,
+    ):
         """Submit and send data out as an unicast transmission.
 
         :param profile: Zigbee Profile ID to use for outgoing message
@@ -444,24 +523,21 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.clusterId = t.uint16_t(cluster)
         aps_frame.sourceEndpoint = t.uint8_t(src_ep)
         aps_frame.destinationEndpoint = t.uint8_t(dst_ep)
-        aps_frame.options = t.EmberApsOption(
-            t.EmberApsOption.APS_OPTION_NONE
-        )
+        aps_frame.options = t.EmberApsOption(t.EmberApsOption.APS_OPTION_NONE)
         aps_frame.groupId = t.uint16_t(grpid)
         aps_frame.sequence = t.uint8_t(sequence)
         message_tag = self.get_sequence()
 
         with self._pending.new(message_tag) as req:
             async with self._in_flight_msg:
-                res = await self._ezsp.sendBroadcast(broadcast_address,
-                                                     aps_frame, radius,
-                                                     message_tag, data)
+                res = await self._ezsp.sendBroadcast(
+                    broadcast_address, aps_frame, radius, message_tag, data
+                )
                 if res[0] != t.EmberStatus.SUCCESS:
                     return res[0], "broadcast send failure"
 
                 # Wait for messageSentHandler message
-                res = await asyncio.wait_for(req.result,
-                                             timeout=APS_ACK_TIMEOUT)
+                res = await asyncio.wait_for(req.result, timeout=APS_ACK_TIMEOUT)
         return res
 
     async def _watchdog(self):
@@ -471,8 +547,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
         while True:
             try:
-                await asyncio.wait_for(self.controller_event.wait(),
-                                       timeout=WATCHDOG_WAKE_PERIOD * 2)
+                await asyncio.wait_for(
+                    self.controller_event.wait(), timeout=WATCHDOG_WAKE_PERIOD * 2
+                )
                 await self._ezsp.nop()
                 failures = 0
             except (asyncio.TimeoutError, EzspError) as exc:
@@ -483,15 +560,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
 
         self._handle_reset_request(
-            "Watchdog timeout. Heartbeat timeouts: {}".format(failures))
+            "Watchdog timeout. Heartbeat timeouts: {}".format(failures)
+        )
 
 
 class EZSPCoordinator(CustomDevice):
     """Zigpy Device representing Coordinator."""
 
     class EZSPEndpoint(CustomEndpoint):
-        async def add_to_group(self, grp_id: int,
-                               name: str = None) -> t.EmberStatus:
+        async def add_to_group(self, grp_id: int, name: str = None) -> t.EmberStatus:
             if grp_id in self.member_of:
                 return t.EmberStatus.SUCCESS
 
@@ -519,20 +596,18 @@ class EZSPCoordinator(CustomDevice):
             return status
 
     signature = {
-        'endpoints': {
+        "endpoints": {
             1: {
-                'profile_id': 0x0104,
-                'device_type': 0xbeef,
-                'input_clusters': [],
-                'output_clusters': [zigpy.zcl.clusters.security.IasZone.cluster_id]
-            },
-        },
+                "profile_id": 0x0104,
+                "device_type": 0xBEEF,
+                "input_clusters": [],
+                "output_clusters": [zigpy.zcl.clusters.security.IasZone.cluster_id],
+            }
+        }
     }
 
     replacement = {
-        'manufacturer': 'Silicon Labs',
-        'model': 'EZSP',
-        'endpoints': {
-            1: (EZSPEndpoint, {})
-        }
+        "manufacturer": "Silicon Labs",
+        "model": "EZSP",
+        "endpoints": {1: (EZSPEndpoint, {})},
     }

@@ -7,6 +7,7 @@ LOGGER = logging.getLogger(__name__)
 
 class Multicast:
     """Multicast table controller for EZSP."""
+
     TABLE_SIZE = 16
 
     def __init__(self, ezsp):
@@ -21,8 +22,7 @@ class Multicast:
         for i in range(0, self.TABLE_SIZE):
             status, entry = await e.getMulticastTableEntry(i)
             if status != t.EmberStatus.SUCCESS:
-                LOGGER.error("Couldn't get MulticastTableEntry #%s: %s",
-                             i, status)
+                LOGGER.error("Couldn't get MulticastTableEntry #%s: %s", i, status)
                 continue
             LOGGER.debug("MulticastTableEntry[%s] = %s", i, entry)
             if entry.endpoint != 0:
@@ -40,8 +40,7 @@ class Multicast:
 
     async def subscribe(self, group_id) -> t.EmberStatus:
         if group_id in self._multicast:
-            LOGGER.debug("%s is already subscribed",
-                         t.EmberMulticastId(group_id))
+            LOGGER.debug("%s is already subscribed", t.EmberMulticastId(group_id))
             return t.EmberStatus.SUCCESS
 
         try:
@@ -57,13 +56,20 @@ class Multicast:
         if status[0] != t.EmberStatus.SUCCESS:
             LOGGER.warning(
                 "Set MulticastTableEntry #%s for %s multicast id: %s",
-                idx, entry.multicastId, status)
+                idx,
+                entry.multicastId,
+                status,
+            )
             self._available.add(idx)
             return status[0]
 
         self._multicast[entry.multicastId] = (entry, idx)
-        LOGGER.debug("Set MulticastTableEntry #%s for %s multicast id: %s",
-                     idx, entry.multicastId, status)
+        LOGGER.debug(
+            "Set MulticastTableEntry #%s for %s multicast id: %s",
+            idx,
+            entry.multicastId,
+            status,
+        )
         return status[0]
 
     async def unsubscribe(self, group_id) -> t.EmberStatus:
@@ -71,8 +77,8 @@ class Multicast:
             entry, idx = self._multicast[group_id]
         except KeyError:
             LOGGER.error(
-                "Couldn't find MulticastTableEntry for %s multicast_id",
-                group_id)
+                "Couldn't find MulticastTableEntry for %s multicast_id", group_id
+            )
             return t.EmberStatus.INDEX_OUT_OF_RANGE
 
         entry.endpoint = t.uint8_t(0)
@@ -80,11 +86,18 @@ class Multicast:
         if status[0] != t.EmberStatus.SUCCESS:
             LOGGER.warning(
                 "Set MulticastTableEntry #%s for %s multicast id: %s",
-                idx, entry.multicastId, status)
+                idx,
+                entry.multicastId,
+                status,
+            )
             return status[0]
 
         self._multicast.pop(group_id)
         self._available.add(idx)
-        LOGGER.debug("Set MulticastTableEntry #%s for %s multicast id: %s",
-                     idx, entry.multicastId, status)
+        LOGGER.debug(
+            "Set MulticastTableEntry #%s for %s multicast id: %s",
+            idx,
+            entry.multicastId,
+            status,
+        )
         return status[0]

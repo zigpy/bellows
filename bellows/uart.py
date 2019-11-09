@@ -14,12 +14,12 @@ RESET_TIMEOUT = 5
 
 
 class Gateway(asyncio.Protocol):
-    FLAG = b'\x7E'  # Marks end of frame
-    ESCAPE = b'\x7D'
-    XON = b'\x11'  # Resume transmission
-    XOFF = b'\x13'  # Stop transmission
-    SUBSTITUTE = b'\x18'
-    CANCEL = b'\x1A'  # Terminates a frame in progress
+    FLAG = b"\x7E"  # Marks end of frame
+    ESCAPE = b"\x7D"
+    XON = b"\x11"  # Resume transmission
+    XOFF = b"\x13"  # Stop transmission
+    SUBSTITUTE = b"\x18"
+    CANCEL = b"\x1A"  # Terminates a frame in progress
     STUFF = 0x20
     RANDOMIZE_START = 0x42
     RANDOMIZE_SEQ = 0xB8
@@ -32,7 +32,7 @@ class Gateway(asyncio.Protocol):
     def __init__(self, application, connected_future=None, connection_done_future=None):
         self._send_seq = 0
         self._rec_seq = 0
-        self._buffer = b''
+        self._buffer = b""
         self._application = application
         self._reset_future = None
         self._connected_future = connected_future
@@ -54,11 +54,11 @@ class Gateway(asyncio.Protocol):
         # so far are discarded. In the case of a Substitute Byte, subsequent
         # bytes will also be discarded until the next Flag Byte.
         if self.CANCEL in data:
-            self._buffer = b''
-            data = data[data.rfind(self.CANCEL) + 1:]
+            self._buffer = b""
+            data = data[data.rfind(self.CANCEL) + 1 :]
         if self.SUBSTITUTE in data:
-            self._buffer = b''
-            data = data[data.find(self.FLAG) + 1:]
+            self._buffer = b""
+            data = data[data.find(self.FLAG) + 1 :]
 
         self._buffer += data
         while self._buffer:
@@ -71,12 +71,17 @@ class Gateway(asyncio.Protocol):
         """Extract a frame from the data buffer"""
         if self.FLAG in data:
             place = data.find(self.FLAG)
-            frame = self._unstuff(data[:place + 1])
-            rest = data[place + 1:]
-            crc = binascii.crc_hqx(frame[:-3], 0xffff)
+            frame = self._unstuff(data[: place + 1])
+            rest = data[place + 1 :]
+            crc = binascii.crc_hqx(frame[:-3], 0xFFFF)
             crc = bytes([crc >> 8, crc % 256])
             if crc != frame[-3:-1]:
-                LOGGER.error("CRC error in frame %s (%s != %s)", binascii.hexlify(frame), binascii.hexlify(frame[-3:-1]), binascii.hexlify(crc))
+                LOGGER.error(
+                    "CRC error in frame %s (%s != %s)",
+                    binascii.hexlify(frame),
+                    binascii.hexlify(frame[-3:-1]),
+                    binascii.hexlify(crc),
+                )
                 self.write(self._nak_frame())
                 # Make sure that we also handle the next frame if it is already received
                 return self._extract_frame(rest)
@@ -130,8 +135,12 @@ class Gateway(asyncio.Protocol):
         self._rec_seq = 0
         code, version = self._get_error_code(data)
 
-        LOGGER.debug("RSTACK Version: %d Reason: %s frame: %s", version,
-                     code.name, binascii.hexlify(data))
+        LOGGER.debug(
+            "RSTACK Version: %d Reason: %s frame: %s",
+            version,
+            code.name,
+            binascii.hexlify(data),
+        )
         # not a reset we've requested. Signal application reset
         if code is not t.NcpResetCode.RESET_SOFTWARE:
             self._application.enter_failed_state(code)
@@ -157,8 +166,12 @@ class Gateway(asyncio.Protocol):
     def error_frame_received(self, data):
         """Error frame receive handler."""
         error_code, version = self._get_error_code(data)
-        LOGGER.debug("Error code: %s, Version: %d, frame: %s", error_code.name,
-                     version, binascii.hexlify(data))
+        LOGGER.debug(
+            "Error code: %s, Version: %d, frame: %s",
+            error_code.name,
+            version,
+            binascii.hexlify(data),
+        )
         self._application.enter_failed_state(error_code)
 
     def write(self, data):
@@ -189,13 +202,14 @@ class Gateway(asyncio.Protocol):
         """Send a reset frame and init internal state."""
         LOGGER.debug("Resetting ASH")
         if self._reset_future is not None:
-            LOGGER.error(("received new reset request while an existing "
-                          "one is in progress"))
+            LOGGER.error(
+                ("received new reset request while an existing " "one is in progress")
+            )
             return await self._reset_future
 
         self._send_seq = 0
         self._rec_seq = 0
-        self._buffer = b''
+        self._buffer = b""
         while not self._sendq.empty():
             self._sendq.get_nowait()
         if self._pending[1]:
@@ -252,21 +266,21 @@ class Gateway(asyncio.Protocol):
         """Construct a acknowledgement frame"""
         assert 0 <= self._rec_seq < 8
         control = bytes([0b10000000 | (self._rec_seq & 0b00000111)])
-        return self._frame(control, b'')
+        return self._frame(control, b"")
 
     def _nak_frame(self):
         """Construct a negative acknowledgement frame"""
         assert 0 <= self._rec_seq < 8
         control = bytes([0b10100000 | (self._rec_seq & 0b00000111)])
-        return self._frame(control, b'')
+        return self._frame(control, b"")
 
     def _rst_frame(self):
         """Construct a reset frame"""
-        return self.CANCEL + self._frame(b'\xC0', b'')
+        return self.CANCEL + self._frame(b"\xC0", b"")
 
     def _frame(self, control, data):
         """Construct a frame"""
-        crc = binascii.crc_hqx(control + data, 0xffff)
+        crc = binascii.crc_hqx(control + data, 0xFFFF)
         crc = bytes([crc >> 8, crc % 256])
         return self._stuff(control + data + crc) + self.FLAG
 
@@ -276,7 +290,7 @@ class Gateway(asyncio.Protocol):
         Used only in data frames
         """
         rand = self.RANDOMIZE_START
-        out = b''
+        out = b""
         for c in s:
             out += bytes([c ^ rand])
             if rand % 2:
@@ -287,7 +301,7 @@ class Gateway(asyncio.Protocol):
 
     def _stuff(self, s):
         """Byte stuff (escape) a string for transmission"""
-        out = b''
+        out = b""
         for c in s:
             if c in self.RESERVED:
                 out += self.ESCAPE + bytes([c ^ self.STUFF])
@@ -297,7 +311,7 @@ class Gateway(asyncio.Protocol):
 
     def _unstuff(self, s):
         """Unstuff (unescape) a string after receipt"""
-        out = b''
+        out = b""
         escaped = False
         for c in s:
             if escaped:
@@ -338,7 +352,9 @@ async def connect(port, baudrate, application, use_thread=True):
         application = ThreadsafeProxy(application, asyncio.get_event_loop())
         thread = EventLoopThread()
         await thread.start()
-        protocol, connection_done = await thread.run_coroutine_threadsafe(_connect(port, baudrate, application))
+        protocol, connection_done = await thread.run_coroutine_threadsafe(
+            _connect(port, baudrate, application)
+        )
         connection_done.add_done_callback(lambda _: thread.force_stop())
     else:
         protocol, _ = await _connect(port, baudrate, application)
