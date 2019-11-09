@@ -285,7 +285,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             )
         except asyncio.InvalidStateError as exc:
             LOGGER.debug(
-                "Invalid state on future for message tag %s - probably duplicate response: %s",
+                (
+                    "Invalid state on future for message tag %s "
+                    "- probably duplicate response: %s"
+                ),
                 message_tag,
                 exc,
             )
@@ -302,7 +305,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             LOGGER.debug("Unexpected message send notification tag: %s", message_tag)
         except asyncio.InvalidStateError as exc:
             LOGGER.debug(
-                "Invalid state on future for message tag %s - probably duplicate response: %s",
+                (
+                    "Invalid state on future for message tag %s "
+                    "- probably duplicate response: %s"
+                ),
                 message_tag,
                 exc,
             )
@@ -358,8 +364,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         :param src_ep: source endpoint id
         :param sequence: transaction sequence number of the message
         :param data: Zigbee message payload
-        :param hops: the message will be delivered to all nodes within this number of hops
-                     of the sender. A value of zero is converted to MAX_HOPS
+        :param hops: the message will be delivered to all nodes within this number of
+                     hops of the sender. A value of zero is converted to MAX_HOPS
         :param non_member_radius: the number of hops that the message will be forwarded
                                   by devices that are not members of the group. A value
                                   of 7 or greater is treated as infinite

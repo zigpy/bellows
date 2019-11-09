@@ -47,7 +47,8 @@ class EventLoopThread:
         async def init_task():
             current_loop.call_soon_threadsafe(thread_started_future.set_result, None)
 
-        # Use current loop so current loop has a reference to the long-running thread as one of its tasks
+        # Use current loop so current loop has a reference to the long-running thread
+        # as one of its tasks
         thread_complete = current_loop.run_in_executor(
             executor, self._thread_main, init_task()
         )
@@ -99,10 +100,10 @@ class ThreadsafeProxy:
                     result = call()
                     if result is not None:
                         raise TypeError(
-                            "ThreadsafeProxy can only wrap functions with no return value \
-                                        \nUse an async method to return values: {}.{}".format(
-                                self._obj.__class__.__name__, name
-                            )
+                            (
+                                "ThreadsafeProxy can only wrap functions with no return"
+                                "value \nUse an async method to return values: {}.{}"
+                            ).format(self._obj.__class__.__name__, name)
                         )
 
                 loop.call_soon_threadsafe(check_result_wrapper)
