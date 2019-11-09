@@ -251,7 +251,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             request.result.set_result((status, 'message send failure'))
         except KeyError:
             LOGGER.debug("Unexpected message send failure for message tag %s", message_tag)
-        except asyncio.futures.InvalidStateError as exc:
+        except asyncio.InvalidStateError as exc:
             LOGGER.debug("Invalid state on future for message tag %s - probably duplicate response: %s",
                          message_tag, exc)
 
@@ -261,7 +261,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             request.result.set_result((t.EmberStatus.SUCCESS, "message sent successfully"))
         except KeyError:
             LOGGER.debug("Unexpected message send notification tag: %s", message_tag)
-        except asyncio.futures.InvalidStateError as exc:
+        except asyncio.InvalidStateError as exc:
             LOGGER.debug("Invalid state on future for message tag %s - probably duplicate response: %s",
                          message_tag, exc)
 
