@@ -771,3 +771,64 @@ async def test_ezsp_remove_from_group_fail_ep(coordinator):
     assert ret is not None
     assert mc.unsubscribe.call_count == 1
     assert mc.unsubscribe.call_args[0][0] == grp_id
+
+
+@pytest.mark.asyncio
+async def _mrequest(app, send_success=True, send_ack_received=True, send_ack_success=True,
+                    ezsp_operational=True, **kwargs):
+    async def mocksend(method, nwk, aps_frame, seq, data):
+        if not ezsp_operational:
+            raise EzspError
+        req = app._pending[seq]
+        if send_ack_received:
+            if send_ack_success:
+                req.result.set_result((0, 'success'))
+            else:
+                req.result.set_result((102, 'failure'))
+        if send_success:
+            return [0]
+        return [2]
+
+    app._ezsp.sendMulticast = mocksend
+    res = await app.mrequest(0x1234, 9, 8, 7, 6, b'', **kwargs)
+    assert len(app._pending) == 0
+    return res
+
+
+@pytest.mark.asyncio
+async def test_mrequest(app):
+    res = await _mrequest(app)
+    assert res[0] == 0
+
+
+@pytest.mark.asyncio
+async def test_mrequest_ack_timeout(app, aps):
+    with pytest.raises(asyncio.TimeoutError):
+        await _mrequest(app, send_ack_received=False)
+
+
+@pytest.mark.asyncio
+async def test_mrequest_send_unicast_fail(app):
+    res = await _mrequest(app, send_success=False)
+    assert res[0] != 0
+
+
+@pytest.mark.asyncio
+async def test_mrequest_ezsp_failed(app):
+    with pytest.raises(EzspError):
+        await _mrequest(app, ezsp_operational=False)
+    assert len(app._pending) == 0
+
+
+@pytest.mark.asyncio
+async def test_mrequest_send_timeout(app):
+    with pytest.raises(asyncio.TimeoutError):
+        await _mrequest(app, send_ack_received=False)
+    assert app._pending == {}
+
+
+@pytest.mark.asyncio
+async def test_mrequest_ctrl_not_running(app):
+    app._ctrl_event.clear()
+    with pytest.raises(ControllerError):
+        await _mrequest(app)
