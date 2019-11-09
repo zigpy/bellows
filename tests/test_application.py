@@ -166,7 +166,7 @@ def test_send_failure(app, aps, ieee):
 
 def test_dup_send_failure(app, aps, ieee):
     req = app._pending[254] = mock.MagicMock()
-    req.result.set_result.side_effect = asyncio.futures.InvalidStateError()
+    req.result.set_result.side_effect = asyncio.InvalidStateError()
     app.ezsp_callback_handler(
         'messageSentHandler',
         [None, 0xbeed, aps, 254, mock.sentinel.status, b'']
@@ -202,7 +202,7 @@ def test_unexpected_send_success(app, aps, ieee):
 
 def test_dup_send_success(app, aps, ieee):
     req = app._pending[253] = mock.MagicMock()
-    req.result.set_result.side_effect = asyncio.futures.InvalidStateError()
+    req.result.set_result.side_effect = asyncio.InvalidStateError()
     app.ezsp_callback_handler(
         'messageSentHandler',
         [None, 0xbeed, aps, 253, 0, b'']
