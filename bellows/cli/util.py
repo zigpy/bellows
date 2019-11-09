@@ -12,25 +12,23 @@ LOGGER = logging.getLogger(__name__)
 
 
 class CSVParamType(click.ParamType):
-    name = 'comma separated integers'
+    name = "comma separated integers"
 
     def __init__(self, min=None, max=None):
         self.intrange = click.IntRange(min, max)
 
     def convert(self, value, param, ctx):
-        values = [
-            self.intrange.convert(v, param, ctx) for v in value.split(',')
-        ]
+        values = [self.intrange.convert(v, param, ctx) for v in value.split(",")]
         return values
 
 
 class ZigbeeNodeParamType(click.ParamType):
-    name = 'colon separated hex bytes'
+    name = "colon separated hex bytes"
 
     def convert(self, value, param, ctx):
         if ":" not in value or len(value) != 23:
             self.fail("Node format should be a 8 byte hex string seprated by ':'")
-        return t.EmberEUI64([t.uint8_t(p, base=16) for p in value.split(':')])
+        return t.EmberEUI64([t.uint8_t(p, base=16) for p in value.split(":")])
 
 
 def background(f):
@@ -47,14 +45,11 @@ def app(f, app_startup=True):
 
     async def async_inner(ctx, *args, **kwargs):
         nonlocal database_file
-        database_file = ctx.obj['database_file']
+        database_file = ctx.obj["database_file"]
         app = await setup_application(
-            ctx.obj['device'],
-            ctx.obj['baudrate'],
-            database_file,
-            startup=app_startup,
+            ctx.obj["device"], ctx.obj["baudrate"], database_file, startup=app_startup
         )
-        ctx.obj['app'] = app
+        ctx.obj["app"] = app
         await f(ctx, *args, **kwargs)
         await asyncio.sleep(0.5)
 
@@ -109,7 +104,8 @@ async def setup(dev, baudrate, cbh=None, configure=True):
 
     async def cfg(config_id, value):
         v = await s.setConfigurationValue(config_id, value)
-        check(v[0], 'Setting config %s to %s: %s' % (config_id, value, v[0]))
+        check(v[0], "Setting config %s to %s: %s" % (config_id, value, v[0]))
+
     c = t.EzspConfigId
 
     if configure:
@@ -117,7 +113,7 @@ async def setup(dev, baudrate, cbh=None, configure=True):
         await cfg(c.CONFIG_STACK_PROFILE, 2)
         await cfg(c.CONFIG_SECURITY_LEVEL, 5)
         await cfg(c.CONFIG_SUPPORTED_NETWORKS, 1)
-        await cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xff)
+        await cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xFF)
 
     return s
 
@@ -143,7 +139,7 @@ async def network_init(s):
     v = await s.networkInit()
     check(
         v[0],
-        "Failure initializing network: %s" % (v[0], ),
+        "Failure initializing network: %s" % (v[0],),
         [0, t.EmberStatus.NOT_JOINED],
     )
     return v
@@ -158,17 +154,13 @@ def parse_epan(epan):
 async def basic_tc_permits(s):
     async def set_policy(policy, decision):
         v = await s.setPolicy(policy, decision)
-        check(v[0], "Failed to set policy %s to %s: %s" % (
-            policy, decision, v[0],
-        ))
+        check(v[0], "Failed to set policy %s to %s: %s" % (policy, decision, v[0]))
 
     await set_policy(
-        t.EzspPolicyId.TC_KEY_REQUEST_POLICY,
-        t.EzspDecisionId.DENY_TC_KEY_REQUESTS,
+        t.EzspPolicyId.TC_KEY_REQUEST_POLICY, t.EzspDecisionId.DENY_TC_KEY_REQUESTS
     )
     await set_policy(
-        t.EzspPolicyId.APP_KEY_REQUEST_POLICY,
-        t.EzspDecisionId.ALLOW_APP_KEY_REQUESTS,
+        t.EzspPolicyId.APP_KEY_REQUEST_POLICY, t.EzspDecisionId.ALLOW_APP_KEY_REQUESTS
     )
     await set_policy(
         t.EzspPolicyId.TRUST_CENTER_POLICY,
@@ -178,7 +170,7 @@ async def basic_tc_permits(s):
 
 def get_device(app, node):
     if node not in app.devices:
-        click.echo("Device %s is not in the device database" % (node, ))
+        click.echo("Device %s is not in the device database" % (node,))
         return None
 
     return app.devices[node]
@@ -199,10 +191,13 @@ def get_endpoint(app, node, endpoint_id):
 def get_in_cluster(app, node, endpoint_id, cluster_id):
     dev, endpoint = get_endpoint(app, node, endpoint_id)
     if endpoint is None:
-        return(dev, endpoint, None)
+        return (dev, endpoint, None)
 
     if cluster_id not in endpoint.in_clusters:
-        click.echo("Device %s has no cluster %d on endpoint %d" % (node, cluster_id, endpoint_id))
-        return(dev, endpoint, None)
+        click.echo(
+            "Device %s has no cluster %d on endpoint %d"
+            % (node, cluster_id, endpoint_id)
+        )
+        return (dev, endpoint, None)
 
     return (dev, endpoint, endpoint.in_clusters[cluster_id])
