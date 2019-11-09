@@ -357,7 +357,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if key is None:
             raise Exception("Invalid install code")
 
-        v = await self._ezsp.addTransientLinkKey(node, key)
+        link_key = t.EmberKeyData()
+        link_key.contents = key
+        v = await self._ezsp.addTransientLinkKey(node, link_key)
+
         if v[0] != t.EmberStatus.SUCCESS:
             raise Exception("Failed to set link key")
 
@@ -368,7 +371,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if v[0] != t.EmberStatus.SUCCESS:
             raise Exception("Failed to change policy to allow generation of new trust center keys")
 
-        return self._ezsp.permitJoining(time_s, True)
+        return await self.permit(time_s)
 
     async def broadcast(self, profile, cluster, src_ep, dst_ep, grpid, radius,
                         sequence, data,
