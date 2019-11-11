@@ -15,7 +15,7 @@ LOGGER = logging.getLogger(__name__)
 class EZSP:
 
     COMMANDS = COMMANDS
-    ezsp_version = 4
+    EZSP_VERSION = 4
 
     def __init__(self):
         self._awaiting = {}
@@ -25,6 +25,7 @@ class EZSP:
         self._ezsp_event = asyncio.Event()
         self._seq = 0
         self._gw = None
+        self._ezsp_version = self.EZSP_VERSION
         self._awaiting = {}
         self.COMMANDS_BY_ID = {}
         for name, details in self.COMMANDS.items():
@@ -38,8 +39,9 @@ class EZSP:
 
     def reconnect(self):
         """Reconnect using saved parameters."""
-        LOGGER.debug("Reconnecting %s serial port on %s bauds",
-                     self._device, self._baudrate)
+        LOGGER.debug(
+            "Reconnecting %s serial port on %s bauds", self._device, self._baudrate
+        )
         return self.connect(self._device, self._baudrate)
 
     async def reset(self):
@@ -56,11 +58,14 @@ class EZSP:
         self.start_ezsp()
 
     async def version(self):
-        version = self.ezsp_version
-        result = await self._command('version', version)
-        if result[0] != version:
-            LOGGER.debug("Switching to eszp version %d", result[0])
-            await self._command('version', result[0])
+        ver, stack_type, stack_version = await self._command(
+            "version", self.ezsp_version
+        )
+        if ver != self.version:
+            self._ezsp_version = ver
+            await self._command("version", ver)
+            LOGGER.debug("Switched to EZSP protocol version %d", self.ezsp_version)
+        LOGGER.info("EZSP Stack Type: %s, Stack Version: %s", stack_type, stack_version)
 
     def close(self):
         self.stop_ezsp()
@@ -71,11 +76,7 @@ class EZSP:
     def _ezsp_frame(self, name, *args):
         c = self.COMMANDS[name]
         data = t.serialize(args, c[1])
-        frame = [
-            self._seq & 0xff,
-            0,    # Frame control. TODO.
-            c[0]  # Frame ID
-        ]
+        frame = [self._seq & 0xFF, 0, c[0]]  # Frame control. TODO.  # Frame ID
         if self.ezsp_version >= 5:
             frame.insert(1, 0xFF)  # Legacy Frame ID
             frame.insert(1, 0x00)  # Ext frame control. TODO.
@@ -121,30 +122,26 @@ class EZSP:
 
     startScan = functools.partialmethod(
         _list_command,
-        'startScan',
-        ['energyScanResultHandler', 'networkFoundHandler'],
-        'scanCompleteHandler',
+        "startScan",
+        ["energyScanResultHandler", "networkFoundHandler"],
+        "scanCompleteHandler",
         1,
     )
     pollForData = functools.partialmethod(
-        _list_command,
-        'pollForData',
-        ['pollHandler'],
-        'pollCompleteHandler',
-        0,
+        _list_command, "pollForData", ["pollHandler"], "pollCompleteHandler", 0
     )
     zllStartScan = functools.partialmethod(
         _list_command,
-        'zllStartScan',
-        ['zllNetworkFoundHandler'],
-        'zllScanCompleteHandler',
+        "zllStartScan",
+        ["zllNetworkFoundHandler"],
+        "zllScanCompleteHandler",
         0,
     )
     rf4ceDiscovery = functools.partialmethod(
         _list_command,
-        'rf4ceDiscovery',
-        ['rf4ceDiscoveryResponseHandler'],
-        'rf4ceDiscoveryCompleteHandler',
+        "rf4ceDiscovery",
+        ["rf4ceDiscoveryResponseHandler"],
+        "rf4ceDiscoveryCompleteHandler",
         0,
     )
 
@@ -155,33 +152,32 @@ class EZSP:
 
     def enter_failed_state(self, error):
         """UART received error frame."""
-        LOGGER.error(
-            "NCP entered failed state. Requesting APP controller restart")
+        LOGGER.error("NCP entered failed state. Requesting APP controller restart")
         self.stop_ezsp()
-        self.handle_callback('_reset_controller_application', (error, ))
+        self.handle_callback("_reset_controller_application", (error,))
 
     async def formNetwork(self, parameters):  # noqa: N802
         fut = asyncio.Future()
 
         def cb(frame_name, response):
             nonlocal fut
-            if frame_name == 'stackStatusHandler':
+            if frame_name == "stackStatusHandler":
                 fut.set_result(response)
 
         self.add_callback(cb)
-        v = await self._command('formNetwork', parameters)
+        v = await self._command("formNetwork", parameters)
         if v[0] != t.EmberStatus.SUCCESS:
-            raise Exception("Failure forming network: %s" % (v, ))
+            raise Exception("Failure forming network: %s" % (v,))
 
         v = await fut
         if v[0] != t.EmberStatus.NETWORK_UP:
-            raise Exception("Failure forming network: %s" % (v, ))
+            raise Exception("Failure forming network: %s" % (v,))
 
         return v
 
     def __getattr__(self, name):
         if name not in self.COMMANDS:
-            raise AttributeError("%s not found in COMMANDS" % (name, ))
+            raise AttributeError("%s not found in COMMANDS" % (name,))
 
         return functools.partial(self._command, name)
 
@@ -203,7 +199,8 @@ class EZSP:
         LOGGER.debug(
             "Application frame %s (%s) received: %s",
             frame_id,
-            frame_name, binascii.hexlify(data)
+            frame_name,
+            binascii.hexlify(data),
         )
 
         if sequence in self._awaiting:
@@ -215,17 +212,14 @@ class EZSP:
             except asyncio.InvalidStateError as exc:
                 LOGGER.debug(
                     "Error processing %s response. %s command timed out?",
-                    sequence, self.COMMANDS_BY_ID.get(expected_id,
-                                                      [expected_id])[0]
+                    sequence,
+                    self.COMMANDS_BY_ID.get(expected_id, [expected_id])[0],
                 )
         else:
             schema = self.COMMANDS_BY_ID[frame_id][2]
             frame_name = self.COMMANDS_BY_ID[frame_id][0]
             result, data = t.deserialize(data, schema)
             self.handle_callback(frame_name, result)
-
-        if frame_id == 0x00:
-            self.ezsp_version = result[0]
 
     def add_callback(self, cb):
         id_ = hash(cb)
@@ -256,3 +250,8 @@ class EZSP:
     def is_ezsp_running(self):
         """Return True if EZSP is running."""
         return self._ezsp_event.is_set()
+
+    @property
+    def ezsp_version(self):
+        """Return protocol version."""
+        return self._ezsp_version

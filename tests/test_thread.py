@@ -15,16 +15,8 @@ async def test_thread_start(monkeypatch):
     current_loop = asyncio.get_event_loop()
     loopmock = mock.MagicMock()
 
-    monkeypatch.setattr(
-        asyncio,
-        'new_event_loop',
-        lambda: loopmock
-    )
-    monkeypatch.setattr(
-        asyncio,
-        'set_event_loop',
-        lambda loop: None
-    )
+    monkeypatch.setattr(asyncio, "new_event_loop", lambda: loopmock)
+    monkeypatch.setattr(asyncio, "set_event_loop", lambda loop: None)
 
     def mockrun(task):
         future = asyncio.run_coroutine_threadsafe(task, loop=current_loop)
@@ -45,7 +37,7 @@ class ExceptionCollector:
         self.exceptions = []
 
     def __call__(self, thread_loop, context):
-        exc = context.get('exception') or Exception(context['message'])
+        exc = context.get("exception") or Exception(context["message"])
         self.exceptions.append(exc)
 
 
@@ -54,13 +46,15 @@ class ExceptionCollector:
 async def thread():
     thread = EventLoopThread()
     await thread.start()
-    thread.loop.call_soon_threadsafe(thread.loop.set_exception_handler, ExceptionCollector())
+    thread.loop.call_soon_threadsafe(
+        thread.loop.set_exception_handler, ExceptionCollector()
+    )
     await yield_(thread)
     thread.force_stop()
     if thread.thread_complete is not None:
         await asyncio.wait_for(thread.thread_complete, 1)
-    [t.join(1) for t in threading.enumerate() if 'bellows' in t.name]
-    threads = [t for t in threading.enumerate() if 'bellows' in t.name]
+    [t.join(1) for t in threading.enumerate() if "bellows" in t.name]
+    threads = [t for t in threading.enumerate() if "bellows" in t.name]
     assert len(threads) == 0
 
 
@@ -87,7 +81,7 @@ async def test_thread_double_start(thread):
     previous_loop = thread.loop
     await thread.start()
     if sys.version_info[:2] >= (3, 6):
-        threads = [t for t in threading.enumerate() if 'bellows' in t.name]
+        threads = [t for t in threading.enumerate() if "bellows" in t.name]
         assert len(threads) == 1
     assert thread.loop is previous_loop
 

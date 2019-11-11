@@ -22,16 +22,14 @@ def test_connect(ezsp_f, monkeypatch):
         nonlocal connected
         connected = True
 
-    monkeypatch.setattr(uart, 'connect', mockconnect)
+    monkeypatch.setattr(uart, "connect", mockconnect)
     ezsp_f._gw = None
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(ezsp_f.connect(mock.sentinel.port,
-                                           mock.sentinel.speed))
+    loop.run_until_complete(ezsp_f.connect(mock.sentinel.port, mock.sentinel.speed))
     assert connected
 
-    ezsp_f.connect = mock.MagicMock(
-        side_effect=asyncio.coroutine(mock.MagicMock()))
+    ezsp_f.connect = mock.MagicMock(side_effect=asyncio.coroutine(mock.MagicMock()))
     loop.run_until_complete(ezsp_f.reconnect())
     assert ezsp_f.connect.call_count == 1
     assert ezsp_f.connect.call_args[0][0] is mock.sentinel.port
@@ -90,32 +88,31 @@ def test_non_existent_attr_with_list(ezsp_f):
 def test_command(ezsp_f):
     ezsp_f._gw = mock.MagicMock()
     ezsp_f.start_ezsp()
-    ezsp_f._command('version')
+    ezsp_f._command("version")
     assert ezsp_f._gw.data.call_count == 1
 
 
 def test_command_ezsp_stopped(ezsp_f):
     with pytest.raises(EzspError):
-        ezsp_f._command('version')
+        ezsp_f._command("version")
 
 
 def _test_list_command(ezsp_f, mockcommand):
     loop = asyncio.get_event_loop()
     ezsp_f._command = mockcommand
-    return loop.run_until_complete(ezsp_f._list_command(
-        'startScan',
-        ['networkFoundHandler'],
-        'scanCompleteHandler',
-        1,
-    ))
+    return loop.run_until_complete(
+        ezsp_f._list_command(
+            "startScan", ["networkFoundHandler"], "scanCompleteHandler", 1
+        )
+    )
 
 
 def test_list_command(ezsp_f):
     async def mockcommand(name, *args):
-        assert name == 'startScan'
-        ezsp_f.frame_received(b'\x01\x00\x1b')
-        ezsp_f.frame_received(b'\x02\x00\x1b')
-        ezsp_f.frame_received(b'\x03\x00\x1c')
+        assert name == "startScan"
+        ezsp_f.frame_received(b"\x01\x00\x1b")
+        ezsp_f.frame_received(b"\x02\x00\x1b")
+        ezsp_f.frame_received(b"\x03\x00\x1c")
 
         return [0]
 
@@ -125,7 +122,7 @@ def test_list_command(ezsp_f):
 
 def test_list_command_initial_failure(ezsp_f):
     async def mockcommand(name, *args):
-        assert name == 'startScan'
+        assert name == "startScan"
         return [1]
 
     with pytest.raises(Exception):
@@ -134,10 +131,10 @@ def test_list_command_initial_failure(ezsp_f):
 
 def test_list_command_later_failure(ezsp_f):
     async def mockcommand(name, *args):
-        assert name == 'startScan'
-        ezsp_f.frame_received(b'\x01\x00\x1b')
-        ezsp_f.frame_received(b'\x02\x00\x1b')
-        ezsp_f.frame_received(b'\x03\x00\x1c\x01\x01')
+        assert name == "startScan"
+        ezsp_f.frame_received(b"\x01\x00\x1b")
+        ezsp_f.frame_received(b"\x02\x00\x1b")
+        ezsp_f.frame_received(b"\x03\x00\x1c\x01\x01")
 
         return [0]
 
@@ -147,8 +144,8 @@ def test_list_command_later_failure(ezsp_f):
 
 def _test_form_network(ezsp_f, initial_result, final_result):
     async def mockcommand(name, *args):
-        assert name == 'formNetwork'
-        ezsp_f.frame_received(b'\x01\x00\x19' + final_result)
+        assert name == "formNetwork"
+        ezsp_f.frame_received(b"\x01\x00\x19" + final_result)
         return initial_result
 
     ezsp_f._command = mockcommand
@@ -158,30 +155,36 @@ def _test_form_network(ezsp_f, initial_result, final_result):
 
 
 def test_form_network(ezsp_f):
-    _test_form_network(ezsp_f, [0], b'\x90')
+    _test_form_network(ezsp_f, [0], b"\x90")
 
 
 def test_form_network_fail(ezsp_f):
     with pytest.raises(Exception):
-        _test_form_network(ezsp_f, [1], b'\x90')
+        _test_form_network(ezsp_f, [1], b"\x90")
 
 
 def test_form_network_fail_stack_status(ezsp_f):
     with pytest.raises(Exception):
-        _test_form_network(ezsp_f, [0], b'\x00')
+        _test_form_network(ezsp_f, [0], b"\x00")
 
 
 def test_receive_new(ezsp_f):
     ezsp_f.handle_callback = mock.MagicMock()
-    ezsp_f.frame_received(b'\x00\xff\x00\x04\x05\x06')
+    ezsp_f.frame_received(b"\x00\xff\x00\x04\x05\x06")
+    assert ezsp_f.handle_callback.call_count == 1
+
+
+def test_receive_protocol_5(ezsp_f):
+    ezsp_f.handle_callback = mock.MagicMock()
+    ezsp_f.frame_received(b"\x01\x80\xff\x00\x00\x06\x02\x00")
     assert ezsp_f.handle_callback.call_count == 1
 
 
 def test_receive_reply(ezsp_f):
     ezsp_f.handle_callback = mock.MagicMock()
     callback_mock = mock.MagicMock(spec_set=asyncio.Future)
-    ezsp_f._awaiting[0] = (0, ezsp_f.COMMANDS['version'][2], callback_mock)
-    ezsp_f.frame_received(b'\x00\xff\x00\x04\x05\x06')
+    ezsp_f._awaiting[0] = (0, ezsp_f.COMMANDS["version"][2], callback_mock)
+    ezsp_f.frame_received(b"\x00\xff\x00\x04\x05\x06")
 
     assert 0 not in ezsp_f._awaiting
     assert callback_mock.set_exception.call_count == 0
@@ -194,8 +197,8 @@ def test_receive_reply_after_timeout(ezsp_f):
     ezsp_f.handle_callback = mock.MagicMock()
     callback_mock = mock.MagicMock(spec_set=asyncio.Future)
     callback_mock.set_result.side_effect = asyncio.InvalidStateError()
-    ezsp_f._awaiting[0] = (0, ezsp_f.COMMANDS['version'][2], callback_mock)
-    ezsp_f.frame_received(b'\x00\xff\x00\x04\x05\x06')
+    ezsp_f._awaiting[0] = (0, ezsp_f.COMMANDS["version"][2], callback_mock)
+    ezsp_f.frame_received(b"\x00\xff\x00\x04\x05\x06")
 
     assert 0 not in ezsp_f._awaiting
     assert callback_mock.set_exception.call_count == 0
@@ -230,11 +233,9 @@ def test_callback_multi(ezsp_f):
     ezsp_f.remove_callback(cbid1)
 
     ezsp_f.handle_callback(4, 5, 6)
-    testcb.assert_has_calls([
-        mock.call(1, 2, 3),
-        mock.call(1, 2, 3),
-        mock.call(4, 5, 6),
-    ])
+    testcb.assert_has_calls(
+        [mock.call(1, 2, 3), mock.call(1, 2, 3), mock.call(4, 5, 6)]
+    )
 
 
 def test_callback_exc(ezsp_f):
@@ -246,29 +247,20 @@ def test_callback_exc(ezsp_f):
     assert testcb.call_count == 1
 
 
-def test_version_5(ezsp_f):
-    ezsp_f._gw = mock.MagicMock()
-    ezsp_f.start_ezsp()
-
-    ezsp_f.frame_received(b'\x00\x00\xff\x00\x00\x05\x05\x06')
-    assert ezsp_f.ezsp_version == 5
-
-    ezsp_f.getValue(1)
-    ezsp_f._gw.data.assert_called_once_with(bytes([0x00, 0x00, 0xFF, 0x00, 0xAA, 0x01]))
-
-
 def test_change_version(ezsp_f):
     loop = asyncio.get_event_loop()
+    version = 5
 
     def mockcommand(name, *args):
-        assert name == 'version'
-        ezsp_f.frame_received(b'\x01\x00\x1b')
+        assert name == "version"
+        ezsp_f.frame_received(b"\x01\x00\x1b")
         fut = asyncio.Future()
-        fut.set_result([5])
+        fut.set_result([version, 2, 2046])
         return fut
 
     ezsp_f._command = mockcommand
     loop.run_until_complete(ezsp_f.version())
+    assert ezsp_f.ezsp_version == version
 
 
 def test_stop_ezsp(ezsp_f):
@@ -284,8 +276,7 @@ def test_start_ezsp(ezsp_f):
 
 
 def test_connection_lost(ezsp_f):
-    ezsp_f.enter_failed_state = mock.MagicMock(
-        spec_set=ezsp_f.enter_failed_state)
+    ezsp_f.enter_failed_state = mock.MagicMock(spec_set=ezsp_f.enter_failed_state)
     ezsp_f.connection_lost(mock.sentinel.exc)
     assert ezsp_f.enter_failed_state.call_count == 1
 
@@ -297,3 +288,13 @@ def test_enter_failed_state(ezsp_f):
     assert ezsp_f.stop_ezsp.call_count == 1
     assert ezsp_f.handle_callback.call_count == 1
     assert ezsp_f.handle_callback.call_args[0][1][0] == mock.sentinel.error
+
+
+def test_ezsp_frame(ezsp_f):
+    ezsp_f._seq = 0x22
+    data = ezsp_f._ezsp_frame("version", 6)
+    assert data == b"\x22\x00\x00\x06"
+
+    ezsp_f._ezsp_version = 5
+    data = ezsp_f._ezsp_frame("version", 6)
+    assert data == b"\x22\x00\xff\x00\x00\x06"

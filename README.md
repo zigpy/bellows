@@ -3,8 +3,7 @@
 [![Build Status](https://travis-ci.org/zigpy/bellows.svg?branch=master)](https://travis-ci.org/zigpy/bellows)
 [![Coverage](https://coveralls.io/repos/github/zigpy/bellows/badge.svg?branch=master)](https://coveralls.io/github/zigpy/bellows?branch=master)
 
-`bellows` is a Python 3 project to implement support for EmberZNet devices
-using the EZSP protocol.
+`bellows` is a Python 3 project to implement support for EmberZNet devices using the EZSP protocol.
 
 The goal is to use this project to add support for the ZigBee Network
 Coprocessor (NCP) in devices like the [Linear/Nortek/GoControl HubZ/QuickStick
@@ -13,7 +12,17 @@ Combo (HUSBZB-1)][HubZ] device to [Home Assistant][hass].
 [Hubz]: http://www.gocontrol.com/detail.php?productId=6
 [hass]: https://home-assistant.io/
 
-## Status
+## Compatible hardware
+
+EmberZNet based Zigbee radios using the EZSP protocol (via the [bellows](https://github.com/zigpy/bellows) library for zigpy)
+ - [Nortek GoControl QuickStick Combo Model HUSBZB-1 (Z-Wave & Zigbee USB Adapter)](https://www.nortekcontrol.com/products/2gig/husbzb-1-gocontrol-quickstick-combo/)
+ - [Elelabs Zigbee USB Adapter](https://elelabs.com/products/elelabs_usb_adapter.html)
+ - [Elelabs Zigbee Raspberry Pi Shield](https://elelabs.com/products/elelabs_zigbee_shield.html)
+ - Telegesis ETRX357USB (Note! This first have to be flashed with other EmberZNet firmware)
+ - Telegesis ETRX357USB-LRS (Note! This first have to be flashed with other EmberZNet firmware)
+ - Telegesis ETRX357USB-LRS+8M (Note! This first have to be flashed with other EmberZNet firmware)
+
+## Project status
 
 This project is in early stages, so it is likely that APIs will change.
 
@@ -49,6 +58,11 @@ $ bellows zdo 00:0d:6f:00:05:7d:2d:34 get_endpoint 1
 $ bellows zcl 00:0d:6f:00:05:7d:2d:34 1 1026 read_attribute 0
 0=1806
 ```
+
+## Release packages available via PyPI
+
+Packages of tagged versions are also released via PyPI
+  - https://pypi.org/project/bellows-homeassistant/
 
 ## Reference documentation
 

@@ -10,13 +10,11 @@ from .main import main
 
 @main.command()
 @click.option(
-    '-c', '--channel',
-    type=click.IntRange(11, 26),
-    metavar="CHANNEL",
-    required=True,
+    "-c", "--channel", type=click.IntRange(11, 26), metavar="CHANNEL", required=True
 )
 @click.option(
-    '-w', 'outfile',
+    "-w",
+    "outfile",
     type=click.Path(writable=True, dir_okay=False),
     metavar="FILE",
     required=True,
@@ -28,20 +26,20 @@ def dump(ctx, channel, outfile):
     try:
         loop.run_until_complete(_dump(ctx, channel, outfile))
     except KeyboardInterrupt:
-        captured = ctx.obj.get('captured', 0)
-        start_time = ctx.obj.get('start_time', None)
+        captured = ctx.obj.get("captured", 0)
+        start_time = ctx.obj.get("start_time", None)
         if start_time:
             duration = time.time() - start_time
             click.echo("\nCaptured %s frames in %0.2fs" % (captured, duration))
     finally:
-        if 'ezsp' in ctx.obj:
-            loop.run_until_complete(ctx.obj['ezsp'].mfglibEnd())
-            ctx.obj['ezsp'].close()
+        if "ezsp" in ctx.obj:
+            loop.run_until_complete(ctx.obj["ezsp"].mfglibEnd())
+            ctx.obj["ezsp"].close()
 
 
 async def _dump(ctx, channel, outfile):
-    s = await util.setup(ctx.obj['device'], ctx.obj['baudrate'])
-    ctx.obj['ezsp'] = s
+    s = await util.setup(ctx.obj["device"], ctx.obj["baudrate"])
+    ctx.obj["ezsp"] = s
 
     v = await s.mfglibStart(True)
     util.check(v[0], "Unable to start mfglib")
@@ -52,18 +50,18 @@ async def _dump(ctx, channel, outfile):
     pcap = pure_pcapy.Dumper(outfile, 128, 195)  # DLT_IEEE_15_4
 
     click.echo("Capture started")
-    ctx.obj['start_time'] = time.time()
-    ctx.obj['captured'] = 0
+    ctx.obj["start_time"] = time.time()
+    ctx.obj["captured"] = 0
 
     def cb(frame_name, response):
-        if frame_name == 'mfglibRxHandler':
+        if frame_name == "mfglibRxHandler":
             data = response[2]
             ts = time.time()
             ts_sec = int(ts)
             ts_usec = int((ts - ts_sec) * 1000000)
             hdr = pure_pcapy.Pkthdr(ts_sec, ts_usec, len(data), len(data))
             pcap.dump(hdr, data)
-            ctx.obj['captured'] += 1
+            ctx.obj["captured"] += 1
 
     s.add_callback(cb)
 
