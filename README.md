@@ -70,3 +70,11 @@ Packages of tagged versions are also released via PyPI
    https://www.silabs.com/Support%20Documents/TechnicalDocs/UG101.pdf
  * EZSP Reference Guide:
    http://www.silabs.com/Support%20Documents/TechnicalDocs/UG100-EZSPReferenceGuide.pdf
+
+## How to contribute
+
+If you are looking to make a contribution to this project we suggest that you follow the steps in these guides:
+- https://github.com/firstcontributions/first-contributions/blob/master/README.md
+- https://github.com/firstcontributions/first-contributions/blob/master/github-desktop-tutorial.md
+
+Some developers might also be interested in receiving donations in the form of hardware such as Zigbee modules or devices, and even if such donations are most often donated with no strings attached it could in many cases help the developers motivation and indirect improve the development of this project.
