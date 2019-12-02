@@ -41,7 +41,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._reset_task = None
         self._in_flight_msg = None
         self.use_source_routing = True
-        self._mtor = None
 
     @property
     def controller_event(self):
@@ -171,6 +170,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             5,
             0,
         )
+        LOGGER.debug("Set concentrator type: %s", res)
         if res[0] != t.EmberStatus.SUCCESS:
             LOGGER.warning(
                 "Couldn't set concentrator type %s: %s", self.use_source_routing, res
@@ -476,8 +476,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                         "Extending timeout for %s/0x%04x", device.ieee, device.nwk
                     )
                     await self._ezsp.setExtendedTimeout(device.ieee, True)
-                if self.use_source_routing and device.route is not None:
-                    res = await self._ezsp.setSourceRoute(device.nwk, device.route)
+                if self.use_source_routing and device.relays is not None:
+                    res = await self._ezsp.setSourceRoute(device.nwk, device.relays)
                     if res[0] != t.EmberStatus.SUCCESS:
                         LOGGER.warning(
                             "Couldn't set source route for %s: %s", device.nwk, res
@@ -490,7 +490,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                         LOGGER.debug(
                             "Set source route for %s to %s: %s",
                             device.nwk,
-                            device.route,
+                            device.relays,
                             res,
                         )
                 res = await self._ezsp.sendUnicast(
@@ -623,7 +623,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         except KeyError:
             LOGGER.debug("Why we don't have a device for %s ieee and %s NWK", ieee, nwk)
             self.handle_join(nwk, ieee, 0)
-        dev.route = relays
+            return
+        dev.relays = relays
 
     def handle_route_error(self, status: t.EmberStatus, nwk: t.EmberNodeId) -> None:
         LOGGER.debug("Processing route error: status=%s, nwk=%s", status, nwk)
@@ -632,7 +633,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         except KeyError:
             LOGGER.debug("No %s device found", nwk)
             return
-        dev.route = None
+        dev.relays = None
 
 
 class EZSPCoordinator(CustomDevice):
