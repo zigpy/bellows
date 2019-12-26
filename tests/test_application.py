@@ -2,11 +2,10 @@ import asyncio
 from unittest import mock
 
 import asynctest
-import pytest
-
+from bellows.exception import ControllerError, EzspError
 import bellows.types as t
 import bellows.zigbee.application
-from bellows.exception import ControllerError, EzspError
+import pytest
 from zigpy.device import Device
 from zigpy.zcl.clusters import security
 
@@ -990,3 +989,24 @@ def test_handle_route_error(app):
     app.ezsp_callback_handler(
         "incomingRouteErrorHandler", [mock.sentinel.status, mock.sentinel.nwk]
     )
+
+
+@pytest.mark.parametrize(
+    "config, result",
+    [
+        ({}, False),
+        ({"wrong_key": True}, False),
+        ({"source_routing": False}, False),
+        ({"source_routing": True}, True),
+        ({"source_routing": "on"}, True),
+    ],
+)
+def test_src_rtg_config(config, result):
+    """Test src routing configuration parameter."""
+    ctrl = bellows.zigbee.application.ControllerApplication(mock.MagicMock())
+    assert ctrl.use_source_routing is False
+
+    ctrl = bellows.zigbee.application.ControllerApplication(
+        mock.MagicMock(), config=config
+    )
+    assert ctrl.use_source_routing is result

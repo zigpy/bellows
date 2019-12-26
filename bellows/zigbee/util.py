@@ -1,6 +1,8 @@
 import os
+from typing import Any
 
 import bellows.types as t
+import voluptuous as vol
 
 
 def zha_security(controller=False):
@@ -30,3 +32,18 @@ def zha_security(controller=False):
         random_key = t.fixed_list(16, t.uint8_t)([t.uint8_t(x) for x in os.urandom(16)])
         isc.networkKey = random_key
     return isc
+
+
+def cv_boolean(value: Any) -> bool:
+    """Validate and coerce a boolean value."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        value = value.lower().strip()
+        if value in ("1", "true", "yes", "on", "enable"):
+            return True
+        if value in ("0", "false", "no", "off", "disable"):
+            return False
+    elif isinstance(value, int):
+        return bool(value)
+    raise vol.Invalid("invalid boolean value {}".format(value))

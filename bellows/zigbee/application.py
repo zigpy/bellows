@@ -2,21 +2,25 @@ import asyncio
 import logging
 import os
 
+from bellows.exception import ControllerError, EzspError
+import bellows.multicast
+import bellows.types as t
+import bellows.zigbee.util
 from serial import SerialException
-from zigpy.quirks import CustomDevice, CustomEndpoint
-from zigpy.types import BroadcastAddress
+import voluptuous as vol
 import zigpy.application
 import zigpy.device
+from zigpy.quirks import CustomDevice, CustomEndpoint
+from zigpy.types import BroadcastAddress
 import zigpy.util
 import zigpy.zdo
 import zigpy.zdo.types as zdo_t
 
-import bellows.types as t
-import bellows.zigbee.util
-from bellows.exception import ControllerError, EzspError
-import bellows.multicast
-
 APS_ACK_TIMEOUT = 120
+CONF_PARAM_SRC_RTG = "source_routing"
+CONFIG_SCHEMA = zigpy.application.CONFIG_SCHEMA.extend(
+    {vol.Optional(CONF_PARAM_SRC_RTG, default=False): bellows.zigbee.util.cv_boolean}
+)
 EZSP_DEFAULT_RADIUS = 0
 EZSP_MULTICAST_NON_MEMBER_RADIUS = 3
 MAX_WATCHDOG_FAILURES = 4
@@ -31,8 +35,8 @@ LOGGER = logging.getLogger(__name__)
 class ControllerApplication(zigpy.application.ControllerApplication):
     direct = t.EmberOutgoingMessageType.OUTGOING_DIRECT
 
-    def __init__(self, ezsp, database_file=None):
-        super().__init__(database_file=database_file)
+    def __init__(self, ezsp, database_file=None, config={}):
+        super().__init__(database_file=database_file, config=CONFIG_SCHEMA(config))
         self._ctrl_event = asyncio.Event()
         self._ezsp = ezsp
         self._multicast = bellows.multicast.Multicast(ezsp)
@@ -44,8 +48,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             t.EmberApsOption.APS_OPTION_RETRY
             | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
         )
-
-        self.use_source_routing = False
+        self.use_source_routing = self.config[CONF_PARAM_SRC_RTG]
 
     @property
     def controller_event(self):
