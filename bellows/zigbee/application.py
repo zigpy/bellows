@@ -2,24 +2,30 @@ import asyncio
 import logging
 import os
 
+from bellows.exception import ControllerError, EzspError
+import bellows.multicast
+import bellows.types as t
+import bellows.zigbee.util
 from serial import SerialException
-from zigpy.quirks import CustomDevice, CustomEndpoint
-from zigpy.types import BroadcastAddress
+import voluptuous as vol
 import zigpy.application
 import zigpy.device
+from zigpy.quirks import CustomDevice, CustomEndpoint
+from zigpy.types import BroadcastAddress
 import zigpy.util
 import zigpy.zdo
 import zigpy.zdo.types as zdo_t
 
-import bellows.types as t
-import bellows.zigbee.util
-from bellows.exception import ControllerError, EzspError
-import bellows.multicast
-
 APS_ACK_TIMEOUT = 120
+CONF_PARAM_SRC_RTG = "source_routing"
+CONFIG_SCHEMA = zigpy.application.CONFIG_SCHEMA.extend(
+    {vol.Optional(CONF_PARAM_SRC_RTG, default=False): bellows.zigbee.util.cv_boolean}
+)
 EZSP_DEFAULT_RADIUS = 0
 EZSP_MULTICAST_NON_MEMBER_RADIUS = 3
 MAX_WATCHDOG_FAILURES = 4
+MTOR_MIN_INTERVAL = 600
+MTOR_MAX_INTERVAL = 1800
 RESET_ATTEMPT_BACKOFF_TIME = 5
 WATCHDOG_WAKE_PERIOD = 10
 
@@ -29,8 +35,8 @@ LOGGER = logging.getLogger(__name__)
 class ControllerApplication(zigpy.application.ControllerApplication):
     direct = t.EmberOutgoingMessageType.OUTGOING_DIRECT
 
-    def __init__(self, ezsp, database_file=None):
-        super().__init__(database_file=database_file)
+    def __init__(self, ezsp, database_file=None, config={}):
+        super().__init__(database_file=database_file, config=CONFIG_SCHEMA(config))
         self._ctrl_event = asyncio.Event()
         self._ezsp = ezsp
         self._multicast = bellows.multicast.Multicast(ezsp)
@@ -38,6 +44,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._watchdog_task = None
         self._reset_task = None
         self._in_flight_msg = None
+        self._tx_options = t.EmberApsOption(
+            t.EmberApsOption.APS_OPTION_RETRY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+        )
+        self.use_source_routing = self.config[CONF_PARAM_SRC_RTG]
 
     @property
     def controller_event(self):
@@ -124,6 +135,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self.initialize()
         e = self._ezsp
 
+        await self.set_source_routing()
         v = await e.networkInit()
         if v[0] != t.EmberStatus.SUCCESS:
             if not auto_form:
@@ -153,7 +165,24 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         self.handle_join(self.nwk, self.ieee, 0)
         LOGGER.debug("EZSP nwk=0x%04x, IEEE=%s", self._nwk, str(self._ieee))
+
         await self.multicast.startup(self.get_device(self.ieee))
+
+    async def set_source_routing(self) -> None:
+        res = await self._ezsp.setConcentrator(
+            self.use_source_routing,
+            t.EmberConcentratorType.HIGH_RAM_CONCENTRATOR,
+            MTOR_MIN_INTERVAL,
+            MTOR_MAX_INTERVAL,
+            2,
+            5,
+            0,
+        )
+        LOGGER.debug("Set concentrator type: %s", res)
+        if res[0] != t.EmberStatus.SUCCESS:
+            LOGGER.warning(
+                "Couldn't set concentrator type %s: %s", self.use_source_routing, res
+            )
 
     async def shutdown(self):
         """Shutdown and cleanup ControllerApplication."""
@@ -235,6 +264,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 self.handle_leave(args[0], args[1])
             else:
                 self.handle_join(args[0], args[1], args[4])
+        elif frame_name == "incomingRouteRecordHandler":
+            self.handle_route_record(*args)
+        elif frame_name == "incomingRouteErrorHandler":
+            self.handle_route_error(*args)
         elif frame_name == "_reset_controller_application":
             self._handle_reset_request(*args)
 
@@ -432,10 +465,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.clusterId = t.uint16_t(cluster)
         aps_frame.sourceEndpoint = t.uint8_t(src_ep)
         aps_frame.destinationEndpoint = t.uint8_t(dst_ep)
-        aps_frame.options = t.EmberApsOption(
-            t.EmberApsOption.APS_OPTION_RETRY
-            | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-        )
+        aps_frame.options = self._tx_options
         aps_frame.groupId = t.uint16_t(0)
         aps_frame.sequence = t.uint8_t(sequence)
         message_tag = self.get_sequence()
@@ -444,11 +474,30 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             LOGGER.warning(
                 ("EUI64 addressing is not currently supported, " "reverting to NWK")
             )
-        if expect_reply and device.node_desc.is_end_device in (True, None):
-            LOGGER.debug("Extending timeout for %s/0x%04x", device.ieee, device.nwk)
-            await self._ezsp.setExtendedTimeout(device.ieee, True)
         with self._pending.new(message_tag) as req:
             async with self._in_flight_msg:
+                if expect_reply and device.node_desc.is_end_device in (True, None):
+                    LOGGER.debug(
+                        "Extending timeout for %s/0x%04x", device.ieee, device.nwk
+                    )
+                    await self._ezsp.setExtendedTimeout(device.ieee, True)
+                if self.use_source_routing and device.relays is not None:
+                    res = await self._ezsp.setSourceRoute(device.nwk, device.relays)
+                    if res[0] != t.EmberStatus.SUCCESS:
+                        LOGGER.warning(
+                            "Couldn't set source route for %s: %s", device.nwk, res
+                        )
+                    else:
+                        aps_frame.options = t.EmberApsOption(
+                            aps_frame.options
+                            ^ t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                        )
+                        LOGGER.debug(
+                            "Set source route for %s to %s: %s",
+                            device.nwk,
+                            device.relays,
+                            res,
+                        )
                 res = await self._ezsp.sendUnicast(
                     self.direct, device.nwk, aps_frame, message_tag, data
                 )
@@ -562,6 +611,34 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._handle_reset_request(
             "Watchdog timeout. Heartbeat timeouts: {}".format(failures)
         )
+
+    def handle_route_record(
+        self,
+        nwk: t.EmberNodeId,
+        ieee: t.EmberEUI64,
+        lqi: t.uint8_t,
+        rssi: t.int8s,
+        relays: t.LVList(t.EmberNodeId),
+    ) -> None:
+        LOGGER.debug(
+            "Processing route record request: %s", (nwk, ieee, lqi, rssi, relays)
+        )
+        try:
+            dev = self.get_device(ieee=ieee)
+        except KeyError:
+            LOGGER.debug("Why we don't have a device for %s ieee and %s NWK", ieee, nwk)
+            self.handle_join(nwk, ieee, 0)
+            return
+        dev.relays = relays
+
+    def handle_route_error(self, status: t.EmberStatus, nwk: t.EmberNodeId) -> None:
+        LOGGER.debug("Processing route error: status=%s, nwk=%s", status, nwk)
+        try:
+            dev = self.get_device(nwk=nwk)
+        except KeyError:
+            LOGGER.debug("No %s device found", nwk)
+            return
+        dev.relays = None
 
 
 class EZSPCoordinator(CustomDevice):
