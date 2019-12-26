@@ -22,5 +22,5 @@ setup(
         "zigpy-homeassistant>=0.9.0",
     ],
     dependency_links=["https://codeload.github.com/rcloran/pure-pcapy-3/zip/master"],
-    tests_require=["pytest"],
+    tests_require=["asynctest", "pytest", "pytest-asyncio"],
 )
