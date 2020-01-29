@@ -87,7 +87,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._cfg(c.CONFIG_SOURCE_ROUTE_TABLE_SIZE, 8)
         await self._cfg(c.CONFIG_MAX_END_DEVICE_CHILDREN, 32)
         await self._cfg(c.CONFIG_INDIRECT_TRANSMISSION_TIMEOUT, 7680)
-        await self._cfg(c.CONFIG_KEY_TABLE_SIZE, 1)
+        await self._cfg(c.CONFIG_KEY_TABLE_SIZE, 16)
         await self._cfg(c.CONFIG_TRANSIENT_KEY_TIMEOUT_S, 180, True)
         if self._ezsp.ezsp_version >= 7:
             await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT, 8)
@@ -231,7 +231,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         """Set up the policies for what the NCP should do"""
         e = self._ezsp
         v = await e.setPolicy(
-            t.EzspPolicyId.TC_KEY_REQUEST_POLICY, t.EzspDecisionId.DENY_TC_KEY_REQUESTS
+            t.EzspPolicyId.TC_KEY_REQUEST_POLICY,
+            t.EzspDecisionId.GENERATE_NEW_TC_LINK_KEY,
         )
         assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
         v = await e.setPolicy(
