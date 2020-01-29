@@ -1,11 +1,11 @@
 import asyncio
 from unittest import mock
 
-import pytest
-
+import asynctest
+from bellows.exception import ControllerError, EzspError
 import bellows.types as t
 import bellows.zigbee.application
-from bellows.exception import ControllerError, EzspError
+import pytest
 from zigpy.device import Device
 from zigpy.zcl.clusters import security
 
@@ -13,6 +13,8 @@ from zigpy.zcl.clusters import security
 @pytest.fixture
 def app(monkeypatch):
     ezsp = mock.MagicMock()
+    ezsp.setConcentrator = asynctest.CoroutineMock(return_value=[0])
+    ezsp.setSourceRoute = asynctest.CoroutineMock(return_value=[0])
     type(ezsp).is_ezsp_running = mock.PropertyMock(return_value=True)
     ctrl = bellows.zigbee.application.ControllerApplication(ezsp)
     monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.1)
@@ -317,6 +319,7 @@ async def _request(
     send_ack_success=True,
     ezsp_operational=True,
     is_end_device=False,
+    relays=None,
     **kwargs
 ):
     async def mocksend(method, nwk, aps_frame, seq, data):
@@ -332,10 +335,11 @@ async def _request(
             return [0]
         return [2]
 
-    app._ezsp.sendUnicast = mocksend
+    app._ezsp.sendUnicast = mock.MagicMock(side_effect=mocksend)
     app._ezsp.setExtendedTimeout = mock.MagicMock()
     app._ezsp.setExtendedTimeout.side_effect = asyncio.coroutine(mock.MagicMock())
     device = mock.MagicMock()
+    device.relays = relays
     device.node_desc.is_end_device = is_end_device
     res = await app.request(device, 9, 8, 7, 6, 5, b"", **kwargs)
     assert len(app._pending) == 0
@@ -402,6 +406,66 @@ async def test_request_extended_timeout(app):
     assert res[0] == 0
     assert app._ezsp.setExtendedTimeout.call_count == 1
     assert app._ezsp.setExtendedTimeout.call_args[0][1] is True
+
+
+@pytest.mark.parametrize("relays", [None, [], [0x1234]])
+@pytest.mark.asyncio
+async def test_request_src_rtg_not_enabled(relays, app):
+    app.use_source_routing = False
+    await app.set_source_routing()
+    res = await _request(app, relays=relays)
+    assert res[0] == 0
+    assert app._ezsp.setSourceRoute.call_count == 0
+    assert app._ezsp.sendUnicast.call_count == 1
+    assert (
+        app._ezsp.sendUnicast.call_args[0][2].options
+        & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+    )
+
+
+@pytest.mark.asyncio
+async def test_request_src_rtg_no_route(app):
+    app.use_source_routing = True
+    await app.set_source_routing()
+    res = await _request(app, relays=None)
+    assert res[0] == 0
+    assert app._ezsp.setSourceRoute.call_count == 0
+    assert app._ezsp.sendUnicast.call_count == 1
+    assert (
+        app._ezsp.sendUnicast.call_args[0][2].options
+        & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+    )
+
+
+@pytest.mark.parametrize("relays", [[], [0x1234]])
+@pytest.mark.asyncio
+async def test_request_src_rtg_success(relays, app):
+    app.use_source_routing = True
+    await app.set_source_routing()
+    res = await _request(app, relays=relays)
+    assert res[0] == 0
+    assert app._ezsp.setSourceRoute.call_count == 1
+    assert app._ezsp.sendUnicast.call_count == 1
+    assert (
+        not app._ezsp.sendUnicast.call_args[0][2].options
+        & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+    )
+
+
+@pytest.mark.parametrize("relays", [[], [0x1234]])
+@pytest.mark.asyncio
+async def test_request_src_rtg_fail(relays, app):
+    app.use_source_routing = True
+    await app.set_source_routing()
+    app._ezsp.setSourceRoute.return_value = [1]
+    res = await _request(app, relays=relays)
+    assert res[0] == 0
+    assert app._ezsp.setSourceRoute.call_count == 1
+    assert app._ezsp.sendUnicast.call_count == 1
+    assert (
+        app._ezsp.sendUnicast.call_args[0][2].options
+        & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+    )
 
 
 @pytest.mark.asyncio
@@ -872,3 +936,77 @@ async def test_mrequest_ctrl_not_running(app):
     app._ctrl_event.clear()
     with pytest.raises(ControllerError):
         await _mrequest(app)
+
+
+@pytest.mark.parametrize("use_src_rtg, status", [(False, 0), (True, 1), (True, 0)])
+@pytest.mark.asyncio
+async def test_set_source_routing(use_src_rtg, status, app):
+    """Test setting source routing."""
+    app.use_source_routing = use_src_rtg
+    app._ezsp.setConcentrator.return_value = [status]
+    await app.set_source_routing()
+    assert app._ezsp.setConcentrator.call_args[0][0] is use_src_rtg
+
+
+def test_handle_route_record(app):
+    """Test route record handling for an existing device."""
+    s = mock.sentinel
+    dev = mock.MagicMock()
+    app.handle_join = mock.MagicMock()
+    app.get_device = mock.MagicMock(return_value=dev)
+    app.ezsp_callback_handler(
+        "incomingRouteRecordHandler", [s.nwk, s.ieee, s.lqi, s.rssi, s.relays]
+    )
+    assert dev.relays is s.relays
+    assert app.handle_join.call_count == 0
+
+
+def test_handle_route_record_unkn(app):
+    """Test route record handling for an unknown device."""
+    s = mock.sentinel
+    app.handle_join = mock.MagicMock()
+    app.get_device = mock.MagicMock(side_effect=KeyError)
+    app.ezsp_callback_handler(
+        "incomingRouteRecordHandler", [s.nwk, s.ieee, s.lqi, s.rssi, s.relays]
+    )
+    assert app.handle_join.call_count == 1
+    assert app.handle_join.call_args[0][0] is s.nwk
+    assert app.handle_join.call_args[0][1] is s.ieee
+
+
+def test_handle_route_error(app):
+    """Test route error handler."""
+    dev = mock.MagicMock()
+    dev.relays = mock.sentinel.old_relays
+    app.get_device = mock.MagicMock(return_value=dev)
+
+    app.ezsp_callback_handler(
+        "incomingRouteErrorHandler", [mock.sentinel.status, mock.sentinel.nwk]
+    )
+    assert dev.relays is None
+
+    app.get_device = mock.MagicMock(side_effect=KeyError)
+    app.ezsp_callback_handler(
+        "incomingRouteErrorHandler", [mock.sentinel.status, mock.sentinel.nwk]
+    )
+
+
+@pytest.mark.parametrize(
+    "config, result",
+    [
+        ({}, False),
+        ({"wrong_key": True}, False),
+        ({"source_routing": False}, False),
+        ({"source_routing": True}, True),
+        ({"source_routing": "on"}, True),
+    ],
+)
+def test_src_rtg_config(config, result):
+    """Test src routing configuration parameter."""
+    ctrl = bellows.zigbee.application.ControllerApplication(mock.MagicMock())
+    assert ctrl.use_source_routing is False
+
+    ctrl = bellows.zigbee.application.ControllerApplication(
+        mock.MagicMock(), config=config
+    )
+    assert ctrl.use_source_routing is result
