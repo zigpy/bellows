@@ -202,12 +202,6 @@ def test_dup_send_success(app, aps, ieee):
     assert req.result.set_result.call_count == 1
 
 
-def test_join_handler(app, ieee):
-    # Calls device.initialize, leaks a task
-    app.ezsp_callback_handler("trustCenterJoinHandler", [1, ieee, None, None, None])
-    assert ieee in app.devices
-
-
 def test_leave_handler(app, ieee):
     app.devices[ieee] = mock.sentinel.device
     app.ezsp_callback_handler(
