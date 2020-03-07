@@ -204,8 +204,10 @@ def test_dup_send_success(app, aps, ieee):
 
 def test_join_handler(app, ieee):
     # Calls device.initialize, leaks a task
+    app.handle_join = mock.MagicMock()
     app.ezsp_callback_handler("trustCenterJoinHandler", [1, ieee, None, None, None])
     assert ieee not in app.devices
+    assert app.handle_join.call_count == 0
 
 
 def test_leave_handler(app, ieee):
