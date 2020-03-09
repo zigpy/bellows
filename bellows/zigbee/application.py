@@ -263,8 +263,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         elif frame_name == "trustCenterJoinHandler":
             if args[2] == t.EmberDeviceUpdate.DEVICE_LEFT:
                 self.handle_leave(args[0], args[1])
-            else:
-                self.handle_join(args[0], args[1], args[4])
         elif frame_name == "incomingRouteRecordHandler":
             self.handle_route_record(*args)
         elif frame_name == "incomingRouteErrorHandler":
