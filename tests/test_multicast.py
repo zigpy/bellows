@@ -1,12 +1,11 @@
 import asyncio
 from unittest import mock
 
-import pytest
-from zigpy.endpoint import Endpoint
-
 import bellows.ezsp
 import bellows.multicast
 import bellows.types as t
+import pytest
+from zigpy.endpoint import Endpoint
 
 
 @pytest.fixture

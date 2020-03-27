@@ -1,10 +1,8 @@
 import asyncio
-import logging
-
-import sys
-
-import functools
 from concurrent.futures import ThreadPoolExecutor
+import functools
+import logging
+import sys
 
 LOGGER = logging.getLogger(__name__)
 

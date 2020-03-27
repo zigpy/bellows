@@ -1,5 +1,4 @@
-from . import basic
-from . import named
+from . import basic, named
 
 
 class EzspStruct:

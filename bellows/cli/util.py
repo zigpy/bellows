@@ -2,11 +2,9 @@ import asyncio
 import functools
 import logging
 
-import click
-
 import bellows.ezsp
 import bellows.types as t
-
+import click
 
 LOGGER = logging.getLogger(__name__)
 

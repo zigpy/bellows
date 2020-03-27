@@ -1,8 +1,7 @@
 """Setup module for bellows"""
 
-from setuptools import find_packages, setup
-
 import bellows
+from setuptools import find_packages, setup
 
 setup(
     name="bellows-homeassistant",

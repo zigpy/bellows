@@ -1,11 +1,10 @@
 import asyncio
+import threading
 from unittest import mock
 
-import serial_asyncio
-import pytest
-import threading
-
 from bellows import uart
+import pytest
+import serial_asyncio
 
 
 @pytest.mark.asyncio

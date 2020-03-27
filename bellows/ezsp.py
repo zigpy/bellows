@@ -3,10 +3,10 @@ import binascii
 import functools
 import logging
 
-import bellows.types as t
-import bellows.uart as uart
 from bellows.commands import COMMANDS
 from bellows.exception import EzspError
+import bellows.types as t
+import bellows.uart as uart
 
 EZSP_CMD_TIMEOUT = 10
 LOGGER = logging.getLogger(__name__)
@@ -209,7 +209,7 @@ class EZSP:
             result, data = t.deserialize(data, schema)
             try:
                 future.set_result(result)
-            except asyncio.InvalidStateError as exc:
+            except asyncio.InvalidStateError:
                 LOGGER.debug(
                     "Error processing %s response. %s command timed out?",
                     sequence,
