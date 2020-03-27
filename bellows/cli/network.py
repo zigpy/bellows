@@ -3,14 +3,12 @@ import functools
 import logging
 import math
 
-import click
-
 import bellows.types as t
 import bellows.zigbee.util as zutil
-from . import opts
-from . import util
-from .main import main
+import click
 
+from . import opts, util
+from .main import main
 
 LOGGER = logging.getLogger(__name__)
 

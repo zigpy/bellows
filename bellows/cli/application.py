@@ -3,14 +3,13 @@
 import asyncio
 import binascii
 
-import click
-
-import bellows.types as t
 import bellows.ezsp
+import bellows.types as t
 import bellows.zigbee.application
+import click
 import zigpy.endpoint
-from . import opts
-from . import util
+
+from . import opts, util
 from .main import main
 
 

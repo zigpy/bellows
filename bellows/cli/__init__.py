@@ -1,5 +1,2 @@
 # flake8: noqa
-from . import application
-from . import dump
-from . import ncp
-from . import network
+from . import application, dump, ncp, network

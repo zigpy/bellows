@@ -2,12 +2,10 @@ import asyncio
 import binascii
 import logging
 
+from bellows.thread import EventLoopThread, ThreadsafeProxy
+import bellows.types as t
 import serial
 import serial_asyncio
-
-from bellows.thread import EventLoopThread, ThreadsafeProxy
-
-import bellows.types as t
 
 LOGGER = logging.getLogger(__name__)
 RESET_TIMEOUT = 5

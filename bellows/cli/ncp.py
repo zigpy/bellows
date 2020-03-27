@@ -1,6 +1,6 @@
+import bellows.types as t
 import click
 
-import bellows.types as t
 from . import util
 from .main import main
 

@@ -1,13 +1,11 @@
 import asyncio
+import sys
+import threading
 from unittest import mock
 
+from async_generator import async_generator, yield_
+from bellows.thread import EventLoopThread, ThreadsafeProxy
 import pytest
-import threading
-import sys
-
-from bellows.thread import ThreadsafeProxy, EventLoopThread
-
-from async_generator import yield_, async_generator
 
 
 @pytest.mark.asyncio

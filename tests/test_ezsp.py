@@ -2,10 +2,9 @@ import asyncio
 import functools
 from unittest import mock
 
-import pytest
-
 from bellows import ezsp, uart
 from bellows.exception import EzspError
+import pytest
 
 
 @pytest.fixture
