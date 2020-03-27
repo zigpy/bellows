@@ -1,13 +1,9 @@
-from zigpy.exceptions import ZigbeeException
+from zigpy.exceptions import APIException, ControllerException
 
 
-class BellowsException(ZigbeeException):
+class EzspError(APIException):
     pass
 
 
-class EzspError(BellowsException):
-    pass
-
-
-class ControllerError(BellowsException):
+class ControllerError(ControllerException):
     pass
