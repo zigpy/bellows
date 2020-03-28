@@ -1,11 +1,11 @@
 import asyncio
 import functools
-from unittest import mock
 
-import pytest
-
+from asynctest import CoroutineMock, mock
 from bellows import ezsp, uart
 from bellows.exception import EzspError
+import pytest
+import serial
 
 
 @pytest.fixture
@@ -298,3 +298,50 @@ def test_ezsp_frame(ezsp_f):
     ezsp_f._ezsp_version = 5
     data = ezsp_f._ezsp_frame("version", 6)
     assert data == b"\x22\x00\xff\x00\x00\x06"
+
+
+@pytest.mark.asyncio
+@mock.patch.object(ezsp.EZSP, "reset", new_callable=CoroutineMock)
+@mock.patch.object(uart, "connect")
+async def test_probe_success(mock_connect, mock_reset):
+    """Test device probing."""
+
+    res = await ezsp.EZSP.probe(mock.sentinel.uart, mock.sentinel.baud)
+    assert res is True
+    assert mock_connect.call_count == 1
+    assert mock_connect.await_count == 1
+    assert mock_connect.call_args[0][0] is mock.sentinel.uart
+    assert mock_reset.call_count == 1
+    assert mock_connect.return_value.close.call_count == 1
+
+    mock_connect.reset_mock()
+    mock_reset.reset_mock()
+    mock_connect.reset_mock()
+    res = await ezsp.EZSP.probe(mock.sentinel.uart, mock.sentinel.baud)
+    assert res is True
+    assert mock_connect.call_count == 1
+    assert mock_connect.await_count == 1
+    assert mock_connect.call_args[0][0] is mock.sentinel.uart
+    assert mock_reset.call_count == 1
+    assert mock_connect.return_value.close.call_count == 1
+
+
+@pytest.mark.asyncio
+@mock.patch.object(ezsp.EZSP, "reset", new_callable=CoroutineMock)
+@mock.patch.object(uart, "connect")
+@pytest.mark.parametrize(
+    "exception", (asyncio.TimeoutError, serial.SerialException, EzspError)
+)
+async def test_probe_fail(mock_connect, mock_reset, exception):
+    """Test device probing fails."""
+
+    mock_reset.side_effect = exception
+    mock_reset.reset_mock()
+    mock_connect.reset_mock()
+    res = await ezsp.EZSP.probe(mock.sentinel.uart, mock.sentinel.baud)
+    assert res is False
+    assert mock_connect.call_count == 1
+    assert mock_connect.await_count == 1
+    assert mock_connect.call_args[0][0] is mock.sentinel.uart
+    assert mock_reset.call_count == 1
+    assert mock_connect.return_value.close.call_count == 1

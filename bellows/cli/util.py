@@ -2,11 +2,9 @@ import asyncio
 import functools
 import logging
 
-import click
-
 import bellows.ezsp
 import bellows.types as t
-
+import click
 
 LOGGER = logging.getLogger(__name__)
 
@@ -42,20 +40,22 @@ def background(f):
 
 def app(f, app_startup=True):
     database_file = None
+    application = None
 
     async def async_inner(ctx, *args, **kwargs):
         nonlocal database_file
+        nonlocal application
         database_file = ctx.obj["database_file"]
-        app = await setup_application(
+        application = await setup_application(
             ctx.obj["device"], ctx.obj["baudrate"], database_file, startup=app_startup
         )
-        ctx.obj["app"] = app
+        ctx.obj["app"] = application
         await f(ctx, *args, **kwargs)
         await asyncio.sleep(0.5)
 
     def shutdown():
         try:
-            app._ezsp.close()
+            application._ezsp.close()
         except:  # noqa: E722
             pass
 

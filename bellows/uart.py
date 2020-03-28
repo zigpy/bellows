@@ -2,12 +2,10 @@ import asyncio
 import binascii
 import logging
 
+from bellows.thread import EventLoopThread, ThreadsafeProxy
+import bellows.types as t
 import serial
 import serial_asyncio
-
-from bellows.thread import EventLoopThread, ThreadsafeProxy
-
-import bellows.types as t
 
 LOGGER = logging.getLogger(__name__)
 RESET_TIMEOUT = 5
@@ -352,9 +350,13 @@ async def connect(port, baudrate, application, use_thread=True):
         application = ThreadsafeProxy(application, asyncio.get_event_loop())
         thread = EventLoopThread()
         await thread.start()
-        protocol, connection_done = await thread.run_coroutine_threadsafe(
-            _connect(port, baudrate, application)
-        )
+        try:
+            protocol, connection_done = await thread.run_coroutine_threadsafe(
+                _connect(port, baudrate, application)
+            )
+        except Exception:
+            thread.force_stop()
+            raise
         connection_done.add_done_callback(lambda _: thread.force_stop())
     else:
         protocol, _ = await _connect(port, baudrate, application)

@@ -3,13 +3,15 @@ import binascii
 import functools
 import logging
 
+from bellows.commands import COMMANDS
+from bellows.exception import APIException, EzspError
 import bellows.types as t
 import bellows.uart as uart
-from bellows.commands import COMMANDS
-from bellows.exception import EzspError
+import serial
 
 EZSP_CMD_TIMEOUT = 10
 LOGGER = logging.getLogger(__name__)
+PROBE_TIMEOUT = 3
 
 
 class EZSP:
@@ -36,6 +38,26 @@ class EZSP:
         self._baudrate = baudrate
         self._device = device
         self._gw = await uart.connect(device, baudrate, self)
+
+    @classmethod
+    async def probe(cls, device: str, baudrate: int) -> bool:
+        """Probe port for the device presence."""
+        ezsp = cls()
+        try:
+            await asyncio.wait_for(ezsp._probe(device, baudrate), timeout=PROBE_TIMEOUT)
+            return True
+        except (asyncio.TimeoutError, serial.SerialException, APIException) as exc:
+            LOGGER.debug("Unsuccessful radio probe of '%s' port", exc_info=exc)
+        finally:
+            ezsp.close()
+
+        return False
+
+    async def _probe(self, device: str, baudrate: int) -> None:
+        """Open port and try sending a command"""
+        await self.connect(device, baudrate)
+        await self.reset()
+        self.close()
 
     def reconnect(self):
         """Reconnect using saved parameters."""
@@ -209,7 +231,7 @@ class EZSP:
             result, data = t.deserialize(data, schema)
             try:
                 future.set_result(result)
-            except asyncio.InvalidStateError as exc:
+            except asyncio.InvalidStateError:
                 LOGGER.debug(
                     "Error processing %s response. %s command timed out?",
                     sequence,
