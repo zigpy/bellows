@@ -35,7 +35,9 @@ LOGGER = logging.getLogger(__name__)
 class ControllerApplication(zigpy.application.ControllerApplication):
     direct = t.EmberOutgoingMessageType.OUTGOING_DIRECT
 
-    def __init__(self, ezsp, database_file=None, config={}):
+    def __init__(self, ezsp, database_file=None, config=None):
+        if config is None:
+            config = {}
         super().__init__(database_file=database_file, config=CONFIG_SCHEMA(config))
         self._ctrl_event = asyncio.Event()
         self._ezsp = ezsp
