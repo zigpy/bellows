@@ -83,7 +83,7 @@ class EZSP:
         ver, stack_type, stack_version = await self._command(
             "version", self.ezsp_version
         )
-        if ver != self.version:
+        if ver != self.ezsp_version:
             self._ezsp_version = ver
             await self._command("version", ver)
             LOGGER.debug("Switched to EZSP protocol version %d", self.ezsp_version)
