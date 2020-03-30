@@ -85,10 +85,14 @@ def test_non_existent_attr_with_list(ezsp_f):
         ezsp_f.__getattr__(("unexpectedly", "hah"))
 
 
-def test_command(ezsp_f):
+@pytest.mark.asyncio
+async def test_command(ezsp_f):
     ezsp_f._gw = mock.MagicMock()
+
     ezsp_f.start_ezsp()
-    ezsp_f._command("version")
+    coro = ezsp_f._command("nop")
+    ezsp_f._awaiting[ezsp_f._seq - 1][2].set_result(True)
+    await coro
     assert ezsp_f._gw.data.call_count == 1
 
 
@@ -247,10 +251,9 @@ def test_callback_exc(ezsp_f):
     assert testcb.call_count == 1
 
 
-def test_change_version(ezsp_f):
-    loop = asyncio.get_event_loop()
-    version = 5
-
+@pytest.mark.asyncio
+@pytest.mark.parametrize("version, call_count", ((4, 1), (5, 2), (6, 2)))
+async def test_change_version(ezsp_f, version, call_count):
     def mockcommand(name, *args):
         assert name == "version"
         ezsp_f.frame_received(b"\x01\x00\x1b")
@@ -258,9 +261,10 @@ def test_change_version(ezsp_f):
         fut.set_result([version, 2, 2046])
         return fut
 
-    ezsp_f._command = mockcommand
-    loop.run_until_complete(ezsp_f.version())
+    ezsp_f._command = mock.MagicMock(side_effect=mockcommand)
+    await ezsp_f.version()
     assert ezsp_f.ezsp_version == version
+    assert ezsp_f._command.call_count == call_count
 
 
 def test_stop_ezsp(ezsp_f):
