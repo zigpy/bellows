@@ -175,7 +175,7 @@ class EZSP:
     def enter_failed_state(self, error):
         """UART received error frame."""
         LOGGER.error("NCP entered failed state. Requesting APP controller restart")
-        self.stop_ezsp()
+        self.close()
         self.handle_callback("_reset_controller_application", (error,))
 
     async def formNetwork(self, parameters):  # noqa: N802
