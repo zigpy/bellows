@@ -1,6 +1,7 @@
 import logging
 
 from bellows import types as t
+import bellows.ezsp
 
 LOGGER = logging.getLogger(__name__)
 
@@ -10,13 +11,13 @@ class Multicast:
 
     TABLE_SIZE = 16
 
-    def __init__(self, ezsp):
-        self._ezsp = ezsp
+    def __init__(self):
+        self._ezsp = None
         self._multicast = {}
         self._available = set()
 
-    async def _initialize(self) -> None:
-        e = self._ezsp
+    async def _initialize(self, ezsp: bellows.ezsp.EZSP) -> None:
+        e = self._ezsp = ezsp
         self._multicast = {}
         self._available = set()
         for i in range(0, self.TABLE_SIZE):
@@ -31,7 +32,6 @@ class Multicast:
                 self._available.add(i)
 
     async def startup(self, coordinator) -> None:
-        await self._initialize()
         for ep_id, ep in coordinator.endpoints.items():
             if ep_id == 0:
                 continue

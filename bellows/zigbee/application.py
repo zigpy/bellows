@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+from typing import Dict
 
 from bellows.exception import ControllerError, EzspError
 import bellows.multicast
@@ -9,6 +10,7 @@ import bellows.zigbee.util
 from serial import SerialException
 import voluptuous as vol
 import zigpy.application
+import zigpy.config
 import zigpy.device
 from zigpy.quirks import CustomDevice, CustomEndpoint
 from zigpy.types import BroadcastAddress
@@ -18,8 +20,15 @@ import zigpy.zdo.types as zdo_t
 
 APS_ACK_TIMEOUT = 120
 CONF_PARAM_SRC_RTG = "source_routing"
-CONFIG_SCHEMA = zigpy.application.CONFIG_SCHEMA.extend(
-    {vol.Optional(CONF_PARAM_SRC_RTG, default=False): bellows.zigbee.util.cv_boolean}
+CONF_BAUDRATE = "baudrate"
+SCHEMA_DEVICE = zigpy.config.SCHEMA_DEVICE.extend(
+    {vol.Optional(CONF_BAUDRATE, default=57600): int}
+)
+CONFIG_SCHEMA = zigpy.config.CONFIG_SCHEMA.extend(
+    {
+        vol.Required(zigpy.config.CONF_DEVICE): SCHEMA_DEVICE,
+        vol.Optional(CONF_PARAM_SRC_RTG, default=False): zigpy.config.cv_boolean,
+    }
 )
 EZSP_DEFAULT_RADIUS = 0
 EZSP_MULTICAST_NON_MEMBER_RADIUS = 3
@@ -35,13 +44,11 @@ LOGGER = logging.getLogger(__name__)
 class ControllerApplication(zigpy.application.ControllerApplication):
     direct = t.EmberOutgoingMessageType.OUTGOING_DIRECT
 
-    def __init__(self, ezsp, database_file=None, config=None):
-        if config is None:
-            config = {}
-        super().__init__(database_file=database_file, config=CONFIG_SCHEMA(config))
+    def __init__(self, config: Dict):
+        super().__init__(connfig=CONFIG_SCHEMA(config))
         self._ctrl_event = asyncio.Event()
-        self._ezsp = ezsp
-        self._multicast = bellows.multicast.Multicast(ezsp)
+        self._ezsp = None
+        self._multicast = bellows.multicast.Multicast()
         self._pending = zigpy.util.Requests()
         self._watchdog_task = None
         self._reset_task = None
@@ -109,6 +116,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self.add_endpoint(
             output_clusters=[zigpy.zcl.clusters.security.IasZone.cluster_id]
         )
+        await self.multicast._initialize(e)
 
     async def add_endpoint(
         self,
