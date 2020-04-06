@@ -3,12 +3,13 @@ import logging
 import os
 from typing import Dict
 
+from bellows.config import CONF_PARAM_SRC_RTG, CONFIG_SCHEMA
 from bellows.exception import ControllerError, EzspError
+import bellows.ezsp
 import bellows.multicast
 import bellows.types as t
 import bellows.zigbee.util
 from serial import SerialException
-import voluptuous as vol
 import zigpy.application
 import zigpy.config
 import zigpy.device
@@ -19,17 +20,6 @@ import zigpy.zdo
 import zigpy.zdo.types as zdo_t
 
 APS_ACK_TIMEOUT = 120
-CONF_PARAM_SRC_RTG = "source_routing"
-CONF_BAUDRATE = "baudrate"
-SCHEMA_DEVICE = zigpy.config.SCHEMA_DEVICE.extend(
-    {vol.Optional(CONF_BAUDRATE, default=57600): int}
-)
-CONFIG_SCHEMA = zigpy.config.CONFIG_SCHEMA.extend(
-    {
-        vol.Required(zigpy.config.CONF_DEVICE): SCHEMA_DEVICE,
-        vol.Optional(CONF_PARAM_SRC_RTG, default=False): zigpy.config.cv_boolean,
-    }
-)
 EZSP_DEFAULT_RADIUS = 0
 EZSP_MULTICAST_NON_MEMBER_RADIUS = 3
 MAX_WATCHDOG_FAILURES = 4
@@ -45,7 +35,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     direct = t.EmberOutgoingMessageType.OUTGOING_DIRECT
 
     def __init__(self, config: Dict):
-        super().__init__(connfig=CONFIG_SCHEMA(config))
+        super().__init__(config=CONFIG_SCHEMA(config))
         self._ctrl_event = asyncio.Event()
         self._ezsp = None
         self._multicast = bellows.multicast.Multicast()
@@ -76,7 +66,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def initialize(self):
         """Perform basic NCP initialization steps"""
-        e = self._ezsp
+        e = bellows.ezsp.EZSP(self.config[zigpy.config.CONF_DEVICE])
+        self._ezsp = e
+        await e.connect()
 
         await e.reset()
         await e.version()

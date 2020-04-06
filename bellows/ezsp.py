@@ -2,8 +2,10 @@ import asyncio
 import binascii
 import functools
 import logging
+from typing import Dict
 
 from bellows.commands import COMMANDS
+from bellows.config import CONF_DEVICE_BAUDRATE, CONF_DEVICE_PATH
 from bellows.exception import APIException, EzspError
 import bellows.types as t
 import bellows.uart as uart
@@ -19,11 +21,10 @@ class EZSP:
     COMMANDS = COMMANDS
     EZSP_VERSION = 4
 
-    def __init__(self):
+    def __init__(self, device_config: Dict):
         self._awaiting = {}
-        self._baudrate = None
+        self._config = device_config
         self._callbacks = {}
-        self._device = None
         self._ezsp_event = asyncio.Event()
         self._seq = 0
         self._gw = None
@@ -33,38 +34,42 @@ class EZSP:
         for name, details in self.COMMANDS.items():
             self.COMMANDS_BY_ID[details[0]] = (name, details[1], details[2])
 
-    async def connect(self, device, baudrate):
+    async def connect(self) -> None:
         assert self._gw is None
-        self._baudrate = baudrate
-        self._device = device
-        self._gw = await uart.connect(device, baudrate, self)
+        self._gw = await uart.connect(self._config, self)
 
     @classmethod
-    async def probe(cls, device: str, baudrate: int) -> bool:
+    async def probe(cls, device_config: Dict) -> bool:
         """Probe port for the device presence."""
-        ezsp = cls()
+        ezsp = cls(device_config)
         try:
-            await asyncio.wait_for(ezsp._probe(device, baudrate), timeout=PROBE_TIMEOUT)
+            await asyncio.wait_for(ezsp._probe(), timeout=PROBE_TIMEOUT)
             return True
         except (asyncio.TimeoutError, serial.SerialException, APIException) as exc:
-            LOGGER.debug("Unsuccessful radio probe of '%s' port", exc_info=exc)
+            LOGGER.debug(
+                "Unsuccessful radio probe of '%s' port",
+                device_config[CONF_DEVICE_PATH],
+                exc_info=exc,
+            )
         finally:
             ezsp.close()
 
         return False
 
-    async def _probe(self, device: str, baudrate: int) -> None:
+    async def _probe(self) -> None:
         """Open port and try sending a command"""
-        await self.connect(device, baudrate)
+        await self.connect()
         await self.reset()
         self.close()
 
     def reconnect(self):
         """Reconnect using saved parameters."""
         LOGGER.debug(
-            "Reconnecting %s serial port on %s bauds", self._device, self._baudrate
+            "Reconnecting %s serial port on %s bauds",
+            self._config[CONF_DEVICE_PATH],
+            self._config[CONF_DEVICE_BAUDRATE],
         )
-        return self.connect(self._device, self._baudrate)
+        return self.connect()
 
     async def reset(self):
         LOGGER.debug("Resetting EZSP")
@@ -169,7 +174,9 @@ class EZSP:
 
     def connection_lost(self, exc):
         """Lost serial connection."""
-        LOGGER.debug("%s connection lost unexpectedly: %s", self._device, exc)
+        LOGGER.debug(
+            "%s connection lost unexpectedly: %s", self._config[CONF_DEVICE_PATH], exc
+        )
         self.enter_failed_state("Serial connection loss: {}".format(exc))
 
     def enter_failed_state(self, error):
