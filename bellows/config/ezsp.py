@@ -250,7 +250,7 @@ EZSP_SCHEMA = {
     # value 0xFF, the NCP will allocate all remaining configuration RAM towards packet
     # buffers, such that the resulting count will be the largest whole number of packet
     # buffers that can fit into the available memory
-    vol.Optional(c.CONFIG_PACKET_BUFFER_COUNT.name): vol.All(
+    vol.Optional(c.CONFIG_PACKET_BUFFER_COUNT.name, default=0xFF): vol.All(
         int, vol.Range(min=1, max=255)
     ),
 }

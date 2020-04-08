@@ -3,7 +3,7 @@ import logging
 import os
 from typing import Dict
 
-from bellows.config import CONF_PARAM_SRC_RTG, CONFIG_SCHEMA
+from bellows.config import CONF_EZSP_CONFIG, CONF_PARAM_SRC_RTG, CONFIG_SCHEMA
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp
 import bellows.multicast
@@ -73,30 +73,29 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await e.reset()
         await e.version()
 
+        ezsp_config = self.config[CONF_EZSP_CONFIG]
+        for config, value in ezsp_config.items():
+            if config in (t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name,):
+                # we want to set these last
+                continue
+            await self._cfg(t.EzspConfigId[config], value)
+
         c = t.EzspConfigId
-        await self._cfg(c.CONFIG_STACK_PROFILE, 2)
-        await self._cfg(c.CONFIG_SECURITY_LEVEL, 5)
-        await self._cfg(c.CONFIG_SUPPORTED_NETWORKS, 1)
-        zdo = (
-            t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS
-            | t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
-        )
-        await self._cfg(c.CONFIG_APPLICATION_ZDO_FLAGS, zdo)
-        await self._cfg(c.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD, 2)
-        await self._cfg(c.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2)
-        await self._cfg(c.CONFIG_ADDRESS_TABLE_SIZE, 16)
-        await self._cfg(c.CONFIG_SOURCE_ROUTE_TABLE_SIZE, 8)
-        await self._cfg(c.CONFIG_MAX_END_DEVICE_CHILDREN, 32)
-        await self._cfg(c.CONFIG_INDIRECT_TRANSMISSION_TIMEOUT, 7680)
-        await self._cfg(c.CONFIG_KEY_TABLE_SIZE, 4)
-        await self._cfg(c.CONFIG_TRANSIENT_KEY_TIMEOUT_S, 180, True)
         if self._ezsp.ezsp_version >= 7:
             await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT, 8)
         else:
             await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT, 60)
             await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8)
-        await self._cfg(c.CONFIG_MULTICAST_TABLE_SIZE, self.multicast.TABLE_SIZE)
-        await self._cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xFF)
+        await self._cfg(
+            c.CONFIG_MULTICAST_TABLE_SIZE,
+            ezsp_config.get(
+                c.CONFIG_MULTICAST_TABLE_SIZE.name, self.multicast.TABLE_SIZE
+            ),
+        )
+        await self._cfg(
+            t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT,
+            ezsp_config[c.CONFIG_PACKET_BUFFER_COUNT.name],
+        )
 
         status, count = await e.getConfigurationValue(
             c.CONFIG_APS_UNICAST_MESSAGE_COUNT
