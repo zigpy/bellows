@@ -39,7 +39,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         super().__init__(config=zigpy.config.ZIGPY_SCHEMA(config))
         self._ctrl_event = asyncio.Event()
         self._ezsp = None
-        self._multicast = bellows.multicast.Multicast()
+        self._multicast = None
         self._pending = zigpy.util.Requests()
         self._watchdog_task = None
         self._reset_task = None
@@ -72,6 +72,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         await e.reset()
         await e.version()
+        self._multicast = bellows.multicast.Multicast(e)
 
         ezsp_config = self.config[CONF_EZSP_CONFIG]
         for config, value in ezsp_config.items():
@@ -107,7 +108,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self.add_endpoint(
             output_clusters=[zigpy.zcl.clusters.security.IasZone.cluster_id]
         )
-        await self.multicast._initialize(e)
 
     async def add_endpoint(
         self,
