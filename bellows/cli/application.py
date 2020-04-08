@@ -7,6 +7,7 @@ import bellows.ezsp
 import bellows.types as t
 import bellows.zigbee.application
 import click
+import zigpy.config
 import zigpy.endpoint
 import zigpy.exceptions
 
@@ -89,8 +90,12 @@ def devices(ctx, database):
         for cluster_id, cluster in clusters:
             click.echo("        %s (%s)" % (cluster.name, cluster_id))
 
-    ezsp = bellows.ezsp.EZSP()
-    app = bellows.zigbee.application.ControllerApplication(ezsp, database)
+    loop = asyncio.get_event_loop()
+    app = loop.run_until_complete(
+        bellows.zigbee.application.ControllerApplication.new(
+            {zigpy.config.CONF_DATABASE: database}, start_radio=False
+        )
+    )
     for ieee, dev in app.devices.items():
         click.echo("Device:")
         click.echo("  NWK: 0x%04x" % (dev.nwk,))

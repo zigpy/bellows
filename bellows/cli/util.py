@@ -2,9 +2,11 @@ import asyncio
 import functools
 import logging
 
+import bellows.config as config
 import bellows.ezsp
 import bellows.types as t
 import click
+import zigpy.config as zigpy_conf
 
 LOGGER = logging.getLogger(__name__)
 
@@ -90,11 +92,15 @@ def channel_mask(channels):
 
 
 async def setup(dev, baudrate, cbh=None, configure=True):
-    s = bellows.ezsp.EZSP()
+    device_config = {
+        config.CONF_DEVICE_PATH: dev,
+        config.CONF_DEVICE_BAUDRATE: baudrate,
+    }
+    s = bellows.ezsp.EZSP(device_config)
     if cbh:
         s.add_callback(cbh)
     try:
-        await s.connect(dev, baudrate)
+        await s.connect()
     except Exception as e:
         LOGGER.error(e)
         raise click.Abort()
@@ -119,9 +125,14 @@ async def setup(dev, baudrate, cbh=None, configure=True):
 
 
 async def setup_application(dev, baudrate, database_file, startup=True):
-    s = bellows.ezsp.EZSP()
-    await s.connect(dev, baudrate)
-    app = bellows.zigbee.application.ControllerApplication(s, database_file)
+    app_config = {
+        config.CONF_DEVICE: {
+            config.CONF_DEVICE_PATH: dev,
+            config.CONF_DEVICE_BAUDRATE: baudrate,
+        },
+        zigpy_conf.CONF_DATABASE: database_file,
+    }
+    app = await bellows.zigbee.application.ControllerApplication.new(app_config)
     if startup:
         await app.startup()
     return app

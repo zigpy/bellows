@@ -33,9 +33,10 @@ LOGGER = logging.getLogger(__name__)
 
 class ControllerApplication(zigpy.application.ControllerApplication):
     direct = t.EmberOutgoingMessageType.OUTGOING_DIRECT
+    SCHEMA = CONFIG_SCHEMA
 
     def __init__(self, config: Dict):
-        super().__init__(config=CONFIG_SCHEMA(config))
+        super().__init__(config=zigpy.config.ZIGPY_SCHEMA(config))
         self._ctrl_event = asyncio.Event()
         self._ezsp = None
         self._multicast = bellows.multicast.Multicast()
@@ -66,8 +67,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def initialize(self):
         """Perform basic NCP initialization steps"""
-        e = bellows.ezsp.EZSP(self.config[zigpy.config.CONF_DEVICE])
-        self._ezsp = e
+        e = self._ezsp = bellows.ezsp.EZSP(self.config[zigpy.config.CONF_DEVICE])
         await e.connect()
 
         await e.reset()
@@ -375,7 +375,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         """Reset Controller."""
         self._ezsp.close()
         await asyncio.sleep(0.5)
-        await self._ezsp.reconnect()
         await self.startup()
 
     async def mrequest(

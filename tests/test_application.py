@@ -27,7 +27,8 @@ def app(monkeypatch):
     ezsp.setConcentrator = asynctest.CoroutineMock(return_value=[0])
     ezsp.setSourceRoute = asynctest.CoroutineMock(return_value=[0])
     type(ezsp).is_ezsp_running = mock.PropertyMock(return_value=True)
-    ctrl = bellows.zigbee.application.ControllerApplication(APP_CONFIG)
+    config = bellows.zigbee.application.ControllerApplication.SCHEMA(APP_CONFIG)
+    ctrl = bellows.zigbee.application.ControllerApplication(config)
     ctrl._ezsp = ezsp
     monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.1)
     ctrl._ctrl_event.set()
@@ -674,7 +675,6 @@ async def test_reset_controller_routine(app):
     await app._reset_controller()
 
     assert app._ezsp.close.call_count == 1
-    assert app._ezsp.reconnect.call_count == 1
     assert app.startup.call_count == 1
 
 
@@ -1021,9 +1021,12 @@ def test_handle_route_error(app):
 )
 def test_src_rtg_config(config, result):
     """Test src routing configuration parameter."""
-    ctrl = bellows.zigbee.application.ControllerApplication(mock.MagicMock())
+    app_cfg = bellows.zigbee.application.ControllerApplication.SCHEMA(APP_CONFIG)
+    ctrl = bellows.zigbee.application.ControllerApplication(app_cfg)
     assert ctrl.use_source_routing is False
 
-    config = APP_CONFIG.update(config)
-    ctrl = bellows.zigbee.application.ControllerApplication(config=config)
+    app_cfg = bellows.zigbee.application.ControllerApplication.SCHEMA(
+        {**APP_CONFIG, **config}
+    )
+    ctrl = bellows.zigbee.application.ControllerApplication(config=app_cfg)
     assert ctrl.use_source_routing is result
