@@ -67,7 +67,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def initialize(self):
         """Perform basic NCP initialization steps"""
-        e = self._ezsp = bellows.ezsp.EZSP(self.config[zigpy.config.CONF_DEVICE])
+        e = self._ezsp
         await e.connect()
 
         await e.reset()
@@ -134,17 +134,18 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def startup(self, auto_form=False):
         """Perform a complete application startup"""
+        ezsp = bellows.ezsp.EZSP(self.config[zigpy.config.CONF_DEVICE])
+        self._ezsp = ezsp
         await self.initialize()
-        e = self._ezsp
 
         await self.set_source_routing()
-        v = await e.networkInit()
+        v = await ezsp.networkInit()
         if v[0] != t.EmberStatus.SUCCESS:
             if not auto_form:
                 raise Exception("Could not initialize network")
             await self.form_network()
 
-        v = await e.getNetworkParameters()
+        v = await ezsp.getNetworkParameters()
         assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
         if v[1] != t.EmberNodeType.COORDINATOR:
             if not auto_form:
@@ -156,12 +157,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             await self.form_network()
 
         await self._policy()
-        nwk = await e.getNodeId()
+        nwk = await ezsp.getNodeId()
         self._nwk = nwk[0]
-        ieee = await e.getEui64()
+        ieee = await ezsp.getEui64()
         self._ieee = ieee[0]
 
-        e.add_callback(self.ezsp_callback_handler)
+        ezsp.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
         self._watchdog_task = asyncio.ensure_future(self._watchdog())
 
