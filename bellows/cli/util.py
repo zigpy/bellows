@@ -26,7 +26,7 @@ class ZigbeeNodeParamType(click.ParamType):
     def convert(self, value, param, ctx):
         if ":" not in value or len(value) != 23:
             self.fail("Node format should be a 8 byte hex string seprated by ':'")
-        return t.EmberEUI64([t.uint8_t(p, base=16) for p in value.split(":")])
+        return t.EmberEUI64.convert(value)
 
 
 def background(f):
