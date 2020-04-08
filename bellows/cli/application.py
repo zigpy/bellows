@@ -3,6 +3,7 @@
 import asyncio
 import binascii
 
+import bellows.config
 import bellows.ezsp
 import bellows.types as t
 import bellows.zigbee.application
@@ -91,10 +92,13 @@ def devices(ctx, database):
             click.echo("        %s (%s)" % (cluster.name, cluster_id))
 
     loop = asyncio.get_event_loop()
+    config = {
+        zigpy.config.CONF_DATABASE: database,
+        bellows.config.CONF_DEVICE: {bellows.config.CONF_DEVICE_PATH: "/dev/null"},
+    }
+    config = bellows.config.CONFIG_SCHEMA(config)
     app = loop.run_until_complete(
-        bellows.zigbee.application.ControllerApplication.new(
-            {zigpy.config.CONF_DATABASE: database}, start_radio=False
-        )
+        bellows.zigbee.application.ControllerApplication.new(config, start_radio=False)
     )
     for ieee, dev in app.devices.items():
         click.echo("Device:")
