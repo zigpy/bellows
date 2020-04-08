@@ -132,6 +132,7 @@ async def setup_application(dev, baudrate, database_file, startup=True):
         },
         zigpy_conf.CONF_DATABASE: database_file,
     }
+    app_config = bellows.zigbee.application.ControllerApplication.SCHEMA(app_config)
     app = await bellows.zigbee.application.ControllerApplication.new(app_config)
     if startup:
         await app.startup()
