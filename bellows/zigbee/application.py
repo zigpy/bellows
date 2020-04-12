@@ -1,14 +1,17 @@
 import asyncio
 import logging
 import os
+from typing import Dict
 
+from bellows.config import CONF_PARAM_SRC_RTG, CONFIG_SCHEMA
 from bellows.exception import ControllerError, EzspError
+import bellows.ezsp
 import bellows.multicast
 import bellows.types as t
 import bellows.zigbee.util
 from serial import SerialException
-import voluptuous as vol
 import zigpy.application
+import zigpy.config
 import zigpy.device
 from zigpy.quirks import CustomDevice, CustomEndpoint
 from zigpy.types import BroadcastAddress
@@ -17,10 +20,6 @@ import zigpy.zdo
 import zigpy.zdo.types as zdo_t
 
 APS_ACK_TIMEOUT = 120
-CONF_PARAM_SRC_RTG = "source_routing"
-CONFIG_SCHEMA = zigpy.application.CONFIG_SCHEMA.extend(
-    {vol.Optional(CONF_PARAM_SRC_RTG, default=False): bellows.zigbee.util.cv_boolean}
-)
 EZSP_DEFAULT_RADIUS = 0
 EZSP_MULTICAST_NON_MEMBER_RADIUS = 3
 MAX_WATCHDOG_FAILURES = 4
@@ -34,14 +33,13 @@ LOGGER = logging.getLogger(__name__)
 
 class ControllerApplication(zigpy.application.ControllerApplication):
     direct = t.EmberOutgoingMessageType.OUTGOING_DIRECT
+    SCHEMA = CONFIG_SCHEMA
 
-    def __init__(self, ezsp, database_file=None, config=None):
-        if config is None:
-            config = {}
-        super().__init__(database_file=database_file, config=CONFIG_SCHEMA(config))
+    def __init__(self, config: Dict):
+        super().__init__(config=zigpy.config.ZIGPY_SCHEMA(config))
         self._ctrl_event = asyncio.Event()
-        self._ezsp = ezsp
-        self._multicast = bellows.multicast.Multicast(ezsp)
+        self._ezsp = None
+        self._multicast = bellows.multicast.Multicast()
         self._pending = zigpy.util.Requests()
         self._watchdog_task = None
         self._reset_task = None
@@ -70,6 +68,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def initialize(self):
         """Perform basic NCP initialization steps"""
         e = self._ezsp
+        await e.connect()
 
         await e.reset()
         await e.version()
@@ -109,6 +108,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self.add_endpoint(
             output_clusters=[zigpy.zcl.clusters.security.IasZone.cluster_id]
         )
+        await self.multicast._initialize(e)
 
     async def add_endpoint(
         self,
@@ -134,17 +134,18 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def startup(self, auto_form=False):
         """Perform a complete application startup"""
+        ezsp = bellows.ezsp.EZSP(self.config[zigpy.config.CONF_DEVICE])
+        self._ezsp = ezsp
         await self.initialize()
-        e = self._ezsp
 
         await self.set_source_routing()
-        v = await e.networkInit()
+        v = await ezsp.networkInit()
         if v[0] != t.EmberStatus.SUCCESS:
             if not auto_form:
                 raise Exception("Could not initialize network")
             await self.form_network()
 
-        v = await e.getNetworkParameters()
+        v = await ezsp.getNetworkParameters()
         assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
         if v[1] != t.EmberNodeType.COORDINATOR:
             if not auto_form:
@@ -156,12 +157,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             await self.form_network()
 
         await self._policy()
-        nwk = await e.getNodeId()
+        nwk = await ezsp.getNodeId()
         self._nwk = nwk[0]
-        ieee = await e.getEui64()
+        ieee = await ezsp.getEui64()
         self._ieee = ieee[0]
 
-        e.add_callback(self.ezsp_callback_handler)
+        ezsp.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
         self._watchdog_task = asyncio.ensure_future(self._watchdog())
 
@@ -375,7 +376,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         """Reset Controller."""
         self._ezsp.close()
         await asyncio.sleep(0.5)
-        await self._ezsp.reconnect()
         await self.startup()
 
     async def mrequest(

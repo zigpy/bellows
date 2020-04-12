@@ -1,13 +1,24 @@
 import asyncio
-from unittest import mock
 
 import asynctest
+from asynctest import CoroutineMock, mock
+import bellows.config as config
 from bellows.exception import ControllerError, EzspError
+import bellows.ezsp
 import bellows.types as t
 import bellows.zigbee.application
 import pytest
+import zigpy.config
 from zigpy.device import Device
 from zigpy.zcl.clusters import security
+
+APP_CONFIG = {
+    config.CONF_DEVICE: {
+        config.CONF_DEVICE_PATH: "/dev/null",
+        config.CONF_DEVICE_BAUDRATE: 115200,
+    },
+    zigpy.config.CONF_DATABASE: None,
+}
 
 
 @pytest.fixture
@@ -16,7 +27,9 @@ def app(monkeypatch):
     ezsp.setConcentrator = asynctest.CoroutineMock(return_value=[0])
     ezsp.setSourceRoute = asynctest.CoroutineMock(return_value=[0])
     type(ezsp).is_ezsp_running = mock.PropertyMock(return_value=True)
-    ctrl = bellows.zigbee.application.ControllerApplication(ezsp)
+    config = bellows.zigbee.application.ControllerApplication.SCHEMA(APP_CONFIG)
+    ctrl = bellows.zigbee.application.ControllerApplication(config)
+    ctrl._ezsp = ezsp
     monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.1)
     ctrl._ctrl_event.set()
     ctrl._in_flight_msg = asyncio.Semaphore()
@@ -55,28 +68,32 @@ def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4):
         return [init]
 
     app._in_flight_msg = None
-    type(app._ezsp).ezsp_version = mock.PropertyMock(return_value=ezsp_version)
-    app._ezsp._command = mockezsp
-    app._ezsp.addEndpoint = mockezsp
-    app._ezsp.setConfigurationValue = mockezsp
-    app._ezsp.networkInit = mockinit
-    app._ezsp.getNetworkParameters = mockezsp
-    app._ezsp.setPolicy = mockezsp
-    app._ezsp.getNodeId = mockezsp
-    app._ezsp.getEui64.side_effect = asyncio.coroutine(
-        mock.MagicMock(return_value=[ieee])
+    ezsp_mock = mock.MagicMock(spec_set=bellows.ezsp.EZSP)
+    type(ezsp_mock.return_value).ezsp_version = mock.PropertyMock(
+        return_value=ezsp_version
     )
-    app._ezsp.leaveNetwork = mockezsp
-    app.form_network = mock.MagicMock(side_effect=asyncio.coroutine(mock.MagicMock()))
-    app._ezsp.reset.side_effect = asyncio.coroutine(mock.MagicMock())
-    app._ezsp.version.side_effect = asyncio.coroutine(mock.MagicMock())
-    app._ezsp.getConfigurationValue.side_effect = asyncio.coroutine(
-        mock.MagicMock(return_value=(0, 1))
+    ezsp_mock.return_value.connect = CoroutineMock()
+    ezsp_mock.return_value.setConcentrator = CoroutineMock()
+    ezsp_mock.return_value._command = mockezsp
+    ezsp_mock.return_value.addEndpoint = mockezsp
+    ezsp_mock.return_value.setConfigurationValue = mockezsp
+    ezsp_mock.return_value.networkInit = mockinit
+    ezsp_mock.return_value.getNetworkParameters = mockezsp
+    ezsp_mock.return_value.setPolicy = mockezsp
+    ezsp_mock.return_value.getNodeId = mockezsp
+    ezsp_mock.return_value.getEui64.side_effect = CoroutineMock(return_value=[ieee])
+    ezsp_mock.return_value.leaveNetwork = mockezsp
+    app.form_network = CoroutineMock()
+    ezsp_mock.return_value.reset.side_effect = CoroutineMock()
+    ezsp_mock.return_value.version.side_effect = CoroutineMock()
+    ezsp_mock.return_value.getConfigurationValue.side_effect = CoroutineMock(
+        return_value=(0, 1)
     )
     app.multicast._initialize = mockezsp
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(app.startup(auto_form=auto_form))
+    with mock.patch.object(bellows.ezsp, "EZSP", new=ezsp_mock):
+        loop.run_until_complete(app.startup(auto_form=auto_form))
 
 
 def test_startup(app, ieee):
@@ -658,7 +675,6 @@ async def test_reset_controller_routine(app):
     await app._reset_controller()
 
     assert app._ezsp.close.call_count == 1
-    assert app._ezsp.reconnect.call_count == 1
     assert app.startup.call_count == 1
 
 
@@ -1005,10 +1021,12 @@ def test_handle_route_error(app):
 )
 def test_src_rtg_config(config, result):
     """Test src routing configuration parameter."""
-    ctrl = bellows.zigbee.application.ControllerApplication(mock.MagicMock())
+    app_cfg = bellows.zigbee.application.ControllerApplication.SCHEMA(APP_CONFIG)
+    ctrl = bellows.zigbee.application.ControllerApplication(app_cfg)
     assert ctrl.use_source_routing is False
 
-    ctrl = bellows.zigbee.application.ControllerApplication(
-        mock.MagicMock(), config=config
+    app_cfg = bellows.zigbee.application.ControllerApplication.SCHEMA(
+        {**APP_CONFIG, **config}
     )
+    ctrl = bellows.zigbee.application.ControllerApplication(config=app_cfg)
     assert ctrl.use_source_routing is result
