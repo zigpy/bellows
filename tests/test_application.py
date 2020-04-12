@@ -89,10 +89,14 @@ def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4):
     ezsp_mock.return_value.getConfigurationValue.side_effect = CoroutineMock(
         return_value=(0, 1)
     )
-    app.multicast._initialize = mockezsp
 
     loop = asyncio.get_event_loop()
-    with mock.patch.object(bellows.ezsp, "EZSP", new=ezsp_mock):
+    p1 = mock.patch.object(bellows.ezsp, "EZSP", new=ezsp_mock)
+    p2 = mock.patch.object(
+        bellows.multicast.Multicast, "initialize", new=CoroutineMock()
+    )
+
+    with p1, p2:
         loop.run_until_complete(app.startup(auto_form=auto_form))
 
 

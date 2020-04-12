@@ -13,13 +13,12 @@ def ezsp_f():
 
 @pytest.fixture
 def multicast(ezsp_f):
-    m = bellows.multicast.Multicast()
-    m._ezsp = ezsp_f
+    m = bellows.multicast.Multicast(ezsp_f)
     return m
 
 
 @pytest.mark.asyncio
-async def test_initialize(multicast, ezsp_f):
+async def test_initialize(ezsp_f):
     group_id = 0x0200
     mct = active_multicasts = 4
 
@@ -37,9 +36,8 @@ async def test_initialize(multicast, ezsp_f):
         return [t.EmberStatus.SUCCESS, entry]
 
     ezsp_f.getMulticastTableEntry.side_effect = mock_get
-    await multicast._initialize(ezsp_f)
-    ezsp = multicast._ezsp
-    assert ezsp.getMulticastTableEntry.call_count == multicast.TABLE_SIZE
+    multicast = await bellows.multicast.Multicast.initialize(ezsp_f)
+    assert ezsp_f.getMulticastTableEntry.call_count == multicast.TABLE_SIZE
     assert len(multicast._available) == multicast.TABLE_SIZE - active_multicasts
 
 
@@ -57,7 +55,7 @@ async def test_initialize_fail(multicast, ezsp_f):
         return [t.EmberStatus.ERR_FATAL, entry]
 
     ezsp_f.getMulticastTableEntry.side_effect = mock_get
-    await multicast._initialize(ezsp_f)
+    await multicast.initialize(ezsp_f)
     ezsp = multicast._ezsp
     assert ezsp.getMulticastTableEntry.call_count == multicast.TABLE_SIZE
     assert len(multicast._available) == 0

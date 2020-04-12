@@ -11,25 +11,25 @@ class Multicast:
 
     TABLE_SIZE = 16
 
-    def __init__(self):
-        self._ezsp = None
+    def __init__(self, ezsp):
+        self._ezsp = ezsp
         self._multicast = {}
         self._available = set()
 
-    async def _initialize(self, ezsp: bellows.ezsp.EZSP) -> None:
-        e = self._ezsp = ezsp
-        self._multicast = {}
-        self._available = set()
-        for i in range(0, self.TABLE_SIZE):
-            status, entry = await e.getMulticastTableEntry(i)
+    @classmethod
+    async def initialize(cls, ezsp: bellows.ezsp.EZSP) -> "Multicast":
+        multicast = cls(ezsp)
+        for i in range(0, cls.TABLE_SIZE):
+            status, entry = await ezsp.getMulticastTableEntry(i)
             if status != t.EmberStatus.SUCCESS:
                 LOGGER.error("Couldn't get MulticastTableEntry #%s: %s", i, status)
                 continue
             LOGGER.debug("MulticastTableEntry[%s] = %s", i, entry)
             if entry.endpoint != 0:
-                self._multicast[entry.multicastId] = (entry, i)
+                multicast._multicast[entry.multicastId] = (entry, i)
             else:
-                self._available.add(i)
+                multicast._available.add(i)
+        return multicast
 
     async def startup(self, coordinator) -> None:
         for ep_id, ep in coordinator.endpoints.items():
