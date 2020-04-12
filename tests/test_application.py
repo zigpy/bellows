@@ -14,7 +14,7 @@ from zigpy.zcl.clusters import security
 
 APP_CONFIG = {
     config.CONF_DEVICE: {
-        config.CONF_DEVICE_PATH: "/dev/ttyUSB0",
+        config.CONF_DEVICE_PATH: "/dev/null",
         config.CONF_DEVICE_BAUDRATE: 115200,
     },
     zigpy.config.CONF_DATABASE: None,
