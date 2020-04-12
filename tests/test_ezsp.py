@@ -8,7 +8,7 @@ import pytest
 import serial
 
 DEVICE_CONFIG = {
-    config.CONF_DEVICE_PATH: "/dev/ttyUSB0",
+    config.CONF_DEVICE_PATH: "/dev/null",
     config.CONF_DEVICE_BAUDRATE: 115200,
 }
 
