@@ -4,7 +4,7 @@ import bellows
 from setuptools import find_packages, setup
 
 setup(
-    name="bellows-homeassistant",
+    name="bellows",
     version=bellows.__version__,
     description="Library implementing EZSP",
     url="http://github.com/zigpy/bellows",
