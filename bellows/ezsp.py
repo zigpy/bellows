@@ -5,7 +5,7 @@ import logging
 from typing import Dict
 
 from bellows.commands import COMMANDS
-from bellows.config import CONF_DEVICE_BAUDRATE, CONF_DEVICE_PATH
+from bellows.config import CONF_DEVICE_BAUDRATE, CONF_DEVICE_PATH, SCHEMA_DEVICE
 from bellows.exception import APIException, EzspError
 import bellows.types as t
 import bellows.uart as uart
@@ -41,7 +41,7 @@ class EZSP:
     @classmethod
     async def probe(cls, device_config: Dict) -> bool:
         """Probe port for the device presence."""
-        ezsp = cls(device_config)
+        ezsp = cls(SCHEMA_DEVICE(device_config))
         try:
             await asyncio.wait_for(ezsp._probe(), timeout=PROBE_TIMEOUT)
             return True
