@@ -1,6 +1,7 @@
 import logging
 
 from bellows import types as t
+import bellows.ezsp
 
 LOGGER = logging.getLogger(__name__)
 
@@ -15,23 +16,22 @@ class Multicast:
         self._multicast = {}
         self._available = set()
 
-    async def _initialize(self) -> None:
-        e = self._ezsp
-        self._multicast = {}
-        self._available = set()
-        for i in range(0, self.TABLE_SIZE):
-            status, entry = await e.getMulticastTableEntry(i)
+    @classmethod
+    async def initialize(cls, ezsp: bellows.ezsp.EZSP) -> "Multicast":
+        multicast = cls(ezsp)
+        for i in range(0, cls.TABLE_SIZE):
+            status, entry = await ezsp.getMulticastTableEntry(i)
             if status != t.EmberStatus.SUCCESS:
                 LOGGER.error("Couldn't get MulticastTableEntry #%s: %s", i, status)
                 continue
             LOGGER.debug("MulticastTableEntry[%s] = %s", i, entry)
             if entry.endpoint != 0:
-                self._multicast[entry.multicastId] = (entry, i)
+                multicast._multicast[entry.multicastId] = (entry, i)
             else:
-                self._available.add(i)
+                multicast._available.add(i)
+        return multicast
 
     async def startup(self, coordinator) -> None:
-        await self._initialize()
         for ep_id, ep in coordinator.endpoints.items():
             if ep_id == 0:
                 continue

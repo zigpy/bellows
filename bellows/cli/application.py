@@ -3,11 +3,14 @@
 import asyncio
 import binascii
 
+import bellows.config
 import bellows.ezsp
 import bellows.types as t
 import bellows.zigbee.application
 import click
+import zigpy.config
 import zigpy.endpoint
+import zigpy.exceptions
 
 from . import opts, util
 from .main import main
@@ -88,8 +91,15 @@ def devices(ctx, database):
         for cluster_id, cluster in clusters:
             click.echo("        %s (%s)" % (cluster.name, cluster_id))
 
-    ezsp = bellows.ezsp.EZSP()
-    app = bellows.zigbee.application.ControllerApplication(ezsp, database)
+    loop = asyncio.get_event_loop()
+    config = {
+        zigpy.config.CONF_DATABASE: database,
+        bellows.config.CONF_DEVICE: {bellows.config.CONF_DEVICE_PATH: "/dev/null"},
+    }
+    config = bellows.config.CONFIG_SCHEMA(config)
+    app = loop.run_until_complete(
+        bellows.zigbee.application.ControllerApplication.new(config, start_radio=False)
+    )
     for ieee, dev in app.devices.items():
         click.echo("Device:")
         click.echo("  NWK: 0x%04x" % (dev.nwk,))
@@ -137,7 +147,7 @@ async def endpoints(ctx):
             click.echo("Non-success response: %s" % (v,))
         else:
             click.echo(v[2])
-    except bellows.zigbee.exceptions.DeliveryError as e:
+    except zigpy.exceptions.ZigbeeException as e:
         click.echo(e)
 
 
@@ -160,7 +170,7 @@ async def get_endpoint(ctx, endpoint):
             click.echo("Non-success response: %s" % (v,))
         else:
             click.echo(v[2])
-    except bellows.zigbee.exceptions.DeliveryError as e:
+    except zigpy.exceptions.ZigbeeException as e:
         click.echo(e)
 
 
@@ -181,7 +191,7 @@ async def bind(ctx, endpoint, cluster):
     try:
         v = await dev.zdo.bind(endpoint, cluster)
         click.echo(v)
-    except bellows.zigbee.exceptions.DeliveryError as e:
+    except zigpy.exceptions.ZigbeeException as e:
         click.echo(e)
 
 
@@ -202,7 +212,7 @@ async def unbind(ctx, endpoint, cluster):
     try:
         v = await dev.zdo.unbind(endpoint, cluster)
         click.echo(v)
-    except bellows.zigbee.exceptions.DeliveryError as e:
+    except zigpy.exceptions.ZigbeeException as e:
         click.echo(e)
 
 
@@ -216,7 +226,7 @@ async def leave(ctx):
     try:
         v = await app.remove(ctx.obj["node"])
         click.echo(v)
-    except bellows.zigbee.exceptions.DeliveryError as e:
+    except zigpy.exceptions.ZigbeeException as e:
         click.echo(e)
 
 
@@ -261,7 +271,7 @@ async def read_attribute(ctx, attribute, manufacturer):
             )
         else:
             click.echo("%s=%s" % (attribute, v[0][attribute]))
-    except bellows.zigbee.exceptions.DeliveryError as e:
+    except zigpy.exceptions.ZigbeeException as e:
         click.echo(e)
 
 
@@ -286,7 +296,7 @@ async def write_attribute(ctx, attribute, value, manufacturer):
             {attribute: value}, manufacturer=manufacturer
         )
         click.echo(v)
-    except bellows.zigbee.exceptions.DeliveryError as e:
+    except zigpy.exceptions.ZigbeeException as e:
         click.echo(e)
 
 
@@ -330,7 +340,7 @@ async def command(ctx, command, parameters, manufacturer):
         click.echo(v)
     except ValueError as e:
         click.echo(e)
-    except bellows.zigbee.exceptions.DeliveryError as e:
+    except zigpy.exceptions.ZigbeeException as e:
         click.echo(e)
 
 
@@ -358,5 +368,5 @@ async def configure_reporting(
             attribute, min_interval, max_interval, reportable_change
         )
         click.echo(v)
-    except bellows.zigbee.exceptions.DeliveryError as e:
+    except zigpy.exceptions.ZigbeeException as e:
         click.echo(e)

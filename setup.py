@@ -4,7 +4,7 @@ import bellows
 from setuptools import find_packages, setup
 
 setup(
-    name="bellows-homeassistant",
+    name="bellows",
     version=bellows.__version__,
     description="Library implementing EZSP",
     url="http://github.com/zigpy/bellows",
@@ -19,7 +19,7 @@ setup(
         "pure_pcapy3==1.0.1",
         "pyserial-asyncio",
         "voluptuous",
-        "zigpy-homeassistant>=0.17.0",
+        "zigpy>=0.20.0a1",
     ],
     dependency_links=["https://codeload.github.com/rcloran/pure-pcapy-3/zip/master"],
     tests_require=["asynctest", "pytest", "pytest-asyncio"],

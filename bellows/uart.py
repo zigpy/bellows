@@ -2,6 +2,7 @@ import asyncio
 import binascii
 import logging
 
+from bellows.config import CONF_DEVICE_BAUDRATE, CONF_DEVICE_PATH
 from bellows.thread import EventLoopThread, ThreadsafeProxy
 import bellows.types as t
 import serial
@@ -322,7 +323,7 @@ class Gateway(asyncio.Protocol):
         return out
 
 
-async def _connect(port, baudrate, application):
+async def _connect(config, application):
     loop = asyncio.get_event_loop()
 
     connection_future = loop.create_future()
@@ -332,8 +333,8 @@ async def _connect(port, baudrate, application):
     transport, protocol = await serial_asyncio.create_serial_connection(
         loop,
         lambda: protocol,
-        url=port,
-        baudrate=baudrate,
+        url=config[CONF_DEVICE_PATH],
+        baudrate=config[CONF_DEVICE_BAUDRATE],
         parity=serial.PARITY_NONE,
         stopbits=serial.STOPBITS_ONE,
         xonxoff=True,
@@ -345,19 +346,19 @@ async def _connect(port, baudrate, application):
     return thread_safe_protocol, connection_done_future
 
 
-async def connect(port, baudrate, application, use_thread=True):
+async def connect(config, application, use_thread=True):
     if use_thread:
         application = ThreadsafeProxy(application, asyncio.get_event_loop())
         thread = EventLoopThread()
         await thread.start()
         try:
             protocol, connection_done = await thread.run_coroutine_threadsafe(
-                _connect(port, baudrate, application)
+                _connect(config, application)
             )
         except Exception:
             thread.force_stop()
             raise
         connection_done.add_done_callback(lambda _: thread.force_stop())
     else:
-        protocol, _ = await _connect(port, baudrate, application)
+        protocol, _ = await _connect(config, application)
     return protocol
