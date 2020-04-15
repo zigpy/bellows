@@ -3,6 +3,7 @@ import threading
 
 from asynctest import CoroutineMock, mock
 from bellows import uart
+import bellows.config as conf
 import pytest
 import serial_asyncio
 
@@ -19,10 +20,15 @@ async def test_connect(monkeypatch):
         return None, protocol
 
     monkeypatch.setattr(serial_asyncio, "create_serial_connection", mockconnect)
-    await uart.connect(portmock, 115200, appmock, use_thread=False)
+    gw = await uart.connect(
+        {conf.CONF_DEVICE_PATH: portmock, conf.CONF_DEVICE_BAUDRATE: 115200},
+        appmock,
+        use_thread=False,
+    )
 
     threads = [t for t in threading.enumerate() if "bellows" in t.name]
     assert len(threads) == 0
+    gw.close()
 
 
 @pytest.mark.asyncio
@@ -43,7 +49,9 @@ async def test_connect_threaded(monkeypatch):
         gw.connection_lost(None)
 
     transport.close.side_effect = on_transport_close
-    gw = await uart.connect(portmock, 115200, appmock)
+    gw = await uart.connect(
+        {conf.CONF_DEVICE_PATH: portmock, conf.CONF_DEVICE_BAUDRATE: 115200}, appmock
+    )
 
     # Need to close to release thread
     gw.close()
@@ -71,7 +79,10 @@ async def test_connect_threaded_failure(monkeypatch):
 
     transport.close.side_effect = on_transport_close
     with pytest.raises(OSError):
-        gw = await uart.connect(portmock, 115200, appmock)
+        gw = await uart.connect(
+            {conf.CONF_DEVICE_PATH: portmock, conf.CONF_DEVICE_BAUDRATE: 115200},
+            appmock,
+        )
 
     # Ensure all threads are cleaned up
     [t.join(1) for t in threading.enumerate() if "bellows" in t.name]

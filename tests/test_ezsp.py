@@ -2,15 +2,20 @@ import asyncio
 import functools
 
 from asynctest import CoroutineMock, mock
-from bellows import ezsp, uart
+from bellows import config, ezsp, uart
 from bellows.exception import EzspError
 import pytest
 import serial
 
+DEVICE_CONFIG = {
+    config.CONF_DEVICE_PATH: "/dev/null",
+    config.CONF_DEVICE_BAUDRATE: 115200,
+}
+
 
 @pytest.fixture
 def ezsp_f():
-    api = ezsp.EZSP()
+    api = ezsp.EZSP(DEVICE_CONFIG)
     api._gw = mock.MagicMock(spec_set=uart.Gateway)
     return api
 
@@ -26,14 +31,12 @@ def test_connect(ezsp_f, monkeypatch):
     ezsp_f._gw = None
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(ezsp_f.connect(mock.sentinel.port, mock.sentinel.speed))
+    loop.run_until_complete(ezsp_f.connect())
     assert connected
 
     ezsp_f.connect = mock.MagicMock(side_effect=asyncio.coroutine(mock.MagicMock()))
     loop.run_until_complete(ezsp_f.reconnect())
     assert ezsp_f.connect.call_count == 1
-    assert ezsp_f.connect.call_args[0][0] is mock.sentinel.port
-    assert ezsp_f.connect.call_args[0][1] is mock.sentinel.speed
 
 
 @pytest.mark.asyncio
@@ -310,22 +313,20 @@ def test_ezsp_frame(ezsp_f):
 async def test_probe_success(mock_connect, mock_reset):
     """Test device probing."""
 
-    res = await ezsp.EZSP.probe(mock.sentinel.uart, mock.sentinel.baud)
+    res = await ezsp.EZSP.probe(DEVICE_CONFIG)
     assert res is True
     assert mock_connect.call_count == 1
     assert mock_connect.await_count == 1
-    assert mock_connect.call_args[0][0] is mock.sentinel.uart
     assert mock_reset.call_count == 1
     assert mock_connect.return_value.close.call_count == 1
 
     mock_connect.reset_mock()
     mock_reset.reset_mock()
     mock_connect.reset_mock()
-    res = await ezsp.EZSP.probe(mock.sentinel.uart, mock.sentinel.baud)
+    res = await ezsp.EZSP.probe(DEVICE_CONFIG)
     assert res is True
     assert mock_connect.call_count == 1
     assert mock_connect.await_count == 1
-    assert mock_connect.call_args[0][0] is mock.sentinel.uart
     assert mock_reset.call_count == 1
     assert mock_connect.return_value.close.call_count == 1
 
@@ -342,10 +343,9 @@ async def test_probe_fail(mock_connect, mock_reset, exception):
     mock_reset.side_effect = exception
     mock_reset.reset_mock()
     mock_connect.reset_mock()
-    res = await ezsp.EZSP.probe(mock.sentinel.uart, mock.sentinel.baud)
+    res = await ezsp.EZSP.probe(DEVICE_CONFIG)
     assert res is False
     assert mock_connect.call_count == 1
     assert mock_connect.await_count == 1
-    assert mock_connect.call_args[0][0] is mock.sentinel.uart
     assert mock_reset.call_count == 1
     assert mock_connect.return_value.close.call_count == 1
