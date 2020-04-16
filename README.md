@@ -59,6 +59,28 @@ $ bellows zcl 00:0d:6f:00:05:7d:2d:34 1 1026 read_attribute 0
 0=1806
 ```
 
+## Testing new releases
+
+Testing a new release of the bellows library before it is released in Home Assistant.
+
+If you are using Supervised Home Assistant (formerly known as the Hassio/Hass.io distro):
+- Add https://github.com/home-assistant/hassio-addons-development as "add-on" repository
+- Install "Custom deps deployment" addon
+- Update config like: 
+  ```
+  pypi:
+    - bellows==0.16.0
+  apk: []
+  ```
+  where 0.16.0 is the new version
+- Start the addon
+
+If you are instead using some custom python installation of Home Assistant then do this:
+- Activate your python virtual env
+- Update package with ``pip``
+  ```
+  pip install bellows==0.16.0
+  
 ## Release packages available via PyPI
 
 Packages of tagged versions are also released via PyPI
