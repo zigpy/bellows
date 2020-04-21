@@ -33,6 +33,7 @@ LOGGER = logging.getLogger(__name__)
 
 class ControllerApplication(zigpy.application.ControllerApplication):
     direct = t.EmberOutgoingMessageType.OUTGOING_DIRECT
+    probe = bellows.ezsp.EZSP.probe
     SCHEMA = CONFIG_SCHEMA
 
     def __init__(self, config: Dict):
