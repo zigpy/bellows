@@ -70,6 +70,8 @@ Packages of tagged versions are also released via PyPI
    https://www.silabs.com/Support%20Documents/TechnicalDocs/UG101.pdf
  * EZSP Reference Guide:
    http://www.silabs.com/Support%20Documents/TechnicalDocs/UG100-EZSPReferenceGuide.pdf
+ * EZSP UART Host Interfacing Reference Guide: https://www.silabs.com/documents/public/application-notes/an706-ezsp-uart-host-interfacing-guide.pdf
+  * Silicon Labs forum https://www.silabs.com/community/wireless/zigbee-and-thread/forum
 
 ## How to contribute
 
