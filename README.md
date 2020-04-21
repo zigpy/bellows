@@ -59,6 +59,11 @@ $ bellows zcl 00:0d:6f:00:05:7d:2d:34 1 1026 read_attribute 0
 0=1806
 ```
 
+## Port configuration
+- To configure usb port path for your EZSP serial device, just specify the TTY (serial com) port, example : `/dev/ttyUSB1`
+  - Alternatively you could try to set just port to `auto` to enable automatic usb port discovery (not garanteed to work).
+- It is worth noting that EM3588 devices that have an embedded USB core will likely work with any baud rate, where dongles using external USB interface (eg CP2102 used with an EM3581) will likely require a specific baud rate. Currently there are two main NCP images - one that supports hardware flow control with a baud rate of 115200, and one that supports software flow control with a rate of 57600.
+
 ## Release packages available via PyPI
 
 Packages of tagged versions are also released via PyPI
