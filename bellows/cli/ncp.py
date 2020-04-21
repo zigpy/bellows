@@ -85,8 +85,25 @@ async def info(ctx):
 @click.pass_context
 @util.background
 async def bootloader(ctx):
-    """Get bootloader information"""
+    """Start bootloader"""
+
     ezsp = await util.setup(ctx.obj["device"], ctx.obj["baudrate"], configure=False)
-    res = await ezsp.getStandaloneBootloaderVersionPlatMicroPhy()
-    click.echo(res)
-    ezsp.clotse()
+    version, plat, micro, phy = await ezsp.getStandaloneBootloaderVersionPlatMicroPhy()
+    if version == 0xFFFF:
+        click.echo("No boot loader installed")
+        ezsp.close()
+        return
+
+    click.echo(
+        (
+            f"bootloader version: 0x{version:04x}, nodePlat: 0x{plat:02x}, "
+            f"nodeMicro: 0x{micro:02x}, nodePhy: 0x{phy:02x}"
+        )
+    )
+
+    res = await ezsp.launchStandaloneBootloader(0x00)
+    if res[0] != t.EmberStatus.SUCCESS:
+        click.echo(f"Couldn't launch bootloader: {res[0]}")
+    else:
+        click.echo("bootloader launched successfully")
+    ezsp.close()
