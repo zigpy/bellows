@@ -79,3 +79,14 @@ async def info(ctx):
         click.echo(v)
 
     s.close()
+
+
+@main.command()
+@click.pass_context
+@util.background
+async def bootloader(ctx):
+    """Get bootloader information"""
+    ezsp = await util.setup(ctx.obj["device"], ctx.obj["baudrate"], configure=False)
+    res = await ezsp.getStandaloneBootloaderVersionPlatMicroPhy()
+    click.echo(res)
+    ezsp.clotse()
