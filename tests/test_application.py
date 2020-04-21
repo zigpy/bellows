@@ -4,8 +4,9 @@ import asynctest
 from asynctest import CoroutineMock, mock
 import bellows.config as config
 from bellows.exception import ControllerError, EzspError
-import bellows.ezsp
+import bellows.ezsp as ezsp
 import bellows.types as t
+import bellows.uart as uart
 import bellows.zigbee.application
 import pytest
 import zigpy.config
@@ -1034,3 +1035,27 @@ def test_src_rtg_config(config, result):
     )
     ctrl = bellows.zigbee.application.ControllerApplication(config=app_cfg)
     assert ctrl.use_source_routing is result
+
+
+@pytest.mark.asyncio
+@mock.patch.object(ezsp.EZSP, "reset", new_callable=CoroutineMock)
+@mock.patch.object(uart, "connect")
+async def test_probe_success(mock_connect, mock_reset):
+    """Test device probing."""
+
+    res = await ezsp.EZSP.probe(APP_CONFIG[config.CONF_DEVICE])
+    assert res is True
+    assert mock_connect.call_count == 1
+    assert mock_connect.await_count == 1
+    assert mock_reset.call_count == 1
+    assert mock_connect.return_value.close.call_count == 1
+
+    mock_connect.reset_mock()
+    mock_reset.reset_mock()
+    mock_connect.reset_mock()
+    res = await ezsp.EZSP.probe(APP_CONFIG[config.CONF_DEVICE])
+    assert res is True
+    assert mock_connect.call_count == 1
+    assert mock_connect.await_count == 1
+    assert mock_reset.call_count == 1
+    assert mock_connect.return_value.close.call_count == 1
