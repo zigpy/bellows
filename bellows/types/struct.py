@@ -138,14 +138,6 @@ class EmberMulticastTableEntry(EzspStruct):
     ]
 
 
-class EmberKeyData(EzspStruct):
-    # A 128-bit key.
-    _fields = [
-        # The key data.
-        ("contents", basic.fixed_list(16, basic.uint8_t))
-    ]
-
-
 class EmberCertificateData(EzspStruct):
     # The implicit certificate used in CBKE.
     _fields = [
@@ -176,7 +168,7 @@ class EmberTransientKeyData(EzspStruct):
         # The IEEE address paired with the transient link key.
         ("eui64", named.EmberEUI64),
         # The key data structure matching the transient key.
-        ("keyData", EmberKeyData),
+        ("keyData", named.EmberKeyData),
         # The incoming frame counter associated with this key.
         ("incomingFrameCounter", basic.uint32_t),
         # The number of milliseconds remaining before the key
@@ -314,12 +306,12 @@ class EmberInitialSecurityState(EzspStruct):
         # joining the network. The security bitmask must be set with the
         # HAVE_PRECONFIGURED_KEY bit to indicate that the key contains valid
         # data.
-        ("preconfiguredKey", EmberKeyData),
+        ("preconfiguredKey", named.EmberKeyData),
         # The Network Key that should be used by the Trust Center when it forms
         # the network, or the Network Key currently in use by a joined device.
         # The security bitmask must be set with HAVE_NETWORK_KEY to indicate
         # that the key contains valid data.
-        ("networkKey", EmberKeyData),
+        ("networkKey", named.EmberKeyData),
         # The sequence number associated with the network key. This is only
         # valid if the HAVE_NETWORK_KEY has been set in the security bitmask.
         ("networkKeySequenceNumber", basic.uint8_t),
@@ -354,7 +346,7 @@ class EmberKeyStruct(EzspStruct):
         # The type of the key.
         ("type", named.EmberKeyType),
         # The actual key data.
-        ("key", EmberKeyData),
+        ("key", named.EmberKeyData),
         # The outgoing frame counter associated with the key.
         ("outgoingFrameCounter", basic.uint32_t),
         # The frame counter of the partner device associated with the key.
@@ -419,10 +411,10 @@ class EmberZllInitialSecurityState(EzspStruct):
         # The key encryption algorithm advertised by the application.
         ("keyIndex", named.EmberZllKeyIndex),
         # The encryption key for use by algorithms that require it.
-        ("encryptionKey", EmberKeyData),
+        ("encryptionKey", named.EmberKeyData),
         # The pre-configured link key used during classical ZigBee
         # commissioning.
-        ("preconfiguredKey", EmberKeyData),
+        ("preconfiguredKey", named.EmberKeyData),
     ]
 
 
@@ -531,7 +523,7 @@ class EmberRf4cePairingTableEntry(EzspStruct):
     # The internal representation of an RF4CE pairing table entry.
     _fields = [
         # The link key to be used to secure this pairing link.
-        ("securityLinkKey", EmberKeyData),
+        ("securityLinkKey", named.EmberKeyData),
         # The IEEE address of the destination device.
         ("destLongId", named.EmberEUI64),
         # The frame counter last received from the recipient node.
