@@ -1,21 +1,27 @@
 import os
+from typing import Any, Dict
 
 import bellows.types as t
+import zigpy.config
 
 
-def zha_security(controller=False):
-    empty_key_data = t.EmberKeyData([t.uint8_t(0)] * 16)
-    zha_key = t.EmberKeyData(b"ZigBeeAlliance09")
+def zha_security(config: Dict[str, Any], controller: bool = False) -> None:
 
     isc = t.EmberInitialSecurityState()
     isc.bitmask = t.uint16_t(
         t.EmberInitialSecurityBitmask.HAVE_PRECONFIGURED_KEY
         | t.EmberInitialSecurityBitmask.REQUIRE_ENCRYPTED_KEY
     )
-    isc.preconfiguredKey = zha_key
-    isc.networkKey = empty_key_data
+    isc.preconfiguredKey = t.EmberKeyData(config[zigpy.config.CONF_NWK_TC_LINK_KEY])
+    nwk_key = config[zigpy.config.CONF_NWK_KEY]
+    if nwk_key is None:
+        nwk_key = os.urandom(16)
+    isc.networkKey = t.EmberKeyData(nwk_key)
     isc.networkKeySequenceNumber = t.uint8_t(0)
-    isc.preconfiguredTrustCenterEui64 = t.EmberEUI64([t.uint8_t(0)] * 8)
+    tc_addr = config[zigpy.config.CONF_NWK_TC_ADDRESS]
+    if tc_addr is None:
+        tc_addr = [0x00] * 8
+    isc.preconfiguredTrustCenterEui64 = t.EmberEUI64(tc_addr)
 
     if controller:
         isc.bitmask |= (
@@ -23,6 +29,4 @@ def zha_security(controller=False):
             | t.EmberInitialSecurityBitmask.HAVE_NETWORK_KEY
         )
         isc.bitmask = t.uint16_t(isc.bitmask)
-        random_key = t.fixed_list(16, t.uint8_t)([t.uint8_t(x) for x in os.urandom(16)])
-        isc.networkKey = random_key
     return isc
