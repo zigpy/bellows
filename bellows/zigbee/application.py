@@ -3,7 +3,12 @@ import logging
 import os
 from typing import Dict
 
-from bellows.config import CONF_EZSP_CONFIG, CONF_PARAM_SRC_RTG, CONFIG_SCHEMA, SCHEMA_DEVICE
+from bellows.config import (
+    CONF_EZSP_CONFIG,
+    CONF_PARAM_SRC_RTG,
+    CONFIG_SCHEMA,
+    SCHEMA_DEVICE,
+)
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp
 import bellows.multicast
