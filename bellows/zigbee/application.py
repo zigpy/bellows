@@ -21,7 +21,6 @@ import zigpy.device
 from zigpy.quirks import CustomDevice, CustomEndpoint
 from zigpy.types import BroadcastAddress
 import zigpy.util
-import zigpy.zdo
 import zigpy.zdo.types as zdo_t
 
 APS_ACK_TIMEOUT = 120
@@ -43,7 +42,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     SCHEMA_DEVICE = SCHEMA_DEVICE
 
     def __init__(self, config: Dict):
-        super().__init__(config=zigpy.config.ZIGPY_SCHEMA(config))
+        super().__init__(config)
         self._ctrl_event = asyncio.Event()
         self._ezsp = None
         self._multicast = None
@@ -204,29 +203,29 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._reset_task.cancel()
         self._ezsp.close()
 
-    async def form_network(self, channel=15, pan_id=None, extended_pan_id=None):
-        channel = t.uint8_t(channel)
+    async def form_network(self):
+        nwk = self.config[zigpy.config.CONF_NWK]
 
+        pan_id = nwk[zigpy.config.CONF_NWK_PAN_ID]
         if pan_id is None:
-            pan_id = t.uint16_t.from_bytes(os.urandom(2), "little")
-        pan_id = t.uint16_t(pan_id)
+            pan_id = int.from_bytes(os.urandom(2), byteorder="little")
 
+        extended_pan_id = nwk[zigpy.config.CONF_NWK_EXTENDED_PAN_ID]
         if extended_pan_id is None:
-            extended_pan_id = t.fixed_list(8, t.uint8_t)([t.uint8_t(0)] * 8)
+            extended_pan_id = t.EmberEUI64([t.uint8_t(0)] * 8)
 
-        initial_security_state = bellows.zigbee.util.zha_security(controller=True)
+        initial_security_state = bellows.zigbee.util.zha_security(nwk, controller=True)
         v = await self._ezsp.setInitialSecurityState(initial_security_state)
         assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
-
         parameters = t.EmberNetworkParameters()
-        parameters.panId = pan_id
+        parameters.panId = t.EmberPanId(pan_id)
         parameters.extendedPanId = extended_pan_id
         parameters.radioTxPower = t.uint8_t(8)
-        parameters.radioChannel = channel
+        parameters.radioChannel = t.uint8_t(nwk[zigpy.config.CONF_NWK_CHANNEL])
         parameters.joinMethod = t.EmberJoinMethod.USE_MAC_ASSOCIATION
         parameters.nwkManagerId = t.EmberNodeId(0)
-        parameters.nwkUpdateId = t.uint8_t(0)
-        parameters.channels = t.uint32_t(0)
+        parameters.nwkUpdateId = t.uint8_t(nwk[zigpy.config.CONF_NWK_UPDATE_ID])
+        parameters.channels = nwk[zigpy.config.CONF_NWK_CHANNELS]
 
         await self._ezsp.formNetwork(parameters)
         await self._ezsp.setValue(t.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
