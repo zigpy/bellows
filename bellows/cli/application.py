@@ -302,14 +302,12 @@ async def write_attribute(ctx, attribute, value, manufacturer):
 
 @zcl.command()
 @click.pass_context
-def commands(ctx):
-    database = ctx.obj["database_file"]
+@util.app
+async def commands(ctx):
+    app = ctx.obj["app"]
     node = ctx.obj["node"]
     endpoint_id = ctx.obj["endpoint"]
     cluster_id = ctx.obj["cluster"]
-
-    ezsp = bellows.ezsp.EZSP()
-    app = bellows.zigbee.application.ControllerApplication(ezsp, database)
 
     dev, endpoint, cluster = util.get_in_cluster(app, node, endpoint_id, cluster_id)
     if cluster is None:
