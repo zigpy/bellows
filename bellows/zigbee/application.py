@@ -3,7 +3,7 @@ import logging
 import os
 from typing import Dict
 
-from bellows.config import CONF_EZSP_CONFIG, CONF_PARAM_SRC_RTG, CONFIG_SCHEMA
+from bellows.config import CONF_EZSP_CONFIG, CONF_PARAM_SRC_RTG, CONFIG_SCHEMA, SCHEMA_DEVICE
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp
 import bellows.multicast
@@ -35,6 +35,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     direct = t.EmberOutgoingMessageType.OUTGOING_DIRECT
     probe = bellows.ezsp.EZSP.probe
     SCHEMA = CONFIG_SCHEMA
+    SCHEMA_DEVICE = SCHEMA_DEVICE
 
     def __init__(self, config: Dict):
         super().__init__(config=zigpy.config.ZIGPY_SCHEMA(config))
