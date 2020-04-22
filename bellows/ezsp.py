@@ -92,7 +92,9 @@ class EZSP:
             self._ezsp_version = ver
             await self._command("version", ver)
             LOGGER.debug("Switched to EZSP protocol version %d", self.ezsp_version)
-        LOGGER.info("EZSP Stack Type: %s, Stack Version: %s", stack_type, stack_version)
+        LOGGER.debug(
+            "EZSP Stack Type: %s, Stack Version: %s", stack_type, stack_version
+        )
 
     def close(self):
         self.stop_ezsp()
