@@ -4,12 +4,8 @@ import bellows.types as t
 
 
 def zha_security(controller=False):
-    empty_key_data = t.EmberKeyData()
-    empty_key_data.contents = t.fixed_list(16, t.uint8_t)([t.uint8_t(0)] * 16)
-    zha_key = t.EmberKeyData()
-    zha_key.contents = t.fixed_list(16, t.uint8_t)(
-        [t.uint8_t(c) for c in b"ZigBeeAlliance09"]
-    )
+    empty_key_data = t.EmberKeyData([t.uint8_t(0)] * 16)
+    zha_key = t.EmberKeyData(b"ZigBeeAlliance09")
 
     isc = t.EmberInitialSecurityState()
     isc.bitmask = t.uint16_t(

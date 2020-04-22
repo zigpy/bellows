@@ -526,8 +526,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if key is None:
             raise Exception("Invalid install code")
 
-        link_key = t.EmberKeyData()
-        link_key.contents = key
+        link_key = t.EmberKeyData(key)
         v = await self._ezsp.addTransientLinkKey(node, link_key)
 
         if v[0] != t.EmberStatus.SUCCESS:
