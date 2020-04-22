@@ -61,7 +61,10 @@ $ bellows zcl 00:0d:6f:00:05:7d:2d:34 1 1026 read_attribute 0
 
 ## Release packages available via PyPI
 
-Packages of tagged versions are also released via PyPI
+New packages of tagged versions are also released via the "bellows" project on PyPI
+  - https://pypi.org/project/bellows/
+
+Older packages of tagged versions are still available on the "bellows-homeassistant" project on PyPI
   - https://pypi.org/project/bellows-homeassistant/
 
 ## Reference documentation
