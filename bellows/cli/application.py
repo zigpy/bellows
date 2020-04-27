@@ -34,8 +34,7 @@ def form(ctx, database, channel, pan_id, extended_pan_id, network_key):
             zigpy.config.CONF_NWK_KEY: network_key,
         }
     }
-    click.echo(f"Network key {network_key}")
-
+    
     async def inner(ctx):
         app = ctx.obj["app"]
         await app.startup(auto_form=True)
