@@ -40,20 +40,27 @@ def background(f):
     return inner
 
 
-def app(f, app_startup=True):
+def app(f, app_startup=True, extra_config=None):
     database_file = None
     application = None
 
     async def async_inner(ctx, *args, **kwargs):
         nonlocal database_file
         nonlocal application
-        database_file = ctx.obj["database_file"]
-        application = await setup_application(
-            ctx.obj["device"], ctx.obj["baudrate"], database_file, startup=app_startup
-        )
+        app_config = {
+            config.CONF_DEVICE: {
+                config.CONF_DEVICE_PATH: ctx.obj["device"],
+                config.CONF_DEVICE_BAUDRATE: ctx.obj["baudrate"],
+            },
+            zigpy_conf.CONF_DATABASE: ctx.obj["database_file"],
+        }
+        if extra_config:
+            app_config.update(extra_config)
+        application = await setup_application(app_config, startup=app_startup)
         ctx.obj["app"] = application
         await f(ctx, *args, **kwargs)
         await asyncio.sleep(0.5)
+        await application.shutdown()
 
     def shutdown():
         try:
@@ -124,17 +131,10 @@ async def setup(dev, baudrate, cbh=None, configure=True):
     return s
 
 
-async def setup_application(dev, baudrate, database_file, startup=True):
-    app_config = {
-        config.CONF_DEVICE: {
-            config.CONF_DEVICE_PATH: dev,
-            config.CONF_DEVICE_BAUDRATE: baudrate,
-        },
-        zigpy_conf.CONF_DATABASE: database_file,
-    }
+async def setup_application(app_config, startup=True):
     app_config = bellows.zigbee.application.ControllerApplication.SCHEMA(app_config)
     app = await bellows.zigbee.application.ControllerApplication.new(
-        app_config, startup
+        app_config, start_radio=startup
     )
     return app
 
