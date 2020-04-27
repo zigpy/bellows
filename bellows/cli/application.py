@@ -21,17 +21,26 @@ from .main import main
 @opts.channel
 @opts.extended_pan
 @opts.pan
+@opts.network_key
 @click.pass_context
-def form(ctx, database, channel, pan_id, extended_pan_id):
+def form(ctx, database, channel, pan_id, extended_pan_id, network_key):
     """Form a new ZigBee network"""
     ctx.obj["database_file"] = database
+    extra_config = {
+        zigpy.config.CONF_NWK: {
+            zigpy.config.CONF_NWK_CHANNEL: channel,
+            zigpy.config.CONF_NWK_EXTENDED_PAN_ID: extended_pan_id,
+            zigpy.config.CONF_NWK_PAN_ID: pan_id,
+            zigpy.config.CONF_NWK_KEY: network_key,
+        }
+    }
+    click.echo(f"Network key {network_key}")
 
     async def inner(ctx):
         app = ctx.obj["app"]
-        await app.initialize()
-        await app.form_network(channel, pan_id, extended_pan_id)
+        await app.startup(auto_form=True)
 
-    return util.app(inner, app_startup=False)(ctx)
+    return util.app(inner, app_startup=False, extra_config=extra_config)(ctx)
 
 
 @main.command()
