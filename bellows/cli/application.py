@@ -22,8 +22,9 @@ from .main import main
 @opts.extended_pan
 @opts.pan
 @opts.network_key
+@opts.network_key_seq
 @click.pass_context
-def form(ctx, database, channel, pan_id, extended_pan_id, network_key):
+def form(ctx, database, channel, pan_id, extended_pan_id, network_key, network_key_seq):
     """Form a new ZigBee network"""
     ctx.obj["database_file"] = database
     extra_config = {
@@ -32,6 +33,7 @@ def form(ctx, database, channel, pan_id, extended_pan_id, network_key):
             zigpy.config.CONF_NWK_EXTENDED_PAN_ID: extended_pan_id,
             zigpy.config.CONF_NWK_PAN_ID: pan_id,
             zigpy.config.CONF_NWK_KEY: network_key,
+            zigpy.config.CONF_NWK_KEY_SEQ: network_key_seq,
         }
     }
 
