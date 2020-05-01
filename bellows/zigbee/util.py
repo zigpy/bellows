@@ -17,7 +17,7 @@ def zha_security(config: Dict[str, Any], controller: bool = False) -> None:
     if nwk_key is None:
         nwk_key = os.urandom(16)
     isc.networkKey = t.EmberKeyData(nwk_key)
-    isc.networkKeySequenceNumber = t.uint8_t(0)
+    isc.networkKeySequenceNumber = t.uint8_t(config[zigpy.config.CONF_NWK_KEY_SEQ])
     tc_addr = config[zigpy.config.CONF_NWK_TC_ADDRESS]
     if tc_addr is None:
         tc_addr = [0x00] * 8
