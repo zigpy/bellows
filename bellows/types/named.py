@@ -1664,3 +1664,7 @@ class EmberNetworkInitBitmask(basic.uint16_t):
     # Save parent info (node ID and EUI64) in a token during joining/rejoin,
     # and restore on reboot.
     NETWORK_INIT_PARENT_INFO_IN_TOKEN = 0x0001
+
+
+class EmberKeyData(basic.fixed_list(16, basic.uint8_t)):
+    """A 128-bit key. """

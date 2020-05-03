@@ -21,17 +21,27 @@ from .main import main
 @opts.channel
 @opts.extended_pan
 @opts.pan
+@opts.network_key
+@opts.network_key_seq
 @click.pass_context
-def form(ctx, database, channel, pan_id, extended_pan_id):
+def form(ctx, database, channel, pan_id, extended_pan_id, network_key, network_key_seq):
     """Form a new ZigBee network"""
     ctx.obj["database_file"] = database
+    extra_config = {
+        zigpy.config.CONF_NWK: {
+            zigpy.config.CONF_NWK_CHANNEL: channel,
+            zigpy.config.CONF_NWK_EXTENDED_PAN_ID: extended_pan_id,
+            zigpy.config.CONF_NWK_PAN_ID: pan_id,
+            zigpy.config.CONF_NWK_KEY: network_key,
+            zigpy.config.CONF_NWK_KEY_SEQ: network_key_seq,
+        }
+    }
 
     async def inner(ctx):
         app = ctx.obj["app"]
-        await app.initialize()
-        await app.form_network(channel, pan_id, extended_pan_id)
+        await app.startup(auto_form=True)
 
-    return util.app(inner, app_startup=False)(ctx)
+    return util.app(inner, app_startup=False, extra_config=extra_config)(ctx)
 
 
 @main.command()
@@ -302,14 +312,12 @@ async def write_attribute(ctx, attribute, value, manufacturer):
 
 @zcl.command()
 @click.pass_context
-def commands(ctx):
-    database = ctx.obj["database_file"]
+@util.app
+async def commands(ctx):
+    app = ctx.obj["app"]
     node = ctx.obj["node"]
     endpoint_id = ctx.obj["endpoint"]
     cluster_id = ctx.obj["cluster"]
-
-    ezsp = bellows.ezsp.EZSP()
-    app = bellows.zigbee.application.ControllerApplication(ezsp, database)
 
     dev, endpoint, cluster = util.get_in_cluster(app, node, endpoint_id, cluster_id)
     if cluster is None:

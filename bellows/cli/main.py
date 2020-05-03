@@ -7,7 +7,7 @@ from . import opts
 
 
 @click.group()
-@click_log.simple_verbosity_option(logging.getLogger())
+@click_log.simple_verbosity_option(logging.getLogger(), default="WARNING")
 @opts.device
 @opts.baudrate
 @click.pass_context

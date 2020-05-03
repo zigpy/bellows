@@ -66,3 +66,19 @@ manufacturer = click.option(
     default=None,
     help="send a manufacturer specific command",
 )
+
+network_key = click.option(
+    "-N",
+    "--network-key",
+    type=util.CSVParamType(0, 255),
+    default=None,
+    help="16 bytes of network key, lsb first",
+)
+
+network_key_seq = click.option(
+    "-s",
+    "--network-key-seq",
+    type=click.IntRange(0, 255),
+    default=0,
+    help="Network key sequence number",
+)
