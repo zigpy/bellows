@@ -1,3 +1,4 @@
+import bellows.multicast
 import bellows.types
 import voluptuous as vol
 
@@ -31,9 +32,10 @@ EZSP_SCHEMA = {
     ),
     #
     # The maximum number of multicast groups that the device may be a member of
-    vol.Optional(c.CONFIG_MULTICAST_TABLE_SIZE.name): vol.All(
-        int, vol.Range(min=0, max=255)
-    ),
+    vol.Optional(
+        c.CONFIG_MULTICAST_TABLE_SIZE.name,
+        default=bellows.multicast.Multicast.TABLE_SIZE,
+    ): vol.All(int, vol.Range(min=0, max=255)),
     #
     # The maximum number of destinations to which a node can route messages. This
     # includes both messages originating at this node and those relayed for others
