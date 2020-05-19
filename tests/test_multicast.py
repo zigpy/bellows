@@ -5,10 +5,14 @@ import bellows.types as t
 import pytest
 from zigpy.endpoint import Endpoint
 
+CUSTOM_SIZE = 12
+
 
 @pytest.fixture
 def ezsp_f():
-    return mock.MagicMock()
+    e = mock.MagicMock()
+    e.getConfigurationValue = CoroutineMock(return_value=[0, CUSTOM_SIZE])
+    return e
 
 
 @pytest.fixture
@@ -18,7 +22,7 @@ def multicast(ezsp_f):
 
 
 @pytest.mark.asyncio
-async def test_initialize(ezsp_f):
+async def test_initialize(multicast):
     group_id = 0x0200
     mct = active_multicasts = 4
 
@@ -35,14 +39,24 @@ async def test_initialize(ezsp_f):
         mct -= 1
         return [t.EmberStatus.SUCCESS, entry]
 
-    ezsp_f.getMulticastTableEntry.side_effect = mock_get
-    multicast = await bellows.multicast.Multicast.initialize(ezsp_f)
-    assert ezsp_f.getMulticastTableEntry.call_count == multicast.TABLE_SIZE
-    assert len(multicast._available) == multicast.TABLE_SIZE - active_multicasts
+    multicast._ezsp.getMulticastTableEntry.side_effect = mock_get
+    await multicast._initialize()
+    assert multicast._ezsp.getMulticastTableEntry.call_count == CUSTOM_SIZE
+    assert len(multicast._available) == CUSTOM_SIZE - active_multicasts
 
 
 @pytest.mark.asyncio
-async def test_initialize_fail(multicast, ezsp_f):
+async def test_initialize_fail_configured_size(multicast):
+
+    multicast._ezsp.getConfigurationValue.return_value = t.EmberStatus.ERR_FATAL, 16
+    await multicast._initialize()
+    ezsp = multicast._ezsp
+    assert ezsp.getMulticastTableEntry.call_count == 0
+    assert len(multicast._available) == 0
+
+
+@pytest.mark.asyncio
+async def test_initialize_fail(multicast):
     group_id = 0x0200
 
     async def mock_get(*args):
@@ -54,10 +68,10 @@ async def test_initialize_fail(multicast, ezsp_f):
         group_id += 1
         return [t.EmberStatus.ERR_FATAL, entry]
 
-    ezsp_f.getMulticastTableEntry.side_effect = mock_get
-    await multicast.initialize(ezsp_f)
+    multicast._ezsp.getMulticastTableEntry.side_effect = mock_get
+    await multicast._initialize()
     ezsp = multicast._ezsp
-    assert ezsp.getMulticastTableEntry.call_count == multicast.TABLE_SIZE
+    assert ezsp.getMulticastTableEntry.call_count == CUSTOM_SIZE
     assert len(multicast._available) == 0
 
 
@@ -68,10 +82,12 @@ async def test_startup(multicast):
     ep1 = mock.MagicMock(spec_set=Endpoint)
     ep1.member_of = [mock.sentinel.grp, mock.sentinel.grp, mock.sentinel.grp]
     coordinator.endpoints = {0: mock.sentinel.ZDO, 1: ep1}
+    multicast._initialize = CoroutineMock()
     multicast.subscribe = mock.MagicMock()
     multicast.subscribe.side_effect = CoroutineMock()
     await multicast.startup(coordinator)
 
+    assert multicast._initialize.await_count == 1
     assert multicast.subscribe.call_count == len(ep1.member_of)
     assert multicast.subscribe.call_args[0][0] == mock.sentinel.grp
 

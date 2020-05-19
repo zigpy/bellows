@@ -3,16 +3,15 @@
 [![Build Status](https://travis-ci.org/zigpy/bellows.svg?branch=master)](https://travis-ci.org/zigpy/bellows)
 [![Coverage](https://coveralls.io/repos/github/zigpy/bellows/badge.svg?branch=master)](https://coveralls.io/github/zigpy/bellows?branch=master)
 
-`bellows` is a Python 3 project to implement support for EmberZNet devices using the EZSP protocol.
+`bellows` is a Python 3 library implemention for the [zigpy](https://github.com/zigpy/zigpy) project to add Zigbee radio support for Silicon Labs EM35x ("Ember") based devices using the EZSP (EmberZNet Serial Protocol) interface.
 
-The goal is to use this project to add support for the ZigBee Network
-Coprocessor (NCP) in devices like the [Linear/Nortek/GoControl HubZ/QuickStick
-Combo (HUSBZB-1)][HubZ] device to [Home Assistant][hass].
+The project can be used as a stand-alone library, however, the main goal of this project is to add native support for EmberZNet Zigbee radio based USB stick devices (a.k.a. "Ember" dongles) to Home Assistant's built-in ZHA (Zigbee Home Automation) integration component, allowing Home Assistant with such hardware to nativly support direct control of compatible Zigbee devices, such as; Philips HUE, GE, Ledvance, Osram Lightify, Xiaomi/Aqara, IKEA Tradfri, Samsung SmartThings, and many more.
 
-[Hubz]: http://www.gocontrol.com/detail.php?productId=6
-[hass]: https://home-assistant.io/
+- https://www.home-assistant.io/integrations/zha/
 
-## Compatible hardware
+bellows interacts with the Zigbee Network Coprocessor (NCP) with EmberZNet PRO Zigbee coordinator firmware using the EZSP protocol serial interface APIs via via UART for Silicon Labs EM35x Zigbee radio module/chips hardware. The library currectly supports the Silicon Labs EZSP (EmberZNet Serial Protocol) API versions for Silabs EM35x "Ember" SoCs using ASH or SPI protocols over a serial interface. The implementation of the SPI protocol assumes that the SPI provides a TTY-like software interface to the application, or is otherwise abstracted via the ZigBeePort interface.
+
+## Hardware requirement
 
 EmberZNet based Zigbee radios using the EZSP protocol (via the [bellows](https://github.com/zigpy/bellows) library for zigpy)
  - [Nortek GoControl QuickStick Combo Model HUSBZB-1 (Z-Wave & Zigbee USB Adapter)](https://www.nortekcontrol.com/products/2gig/husbzb-1-gocontrol-quickstick-combo/)
@@ -21,6 +20,14 @@ EmberZNet based Zigbee radios using the EZSP protocol (via the [bellows](https:/
  - Telegesis ETRX357USB (Note! This first have to be flashed with other EmberZNet firmware)
  - Telegesis ETRX357USB-LRS (Note! This first have to be flashed with other EmberZNet firmware)
  - Telegesis ETRX357USB-LRS+8M (Note! This first have to be flashed with other EmberZNet firmware)
+ 
+## Firmware requirement
+
+bellows requires that the Zigbee adapter/board/module is pre-flashed/flashed with compatible firmware with EmberZNet PRO Zigbee Stack that uses the standard Silicon Labs EZSP (EmberZNet Serial Protocol) APIs for ASH or SPI protocols over a serial interface.
+
+Silabs did use to provide two main NCP images pre-build with firmware for EM35x, one image supported hardware flow control with a baud rate of 115200 and the other image supported software flow control with a rate of 57600.
+
+Silicon Labs no longer provide pre-build firmware images, so now you have to build and compile firmware with their Simplicity Studio SDK for EmberZNet PRO Zigbee Protocol Stack Software. Simplicity Studio is a free download but building and compiling EmberZNet PRO Zigbee firmware images required that you have the serialnumber of an official Zigbee devkit registered to your Silicon Labs user account.
 
 ## Project status
 

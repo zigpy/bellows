@@ -93,12 +93,11 @@ def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4):
 
     loop = asyncio.get_event_loop()
     p1 = mock.patch.object(bellows.ezsp, "EZSP", new=ezsp_mock)
-    p2 = mock.patch.object(
-        bellows.multicast.Multicast, "initialize", new=CoroutineMock()
-    )
+    p2 = mock.patch.object(bellows.multicast.Multicast, "startup")
 
-    with p1, p2:
+    with p1, p2 as multicast_mock:
         loop.run_until_complete(app.startup(auto_form=auto_form))
+    assert multicast_mock.await_count == 1
 
 
 def test_startup(app, ieee):

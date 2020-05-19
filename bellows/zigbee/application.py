@@ -94,12 +94,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT, 60)
             await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8)
         await self._cfg(
-            c.CONFIG_MULTICAST_TABLE_SIZE,
-            ezsp_config.get(
-                c.CONFIG_MULTICAST_TABLE_SIZE.name, self.multicast.TABLE_SIZE
-            ),
-        )
-        await self._cfg(
             t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT,
             ezsp_config[c.CONFIG_PACKET_BUFFER_COUNT.name],
         )
