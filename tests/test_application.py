@@ -337,7 +337,7 @@ def test_permit_with_key_failed_set_policy(app, ieee):
 @pytest.mark.asyncio
 async def _request(
     app,
-    send_success=True,
+    send_status=0,
     send_ack_received=True,
     send_ack_success=True,
     ezsp_operational=True,
@@ -354,13 +354,10 @@ async def _request(
                 req.result.set_result((0, "success"))
             else:
                 req.result.set_result((102, "failure"))
-        if send_success:
-            return [0]
-        return [2]
+        return [send_status, "send message"]
 
-    app._ezsp.sendUnicast = mock.MagicMock(side_effect=mocksend)
-    app._ezsp.setExtendedTimeout = mock.MagicMock()
-    app._ezsp.setExtendedTimeout.side_effect = asyncio.coroutine(mock.MagicMock())
+    app._ezsp.sendUnicast = mock.CoroutineMock(side_effect=mocksend)
+    app._ezsp.setExtendedTimeout = mock.CoroutineMock()
     device = mock.MagicMock()
     device.relays = relays
     device.node_desc.is_end_device = is_end_device
@@ -383,7 +380,7 @@ async def test_request_ack_timeout(app, aps):
 
 @pytest.mark.asyncio
 async def test_request_send_unicast_fail(app):
-    res = await _request(app, send_success=False)
+    res = await _request(app, send_status=2)
     assert res[0] != 0
 
 
@@ -489,6 +486,31 @@ async def test_request_src_rtg_fail(relays, app):
         app._ezsp.sendUnicast.call_args[0][2].options
         & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
     )
+
+
+@pytest.mark.parametrize(
+    "send_status, sleep_count, send_unicast_count", ((0, 0, 1), (114, 3, 4), (2, 0, 1))
+)
+@pytest.mark.asyncio
+async def test_request_max_message_limit(
+    send_status, sleep_count, send_unicast_count, app
+):
+    async def mocksend(method, nwk, aps_frame, seq, data):
+        if send_status == t.EmberStatus.SUCCESS:
+            req = app._pending[seq]
+            req.result.set_result((0, "success"))
+        return [send_status, "send message"]
+
+    app._ezsp.sendUnicast = mock.CoroutineMock(side_effect=mocksend)
+    app._ezsp.setExtendedTimeout = mock.CoroutineMock()
+    device = mock.MagicMock()
+    device.relays = []
+    device.node_desc.is_end_device = False
+
+    with mock.patch("asyncio.sleep") as sleep_mock:
+        await app.request(device, 9, 8, 7, 6, 5, b"", expect_reply=False)
+    assert sleep_mock.await_count == sleep_count
+    assert app._ezsp.sendUnicast.await_count == send_unicast_count
 
 
 @pytest.mark.asyncio
