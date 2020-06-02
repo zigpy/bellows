@@ -387,7 +387,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         data,
         *,
         hops=EZSP_DEFAULT_RADIUS,
-        non_member_radius=EZSP_MULTICAST_NON_MEMBER_RADIUS
+        non_member_radius=EZSP_MULTICAST_NON_MEMBER_RADIUS,
     ):
         """Submit and send data out as a multicast transmission.
 
@@ -498,11 +498,23 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             device.relays,
                             res,
                         )
-                res = await self._ezsp.sendUnicast(
-                    self.direct, device.nwk, aps_frame, message_tag, data
-                )
-                if res[0] != t.EmberStatus.SUCCESS:
-                    return res[0], "EZSP sendUnicast failure: %s" % (res[0],)
+                delays = [0.5, 1.0, 1.5]
+                while True:
+                    status, _ = await self._ezsp.sendUnicast(
+                        self.direct, device.nwk, aps_frame, message_tag, data
+                    )
+                    if not (
+                        status == t.EmberStatus.MAX_MESSAGE_LIMIT_REACHED and delays
+                    ):
+                        # retry only on MAX_MESSAGE_LIMIT_REACHED if tries are left
+                        break
+
+                    delay = delays.pop(0)
+                    LOGGER.debug("retrying request %s tag in %ss", message_tag, delay)
+                    await asyncio.sleep(delay)
+
+                if status != t.EmberStatus.SUCCESS:
+                    return status, f"EZSP sendUnicast failure: {str(status)}"
 
                 res = await asyncio.wait_for(req.result, APS_ACK_TIMEOUT)
         return res
