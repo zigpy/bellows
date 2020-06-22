@@ -55,6 +55,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
         )
         self.use_source_routing = self.config[CONF_PARAM_SRC_RTG]
+        self._req_lock = asyncio.Lock()
 
     @property
     def controller_event(self):
@@ -422,9 +423,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         with self._pending.new(message_tag) as req:
             async with self._in_flight_msg:
-                res = await self._ezsp.sendMulticast(
-                    aps_frame, hops, non_member_radius, message_tag, data
-                )
+                async with self._req_lock:
+                    res = await self._ezsp.sendMulticast(
+                        aps_frame, hops, non_member_radius, message_tag, data
+                    )
                 if res[0] != t.EmberStatus.SUCCESS:
                     return res[0], "EZSP sendMulticast failure: %s" % (res[0],)
 
@@ -476,33 +478,43 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             )
         with self._pending.new(message_tag) as req:
             async with self._in_flight_msg:
-                if expect_reply and device.node_desc.is_end_device in (True, None):
-                    LOGGER.debug(
-                        "Extending timeout for %s/0x%04x", device.ieee, device.nwk
-                    )
-                    await self._ezsp.setExtendedTimeout(device.ieee, True)
-                if self.use_source_routing and device.relays is not None:
-                    res = await self._ezsp.setSourceRoute(device.nwk, device.relays)
-                    if res[0] != t.EmberStatus.SUCCESS:
-                        LOGGER.warning(
-                            "Couldn't set source route for %s: %s", device.nwk, res
-                        )
-                    else:
-                        aps_frame.options = t.EmberApsOption(
-                            aps_frame.options
-                            ^ t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-                        )
-                        LOGGER.debug(
-                            "Set source route for %s to %s: %s",
-                            device.nwk,
-                            device.relays,
-                            res,
-                        )
                 delays = [0.5, 1.0, 1.5]
                 while True:
-                    status, _ = await self._ezsp.sendUnicast(
-                        self.direct, device.nwk, aps_frame, message_tag, data
-                    )
+                    async with self._req_lock:
+                        if expect_reply and device.node_desc.is_end_device in (
+                            True,
+                            None,
+                        ):
+                            LOGGER.debug(
+                                "Extending timeout for %s/0x%04x",
+                                device.ieee,
+                                device.nwk,
+                            )
+                            await self._ezsp.setExtendedTimeout(device.ieee, True)
+                        if self.use_source_routing and device.relays is not None:
+                            res = await self._ezsp.setSourceRoute(
+                                device.nwk, device.relays
+                            )
+                            if res[0] != t.EmberStatus.SUCCESS:
+                                LOGGER.warning(
+                                    "Couldn't set source route for %s: %s",
+                                    device.nwk,
+                                    res,
+                                )
+                            else:
+                                aps_frame.options = t.EmberApsOption(
+                                    aps_frame.options
+                                    ^ t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                                )
+                                LOGGER.debug(
+                                    "Set source route for %s to %s: %s",
+                                    device.nwk,
+                                    device.relays,
+                                    res,
+                                )
+                        status, _ = await self._ezsp.sendUnicast(
+                            self.direct, device.nwk, aps_frame, message_tag, data
+                        )
                     if not (
                         status == t.EmberStatus.MAX_MESSAGE_LIMIT_REACHED and delays
                     ):
@@ -590,9 +602,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         with self._pending.new(message_tag) as req:
             async with self._in_flight_msg:
-                res = await self._ezsp.sendBroadcast(
-                    broadcast_address, aps_frame, radius, message_tag, data
-                )
+                async with self._req_lock:
+                    res = await self._ezsp.sendBroadcast(
+                        broadcast_address, aps_frame, radius, message_tag, data
+                    )
                 if res[0] != t.EmberStatus.SUCCESS:
                     return res[0], "broadcast send failure"
 
