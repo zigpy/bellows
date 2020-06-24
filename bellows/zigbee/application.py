@@ -272,6 +272,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self.handle_route_error(*args)
         elif frame_name == "_reset_controller_application":
             self._handle_reset_request(*args)
+        elif frame_name == "idConflictHandler":
+            self._handle_id_conflict(*args)
 
     def _handle_frame(
         self,
@@ -559,6 +561,25 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             )
 
         return await self.permit(time_s)
+
+    def _handle_id_conflict(self, nwk: t.EmberNodeId) -> None:
+        LOGGER.warning("NWK conflict is reported for %04x", nwk)
+        for device in self.devices:
+            if device.nwk != nwk:
+                continue
+            LOGGER.warning(
+                "Found %s device for %04x NWK conflict: %s %s",
+                device.ieee,
+                nwk,
+                device.manufacturer,
+                device.model,
+            )
+            self.handle_leave(nwk, device.ieee)
+            asyncio.create_task(self._id_conflict_resolution(device))
+
+    async def _id_conflict_resolution(self, device: zigpy.device.Device):
+        res = await self._ezsp.lookupNodeIdByEUI64(device.ieee)
+        LOGGER.debug("Looking up NWK for %s ieee resulted in: %s", device.ieee, res)
 
     async def broadcast(
         self,
