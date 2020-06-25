@@ -564,7 +564,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def _handle_id_conflict(self, nwk: t.EmberNodeId) -> None:
         LOGGER.warning("NWK conflict is reported for %04x", nwk)
-        for device in self.devices:
+        for device in self.devices.values():
             if device.nwk != nwk:
                 continue
             LOGGER.warning(
