@@ -186,11 +186,13 @@ def test_receive_protocol_5(ezsp_f):
     ezsp_f.frame_received(b"\x01\x80\xff\x00\x00\x06\x02\x00")
     assert ezsp_f.handle_callback.call_count == 1
 
+
 def test_receive_protocol_8(ezsp_f):
     ezsp_f._ezsp_version = 8
     ezsp_f.handle_callback = mock.MagicMock()
     ezsp_f.frame_received(b"\x01\x80\x01\x00\x00\x06\x02\x00")
     assert ezsp_f.handle_callback.call_count == 1
+
 
 def test_receive_reply(ezsp_f):
     ezsp_f.handle_callback = mock.MagicMock()
