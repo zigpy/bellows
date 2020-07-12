@@ -111,8 +111,8 @@ class EZSP:
             frame.insert(1, 0x00)  # Frame control low byte
         if self.ezsp_version >= 8:
             frame[2] = 0x01  # EZSP v8 - FC High Byte
-            frame[3] = c[0] & 0x00FF  # Extended Frame ID starting from EZSP 8 - LSB
-            frame[4] = (c[0] & 0xFF00) >> 8  # Extended Frame ID starting from EZSP 8 - MSB
+            frame[3] = c[0] & 0x00FF  # Extended Frame ID - LSB
+            frame[4] = (c[0] & 0xFF00) >> 8  # Extended Frame ID - MSB
 
         return bytes(frame) + data
 
@@ -224,7 +224,7 @@ class EZSP:
         data randomization removed.
         """
         if self.ezsp_version >= 8:
-            sequence, frame_control_lb, frame_control_hb, frame_id, data = data[0], data[1], data[2], ((data[4] << 8) | data[3] ), data[5:]
+            sequence, frame_id, data = data[0], ((data[4] << 8) | data[3]), data[5:]
         else:
             sequence, frame_id, data = data[0], data[2], data[3:]
 
