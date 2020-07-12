@@ -107,8 +107,12 @@ class EZSP:
         data = t.serialize(args, c[1])
         frame = [self._seq & 0xFF, 0, c[0]]  # Frame control. TODO.  # Frame ID
         if self.ezsp_version >= 5:
-            frame.insert(1, 0xFF)  # Legacy Frame ID
-            frame.insert(1, 0x00)  # Ext frame control. TODO.
+            frame.insert(1, 0xFF)  # Legacy Frame ID / Frame Control High Byte v8
+            frame.insert(1, 0x00)  # Frame control low byte
+        if self.ezsp_version >= 8:
+            frame[2] = 0x01  # Extended Frame ID starting from EZSP 8
+            frame[3] = c[0] & 0xFF  # Extended Frame ID starting from EZSP 8
+            frame[4] = 0x00  # Extended Frame ID starting from EZSP 8
 
         return bytes(frame) + data
 
@@ -219,7 +223,11 @@ class EZSP:
         just have EZSP application stuff here, with all escaping/stuffing and
         data randomization removed.
         """
-        sequence, frame_id, data = data[0], data[2], data[3:]
+        if self.ezsp_version >= 8:
+            sequence, frame_control_lb, frame_control_hb, frame_id, data = data[0], data[1], data[2], ((data[4] << 8) | data[3] ), data[5:]
+        else:
+            sequence, frame_id, data = data[0], data[2], data[3:]
+
         if frame_id == 0xFF:
             frame_id = 0
             if len(data) > 1:
