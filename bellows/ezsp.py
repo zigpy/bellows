@@ -107,12 +107,12 @@ class EZSP:
         data = t.serialize(args, c[1])
         frame = [self._seq & 0xFF, 0, c[0]]  # Frame control. TODO.  # Frame ID
         if self.ezsp_version >= 5:
-            frame.insert(1, 0xFF)  # Legacy Frame ID / Frame Control High Byte v8
+            frame.insert(1, 0xFF)  # Legacy Frame
             frame.insert(1, 0x00)  # Frame control low byte
         if self.ezsp_version >= 8:
-            frame[2] = 0x01  # Extended Frame ID starting from EZSP 8
-            frame[3] = c[0] & 0xFF  # Extended Frame ID starting from EZSP 8
-            frame[4] = 0x00  # Extended Frame ID starting from EZSP 8
+            frame[2] = 0x01  # EZSP v8 - FC High Byte
+            frame[3] = c[0] & 0x00FF  # Extended Frame ID starting from EZSP 8 - LSB
+            frame[4] = (c[0] & 0xFF00) >> 8  # Extended Frame ID starting from EZSP 8 - MSB
 
         return bytes(frame) + data
 
