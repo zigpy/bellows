@@ -35,10 +35,6 @@ def test_connect(ezsp_f, monkeypatch):
     loop.run_until_complete(ezsp_f.connect())
     assert connected
 
-    ezsp_f.connect = mock.MagicMock(side_effect=asyncio.coroutine(mock.MagicMock()))
-    loop.run_until_complete(ezsp_f.reconnect())
-    assert ezsp_f.connect.call_count == 1
-
 
 @pytest.mark.asyncio
 async def test_reset(ezsp_f):

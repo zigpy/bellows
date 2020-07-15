@@ -4,7 +4,7 @@ import functools
 import logging
 from typing import Dict
 
-from bellows.config import CONF_DEVICE_BAUDRATE, CONF_DEVICE_PATH, SCHEMA_DEVICE
+from bellows.config import CONF_DEVICE_PATH, SCHEMA_DEVICE
 from bellows.exception import APIException, EzspError
 import bellows.ezsp.commands
 import bellows.types as t
@@ -60,15 +60,6 @@ class EZSP:
         await self.connect()
         await self.reset()
         self.close()
-
-    def reconnect(self):
-        """Reconnect using saved parameters."""
-        LOGGER.debug(
-            "Reconnecting %s serial port on %s bauds",
-            self._config[CONF_DEVICE_PATH],
-            self._config[CONF_DEVICE_BAUDRATE],
-        )
-        return self.connect()
 
     async def reset(self):
         LOGGER.debug("Resetting EZSP")
