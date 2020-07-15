@@ -4,9 +4,9 @@ import functools
 import logging
 from typing import Dict
 
-from bellows.commands import COMMANDS
 from bellows.config import CONF_DEVICE_BAUDRATE, CONF_DEVICE_PATH, SCHEMA_DEVICE
 from bellows.exception import APIException, EzspError
+import bellows.ezsp.commands
 import bellows.types as t
 import bellows.uart as uart
 import serial
@@ -18,7 +18,6 @@ PROBE_TIMEOUT = 3
 
 class EZSP:
 
-    COMMANDS = COMMANDS
     EZSP_VERSION = 4
 
     def __init__(self, device_config: Dict):
@@ -30,9 +29,9 @@ class EZSP:
         self._gw = None
         self._ezsp_version = self.EZSP_VERSION
         self._awaiting = {}
-        self.COMMANDS_BY_ID = {}
-        for name, details in self.COMMANDS.items():
-            self.COMMANDS_BY_ID[details[0]] = (name, details[1], details[2])
+        self.COMMANDS = None
+        self.COMMANDS_BY_ID = None
+        self.update_commands()
 
     async def connect(self) -> None:
         assert self._gw is None
@@ -85,11 +84,13 @@ class EZSP:
         self.start_ezsp()
 
     async def version(self):
+        self.update_commands()
         ver, stack_type, stack_version = await self._command(
             "version", self.ezsp_version
         )
         if ver != self.ezsp_version:
             self._ezsp_version = ver
+            self.update_commands()
             await self._command("version", ver)
             LOGGER.debug("Switched to EZSP protocol version %d", self.ezsp_version)
         LOGGER.debug(
@@ -284,6 +285,15 @@ class EZSP:
     def stop_ezsp(self):
         """Mark EZSP stopped."""
         self._ezsp_event.clear()
+
+    def update_commands(self) -> None:
+        """Update commands based on protocol version."""
+        cmds = bellows.ezsp.commands.by_version(self.ezsp_version)
+        self.COMMANDS_BY_ID = {
+            cmd_id: (name, tx_schema, rx_schema)
+            for name, (cmd_id, tx_schema, rx_schema) in cmds.items()
+        }
+        self.COMMANDS = cmds
 
     @property
     def is_ezsp_running(self):

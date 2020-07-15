@@ -17,6 +17,7 @@ DEVICE_CONFIG = {
 def ezsp_f():
     api = ezsp.EZSP(DEVICE_CONFIG)
     api._gw = mock.MagicMock(spec_set=uart.Gateway)
+    api.update_commands()
     return api
 
 
