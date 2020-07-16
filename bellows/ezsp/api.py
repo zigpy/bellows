@@ -64,13 +64,6 @@ class EZSP:
     async def reset(self):
         LOGGER.debug("Resetting EZSP")
         self.stop_ezsp()
-        for seq in self._awaiting:
-            future = self._awaiting[seq][2]
-            if not future.done():
-                future.cancel()
-        self._awaiting = {}
-        self._callbacks = {}
-        self._seq = 0
         await self._gw.reset()
         self.start_ezsp()
 

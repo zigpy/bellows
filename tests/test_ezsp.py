@@ -42,15 +42,11 @@ async def test_reset(ezsp_f):
     ezsp_f.start_ezsp = mock.MagicMock()
     reset_mock = asyncio.coroutine(mock.MagicMock())
     ezsp_f._gw.reset = mock.MagicMock(side_effect=reset_mock)
-    f_1 = asyncio.Future()
-    ezsp_f._awaiting[1] = (mock.sentinel.schema1, mock.sentinel.schema2, f_1)
 
     await ezsp_f.reset()
     assert ezsp_f._gw.reset.call_count == 1
     assert ezsp_f.start_ezsp.call_count == 1
     assert ezsp_f.stop_ezsp.call_count == 1
-    assert f_1.done() is True
-    assert f_1.cancelled() is True
     assert len(ezsp_f._awaiting) == 0
     assert len(ezsp_f._callbacks) == 0
     assert ezsp_f._seq == 0
