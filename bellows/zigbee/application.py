@@ -98,7 +98,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._multicast = bellows.multicast.Multicast(ezsp)
 
         status, count = await ezsp.getConfigurationValue(
-            ezsp.types.EzspConfigurationId.CONFIG_APS_UNICAST_MESSAGE_COUNT
+            ezsp.types.EzspConfigId.CONFIG_APS_UNICAST_MESSAGE_COUNT
         )
         assert status == t.EmberStatus.SUCCESS
         self._in_flight_msg = asyncio.Semaphore(count)

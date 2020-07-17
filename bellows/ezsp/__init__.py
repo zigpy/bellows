@@ -109,8 +109,10 @@ class EZSP:
             self._gw = None
 
     def _command(self, name: str, *args: Tuple[Any, ...]) -> asyncio.Future:
-        LOGGER.debug("Send command %s: %s", name, args)
         if not self.is_ezsp_running:
+            LOGGER.debug(
+                "Couldn't send command %s(%s). EZSP is not running", name, args
+            )
             raise EzspError("EZSP is not running")
 
         return self._protocol.command(name, *args)

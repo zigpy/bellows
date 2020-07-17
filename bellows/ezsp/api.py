@@ -8,7 +8,7 @@ from bellows.typing import GatewayType
 
 LOGGER = logging.getLogger(__name__)
 
-EZSP_CMD_TIMEOUT = 10
+EZSP_CMD_TIMEOUT = 100
 
 
 class ProtocolHandler(abc.ABC):
@@ -27,17 +27,12 @@ class ProtocolHandler(abc.ABC):
             for name, (cmd_id, tx_schema, rx_schema) in self.COMMANDS.items()
         }
 
-    def get_sequence(self) -> int:
-        """Return next sequence id."""
-        self._seq = (self._seq + 1) % 256
-        return self._seq
-
     @abc.abstractmethod
     def __call__(self, data: bytes) -> None:
         """Handler for received data frame."""
 
     async def _cfg(self, config_id: int, value: Any, optional=False) -> None:
-        v = await self._ezsp.setConfigurationValue(config_id, value)
+        v = await self.setConfigurationValue(config_id, value)
         if not optional:
             assert v[0] == self.types.EmberStatus.SUCCESS  # TODO: Better check
 
@@ -51,15 +46,17 @@ class ProtocolHandler(abc.ABC):
 
     def command(self, name, *args) -> asyncio.Future:
         """Serialize command and send it."""
+        LOGGER.debug("Send command %s: %s", name, args)
         data = self._ezsp_frame(name, *args)
         self._gw.data(data)
         c = self.COMMANDS[name]
         future = asyncio.Future()
-        self._awaiting[self.get_sequence()] = (c[0], c[2], future)
+        self._awaiting[self._seq] = (c[0], c[2], future)
+        self._seq = (self._seq + 1) % 256
         return asyncio.wait_for(future, timeout=EZSP_CMD_TIMEOUT)
 
     def __getattr__(self, name: str) -> Callable:
         if name not in self.COMMANDS:
             raise AttributeError(f"{name} not found in COMMANDS")
 
-        return functools.partial(self._command, name)
+        return functools.partial(self.command, name)
