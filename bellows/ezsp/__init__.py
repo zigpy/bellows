@@ -3,7 +3,7 @@
 import asyncio
 import functools
 import logging
-from typing import Any, Dict, Tuple
+from typing import Any, Callable, Dict, Tuple
 
 from bellows.config import (
     CONF_DEVICE,
@@ -12,17 +12,15 @@ from bellows.config import (
     SCHEMA_DEVICE,
 )
 from bellows.exception import APIException, EzspError
+import bellows.ezsp.v4
 import bellows.types as t
-import bellows.uart as uart
+import bellows.uart
 import serial
 
-from . import v4 as ezsp_v4
-
-EZSP_PROTOCOL_LATEST = ezsp_v4.EZSPv4
 PROBE_TIMEOUT = 3
 LOGGER = logging.getLogger(__name__)
 
-PROTOCOL_BY_VER = {ezsp_v4.EZSP_VERSION: ezsp_v4.EZSPv4}
+PROTOCOL_BY_VER = {}
 
 
 class EZSP:
@@ -30,7 +28,7 @@ class EZSP:
         self._config = device_config
         self._callbacks = {}
         self._ezsp_event = asyncio.Event()
-        self._ezsp_version = self.EZSP_VERSION
+        self._ezsp_version = bellows.ezsp.v4.EZSP_VERSION
         self._gw = None
         self._protocol = None
 
@@ -70,8 +68,8 @@ class EZSP:
 
     async def connect(self) -> None:
         assert self._gw is None
-        self._gw = await uart.connect(self._config, self)
-        self._protocol = ezsp_v4.EZSPv4(self.handle_callback, self._gw)
+        self._gw = await bellows.uart.connect(self._config, self)
+        self._protocol = bellows.ezsp.v4.EZSPv4(self.handle_callback, self._gw)
 
     async def reset(self):
         LOGGER.debug("Resetting EZSP")
@@ -86,7 +84,15 @@ class EZSP:
         if ver != self.ezsp_version:
             self._ezsp_version = ver
             LOGGER.debug("Switching to EZSP protocol version %d", self.ezsp_version)
-            protcol_cls = PROTOCOL_BY_VER.get(ver, EZSP_PROTOCOL_LATEST)
+            try:
+                protcol_cls = PROTOCOL_BY_VER[ver]
+            except KeyError:
+                LOGGER.warning(
+                    "Protocol version %s is not supported, using version %s instead",
+                    ver,
+                    bellows.ezsp.v4.EZSP_VERSION,
+                )
+                protcol_cls = bellows.ezsp.v4.EZSPv4
             self._protocol = protcol_cls(self.handle_callback, self._gw)
             await self._command("version", ver)
         LOGGER.debug(
@@ -107,7 +113,7 @@ class EZSP:
         if not self.is_ezsp_running:
             raise EzspError("EZSP is not running")
 
-        return self._protocol.comand
+        return self._protocol.command(name, *args)
 
     async def _list_command(self, name, item_frames, completion_frame, spos, *args):
         """Run a command, returning result callbacks as a list"""
@@ -190,8 +196,11 @@ class EZSP:
 
         return v
 
-    def __getattr__(self, name):
-        return self._protocol(name)
+    def __getattr__(self, name: str) -> Callable:
+        if name not in self._protocol.COMMANDS:
+            raise AttributeError(f"{name} not found in COMMANDS")
+
+        return functools.partial(self._command, name)
 
     def frame_received(self, data: bytes) -> None:
         """Handle a received EZSP frame

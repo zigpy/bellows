@@ -4,16 +4,16 @@ import binascii
 import logging
 from typing import Any, Dict, Tuple
 
-import bellows.ezsp.api
 import bellows.types
 
-from .commands import COMMANDS  # noqa: F401
+from .. import api
+from .commands import COMMANDS
 
 EZSP_VERSION = 4
 LOGGER = logging.getLogger(__name__)
 
 
-class EZSPv4(bellows.ezsp.api.ProtocolHandler):
+class EZSPv4(api.ProtocolHandler):
     """EZSP Version 4 Protocol version handler."""
 
     COMMANDS = COMMANDS
@@ -46,13 +46,6 @@ class EZSPv4(bellows.ezsp.api.ProtocolHandler):
     def __call__(self, data: bytes) -> None:
         """Handler for received data frame."""
         sequence, frame_id, data = data[0], data[2], data[3:]
-
-        if frame_id == 0xFF:
-            frame_id = 0
-            if len(data) > 1:
-                frame_id = data[1]
-                data = data[2:]
-
         frame_name = self.COMMANDS_BY_ID[frame_id][0]
         LOGGER.debug(
             "Application frame %s (%s) received: %s",

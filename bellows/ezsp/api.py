@@ -58,8 +58,8 @@ class ProtocolHandler(abc.ABC):
         self._awaiting[self.get_sequence()] = (c[0], c[2], future)
         return asyncio.wait_for(future, timeout=EZSP_CMD_TIMEOUT)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Callable:
         if name not in self.COMMANDS:
-            raise AttributeError("%s not found in COMMANDS" % (name,))
+            raise AttributeError(f"{name} not found in COMMANDS")
 
         return functools.partial(self._command, name)
