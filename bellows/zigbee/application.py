@@ -3,12 +3,7 @@ import logging
 import os
 from typing import Dict
 
-from bellows.config import (
-    CONF_EZSP_CONFIG,
-    CONF_PARAM_SRC_RTG,
-    CONFIG_SCHEMA,
-    SCHEMA_DEVICE,
-)
+from bellows.config import CONF_PARAM_SRC_RTG, CONFIG_SCHEMA, SCHEMA_DEVICE
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp
 import bellows.multicast
@@ -73,44 +68,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         """Return EZSP MulticastController."""
         return self._multicast
 
-    async def initialize(self):
-        """Perform basic NCP initialization steps"""
-        e = self._ezsp
-        await e.connect()
-
-        await e.reset()
-        await e.version()
-        self._multicast = bellows.multicast.Multicast(e)
-
-        ezsp_config = self.config[CONF_EZSP_CONFIG]
-        for config, value in ezsp_config.items():
-            if config in (t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name,):
-                # we want to set these last
-                continue
-            await self._cfg(t.EzspConfigId[config], value)
-
-        c = t.EzspConfigId
-        if self._ezsp.ezsp_version >= 7:
-            await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT, 8)
-        else:
-            await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT, 60)
-            await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8)
-        await self._cfg(
-            t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT,
-            ezsp_config[c.CONFIG_PACKET_BUFFER_COUNT.name],
-        )
-
-        status, count = await e.getConfigurationValue(
-            c.CONFIG_APS_UNICAST_MESSAGE_COUNT
-        )
-        assert status == t.EmberStatus.SUCCESS
-        self._in_flight_msg = asyncio.Semaphore(count)
-        LOGGER.debug("APS_UNICAST_MESSAGE_COUNT is set to %s", count)
-
-        await self.add_endpoint(
-            output_clusters=[zigpy.zcl.clusters.security.IasZone.cluster_id]
-        )
-
     async def add_endpoint(
         self,
         endpoint=1,
@@ -135,9 +92,21 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def startup(self, auto_form=False):
         """Perform a complete application startup"""
-        ezsp = bellows.ezsp.EZSP(self.config[zigpy.config.CONF_DEVICE])
-        self._ezsp = ezsp
-        await self.initialize()
+        self._ezsp = await bellows.ezsp.EZSP.initialize(self.config)
+        ezsp = self._ezsp
+
+        self._multicast = bellows.multicast.Multicast(ezsp)
+
+        status, count = await ezsp.getConfigurationValue(
+            ezsp.types.EzspConfigurationId.CONFIG_APS_UNICAST_MESSAGE_COUNT
+        )
+        assert status == t.EmberStatus.SUCCESS
+        self._in_flight_msg = asyncio.Semaphore(count)
+        LOGGER.debug("APS_UNICAST_MESSAGE_COUNT is set to %s", count)
+
+        await self.add_endpoint(
+            output_clusters=[zigpy.zcl.clusters.security.IasZone.cluster_id]
+        )
 
         await self.set_source_routing()
         v = await ezsp.networkInit()
@@ -225,11 +194,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         await self._ezsp.formNetwork(parameters)
         await self._ezsp.setValue(t.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
-
-    async def _cfg(self, config_id, value, optional=False):
-        v = await self._ezsp.setConfigurationValue(config_id, value)
-        if not optional:
-            assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
 
     async def _policy(self):
         """Set up the policies for what the NCP should do"""
