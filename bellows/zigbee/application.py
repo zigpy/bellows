@@ -205,7 +205,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
         v = await e.setPolicy(
             t.EzspPolicyId.APP_KEY_REQUEST_POLICY,
-            t.EzspDecisionId.ALLOW_APP_KEY_REQUESTS,
+            t.EzspDecisionId.DENY_APP_KEY_REQUESTS,
         )
         assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
         v = await e.setPolicy(
