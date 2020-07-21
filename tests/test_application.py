@@ -1080,3 +1080,72 @@ async def test_probe_success(mock_connect, mock_reset):
     assert mock_connect.await_count == 1
     assert mock_reset.call_count == 1
     assert mock_connect.return_value.close.call_count == 1
+
+
+def test_handle_id_conflict(app, ieee):
+    """Test handling of an ID confict report."""
+    nwk = t.EmberNodeId(0x1234)
+    app.add_device(ieee, nwk)
+    app.handle_leave = mock.MagicMock()
+
+    app.ezsp_callback_handler("idConflictHandler", [nwk + 1])
+    assert app.handle_leave.call_count == 0
+
+    app.ezsp_callback_handler("idConflictHandler", [nwk])
+    assert app.handle_leave.call_count == 1
+    assert app.handle_leave.call_args[0][0] == nwk
+
+
+def test_handle_tc_join_handler(app, ieee):
+    """Test updating device NWK on TC join/rejoin callbacks."""
+    nwk = t.EmberNodeId(0x1234)
+    new_nwk = t.EmberNodeId(0x4321)
+
+    app.ezsp_callback_handler(
+        "trustCenterJoinHandler",
+        (
+            nwk,
+            ieee,
+            t.EmberDeviceUpdate.STANDARD_SECURITY_SECURED_REJOIN,
+            mock.sentinel.decision,
+            mock.sentinel.parent,
+        ),
+    )
+
+    dev = app.add_device(ieee, nwk)
+    app.ezsp_callback_handler(
+        "trustCenterJoinHandler",
+        (
+            nwk,
+            ieee,
+            t.EmberDeviceUpdate.STANDARD_SECURITY_SECURED_REJOIN,
+            mock.sentinel.decision,
+            mock.sentinel.parent,
+        ),
+    )
+    assert dev.nwk == nwk
+
+    app.ezsp_callback_handler(
+        "trustCenterJoinHandler",
+        (
+            new_nwk,
+            ieee,
+            t.EmberDeviceUpdate.STANDARD_SECURITY_SECURED_REJOIN,
+            mock.sentinel.decision,
+            mock.sentinel.parent,
+        ),
+    )
+    assert dev.nwk == new_nwk
+
+    ieee[0] = 0x22
+    app.ezsp_callback_handler(
+        "trustCenterJoinHandler",
+        (
+            nwk,
+            ieee,
+            t.EmberDeviceUpdate.STANDARD_SECURITY_SECURED_REJOIN,
+            mock.sentinel.decision,
+            mock.sentinel.parent,
+        ),
+    )
+    assert dev.nwk == new_nwk
