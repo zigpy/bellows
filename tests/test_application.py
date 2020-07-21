@@ -226,9 +226,14 @@ def test_dup_send_success(app, aps, ieee):
 def test_join_handler(app, ieee):
     # Calls device.initialize, leaks a task
     app.handle_join = mock.MagicMock()
-    app.ezsp_callback_handler("trustCenterJoinHandler", [1, ieee, None, None, None])
+    app.ezsp_callback_handler(
+        "trustCenterJoinHandler", [1, ieee, None, None, mock.sentinel.parent]
+    )
     assert ieee not in app.devices
-    assert app.handle_join.call_count == 0
+    assert app.handle_join.call_count == 1
+    assert app.handle_join.call_args[0][0] == 1
+    assert app.handle_join.call_args[0][1] == ieee
+    assert app.handle_join.call_args[0][2] is mock.sentinel.parent
 
 
 def test_leave_handler(app, ieee):
@@ -1080,3 +1085,17 @@ async def test_probe_success(mock_connect, mock_reset):
     assert mock_connect.await_count == 1
     assert mock_reset.call_count == 1
     assert mock_connect.return_value.close.call_count == 1
+
+
+def test_handle_id_conflict(app, ieee):
+    """Test handling of an ID confict report."""
+    nwk = t.EmberNodeId(0x1234)
+    app.add_device(ieee, nwk)
+    app.handle_leave = mock.MagicMock()
+
+    app.ezsp_callback_handler("idConflictHandler", [nwk + 1])
+    assert app.handle_leave.call_count == 0
+
+    app.ezsp_callback_handler("idConflictHandler", [nwk])
+    assert app.handle_leave.call_count == 1
+    assert app.handle_leave.call_args[0][0] == nwk
