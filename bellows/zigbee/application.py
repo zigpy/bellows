@@ -592,23 +592,18 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         return await self.permit(time_s)
 
     def _handle_id_conflict(self, nwk: t.EmberNodeId) -> None:
-        LOGGER.warning("NWK conflict is reported for %04x", nwk)
+        LOGGER.warning("NWK conflict is reported for 0x%04x", nwk)
         for device in self.devices.values():
             if device.nwk != nwk:
                 continue
             LOGGER.warning(
-                "Found %s device for %04x NWK conflict: %s %s",
+                "Found %s device for 0x%04x NWK conflict: %s %s",
                 device.ieee,
                 nwk,
                 device.manufacturer,
                 device.model,
             )
             self.handle_leave(nwk, device.ieee)
-            asyncio.create_task(self._id_conflict_resolution(device))
-
-    async def _id_conflict_resolution(self, device: zigpy.device.Device):
-        res = await self._ezsp.lookupNodeIdByEUI64(device.ieee)
-        LOGGER.debug("Looking up NWK for %s ieee resulted in: %s", device.ieee, res)
 
     async def broadcast(
         self,
