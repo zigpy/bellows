@@ -264,8 +264,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             else:
                 self._handle_frame_sent(*args)
         elif frame_name == "trustCenterJoinHandler":
-            if args[2] == t.EmberDeviceUpdate.DEVICE_LEFT:
-                self.handle_leave(args[0], args[1])
+            nwk, ieee, dev_update_status, decision, parent_nwk = args
+            if dev_update_status == t.EmberDeviceUpdate.DEVICE_LEFT:
+                self.handle_leave(nwk, ieee)
+            else:
+                self._update_device(nwk, ieee, dev_update_status, decision, parent_nwk)
         elif frame_name == "incomingRouteRecordHandler":
             self.handle_route_record(*args)
         elif frame_name == "incomingRouteErrorHandler":
@@ -379,6 +382,32 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._ezsp.close()
         await asyncio.sleep(0.5)
         await self.startup()
+
+    def _update_device(
+        self,
+        nwk: t.EmberNodeId,
+        ieee: t.EmberEUI64,
+        dev_update_status: t.EmberDeviceUpdate,
+        decision: t.EmberJoinDecision,
+        parent_nwk: t.EmberNodeId,
+    ) -> None:
+        """Handle Trust Center join callback.
+
+        If this is an existing device, then update the NWK address, otherwise it is a
+        nop
+        """
+        try:
+            device = self.get_device(ieee=ieee)
+            if device.nwk != nwk:
+                LOGGER.info(
+                    "Updating NWK address for %s device. New NWK address: %04x",
+                    ieee,
+                    nwk,
+                )
+                device.nwk = nwk
+        except KeyError:
+            # new device joining. wait till ZDO announce
+            pass
 
     async def mrequest(
         self,
