@@ -226,9 +226,14 @@ def test_dup_send_success(app, aps, ieee):
 def test_join_handler(app, ieee):
     # Calls device.initialize, leaks a task
     app.handle_join = mock.MagicMock()
-    app.ezsp_callback_handler("trustCenterJoinHandler", [1, ieee, None, None, None])
+    app.ezsp_callback_handler(
+        "trustCenterJoinHandler", [1, ieee, None, None, mock.sentinel.parent]
+    )
     assert ieee not in app.devices
-    assert app.handle_join.call_count == 0
+    assert app.handle_join.call_count == 1
+    assert app.handle_join.call_args[0][0] == 1
+    assert app.handle_join.call_args[0][1] == ieee
+    assert app.handle_join.call_args[0][2] is mock.sentinel.parent
 
 
 def test_leave_handler(app, ieee):
@@ -1094,24 +1099,3 @@ def test_handle_id_conflict(app, ieee):
     app.ezsp_callback_handler("idConflictHandler", [nwk])
     assert app.handle_leave.call_count == 1
     assert app.handle_leave.call_args[0][0] == nwk
-
-
-def test_handle_tc_join_handler(app, ieee):
-    """Test updating device NWK on TC join/rejoin callbacks."""
-    nwk = t.EmberNodeId(0x1234)
-    app.handle_join = mock.MagicMock()
-
-    app.ezsp_callback_handler(
-        "trustCenterJoinHandler",
-        (
-            nwk,
-            ieee,
-            t.EmberDeviceUpdate.STANDARD_SECURITY_SECURED_REJOIN,
-            mock.sentinel.decision,
-            mock.sentinel.parent,
-        ),
-    )
-    assert app.handle_join.call_count == 1
-    assert app.handle_join.call_args[0][0] == nwk
-    assert app.handle_join.call_args[0][1] == ieee
-    assert app.handle_join.call_args[0][2] is mock.sentinel.parent
