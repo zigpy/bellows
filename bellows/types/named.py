@@ -925,6 +925,15 @@ class EmberInitialSecurityBitmask(basic.uint16_t):
     # This enables devices that perform MAC Association with a pre-configured
     # Network Key to join the network. It is only set on the Trust Center.
     PRECONFIGURED_NETWORK_KEY_MODE = 0x0008
+    # This denotes that the ::EmberInitialSecurityState::preconfiguredTrustCenterEui64
+    # has a value in it containing the trust center EUI64.  The device will only join a
+    # network and accept commands from a trust center with that EUI64.  Normally this
+    # bit is NOT set, and the EUI64 of the trust center is learned during the join
+    # process.  When commissioning a device to join onto an existing network that is
+    # using a trust center, and without sending any messages, this bit must be set and
+    # the field ::EmberInitialSecurityState::preconfiguredTrustCenterEui64 must be
+    # populated with the appropriate EUI64.
+    EMBER_HAVE_TRUST_CENTER_EUI64 = (0x0040,)
     # This denotes that the preconfiguredKey is not the actual Link Key but a
     # Secret Key known only to the Trust Center.  It is hashed with the IEEE
     # Address of the destination device in order to create the actual Link Key
@@ -959,59 +968,6 @@ class EmberInitialSecurityBitmask(basic.uint16_t):
     # token is not valid, then the call to emberSetInitialSecurityState() will
     # fail.
     GET_PRECONFIGURED_KEY_FROM_INSTALL_CODE = 0x2000
-    # This denotes that the
-    # ::EmberInitialSecurityState::preconfiguredTrustCenterEui64 has a value in
-    # it containing the trust center EUI64. The device will only join a network
-    # and accept commands from a trust center with that EUI64. Normally this
-    # bit is NOT set, and the EUI64 of the trust center is learned during the
-    # join process. When commissioning a device to join onto an existing
-    # network, which is using a trust center, and without sending any messages,
-    # this bit must be set and the field
-    # ::EmberInitialSecurityState::preconfiguredTrustCenterEui64 must be
-    # populated with the appropriate EUI64.
-    HAVE_TRUST_CENTER_EUI64 = 0x0040
-
-
-class EmberCurrentSecurityBitmask(basic.uint16_t):
-    # This is the Current Security Bitmask that details the use of various
-    # security features.
-
-    # This denotes that the device is running in a network with ZigBee Standard
-    # Security.
-    STANDARD_SECURITY_MODE = 0x0000
-    # This denotes that the device is running in a network with ZigBee High
-    # Security.
-    HIGH_SECURITY_MODE = 0x0001
-    # This denotes that the device is running in a network without a
-    # centralized Trust Center.
-    DISTRIBUTED_TRUST_CENTER_MODE = 0x0002
-    # This denotes that the device has a Global Link Key. The Trust Center Link
-    # Key is the same across multiple nodes.
-    GLOBAL_LINK_KEY = 0x0004
-    # This denotes that the node has a Trust Center Link Key.
-    HAVE_TRUST_CENTER_LINK_KEY = 0x0010
-    # This denotes that the Trust Center is using a Hashed Link Key.
-    TRUST_CENTER_USES_HASHED_LINK_KEY = 0x0084
-
-
-class EmberKeyType(basic.uint8_t, enum.Enum):
-    # Describes the type of ZigBee security key.
-
-    # A shared key between the Trust Center and a device.
-    TRUST_CENTER_LINK_KEY = 0x01
-    # A shared secret used for deriving keys between the Trust Center and a
-    # device
-    TRUST_CENTER_MASTER_KEY = 0x02
-    # The current active Network Key used by all devices in the network.
-    CURRENT_NETWORK_KEY = 0x03
-    # The alternate Network Key that was previously in use, or the newer key
-    # that will be switched to.
-    NEXT_NETWORK_KEY = 0x04
-    # An Application Link Key shared with another (non-Trust Center) device.
-    APPLICATION_LINK_KEY = 0x05
-    # An Application Master Key shared secret used to derive an Application
-    # Link Key.
-    APPLICATION_MASTER_KEY = 0x06
 
 
 class EmberKeyStructBitmask(basic.uint16_t):
@@ -1034,18 +990,6 @@ class EmberKeyStructBitmask(basic.uint16_t):
     # hears a device announce from the partner indicating it is not
     # an 'RX on when idle' device.
     KEY_PARTNER_IS_SLEEPY = 0x0020
-
-
-class EmberDeviceUpdate(basic.uint8_t, enum.Enum):
-    # The status of the device update.
-
-    STANDARD_SECURITY_SECURED_REJOIN = 0x0
-    STANDARD_SECURITY_UNSECURED_JOIN = 0x1
-    DEVICE_LEFT = 0x2
-    STANDARD_SECURITY_UNSECURED_REJOIN = 0x3
-    HIGH_SECURITY_SECURED_REJOIN = 0x4
-    HIGH_SECURITY_UNSECURED_JOIN = 0x5
-    HIGH_SECURITY_UNSECURED_REJOIN = 0x7
 
 
 class EmberKeyStatus(basic.uint8_t, enum.Enum):
@@ -1077,109 +1021,6 @@ class EmberKeyStatus(basic.uint8_t, enum.Enum):
     TC_REQUESTER_VERIFY_KEY_SUCCESS = 0x34
     VERIFY_LINK_KEY_FAILURE = 0x64
     VERIFY_LINK_KEY_SUCCESS = 0x65
-
-
-class EmberCounterType(basic.uint8_t, enum.Enum):
-    # Defines the events reported to the application by the
-    # readAndClearCounters command.
-
-    # The MAC received a broadcast.
-    COUNTER_MAC_RX_BROADCAST = 0
-    # The MAC transmitted a broadcast.
-    COUNTER_MAC_TX_BROADCAST = 1
-    # The MAC received a unicast.
-    COUNTER_MAC_RX_UNICAST = 2
-    # The MAC successfully transmitted a unicast.
-    COUNTER_MAC_TX_UNICAST_SUCCESS = 3
-    # The MAC retried a unicast.
-    COUNTER_MAC_TX_UNICAST_RETRY = 4
-    # The MAC unsuccessfully transmitted a unicast.
-    COUNTER_MAC_TX_UNICAST_FAILED = 5
-    # The APS layer received a data broadcast.
-    COUNTER_APS_DATA_RX_BROADCAST = 6
-    # The APS layer transmitted a data broadcast.
-    COUNTER_APS_DATA_TX_BROADCAST = 7
-    # The APS layer received a data unicast.
-    COUNTER_APS_DATA_RX_UNICAST = 8
-    # The APS layer successfully transmitted a data unicast.
-    COUNTER_APS_DATA_TX_UNICAST_SUCCESS = 9
-    # The APS layer retried a data unicast.
-    COUNTER_APS_DATA_TX_UNICAST_RETRY = 10
-    # The APS layer unsuccessfully transmitted a data unicast.
-    COUNTER_APS_DATA_TX_UNICAST_FAILED = 11
-    # The network layer successfully submitted a new route discovery to the
-    # MAC.
-    COUNTER_ROUTE_DISCOVERY_INITIATED = 12
-    # An entry was added to the neighbor table.
-    COUNTER_NEIGHBOR_ADDED = 13
-    # An entry was removed from the neighbor table.
-    COUNTER_NEIGHBOR_REMOVED = 14
-    # A neighbor table entry became stale because it had not been heard from.
-    COUNTER_NEIGHBOR_STALE = 15
-    # A node joined or rejoined to the network via this node.
-    COUNTER_JOIN_INDICATION = 16
-    # An entry was removed from the child table.
-    COUNTER_CHILD_REMOVED = 17
-    # EZSP-UART only. An overflow error occurred in the UART.
-    COUNTER_ASH_OVERFLOW_ERROR = 18
-    # EZSP-UART only. A framing error occurred in the UART.
-    COUNTER_ASH_FRAMING_ERROR = 19
-    # EZSP-UART only. An overrun error occurred in the UART.
-    COUNTER_ASH_OVERRUN_ERROR = 20
-    # A message was dropped at the network layer because the NWK frame counter
-    # was not higher than the last message seen from that source.
-    COUNTER_NWK_FRAME_COUNTER_FAILURE = 21
-    # A message was dropped at the APS layer because the APS frame counter was
-    # not higher than the last message seen from that source.
-    COUNTER_APS_FRAME_COUNTER_FAILURE = 22
-    # Utility counter for general debugging use.
-    COUNTER_UTILITY = 23
-    # A message was dropped at the APS layer because it had APS encryption but
-    # the key associated with the sender has not been authenticated, and thus
-    # the key is not authorized for use in APS data messages.
-    COUNTER_APS_LINK_KEY_NOT_AUTHORIZED = 24
-    # A NWK encrypted message was received but dropped because decryption
-    # failed.
-    COUNTER_NWK_DECRYPTION_FAILURE = 25
-    # An APS encrypted message was received but dropped because decryption
-    # failed.
-    COUNTER_APS_DECRYPTION_FAILURE = 26
-    # The number of times we failed to allocate a set of linked packet buffers.
-    # This doesn't necessarily mean that the packet buffer count was 0 at the
-    # time, but that the number requested was greater than the number free.
-    COUNTER_ALLOCATE_PACKET_BUFFER_FAILURE = 27
-    # The number of relayed unicast packets.
-    COUNTER_RELAYED_UNICAST = 28
-    # The number of times we dropped a packet due to reaching
-    # the preset PHY to MAC queue limit (emMaxPhyToMacQueueLength).
-    COUNTER_PHY_TO_MAC_QUEUE_LIMIT_REACHED = 29
-    # The number of times we dropped a packet due to the
-    # packet-validate library checking a packet and rejecting it
-    # due to length or other formatting problems.
-    COUNTER_PACKET_VALIDATE_LIBRARY_DROPPED_COUNT = 30
-    # The number of times the NWK retry queue is full and a
-    # new message failed to be added.
-    COUNTER_TYPE_NWK_RETRY_OVERFLOW = 31
-    # The number of times the PHY layer was unable to transmit
-    # due to a failed CCA.
-    COUNTER_PHY_CCA_FAIL_COUNT = 32
-    # The number of times a NWK broadcast was dropped because
-    # the broadcast table was full.
-    COUNTER_BROADCAST_TABLE_FULL = 33
-    # The number of low priority packet traffic arbitration requests.
-    COUNTER_PTA_LO_PRI_REQUESTED = 34
-    # The number of high priority packet traffic arbitration requests.
-    COUNTER_PTA_HI_PRI_REQUESTED = 35
-    # The number of low priority packet traffic arbitration requests denied.
-    COUNTER_PTA_LO_PRI_DENIED = 36
-    # The number of high priority packet traffic arbitration requests denied.
-    COUNTER_PTA_HI_PRI_DENIED = 37
-    # The number of aborted low priority packet traffic arbitration transmissions.
-    COUNTER_PTA_LO_PRI_TX_ABORTED = 38
-    # The number of aborted high priority packet traffic arbitration transmissions.
-    COUNTER_PTA_HI_PRI_TX_ABORTED = 39
-    # A placeholder giving the number of Ember counter types.
-    COUNTER_TYPE_COUNT = 40
 
 
 class EmberJoinMethod(basic.uint8_t, enum.Enum):
@@ -1300,16 +1141,6 @@ class EzspSourceRouteOverheadInformation(basic.uint8_t, enum.Enum):
 
     # Ezsp source route overhead unknown
     SOURCE_ROUTE_OVERHEAD_UNKNOWN = 0xFF
-
-
-class EmberNetworkInitBitmask(basic.uint16_t):
-    # Bitmask options for emberNetworkInit().
-
-    # No options for Network Init
-    NETWORK_INIT_NO_OPTIONS = 0x0000
-    # Save parent info (node ID and EUI64) in a token during joining/rejoin,
-    # and restore on reboot.
-    NETWORK_INIT_PARENT_INFO_IN_TOKEN = 0x0001
 
 
 class EmberKeyData(basic.fixed_list(16, basic.uint8_t)):

@@ -224,7 +224,7 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     # CCA energy detect threshold for radio.
     VALUE_CCA_THRESHOLD = 0x15
     # The RF4CE discovery LQI threshold parameter.
-    EZSP_VALUE_RF4CE_DISCOVERY_LQI_THRESHOLD = 0x16,
+    EZSP_VALUE_RF4CE_DISCOVERY_LQI_THRESHOLD = (0x16,)
     # The threshold value for a counter
     VALUE_SET_COUNTER_THRESHOLD = 0x17
     # Resets all counters thresholds to 0xFF
@@ -266,9 +266,9 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     # Configure the antenna mode(0-primary,1-secondary,2- toggle on tx ack fail).
     VALUE_ANTENNA_MODE = 0x30
     # Enable or disable packet traffic arbitration.
-    EZSP_VALUE_ENABLE_PTA = 0x31,
+    EZSP_VALUE_ENABLE_PTA = (0x31,)
     # Set packet traffic arbitration configuration options.
-    EZSP_VALUE_PTA_OPTIONS = 0x32,
+    EZSP_VALUE_PTA_OPTIONS = (0x32,)
     # Configure manufacturing library options(0-non-CSMA transmits,1-CSMA transmits).
     EZSP_VALUE_MFGLIB_OPTIONS = 0x33
 
@@ -304,12 +304,12 @@ class EzspPolicyId(basic.uint8_t, enum.Enum):
     # use standard behavior for the profiles ZRC 1.1 and MSO while it will fall back to
     # the on/off RF4CE policies for other profiles. If this policy is disabled the
     # on/off RF4CE policies are used for all profiles.
-    EZSP_RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_POLICY = 0x09,
+    EZSP_RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_POLICY = (0x09,)
     # Controls whether the ZigBee RF4CE stack will respond to an incoming discovery
     # request or not.
-    EZSP_RF4CE_DISCOVERY_REQUEST_POLICY = 0x0A,
+    EZSP_RF4CE_DISCOVERY_REQUEST_POLICY = (0x0A,)
     # Controls the behavior of the ZigBee RF4CE stack discovery process.
-    EZSP_RF4CE_DISCOVERY_POLICY = 0x0B,
+    EZSP_RF4CE_DISCOVERY_POLICY = (0x0B,)
     # Controls whether the ZigBee RF4CE stack will accept or deny a pair request.
     EZSP_RF4CE_PAIR_REQUEST_POLICY = 0x0C
 
@@ -388,21 +388,176 @@ class EzspDecisionId(basic.uint8_t, enum.Enum):
     # Indicates that the RF4CE stack during discovery and pairing will use standard
     # profile-dependent behavior for the profiles ZRC 1.1 and MSO, while it will fall
     # back to the on/off policies for any other profile.
-    EZSP_RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_ENABLED = 0x70,
+    EZSP_RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_ENABLED = (0x70,)
     # Indicates that the RF4CE stack during discovery and pairing will always use the
     # on/off policies.
-    EZSP_RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_DISABLED = 0x71,
+    EZSP_RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_DISABLED = (0x71,)
     # Indicates that the RF4CE stack will respond to incoming discovery requests.
-    EZSP_RF4CE_DISCOVERY_REQUEST_RESPOND = 0x72,
+    EZSP_RF4CE_DISCOVERY_REQUEST_RESPOND = (0x72,)
     # Indicates that the RF4CE stack will ignore incoming discovery requests.
-    EZSP_RF4CE_DISCOVERY_REQUEST_IGNORE  = 0x73,
+    EZSP_RF4CE_DISCOVERY_REQUEST_IGNORE = (0x73,)
     # Indicates that the RF4CE stack will perform all the discovery trials the
     # application specified in the ezspRf4ceDiscovery() call.
-    EZSP_RF4CE_DISCOVERY_MAX_DISCOVERY_TRIALS = 0x74,
+    EZSP_RF4CE_DISCOVERY_MAX_DISCOVERY_TRIALS = (0x74,)
     # Indicates that the RF4CE stack will prematurely stop the discovery process if a
     # matching discovery response is received.
-    EZSP_RF4CE_DISCOVERY_STOP_ON_MATCHING_RESPONSE = 0x75,
+    EZSP_RF4CE_DISCOVERY_STOP_ON_MATCHING_RESPONSE = (0x75,)
     # Indicates that the RF4CE stack will accept new pairings.
-    EZSP_RF4CE_PAIR_REQUEST_ACCEPT = 0x76,
+    EZSP_RF4CE_PAIR_REQUEST_ACCEPT = (0x76,)
     # Indicates that the RF4CE stack will NOT accept new pairings.
     EZSP_RF4CE_PAIR_REQUEST_DENY = 0x77
+
+
+class EmberCurrentSecurityBitmask(basic.uint16_t):
+    # This is the Current Security Bitmask that details the use of various
+    # security features.
+
+    # This denotes that the device is running in a network with ZigBee Standard
+    # Security.
+    STANDARD_SECURITY_MODE = 0x0000
+    # This denotes that the device is running in a network with ZigBee High
+    # Security.
+    HIGH_SECURITY_MODE = 0x0001
+    # This denotes that the device is running in a network without a
+    # centralized Trust Center.
+    DISTRIBUTED_TRUST_CENTER_MODE = 0x0002
+    # This denotes that the device has a Global Link Key. The Trust Center Link
+    # Key is the same across multiple nodes.
+    GLOBAL_LINK_KEY = 0x0004
+    # This denotes that the node has a Trust Center Link Key.
+    HAVE_TRUST_CENTER_LINK_KEY = 0x0010
+    # This denotes that the Trust Center is using a Hashed Link Key.
+    TRUST_CENTER_USES_HASHED_LINK_KEY = 0x0084
+
+
+class EmberKeyType(basic.uint8_t, enum.Enum):
+    # Describes the type of ZigBee security key.
+
+    # A shared key between the Trust Center and a device.
+    TRUST_CENTER_LINK_KEY = 0x01
+    # A shared secret used for deriving keys between the Trust Center and a
+    # device
+    TRUST_CENTER_MASTER_KEY = 0x02
+    # The current active Network Key used by all devices in the network.
+    CURRENT_NETWORK_KEY = 0x03
+    # The alternate Network Key that was previously in use, or the newer key
+    # that will be switched to.
+    NEXT_NETWORK_KEY = 0x04
+    # An Application Link Key shared with another (non-Trust Center) device.
+    APPLICATION_LINK_KEY = 0x05
+    # An Application Master Key shared secret used to derive an Application
+    # Link Key.
+    APPLICATION_MASTER_KEY = 0x06
+
+
+class EmberDeviceUpdate(basic.uint8_t, enum.Enum):
+    # The status of the device update.
+
+    STANDARD_SECURITY_SECURED_REJOIN = 0x0
+    STANDARD_SECURITY_UNSECURED_JOIN = 0x1
+    DEVICE_LEFT = 0x2
+    STANDARD_SECURITY_UNSECURED_REJOIN = 0x3
+    HIGH_SECURITY_SECURED_REJOIN = 0x4
+    HIGH_SECURITY_UNSECURED_JOIN = 0x5
+    HIGH_SECURITY_UNSECURED_REJOIN = 0x7
+
+
+class EmberCounterType(basic.uint8_t, enum.Enum):
+    # Defines the events reported to the application by the
+    # readAndClearCounters command.
+
+    # The MAC received a broadcast.
+    COUNTER_MAC_RX_BROADCAST = 0
+    # The MAC transmitted a broadcast.
+    COUNTER_MAC_TX_BROADCAST = 1
+    # The MAC received a unicast.
+    COUNTER_MAC_RX_UNICAST = 2
+    # The MAC successfully transmitted a unicast.
+    COUNTER_MAC_TX_UNICAST_SUCCESS = 3
+    # The MAC retried a unicast.
+    COUNTER_MAC_TX_UNICAST_RETRY = 4
+    # The MAC unsuccessfully transmitted a unicast.
+    COUNTER_MAC_TX_UNICAST_FAILED = 5
+    # The APS layer received a data broadcast.
+    COUNTER_APS_DATA_RX_BROADCAST = 6
+    # The APS layer transmitted a data broadcast.
+    COUNTER_APS_DATA_TX_BROADCAST = 7
+    # The APS layer received a data unicast.
+    COUNTER_APS_DATA_RX_UNICAST = 8
+    # The APS layer successfully transmitted a data unicast.
+    COUNTER_APS_DATA_TX_UNICAST_SUCCESS = 9
+    # The APS layer retried a data unicast.
+    COUNTER_APS_DATA_TX_UNICAST_RETRY = 10
+    # The APS layer unsuccessfully transmitted a data unicast.
+    COUNTER_APS_DATA_TX_UNICAST_FAILED = 11
+    # The network layer successfully submitted a new route discovery to the
+    # MAC.
+    COUNTER_ROUTE_DISCOVERY_INITIATED = 12
+    # An entry was added to the neighbor table.
+    COUNTER_NEIGHBOR_ADDED = 13
+    # An entry was removed from the neighbor table.
+    COUNTER_NEIGHBOR_REMOVED = 14
+    # A neighbor table entry became stale because it had not been heard from.
+    COUNTER_NEIGHBOR_STALE = 15
+    # A node joined or rejoined to the network via this node.
+    COUNTER_JOIN_INDICATION = 16
+    # An entry was removed from the child table.
+    COUNTER_CHILD_REMOVED = 17
+    # EZSP-UART only. An overflow error occurred in the UART.
+    COUNTER_ASH_OVERFLOW_ERROR = 18
+    # EZSP-UART only. A framing error occurred in the UART.
+    COUNTER_ASH_FRAMING_ERROR = 19
+    # EZSP-UART only. An overrun error occurred in the UART.
+    COUNTER_ASH_OVERRUN_ERROR = 20
+    # A message was dropped at the network layer because the NWK frame counter
+    # was not higher than the last message seen from that source.
+    COUNTER_NWK_FRAME_COUNTER_FAILURE = 21
+    # A message was dropped at the APS layer because the APS frame counter was
+    # not higher than the last message seen from that source.
+    COUNTER_APS_FRAME_COUNTER_FAILURE = 22
+    # Utility counter for general debugging use.
+    COUNTER_UTILITY = 23
+    # A message was dropped at the APS layer because it had APS encryption but
+    # the key associated with the sender has not been authenticated, and thus
+    # the key is not authorized for use in APS data messages.
+    COUNTER_APS_LINK_KEY_NOT_AUTHORIZED = 24
+    # A NWK encrypted message was received but dropped because decryption
+    # failed.
+    COUNTER_NWK_DECRYPTION_FAILURE = 25
+    # An APS encrypted message was received but dropped because decryption
+    # failed.
+    COUNTER_APS_DECRYPTION_FAILURE = 26
+    # The number of times we failed to allocate a set of linked packet buffers.
+    # This doesn't necessarily mean that the packet buffer count was 0 at the
+    # time, but that the number requested was greater than the number free.
+    COUNTER_ALLOCATE_PACKET_BUFFER_FAILURE = 27
+    # The number of relayed unicast packets.
+    COUNTER_RELAYED_UNICAST = 28
+    # The number of times we dropped a packet due to reaching
+    # the preset PHY to MAC queue limit (emMaxPhyToMacQueueLength).
+    COUNTER_PHY_TO_MAC_QUEUE_LIMIT_REACHED = 29
+    # The number of times we dropped a packet due to the
+    # packet-validate library checking a packet and rejecting it
+    # due to length or other formatting problems.
+    COUNTER_PACKET_VALIDATE_LIBRARY_DROPPED_COUNT = 30
+    # The number of times the NWK retry queue is full and a
+    # new message failed to be added.
+    COUNTER_TYPE_NWK_RETRY_OVERFLOW = 31
+    # The number of times the PHY layer was unable to transmit
+    # due to a failed CCA.
+    COUNTER_PHY_CCA_FAIL_COUNT = 32
+    # The number of times a NWK broadcast was dropped because
+    # the broadcast table was full.
+    COUNTER_BROADCAST_TABLE_FULL = 33
+    # The number of low priority packet traffic arbitration requests.
+    COUNTER_PTA_LO_PRI_REQUESTED = 34
+
+
+class EmberNetworkInitBitmask(basic.uint16_t):
+    # Bitmask options for emberNetworkInit().
+
+    # No options for Network Init
+    NETWORK_INIT_NO_OPTIONS = 0x0000
+    # Save parent info (node ID and EUI64) in a token during joining/rejoin,
+    # and restore on reboot.
+    NETWORK_INIT_PARENT_INFO_IN_TOKEN = 0x0001
