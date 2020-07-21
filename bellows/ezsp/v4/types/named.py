@@ -1,7 +1,6 @@
 import enum
 
 import bellows.types.basic as basic
-import zigpy.types
 
 
 class EzspConfigId(basic.uint8_t, enum.Enum):
@@ -143,7 +142,18 @@ class EzspConfigId(basic.uint8_t, enum.Enum):
     # The maximum number of pairings supported by the stack. Controllers
     # must support at least one pairing table entry while targets must
     # support at least five.
+    CONFIG_RF4CE_PAIRING_TABLE_SIZE = 0x31
+    # The maximum number of outgoing RF4CE packets supported by the stack.
+    CONFIG_RF4CE_PENDING_OUTGOING_PACKET_TABLE_SIZE = 0x32
+    # Toggles the mtorr flow control in the stack.
+    # The maximum number of pairings supported by the stack. Controllers
+    # must support at least one pairing table entry while targets must
+    # support at least five.
     CONFIG_MTORR_FLOW_CONTROL = 0x33
+    # Setting the retry queue size.
+    CONFIG_RETRY_QUEUE_SIZE = 0x34
+    # Setting the new broadcast entry threshold.
+    CONFIG_NEW_BROADCAST_ENTRY_THRESHOLD = 0x35
     # The length of time, in seconds, that a trust center will store a
     # transient link key that a device can use to join its network. A transient
     # key is added with a call to emberAddTransientLinkKey. After the transient

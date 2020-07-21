@@ -3,7 +3,7 @@
 import asyncio
 import functools
 import logging
-from typing import Any, Callable, Dict, Tuple
+from typing import Any, Coroutine, Callable, Dict, Tuple
 
 from bellows.config import (
     CONF_DEVICE,
@@ -229,6 +229,10 @@ class EZSP:
                 handler(*args)
             except Exception as e:
                 LOGGER.exception("Exception running handler", exc_info=e)
+
+    def update_policies(self, zigpy_config: dict) -> Coroutine:
+        """Set up the policies for what the NCP should do."""
+        return self._protocol.update_policies(zigpy_config[CONF_EZSP_CONFIG])
 
     def start_ezsp(self):
         """Mark EZSP as running."""

@@ -2,7 +2,7 @@ import abc
 import asyncio
 import functools
 import logging
-from typing import Any, Callable, Dict, Tuple
+from typing import Any, Callable, Coroutine, Dict, Tuple
 
 from bellows.typing import GatewayType
 
@@ -54,6 +54,25 @@ class ProtocolHandler(abc.ABC):
         self._awaiting[self._seq] = (c[0], c[2], future)
         self._seq = (self._seq + 1) % 256
         return asyncio.wait_for(future, timeout=EZSP_CMD_TIMEOUT)
+
+    async def update_policies(self, ezsp_config: dict) -> None:
+        """Set up the policies for what the NCP should do."""
+
+        v = await self.setPolicy(
+            self.types.EzspPolicyId.TC_KEY_REQUEST_POLICY,
+            self.types.EzspDecisionId.GENERATE_NEW_TC_LINK_KEY,
+        )
+        assert v[0] == self.types.EmberStatus.SUCCESS  # TODO: Better check
+        v = await self.setPolicy(
+            self.types.EzspPolicyId.APP_KEY_REQUEST_POLICY,
+            self.types.EzspDecisionId.DENY_APP_KEY_REQUESTS,
+        )
+        assert v[0] == self.types.EmberStatus.SUCCESS  # TODO: Better check
+        v = await self.setPolicy(
+            self.types.EzspPolicyId.TRUST_CENTER_POLICY,
+            self.types.EzspDecisionId.ALLOW_PRECONFIGURED_KEY_JOINS,
+        )
+        assert v[0] == self.types.EmberStatus.SUCCESS  # TODO: Better check
 
     def __getattr__(self, name: str) -> Callable:
         if name not in self.COMMANDS:

@@ -126,7 +126,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             await asyncio.sleep(1)  # TODO
             await self.form_network()
 
-        await self._policy()
+        await ezsp.update_policies(self.config)
         nwk = await ezsp.getNodeId()
         self._nwk = nwk[0]
         ieee = await ezsp.getEui64()
@@ -194,25 +194,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         await self._ezsp.formNetwork(parameters)
         await self._ezsp.setValue(t.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
-
-    async def _policy(self):
-        """Set up the policies for what the NCP should do"""
-        e = self._ezsp
-        v = await e.setPolicy(
-            t.EzspPolicyId.TC_KEY_REQUEST_POLICY,
-            t.EzspDecisionId.GENERATE_NEW_TC_LINK_KEY,
-        )
-        assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
-        v = await e.setPolicy(
-            t.EzspPolicyId.APP_KEY_REQUEST_POLICY,
-            t.EzspDecisionId.DENY_APP_KEY_REQUESTS,
-        )
-        assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
-        v = await e.setPolicy(
-            t.EzspPolicyId.TRUST_CENTER_POLICY,
-            t.EzspDecisionId.ALLOW_PRECONFIGURED_KEY_JOINS,
-        )
-        assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
 
     async def force_remove(self, dev):
         # This should probably be delivered to the parent device instead
