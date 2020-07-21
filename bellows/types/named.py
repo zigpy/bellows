@@ -708,12 +708,13 @@ class EmberEventUnits(basic.uint8_t, enum.Enum):
     EVENT_INACTIVE = 0x00
     # The execution time is in approximate milliseconds.
     EVENT_MS_TIME = 0x01
-    # The execution time is in 'binary' quarter seconds (256 approximate
-    # milliseconds each).
-    EVENT_QS_TIME = 0x02
-    # The execution time is in 'binary' minutes (65536 approximate milliseconds
+    # The execution time is in 'binary' quarter seconds (256 approximate milliseconds
     # each).
+    EVENT_QS_TIME = 0x02
+    # The execution time is in 'binary' minutes (65536 approximate milliseconds each).
     EVENT_MINUTE_TIME = 0x03
+    # The event is scheduled to run at the earliest opportunity.
+    EMBER_EVENT_ZERO_DELAY = 0x04
 
 
 class EmberNodeType(basic.uint8_t, enum.Enum):
