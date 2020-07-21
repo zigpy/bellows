@@ -1149,4 +1149,3 @@ def test_handle_tc_join_handler(app, ieee):
         ),
     )
     assert dev.nwk == new_nwk
-
