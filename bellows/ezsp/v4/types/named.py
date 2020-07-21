@@ -223,6 +223,8 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     VALUE_NEXT_ZIGBEE_SEQUENCE_NUMBER = 0x14
     # CCA energy detect threshold for radio.
     VALUE_CCA_THRESHOLD = 0x15
+    # The RF4CE discovery LQI threshold parameter.
+    EZSP_VALUE_RF4CE_DISCOVERY_LQI_THRESHOLD = 0x16,
     # The threshold value for a counter
     VALUE_SET_COUNTER_THRESHOLD = 0x17
     # Resets all counters thresholds to 0xFF
@@ -235,17 +237,12 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     VALUE_RF4CE_SUPPORTED_DEVICE_TYPES_LIST = 0x1B
     # The RF4CE profiles supported by the node
     VALUE_RF4CE_SUPPORTED_PROFILES_LIST = 0x1C
-    # Setting this byte enables R21 behavior on the NCP.
-    VALUE_ENABLE_R21_BEHAVIOR = 0x29
-    # Configure the antenna mode(0-primary,1-secondary,2- toggle on tx ack fail).
-    VALUE_ANTENNA_MODE = 0x30
     # The GDP binding recipient parameters
     VALUE_RF4CE_GDP_BINDING_RECIPIENT_PARAMETERS = 0x1D
     # The GDP binding push button stimulus received pending flag
     VALUE_RF4CE_GDP_PUSH_BUTTON_STIMULUS_RECEIVED_PENDING_FLAG = 0x1E
     # The GDP originator proxy flag in the advanced binding options
     VALUE_RF4CE_GDP_BINDING_PROXY_FLAG = 0x1F
-    # The GDP application specific user s join unti_VALUE_RF4CE_MSO_USER_STRING
     # 0x21 The MSO user string
     VALUE_RF4CE_GDP_APPLICATION_SPECIFIC_USER_STRING = 0x20
     # The MSO user string
@@ -264,6 +261,16 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     VALUE_RF4CE_SUPPORTED_DEVICE_TYPES_LIST2 = 0x27
     # The RF4CE profiles supported by the node
     VALUE_RF4CE_SUPPORTED_PROFILES_LIST2 = 0x28
+    # Setting this byte enables R21 behavior on the NCP.
+    VALUE_ENABLE_R21_BEHAVIOR = 0x29
+    # Configure the antenna mode(0-primary,1-secondary,2- toggle on tx ack fail).
+    VALUE_ANTENNA_MODE = 0x30
+    # Enable or disable packet traffic arbitration.
+    EZSP_VALUE_ENABLE_PTA = 0x31,
+    # Set packet traffic arbitration configuration options.
+    EZSP_VALUE_PTA_OPTIONS = 0x32,
+    # Configure manufacturing library options(0-non-CSMA transmits,1-CSMA transmits).
+    EZSP_VALUE_MFGLIB_OPTIONS = 0x33
 
 
 class EzspPolicyId(basic.uint8_t, enum.Enum):
@@ -291,6 +298,20 @@ class EzspPolicyId(basic.uint8_t, enum.Enum):
     PACKET_VALIDATE_LIBRARY_POLICY = 0x07
     # Controls whether the stack will process ZLL messages.
     ZLL_POLICY = 0x08
+    # Controls whether the ZigBee RF4CE stack will use standard profile-dependent
+    # behavior during the discovery and pairing process. The profiles supported at the
+    # NCP at the moment are ZRC 1.1 and MSO. If this policy is enabled the stack will
+    # use standard behavior for the profiles ZRC 1.1 and MSO while it will fall back to
+    # the on/off RF4CE policies for other profiles. If this policy is disabled the
+    # on/off RF4CE policies are used for all profiles.
+    EZSP_RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_POLICY = 0x09,
+    # Controls whether the ZigBee RF4CE stack will respond to an incoming discovery
+    # request or not.
+    EZSP_RF4CE_DISCOVERY_REQUEST_POLICY = 0x0A,
+    # Controls the behavior of the ZigBee RF4CE stack discovery process.
+    EZSP_RF4CE_DISCOVERY_POLICY = 0x0B,
+    # Controls whether the ZigBee RF4CE stack will accept or deny a pair request.
+    EZSP_RF4CE_PAIR_REQUEST_POLICY = 0x0C
 
 
 class EzspDecisionId(basic.uint8_t, enum.Enum):
@@ -364,3 +385,24 @@ class EzspDecisionId(basic.uint8_t, enum.Enum):
     PACKET_VALIDATE_LIBRARY_CHECKS_ENABLED = 0x62
     # Indicates that packet validate library checks are NOT enabled on the NCP.
     PACKET_VALIDATE_LIBRARY_CHECKS_DISABLED = 0x63
+    # Indicates that the RF4CE stack during discovery and pairing will use standard
+    # profile-dependent behavior for the profiles ZRC 1.1 and MSO, while it will fall
+    # back to the on/off policies for any other profile.
+    EZSP_RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_ENABLED = 0x70,
+    # Indicates that the RF4CE stack during discovery and pairing will always use the
+    # on/off policies.
+    EZSP_RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_DISABLED = 0x71,
+    # Indicates that the RF4CE stack will respond to incoming discovery requests.
+    EZSP_RF4CE_DISCOVERY_REQUEST_RESPOND = 0x72,
+    # Indicates that the RF4CE stack will ignore incoming discovery requests.
+    EZSP_RF4CE_DISCOVERY_REQUEST_IGNORE  = 0x73,
+    # Indicates that the RF4CE stack will perform all the discovery trials the
+    # application specified in the ezspRf4ceDiscovery() call.
+    EZSP_RF4CE_DISCOVERY_MAX_DISCOVERY_TRIALS = 0x74,
+    # Indicates that the RF4CE stack will prematurely stop the discovery process if a
+    # matching discovery response is received.
+    EZSP_RF4CE_DISCOVERY_STOP_ON_MATCHING_RESPONSE = 0x75,
+    # Indicates that the RF4CE stack will accept new pairings.
+    EZSP_RF4CE_PAIR_REQUEST_ACCEPT = 0x76,
+    # Indicates that the RF4CE stack will NOT accept new pairings.
+    EZSP_RF4CE_PAIR_REQUEST_DENY = 0x77

@@ -597,6 +597,9 @@ class EmberStatus(basic.uint8_t, enum.Enum):
     # network using commercial security without setting the Trust Center master
     # key first.
     APS_ENCRYPTION_ERROR = 0xA6
+    # There was an attempt to form a network using commercial security without setting
+    # the Trust Center master key first.
+    EMBER_TRUST_CENTER_MASTER_KEY_NOT_SET = 0xA7
     # There was an attempt to form or join a network with security without
     # calling emberSetInitialSecurityState() first.
     SECURITY_STATE_NOT_SET = 0xA8
