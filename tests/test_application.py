@@ -1099,7 +1099,7 @@ def test_handle_id_conflict(app, ieee):
 def test_handle_tc_join_handler(app, ieee):
     """Test updating device NWK on TC join/rejoin callbacks."""
     nwk = t.EmberNodeId(0x1234)
-    new_nwk = t.EmberNodeId(0x4321)
+    app.handle_join = mock.MagicMock()
 
     app.ezsp_callback_handler(
         "trustCenterJoinHandler",
@@ -1111,41 +1111,7 @@ def test_handle_tc_join_handler(app, ieee):
             mock.sentinel.parent,
         ),
     )
-
-    dev = app.add_device(ieee, nwk)
-    app.ezsp_callback_handler(
-        "trustCenterJoinHandler",
-        (
-            nwk,
-            ieee,
-            t.EmberDeviceUpdate.STANDARD_SECURITY_SECURED_REJOIN,
-            mock.sentinel.decision,
-            mock.sentinel.parent,
-        ),
-    )
-    assert dev.nwk == nwk
-
-    app.ezsp_callback_handler(
-        "trustCenterJoinHandler",
-        (
-            new_nwk,
-            ieee,
-            t.EmberDeviceUpdate.STANDARD_SECURITY_SECURED_REJOIN,
-            mock.sentinel.decision,
-            mock.sentinel.parent,
-        ),
-    )
-    assert dev.nwk == new_nwk
-
-    ieee[0] = 0x22
-    app.ezsp_callback_handler(
-        "trustCenterJoinHandler",
-        (
-            nwk,
-            ieee,
-            t.EmberDeviceUpdate.STANDARD_SECURITY_SECURED_REJOIN,
-            mock.sentinel.decision,
-            mock.sentinel.parent,
-        ),
-    )
-    assert dev.nwk == new_nwk
+    assert app.handle_join.call_count == 1
+    assert app.handle_join.call_args[0][0] == nwk
+    assert app.handle_join.call_args[0][1] == ieee
+    assert app.handle_join.call_args[0][2] is mock.sentinel.parent
