@@ -70,3 +70,57 @@ def test_hex_repr():
     nwk = NwkAsHex(0x1234)
     assert str(nwk) == "0x1234"
     assert repr(nwk) == "0x1234"
+
+
+def test_bitmap():
+    """Test bitmaps."""
+
+    class TestBitmap(t.bitmap16):
+        CH_1 = 0x0010
+        CH_2 = 0x0020
+        CH_3 = 0x0040
+        CH_4 = 0x0080
+        ALL = 0x00F0
+
+    extra = b"extra data\xaa\55"
+    data = b"\xf0\x00"
+    r, rest = TestBitmap.deserialize(data + extra)
+    assert rest == extra
+    assert r is TestBitmap.ALL
+    assert r.name == "ALL"
+    assert r.value == 0x00F0
+    assert r.serialize() == data
+
+    data = b"\x60\x00"
+    r, rest = TestBitmap.deserialize(data + extra)
+    assert rest == extra
+    assert TestBitmap.CH_1 not in r
+    assert TestBitmap.CH_2 in r
+    assert TestBitmap.CH_3 in r
+    assert TestBitmap.CH_4 not in r
+    assert TestBitmap.ALL not in r
+    assert r.value == 0x0060
+    assert r.serialize() == data
+
+
+def test_bitmap_undef():
+    """Test bitmaps with some undefined flags."""
+
+    class TestBitmap(t.bitmap16):
+        CH_1 = 0x0010
+        CH_2 = 0x0020
+        CH_3 = 0x0040
+        CH_4 = 0x0080
+        ALL = 0x00F0
+
+    extra = b"extra data\xaa\55"
+    data = b"\x60\x0f"
+    r, rest = TestBitmap.deserialize(data + extra)
+    assert rest == extra
+    assert TestBitmap.CH_1 not in r
+    assert TestBitmap.CH_2 in r
+    assert TestBitmap.CH_3 in r
+    assert TestBitmap.CH_4 not in r
+    assert TestBitmap.ALL not in r
+    assert r.value == 0x0F60
+    assert r.serialize() == data
