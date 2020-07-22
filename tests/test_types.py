@@ -35,7 +35,12 @@ def test_list():
 
 def test_struct():
     class TestStruct(t.EzspStruct):
-        _fields = [("a", t.uint8_t), ("b", t.uint8_t)]
+        a: t.uint8_t
+        b: t.uint8_t
+
+        @property
+        def test(self):
+            return None
 
     ts = TestStruct()
     ts.a = t.uint8_t(0xAA)
@@ -46,7 +51,7 @@ def test_struct():
 
     r = repr(ts)
     assert "TestStruct" in r
-    assert r.startswith("<") and r.endswith(">")
+    assert r.startswith("TestStruct") and r.endswith(")")
 
     s = ts2.serialize()
     assert s == b"\xaa\xbb"
