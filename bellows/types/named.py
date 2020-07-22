@@ -910,7 +910,7 @@ class EmberJoinDecision(basic.uint8_t, enum.Enum):
     NO_ACTION = 0x03
 
 
-class EmberInitialSecurityBitmask(basic.uint16_t):
+class EmberInitialSecurityBitmask(basic.bitmap16):
     # This is the Initial Security Bitmask that controls the use of various
     # security features.
 
@@ -970,7 +970,7 @@ class EmberInitialSecurityBitmask(basic.uint16_t):
     GET_PRECONFIGURED_KEY_FROM_INSTALL_CODE = 0x2000
 
 
-class EmberKeyStructBitmask(basic.uint16_t):
+class EmberKeyStructBitmask(basic.bitmap16):
     # Describes the presence of valid data within the EmberKeyStruct structure.
 
     # The key has a sequence number associated with it.

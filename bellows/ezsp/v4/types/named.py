@@ -408,7 +408,7 @@ class EzspDecisionId(basic.uint8_t, enum.Enum):
     EZSP_RF4CE_PAIR_REQUEST_DENY = 0x77
 
 
-class EmberCurrentSecurityBitmask(basic.uint16_t):
+class EmberCurrentSecurityBitmask(basic.bitmap16):
     # This is the Current Security Bitmask that details the use of various
     # security features.
 
@@ -553,7 +553,7 @@ class EmberCounterType(basic.uint8_t, enum.Enum):
     COUNTER_PTA_LO_PRI_REQUESTED = 34
 
 
-class EmberNetworkInitBitmask(basic.uint16_t):
+class EmberNetworkInitBitmask(basic.bitmap16):
     # Bitmask options for emberNetworkInit().
 
     # No options for Network Init
