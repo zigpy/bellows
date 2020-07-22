@@ -1185,7 +1185,7 @@ class EmberBindingType(basic.uint8_t, enum.Enum):
     MULTICAST_BINDING = 0x03
 
 
-class EmberApsOption(basic.uint16_t):
+class EmberApsOption(basic.bitmap16):
     # Options to use when sending a message.
 
     # No options.
