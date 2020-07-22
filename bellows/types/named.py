@@ -1185,7 +1185,7 @@ class EmberBindingType(basic.uint8_t, enum.Enum):
     MULTICAST_BINDING = 0x03
 
 
-class EmberApsOption(basic.uint16_t):
+class EmberApsOption(basic.bitmap16):
     # Options to use when sending a message.
 
     # No options.
@@ -1566,7 +1566,7 @@ class EmberJoinMethod(basic.uint8_t, enum.Enum):
     USE_NWK_COMMISSIONING = 0x3
 
 
-class EmberZdoConfigurationFlags(basic.uint8_t, enum.Enum):
+class EmberZdoConfigurationFlags(basic.bitmap8):
     # Flags for controlling which incoming ZDO requests are passed to the
     # application. To see if the application is required to send a ZDO response
     # to an incoming message, the application must check the APS options

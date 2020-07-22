@@ -50,10 +50,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._watchdog_task = None
         self._reset_task = None
         self._in_flight_msg = None
-        self._tx_options = t.EmberApsOption(
+        self._tx_options = (
             t.EmberApsOption.APS_OPTION_RETRY
             | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
         )
+
         self.use_source_routing = self.config[CONF_PARAM_SRC_RTG]
         self._req_lock = asyncio.Lock()
 
@@ -419,9 +420,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.clusterId = t.uint16_t(cluster)
         aps_frame.sourceEndpoint = t.uint8_t(src_ep)
         aps_frame.destinationEndpoint = t.uint8_t(src_ep)
-        aps_frame.options = t.EmberApsOption(
-            t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-        )
+        aps_frame.options = t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
         aps_frame.groupId = t.uint16_t(group_id)
         aps_frame.sequence = t.uint8_t(sequence)
         message_tag = self.get_sequence()
@@ -507,9 +506,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                                     res,
                                 )
                             else:
-                                aps_frame.options = t.EmberApsOption(
-                                    aps_frame.options
-                                    ^ t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                                aps_frame.options ^= (
+                                    t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
                                 )
                                 LOGGER.debug(
                                     "Set source route for %s to %s: %s",
@@ -614,7 +612,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.clusterId = t.uint16_t(cluster)
         aps_frame.sourceEndpoint = t.uint8_t(src_ep)
         aps_frame.destinationEndpoint = t.uint8_t(dst_ep)
-        aps_frame.options = t.EmberApsOption(t.EmberApsOption.APS_OPTION_NONE)
+        aps_frame.options = t.EmberApsOption.APS_OPTION_NONE
         aps_frame.groupId = t.uint16_t(grpid)
         aps_frame.sequence = t.uint8_t(sequence)
         message_tag = self.get_sequence()

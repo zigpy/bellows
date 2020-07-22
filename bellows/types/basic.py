@@ -1,3 +1,9 @@
+import enum
+from typing import Callable, TypeVar
+
+CALLABLE_T = TypeVar("CALLABLE_T", bound=Callable)  # pylint: disable=invalid-name
+
+
 class int_t(int):  # noqa: N801
     _signed = True
 
@@ -163,3 +169,28 @@ class HexRepr:
 
     def __str__(self):
         return ("0x{:0" + str(self._hex_len) + "x}").format(self)
+
+
+def bitmap_factory(int_type: CALLABLE_T = uint8_t) -> CALLABLE_T:
+    """Bitmap factory."""
+
+    class _NewBitmap(enum.IntFlag):
+        def serialize(self):
+            """Serialize enum."""
+            return int_type(self.value).serialize()
+
+        @classmethod
+        def deserialize(cls, data: bytes) -> (bytes, bytes):
+            """Deserialize data."""
+            val, data = int_type.deserialize(data)
+            return cls(val), data
+
+    return _NewBitmap
+
+
+class bitmap8(bitmap_factory(uint8_t)):  # noqa: N801
+    """8 bit bitmap class."""
+
+
+class bitmap16(bitmap_factory(uint16_t)):  # noqa: N801
+    """16 bit bitmap class."""
