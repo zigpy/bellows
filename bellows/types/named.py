@@ -21,7 +21,7 @@ class NcpResetCode(basic.uint8_t, enum.Enum):
     ERROR_UNKNOWN_EM3XX_ERROR = 0x80
 
 
-class extendedPanId(ztypes.ExtendedPanId):
+class ExtendedPanId(ztypes.ExtendedPanId):
     """Extended PAN ID."""
 
 

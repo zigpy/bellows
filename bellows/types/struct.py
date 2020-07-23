@@ -256,7 +256,7 @@ class StructField:
 class EmberNetworkParameters(EzspStruct):
     # Network parameters.
     # The network's extended PAN identifier.
-    extendedPanId: named.extendedPanId
+    extendedPanId: named.ExtendedPanId
     # The network's PAN identifier.
     panId: named.EmberPanId
     # A power setting, in dBm.
@@ -288,7 +288,7 @@ class EmberZigbeeNetwork(EzspStruct):
     # The network's PAN identifier.
     panId: named.EmberPanId
     # The network's extended PAN identifier.
-    extendedPanId: named.extendedPanId
+    extendedPanId: named.ExtendedPanId
     # Whether the network is allowing MAC associations.
     allowingJoin: named.Bool
     # The Stack Profile associated with the network.
