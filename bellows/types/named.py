@@ -4,6 +4,7 @@ import zigpy.types as ztypes
 
 from . import basic
 
+Channels = ztypes.Channels
 EmberEUI64 = ztypes.EUI64
 
 

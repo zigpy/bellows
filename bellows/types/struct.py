@@ -2,8 +2,6 @@ import dataclasses
 import inspect
 import typing
 
-from zigpy.types import Channels
-
 from . import basic, named
 
 NoneType = type(None)
@@ -280,7 +278,7 @@ class EmberNetworkParameters(EzspStruct):
     # has told this device to use when searching for the network. This may
     # only be set at joining when using USE_NWK_COMMISSIONING as the join
     # method.
-    channels: Channels
+    channels: named.Channels
 
 
 class EmberZigbeeNetwork(EzspStruct):

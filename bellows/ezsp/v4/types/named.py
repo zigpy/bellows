@@ -4,6 +4,7 @@ import enum
 import bellows.types.basic as basic
 from bellows.types.named import (  # noqa: F401, F403
     Bool,
+    Channels,
     EmberApsOption,
     EmberBindingType,
     EmberCertificate283k1Data,
@@ -609,5 +610,4 @@ class EmberNetworkInitBitmask(basic.bitmap16):
     NETWORK_INIT_PARENT_INFO_IN_TOKEN = 0x0001
 
 
-class EmberNetworkInitStruct(EmberNetworkInitBitmask):
-    """Network Initialization parameters."""
+EmberNetworkInitStruct = EmberNetworkInitBitmask
