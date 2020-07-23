@@ -193,7 +193,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         parameters.channels = nwk[zigpy.config.CONF_NWK_CHANNELS]
 
         await self._ezsp.formNetwork(parameters)
-        await self._ezsp.setValue(t.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
+        await self._ezsp.setValue(
+            self._ezsp.types.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1
+        )
 
     async def force_remove(self, dev):
         # This should probably be delivered to the parent device instead
@@ -211,7 +213,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 self._handle_frame_sent(*args)
         elif frame_name == "trustCenterJoinHandler":
             nwk, ieee, dev_update_status, decision, parent_nwk = args
-            if dev_update_status == t.EmberDeviceUpdate.DEVICE_LEFT:
+            if dev_update_status == self._ezsp.types.EmberDeviceUpdate.DEVICE_LEFT:
                 self.handle_leave(nwk, ieee)
             else:
                 self.handle_join(nwk, ieee, parent_nwk)
@@ -498,8 +500,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             raise Exception("Failed to set link key")
 
         v = await self._ezsp.setPolicy(
-            t.EzspPolicyId.TC_KEY_REQUEST_POLICY,
-            t.EzspDecisionId.GENERATE_NEW_TC_LINK_KEY,
+            self._ezsp.types.EzspPolicyId.TC_KEY_REQUEST_POLICY,
+            self._ezsp.types.EzspDecisionId.GENERATE_NEW_TC_LINK_KEY,
         )
         if v[0] != t.EmberStatus.SUCCESS:
             raise Exception(
