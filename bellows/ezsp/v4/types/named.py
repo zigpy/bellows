@@ -1,6 +1,71 @@
+"""Protocol version 4 named types."""
 import enum
 
 import bellows.types.basic as basic
+from bellows.types.named import (  # noqa: F401, F403
+    Bool,
+    EmberApsOption,
+    EmberBindingType,
+    EmberCertificate283k1Data,
+    EmberCertificateData,
+    EmberConcentratorType,
+    EmberConfigTxPowerMode,
+    EmberCurrentSecurityBitmask,
+    EmberEUI64,
+    EmberEventUnits,
+    EmberGpKeyType,
+    EmberGpSecurityLevel,
+    EmberIncomingMessageType,
+    EmberInitialSecurityBitmask,
+    EmberJoinDecision,
+    EmberJoinMethod,
+    EmberKeyData,
+    EmberKeyStatus,
+    EmberKeyStructBitmask,
+    EmberLibraryStatus,
+    EmberMacPassthroughType,
+    EmberMessageDigest,
+    EmberMulticastId,
+    EmberNetworkStatus,
+    EmberNodeId,
+    EmberNodeType,
+    EmberOutgoingMessageType,
+    EmberPanId,
+    EmberPrivateKey283k1Data,
+    EmberPrivateKeyData,
+    EmberPublicKey283k1Data,
+    EmberPublicKeyData,
+    EmberSignature283k1Data,
+    EmberSignatureData,
+    EmberSmacData,
+    EmberStatus,
+    EmberZdoConfigurationFlags,
+    EmberZllKeyIndex,
+    EmberZllState,
+    EzspEndpointFlags,
+    EzspExtendedValueId,
+    EzspMfgTokenId,
+    EzspNetworkScanType,
+    EzspSourceRouteOverheadInformation,
+    EzspStatus,
+    EzspZllNetworkOperation,
+    extendedPanId,
+)
+
+
+class EmberRf4ceTxOption(basic.uint8_t):
+    # RF4CE transmission options.
+    pass
+
+
+class EmberRf4ceNodeCapabilities(basic.uint8_t):
+    # The RF4CE node capabilities.
+    pass
+
+
+class EmberRf4ceApplicationCapabilities(basic.uint8_t):
+    # The RF4CE application capabilities.
+    pass
 
 
 class EzspConfigId(basic.uint8_t, enum.Enum):
@@ -408,28 +473,6 @@ class EzspDecisionId(basic.uint8_t, enum.Enum):
     EZSP_RF4CE_PAIR_REQUEST_DENY = 0x77
 
 
-class EmberCurrentSecurityBitmask(basic.bitmap16):
-    # This is the Current Security Bitmask that details the use of various
-    # security features.
-
-    # This denotes that the device is running in a network with ZigBee Standard
-    # Security.
-    STANDARD_SECURITY_MODE = 0x0000
-    # This denotes that the device is running in a network with ZigBee High
-    # Security.
-    HIGH_SECURITY_MODE = 0x0001
-    # This denotes that the device is running in a network without a
-    # centralized Trust Center.
-    DISTRIBUTED_TRUST_CENTER_MODE = 0x0002
-    # This denotes that the device has a Global Link Key. The Trust Center Link
-    # Key is the same across multiple nodes.
-    GLOBAL_LINK_KEY = 0x0004
-    # This denotes that the node has a Trust Center Link Key.
-    HAVE_TRUST_CENTER_LINK_KEY = 0x0010
-    # This denotes that the Trust Center is using a Hashed Link Key.
-    TRUST_CENTER_USES_HASHED_LINK_KEY = 0x0084
-
-
 class EmberKeyType(basic.uint8_t, enum.Enum):
     # Describes the type of ZigBee security key.
 
@@ -561,3 +604,7 @@ class EmberNetworkInitBitmask(basic.bitmap16):
     # Save parent info (node ID and EUI64) in a token during joining/rejoin,
     # and restore on reboot.
     NETWORK_INIT_PARENT_INFO_IN_TOKEN = 0x0001
+
+
+class EmberNetworkInitStruct(EmberNetworkInitBitmask):
+    """Network Initialization parameters."""

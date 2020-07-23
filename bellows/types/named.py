@@ -20,19 +20,8 @@ class NcpResetCode(basic.uint8_t, enum.Enum):
     ERROR_UNKNOWN_EM3XX_ERROR = 0x80
 
 
-class EmberRf4ceTxOption(basic.uint8_t):
-    # RF4CE transmission options.
-    pass
-
-
-class EmberRf4ceNodeCapabilities(basic.uint8_t):
-    # The RF4CE node capabilities.
-    pass
-
-
-class EmberRf4ceApplicationCapabilities(basic.uint8_t):
-    # The RF4CE application capabilities.
-    pass
+class extendedPanId(ztypes.ExtendedPanId):
+    """Extended PAN ID."""
 
 
 class EmberNodeId(basic.HexRepr, basic.uint16_t):
@@ -55,16 +44,6 @@ class EmberLibraryStatus(basic.uint8_t):
     pass
 
 
-class SecureEzspSecurityType(basic.uint32_t):
-    # Security type of the Secure EZSP Protocol.
-    pass
-
-
-class SecureEzspSecurityLevel(basic.uint8_t):
-    # Security level of the Secure EZSP Protocol.
-    pass
-
-
 class EmberGpSecurityLevel(basic.uint8_t):
     # The security level of the GPD.
     pass
@@ -72,22 +51,6 @@ class EmberGpSecurityLevel(basic.uint8_t):
 
 class EmberGpKeyType(basic.uint8_t):
     # The type of security key to use for the GPD.
-    pass
-
-
-class SecureEzspRandomNumber(basic.uint64_t):
-    # Randomly generated 64-bit number.
-    # Both NCP and Host contribute this number to create the Session ID,
-    # which is used in the nonce.
-    pass
-
-
-class SecureEzspSessionId(basic.uint64_t):
-    # Generated 64-bit Session ID, using random numbers from Host and NCP.
-    # It is generated at each reboot (during negotiation phase).
-    # Having both sides contribute to the value prevents one side from
-    # choosing a number that might have been previously
-    # used (either because of a bug or by malicious intent).
     pass
 
 
@@ -970,6 +933,28 @@ class EmberInitialSecurityBitmask(basic.bitmap16):
     GET_PRECONFIGURED_KEY_FROM_INSTALL_CODE = 0x2000
 
 
+class EmberCurrentSecurityBitmask(basic.bitmap16):
+    # This is the Current Security Bitmask that details the use of various
+    # security features.
+
+    # This denotes that the device is running in a network with ZigBee Standard
+    # Security.
+    STANDARD_SECURITY_MODE = 0x0000
+    # This denotes that the device is running in a network with ZigBee High
+    # Security.
+    HIGH_SECURITY_MODE = 0x0001
+    # This denotes that the device is running in a network without a
+    # centralized Trust Center.
+    DISTRIBUTED_TRUST_CENTER_MODE = 0x0002
+    # This denotes that the device has a Global Link Key. The Trust Center Link
+    # Key is the same across multiple nodes.
+    GLOBAL_LINK_KEY = 0x0004
+    # This denotes that the node has a Trust Center Link Key.
+    HAVE_TRUST_CENTER_LINK_KEY = 0x0010
+    # This denotes that the Trust Center is using a Hashed Link Key.
+    TRUST_CENTER_USES_HASHED_LINK_KEY = 0x0084
+
+
 class EmberKeyStructBitmask(basic.bitmap16):
     # Describes the presence of valid data within the EmberKeyStruct structure.
 
@@ -1145,3 +1130,43 @@ class EzspSourceRouteOverheadInformation(basic.uint8_t, enum.Enum):
 
 class EmberKeyData(basic.fixed_list(16, basic.uint8_t)):
     """A 128-bit key. """
+
+
+class EmberCertificateData(basic.fixed_list(48, basic.uint8_t)):
+    """The implicit certificate used in CBKE."""
+
+
+class EmberPublicKeyData(basic.fixed_list(22, basic.uint8_t)):
+    """The public key data used in CBKE."""
+
+
+class EmberPrivateKeyData(basic.fixed_list(21, basic.uint8_t)):
+    """The private key data used in CBKE."""
+
+
+class EmberSmacData(basic.fixed_list(16, basic.uint8_t)):
+    """The Shared Message Authentication Code data used in CBKE."""
+
+
+class EmberSignatureData(basic.fixed_list(42, basic.uint8_t)):
+    """An ECDSA signature."""
+
+
+class EmberCertificate283k1Data(basic.fixed_list(74, basic.uint8_t)):
+    """The implicit certificate used in CBKE."""
+
+
+class EmberPublicKey283k1Data(basic.fixed_list(37, basic.uint8_t)):
+    """The 283k1 public key data used in CBKE."""
+
+
+class EmberPrivateKey283k1Data(basic.fixed_list(36, basic.uint8_t)):
+    """The 283k1 private key data used in CBKE."""
+
+
+class EmberSignature283k1Data(basic.fixed_list(72, basic.uint8_t)):
+    """An 283k1 ECDSA signature data."""
+
+
+class EmberMessageDigest(basic.fixed_list(16, basic.uint8_t)):
+    """The calculated digest of a message"""
