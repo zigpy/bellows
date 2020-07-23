@@ -3,7 +3,7 @@
 import asyncio
 import functools
 import logging
-from typing import Any, Coroutine, Callable, Dict, Tuple
+from typing import Any, Callable, Coroutine, Dict, Tuple
 
 from bellows.config import (
     CONF_DEVICE,

@@ -2,7 +2,7 @@ import abc
 import asyncio
 import functools
 import logging
-from typing import Any, Callable, Coroutine, Dict, Tuple
+from typing import Any, Callable, Dict, Tuple
 
 from bellows.typing import GatewayType
 

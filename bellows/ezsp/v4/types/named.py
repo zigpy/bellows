@@ -510,7 +510,7 @@ class EmberCounterType(basic.uint8_t, enum.Enum):
     # Defines the events reported to the application by the
     # readAndClearCounters command.
     @property
-    def COUNTER_TYPE_COUNT(self) -> int:
+    def COUNTER_TYPE_COUNT(self) -> int:  # noqa: N802
         """Return the number of counters."""
         return len(self)
 

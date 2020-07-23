@@ -4,8 +4,8 @@ import binascii
 import logging
 from typing import Any, Dict, Tuple
 
+from . import commands, config as v4_config, types as v4_types
 from .. import protocol
-from . import config, commands, types as v4_types
 
 EZSP_VERSION = 4
 LOGGER = logging.getLogger(__name__)
@@ -15,7 +15,7 @@ class EZSPv4(protocol.ProtocolHandler):
     """EZSP Version 4 Protocol version handler."""
 
     COMMANDS = commands.COMMANDS
-    SCHEMA = config.EZSP_SCHEMA
+    SCHEMA = v4_config.EZSP_SCHEMA
     types = v4_types
 
     def _ezsp_frame(self, name: str, *args: Tuple[Any, ...]) -> bytes:
