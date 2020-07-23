@@ -686,6 +686,16 @@ class EZSPCoordinator(CustomDevice):
     """Zigpy Device representing Coordinator."""
 
     class EZSPEndpoint(CustomEndpoint):
+        @property
+        def manufacturer(self) -> str:
+            """Manufacturer."""
+            return "Silicon Labs"
+
+        @property
+        def model(self) -> str:
+            """Model."""
+            return "EZSP"
+
         async def add_to_group(self, grp_id: int, name: str = None) -> t.EmberStatus:
             if grp_id in self.member_of:
                 return t.EmberStatus.SUCCESS
@@ -724,8 +734,4 @@ class EZSPCoordinator(CustomDevice):
         }
     }
 
-    replacement = {
-        "manufacturer": "Silicon Labs",
-        "model": "EZSP",
-        "endpoints": {1: (EZSPEndpoint, {})},
-    }
+    replacement = {"endpoints": {1: (EZSPEndpoint, {})}}
