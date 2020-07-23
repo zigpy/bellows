@@ -508,6 +508,10 @@ class EmberDeviceUpdate(basic.uint8_t, enum.Enum):
 class EmberCounterType(basic.uint8_t, enum.Enum):
     # Defines the events reported to the application by the
     # readAndClearCounters command.
+    @property
+    def COUNTER_TYPE_COUNT(self) -> int:
+        """Return the number of counters."""
+        return len(self)
 
     # The MAC received a broadcast.
     COUNTER_MAC_RX_BROADCAST = 0
@@ -533,8 +537,7 @@ class EmberCounterType(basic.uint8_t, enum.Enum):
     COUNTER_APS_DATA_TX_UNICAST_RETRY = 10
     # The APS layer unsuccessfully transmitted a data unicast.
     COUNTER_APS_DATA_TX_UNICAST_FAILED = 11
-    # The network layer successfully submitted a new route discovery to the
-    # MAC.
+    # The network layer successfully submitted a new route discovery to the MAC.
     COUNTER_ROUTE_DISCOVERY_INITIATED = 12
     # An entry was added to the neighbor table.
     COUNTER_NEIGHBOR_ADDED = 13
