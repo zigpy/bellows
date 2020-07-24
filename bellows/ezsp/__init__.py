@@ -232,7 +232,7 @@ class EZSP:
 
     def update_policies(self, zigpy_config: dict) -> Coroutine:
         """Set up the policies for what the NCP should do."""
-        return self._protocol.update_policies(zigpy_config[CONF_EZSP_CONFIG])
+        return self._protocol.update_policies(zigpy_config)
 
     def start_ezsp(self):
         """Mark EZSP as running."""
