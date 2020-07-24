@@ -16,15 +16,15 @@ import bellows.types as t
 import bellows.uart
 import serial
 
-from . import v4
+from . import v4, v5
 
 PROBE_TIMEOUT = 3
 LOGGER = logging.getLogger(__name__)
 
-PROTOCOL_BY_VER = {}
-
 
 class EZSP:
+    _BY_VERSION = {v4.EZSP_VERSION: v4.EZSPv4, v5.EZSP_VERSION: v5.EZSPv5}
+
     def __init__(self, device_config: Dict):
         self._config = device_config
         self._callbacks = {}
@@ -86,7 +86,7 @@ class EZSP:
             self._ezsp_version = ver
             LOGGER.debug("Switching to EZSP protocol version %d", self.ezsp_version)
             try:
-                protcol_cls = PROTOCOL_BY_VER[ver]
+                protcol_cls = self._BY_VERSION[ver]
             except KeyError:
                 LOGGER.warning(
                     "Protocol version %s is not supported, using version %s instead",
