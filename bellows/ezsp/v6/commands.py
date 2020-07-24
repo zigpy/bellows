@@ -543,14 +543,14 @@ COMMANDS = {
         (t.uint8_t,),
         (t.EmberStatus, t.EmberGpSinkTableEntry),
     ),
-    "gpSinkTableLookup": (0xDE, (t.EmberGpAddress,), (t.uint8_t)),
+    "gpSinkTableLookup": (0xDE, (t.EmberGpAddress,), (t.uint8_t,)),
     "gpSinkTableSetEntry": (
         0xDF,
         (t.uint8_t, t.EmberGpSinkTableEntry),
         (t.EmberStatus,),
     ),
     "gpSinkTableRemoveEntry": (0xE0, (t.uint8_t,), ()),
-    "gpSinkTableFindOrAllocateEntry": (0xE1, (t.EmberGpAddress,), (t.uint8_t)),
+    "gpSinkTableFindOrAllocateEntry": (0xE1, (t.EmberGpAddress,), (t.uint8_t,)),
     "gpClearSinkTable": (0xE2, (), ()),
     # 16 Secure EZSP Frames
     "setSecurityKey": (
