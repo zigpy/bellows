@@ -54,21 +54,6 @@ from bellows.types.named import (  # noqa: F401, F403
 )
 
 
-class EmberRf4ceTxOption(basic.uint8_t):
-    # RF4CE transmission options.
-    pass
-
-
-class EmberRf4ceNodeCapabilities(basic.uint8_t):
-    # The RF4CE node capabilities.
-    pass
-
-
-class EmberRf4ceApplicationCapabilities(basic.uint8_t):
-    # The RF4CE application capabilities.
-    pass
-
-
 class EzspConfigId(basic.uint8_t, enum.Enum):
     # Identifies a configuration value.
 
@@ -229,6 +214,11 @@ class EzspConfigId(basic.uint8_t, enum.Enum):
     # software calls new EZSP functions for Green Power.  If this configuration value is
     # not present, the host will not call the new functions.
     EZSP_CONFIG_GREEN_POWER_ACTIVE = 0x37
+    # The length of time, in seconds, that a trust center will allow a Trust Center
+    # (insecure) rejoin for a device that is using the well-known link key. This timeout
+    # takes effect once rejoins using the well-known key has been allowed. This command
+    # updates the emAllowTcRejoinsUsingWellKnownKeyTimeoutSec value.
+    EZSP_CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S = 0x38
 
 
 class EzspValueId(basic.uint8_t, enum.Enum):
@@ -338,6 +328,10 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     EZSP_VALUE_PTA_OPTIONS = 0x32
     # Configure manufacturing library options(0-non-CSMA transmits,1-CSMA transmits).
     EZSP_VALUE_MFGLIB_OPTIONS = 0x33
+    # Sets the flag to use either negotiated power by link power delta (LPD) or fixed
+    # power value provided by user while forming/joining a network for packet
+    # transmissions on subghz interface. This is mainly for testing purposes.
+    EZSP_VALUE_USE_NEGOTIATED_POWER_BY_LPD = 0x34
 
 
 class EzspPolicyId(basic.uint8_t, enum.Enum):
@@ -621,6 +615,43 @@ class EmberNetworkInitBitmask(basic.bitmap16):
 
 
 EmberNetworkInitStruct = EmberNetworkInitBitmask
+
+
+class EmberMultiPhyNwkConfig(basic.uint8_t, enum.Enum):
+    """Network configuration for the desired radio interface for multi phy network."""
+
+    # Enable broadcast support on Routers
+    EMBER_BROADCAST_SUPPORT = 0x01
+
+
+class EmberDutyCycleState(basic.uint8_t, enum.Enum):
+    """Duty cycle states."""
+
+    # No Duty cycle tracking or metrics are taking place
+    EMBER_DUTY_CYCLE_TRACKING_OFF = 0
+    # Duty Cycle is tracked and has not exceeded any thresholds.
+    EMBER_DUTY_CYCLE_LBT_NORMAL = 1
+    # We have exceeded the limited threshold of our total duty cycle allotment.
+    EMBER_DUTY_CYCLE_LBT_LIMITED_THRESHOLD_REACHED = 2
+    # We have exceeded the critical threshold of our total duty cycle allotment.
+    EMBER_DUTY_CYCLE_LBT_CRITICAL_THRESHOLD_REACHED = 3
+    # We have reached the suspend limit and are blocking all outbound transmissions.
+    EMBER_DUTY_CYCLE_LBT_SUSPEND_LIMIT_REACHED = 4
+
+
+class EmberDutyCycleHectoPct(basic.uint16_t):
+    """"The percent of duty cycle for a limit.
+
+    Duty Cycle, Limits, and Thresholds are reported in units of Percent * 100
+    (i.e. 10000 = 100.00%, 1 = 0.01%)"""
+
+
+class EmberGpProxyTableEntryStatus(basic.uint8_t):
+    """The proxy table entry status."""
+
+
+class EmberGpSecurityFrameCounter(basic.uint32_t):
+    """The security frame counter"""
 
 
 class SecureEzspSecurityType(basic.uint32_t):

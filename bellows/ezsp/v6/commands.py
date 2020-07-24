@@ -80,11 +80,10 @@ COMMANDS = {
     "customFrameHandler": (0x54, (), (t.LVBytes,)),
     "getEui64": (0x26, (), (t.EmberEUI64,)),
     "getNodeId": (0x27, (), (t.EmberNodeId,)),
-    "networkInit": (0x17, (), (t.EmberStatus,)),
+    "networkInit": (0x17, (t.EmberNetworkInitStruct,), (t.EmberStatus,)),
     # 6. Networking Frames
     "setManufacturerCode": (0x15, (t.uint16_t,), ()),
     "setPowerDescriptor": (0x16, (t.uint16_t,), ()),
-    "networkInitExtended": (0x70, (t.EmberNetworkInitStruct,), (t.EmberStatus,)),
     "networkState": (0x18, (), (t.EmberNetworkStatus,)),
     "stackStatusHandler": (0x19, (), (t.EmberStatus,)),
     "startScan": (
@@ -260,6 +259,7 @@ COMMANDS = {
         (t.EmberStatus,),
     ),
     "idConflictHandler": (0x7C, (), (t.EmberNodeId,)),
+    "writeNodeData": (0xFE, (t.bool,), (t.EmberStatus,)),
     "sendRawMessage": (0x96, (t.LVBytes,), (t.EmberStatus,)),
     "macPassthroughMessageHandler": (
         0x97,
@@ -289,6 +289,7 @@ COMMANDS = {
         (t.EmberEUI64, t.Bool, t.EmberKeyData),
         (t.EmberStatus,),
     ),
+    "sendTrustCenterLinkKey": (0x67, (t.EmberNodeId, t.EmberEUI64), (t.EmberStatus,)),
     "eraseKeyTableEntry": (0x76, (t.uint8_t,), (t.EmberStatus,)),
     "clearKeyTable": (0xB1, (), (t.EmberStatus,)),
     "requestLinkKey": (0x14, (t.EmberEUI64,), (t.EmberStatus,)),
@@ -430,7 +431,7 @@ COMMANDS = {
         (t.EmberStatus,),
     ),
     "zllStartScan": (0xB4, (t.Channels, t.int8s, t.EmberNodeType), (t.EmberStatus,)),
-    "zllSetRxOnWhenIdle": (0xB5, (t.uint16_t,), (t.EmberStatus,)),
+    "zllSetRxOnWhenIdle": (0xB5, (t.uint32_t,), (t.EmberStatus,)),
     "zllNetworkFoundHandler": (
         0xB6,
         (),
