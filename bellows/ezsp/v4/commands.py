@@ -41,7 +41,6 @@ COMMANDS = {
     "setGpioRadioPowerMask": (0xAE, (t.uint32_t,), ()),
     "setCtune": (0xF5, (t.uint16_t,), ()),
     "getCtune": (0xF6, (), (t.uint16_t,)),
-    "setChannelMap": (0xF7, (t.uint8_t, t.uint8_t), ()),
     # 5. Utilities Frames
     "nop": (0x05, (), ()),
     "echo": (0x81, (t.LVBytes,), (t.LVBytes,)),
