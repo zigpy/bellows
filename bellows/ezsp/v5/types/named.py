@@ -224,6 +224,11 @@ class EzspConfigId(basic.uint8_t, enum.Enum):
     # again on the trust center. The default value is 300 seconds, i.e., 5
     # minutes.
     CONFIG_TRANSIENT_KEY_TIMEOUT_S = 0x36
+    # Whether the NCP has updated Green Power support. Both host and NCP software must
+    # be updated to fully support Green Power Proxy Basic functionality. The 5.10.1 host
+    # software calls new EZSP functions for Green Power.  If this configuration value is
+    # not present, the host will not call the new functions.
+    EZSP_CONFIG_GREEN_POWER_ACTIVE = 0x37
 
 
 class EzspValueId(basic.uint8_t, enum.Enum):
@@ -293,12 +298,12 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     VALUE_RESET_COUNTER_THRESHOLDS = 0x18
     # Clears all the counters
     VALUE_CLEAR_COUNTERS = 0x19
-    # The device RF4CE base channel
-    VALUE_RF4CE_BASE_CHANNEL = 0x1A
-    # The RF4CE device types supported by the node
-    VALUE_RF4CE_SUPPORTED_DEVICE_TYPES_LIST = 0x1B
-    # The RF4CE profiles supported by the node
-    VALUE_RF4CE_SUPPORTED_PROFILES_LIST = 0x1C
+    # The node's new certificate signed by the CA.
+    EZSP_VALUE_CERTIFICATE_283K1 = 0x1A
+    # The Certificate Authority's public key.
+    EZSP_VALUE_PUBLIC_KEY_283K1 = 0x1B
+    # The node's new static private key.
+    EZSP_VALUE_PRIVATE_KEY_283K1 = 0x1C
     # The GDP binding recipient parameters
     VALUE_RF4CE_GDP_BINDING_RECIPIENT_PARAMETERS = 0x1D
     # The GDP binding push button stimulus received pending flag
@@ -318,11 +323,11 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     # Sets the device type to use on the next rejoin using device type
     VALUE_RETRY_DEVICE_TYPE = 0x25
     # The device RF4CE base channel
-    VALUE_RF4CE_BASE_CHANNEL2 = 0x26
+    VALUE_RF4CE_BASE_CHANNEL = 0x26
     # The RF4CE device types supported by the node
-    VALUE_RF4CE_SUPPORTED_DEVICE_TYPES_LIST2 = 0x27
+    VALUE_RF4CE_SUPPORTED_DEVICE_TYPES_LIST = 0x27
     # The RF4CE profiles supported by the node
-    VALUE_RF4CE_SUPPORTED_PROFILES_LIST2 = 0x28
+    VALUE_RF4CE_SUPPORTED_PROFILES_LIST = 0x28
     # Setting this byte enables R21 behavior on the NCP.
     VALUE_ENABLE_R21_BEHAVIOR = 0x29
     # Configure the antenna mode(0-primary,1-secondary,2- toggle on tx ack fail).
