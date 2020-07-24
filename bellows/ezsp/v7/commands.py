@@ -296,6 +296,17 @@ COMMANDS = {
         (t.uint8_t, t.EmberMacPassthroughType, t.uint8_t, t.int8s, t.LVBytes),
     ),
     "rawTransmitCompleteHandler": (0x98, (), (t.EmberStatus,)),
+    "setMacPollCcaWaitTime": (0xF4, (t.uint8_t,), ()),
+    "setBeaconClassificationParams": (
+        0xEF,
+        (),
+        (t.EmberStatus, t.EmberBeaconClassificationParams),
+    ),
+    "getBeaconClassificationParams": (
+        0xF3,
+        (),
+        (t.EmberStatus, t.EmberBeaconClassificationParams),
+    ),
     # 9. Security Frames
     "setInitialSecurityState": (0x68, (t.EmberInitialSecurityState,), (t.EmberStatus,)),
     "getCurrentSecurityState": (0x69, (), (t.EmberStatus, t.EmberCurrentSecurityState)),
@@ -492,7 +503,15 @@ COMMANDS = {
     "getZllSecondaryChannelMask": (0xDA, (), (t.Channels,)),
     "setZllPrimaryChannelMask": (0xDB, (t.Channels,), ()),
     "setZllSecondaryChannelMask": (0xDC, (t.Channels,), ()),
-    # 15 Green Power Frames
+    "zllClearTokens": (0x25, (), ()),
+    # 15 WWAH Frames
+    "setParentClassificationEnabled": (0xE7, (t.Bool,), ()),
+    "getParentClassificationEnabled": (0xF0, (), (t.Bool,)),
+    "setLongUpTime": (0xE3, (t.Bool,), ()),
+    "setHubConnectivity": (0xE4, (t.Bool,), ()),
+    "isUpTimeLong": (0xE5, (), (t.Bool,)),
+    "isHubConnected": (0xE6, (), (t.Bool,)),
+    # 16 Green Power Frames
     "gpProxyTableProcessGpPairing": (
         0xC9,
         (
@@ -551,7 +570,8 @@ COMMANDS = {
     ),
     "gpSinkTableRemoveEntry": (0xE0, (t.uint8_t,), ()),
     "gpSinkTableFindOrAllocateEntry": (0xE1, (t.EmberGpAddress,), (t.uint8_t,)),
-    "gpClearSinkTable": (0xE2, (), ()),
+    "gpSinkTableClearAll": (0xE2, (), ()),
+    "gpSinkTableInit": (0x70, (), ()),
     # 16 Secure EZSP Frames
     "setSecurityKey": (
         0xCA,

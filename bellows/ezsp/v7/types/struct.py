@@ -27,6 +27,17 @@ from bellows.types.struct import (  # noqa: F401
 from . import named
 
 
+class EmberBeaconClassificationParams(EzspStruct):
+    """The parameters related to beacon prioritization."""
+
+    # The minimum RSSI value for receiving packets that is used in some beacon
+    # prioritization algorithms.
+    minRssiForReceivingPkts: basic.int8s
+    # The beacon classification mask that identifies which beacon prioritization
+    # algorithm to pick and defines the relevant parameters.
+    beaconClassificationMask: basic.uint16_t
+
+
 class EmberKeyStruct(EzspStruct):
     # A structure containing a key and its associated data.
     # A bitmask indicating the presence of data within the various fields
