@@ -351,7 +351,7 @@ class EmberMulticastTableEntry(EzspStruct):
 
 
 class EmberTransientKeyData(EzspStruct):
-    # The transient key data structure
+    # The transient key data structure. Added in ver. 5
     # The IEEE address paired with the transient link key.
     eui64: named.EmberEUI64
     # The key data structure matching the transient key.

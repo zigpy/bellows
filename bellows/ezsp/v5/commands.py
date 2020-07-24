@@ -1,4 +1,4 @@
-import bellows.ezsp.v4.types as t
+import bellows.ezsp.v5.types as t
 
 COMMANDS = {
     # 4. Configuration frames
@@ -628,4 +628,16 @@ COMMANDS = {
             t.LVBytes,
         ),
     ),
+    "setSecurityKey": (
+        0xCA,
+        (t.EmberKeyData, t.SecureEzspSecurityType),
+        (t.EzspStatus,),
+    ),
+    "setSecurityParameters": (
+        0xCB,
+        (t.SecureEzspSecurityLevel, t.SecureEzspRandomNumber),
+        (t.EzspStatus, t.SecureEzspRandomNumber),
+    ),
+    "resetToFactoryDefaults": (0xCC, (), (t.EzspStatus,)),
+    "getSecurityKeyStatus": (0xCD, (), (t.EzspStatus, t.SecureEzspSecurityType)),
 }
