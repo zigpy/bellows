@@ -222,7 +222,6 @@ COMMANDS = {
         (),
         (t.EmberNodeId, t.EmberEUI64, t.uint8_t, t.int8s, t.LVList(t.EmberNodeId)),
     ),
-    "changeSourceRouteHandler": (0xC4, (), (t.EmberNodeId, t.EmberNodeId, t.Bool)),
     "setSourceRoute": (
         0x5A,
         (t.EmberNodeId, t.LVList(t.EmberNodeId)),
