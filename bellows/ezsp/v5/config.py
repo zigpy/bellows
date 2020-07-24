@@ -1,8 +1,4 @@
-from . import types
 from ..v4 import config as v4_config
-
-c = types.EzspConfigId
-zdo_flags = types.EmberZdoConfigurationFlags
 
 _deletions = (
     "EZSP_CONFIG_BROADCAST_ALARM_DATA_SIZE",
