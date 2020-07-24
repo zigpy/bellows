@@ -101,12 +101,6 @@ class EzspConfigId(basic.uint8_t, enum.Enum):
     # polls. If no poll is heard within this timeout, then the parent removes
     # the end device from its tables.
     CONFIG_END_DEVICE_POLL_TIMEOUT = 0x13
-    # The maximum amount of time that a mobile node can wait between polls. If
-    # no poll is heard within this timeout, then the parent removes the mobile
-    # node from its tables.
-    CONFIG_MOBILE_NODE_POLL_TIMEOUT = 0x14
-    # The number of child table entries reserved for use only by mobile nodes.
-    CONFIG_RESERVED_MOBILE_CHILD_ENTRIES = 0x15
     # Enables boost power mode and/or the alternate transmitter output.
     CONFIG_TX_POWER_MODE = 0x17
     # 0: Allow this node to relay messages. 1: Prevent this node from relaying
@@ -186,12 +180,6 @@ class EzspConfigId(basic.uint8_t, enum.Enum):
     CONFIG_ZLL_GROUP_ADDRESSES = 0x2F
     # ZLL rssi threshold initial configuration.
     CONFIG_ZLL_RSSI_THRESHOLD = 0x30
-    # The maximum number of pairings supported by the stack. Controllers
-    # must support at least one pairing table entry while targets must
-    # support at least five.
-    CONFIG_RF4CE_PAIRING_TABLE_SIZE = 0x31
-    # The maximum number of outgoing RF4CE packets supported by the stack.
-    CONFIG_RF4CE_PENDING_OUTGOING_PACKET_TABLE_SIZE = 0x32
     # Toggles the mtorr flow control in the stack.
     # The maximum number of pairings supported by the stack. Controllers
     # must support at least one pairing table entry while targets must
@@ -209,11 +197,9 @@ class EzspConfigId(basic.uint8_t, enum.Enum):
     # again on the trust center. The default value is 300 seconds, i.e., 5
     # minutes.
     CONFIG_TRANSIENT_KEY_TIMEOUT_S = 0x36
-    # Whether the NCP has updated Green Power support. Both host and NCP software must
-    # be updated to fully support Green Power Proxy Basic functionality. The 5.10.1 host
-    # software calls new EZSP functions for Green Power.  If this configuration value is
-    # not present, the host will not call the new functions.
-    EZSP_CONFIG_GREEN_POWER_ACTIVE = 0x37
+    # The number of passive acknowledgements to record from neighbors before we stop
+    # re-transmitting broadcasts
+    EZSP_CONFIG_BROADCAST_MIN_ACKS_NEEDED = 0x37
     # The length of time, in seconds, that a trust center will allow a Trust Center
     # (insecure) rejoin for a device that is using the well-known link key. This timeout
     # takes effect once rejoins using the well-known key has been allowed. This command
@@ -637,6 +623,15 @@ class EmberDutyCycleState(basic.uint8_t, enum.Enum):
     EMBER_DUTY_CYCLE_LBT_CRITICAL_THRESHOLD_REACHED = 3
     # We have reached the suspend limit and are blocking all outbound transmissions.
     EMBER_DUTY_CYCLE_LBT_SUSPEND_LIMIT_REACHED = 4
+
+
+class EmberRadioPowerMode(basic.uint8_t, enum.Enum):
+    """Radio power mode."""
+
+    # The radio receiver is switched on.
+    EMBER_RADIO_POWER_MODE_RX_ON = 0
+    # The radio receiver is switched off.
+    EMBER_RADIO_POWER_MODE_OFF = 1
 
 
 class EmberDutyCycleHectoPct(basic.uint16_t):
