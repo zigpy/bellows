@@ -318,6 +318,8 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     # power value provided by user while forming/joining a network for packet
     # transmissions on subghz interface. This is mainly for testing purposes.
     EZSP_VALUE_USE_NEGOTIATED_POWER_BY_LPD = 0x34
+    # Set packet traffic arbitration configuration PWM options.
+    EZSP_VALUE_PTA_PWM_OPTIONS = 0x35
 
 
 class EzspPolicyId(basic.uint8_t, enum.Enum):
@@ -386,6 +388,10 @@ class EzspDecisionId(basic.uint8_t, enum.Enum):
     DISALLOW_ALL_JOINS_AND_REJOINS = 0x03
     # Take no action on trust center rejoin attempts.
     IGNORE_TRUST_CENTER_REJOINS = 0x05
+    # Admit joins only if there is an entry in the transient key table. This corresponds
+    # to the Base Device Behavior specification where a Trust Center enforces all
+    # devices to join with an install code-derived link key.
+    EZSP_BDB_JOIN_USES_INSTALL_CODE_KEY = 0x06
     # BINDING_MODIFICATION_POLICY default decision. Do not allow the local
     # binding table to be changed by remote nodes.
     DISALLOW_BINDING_MODIFICATION = 0x10
@@ -647,6 +653,10 @@ class EmberGpProxyTableEntryStatus(basic.uint8_t):
 
 class EmberGpSecurityFrameCounter(basic.uint32_t):
     """The security frame counter"""
+
+
+class EmberGpSinkTableEntryStatus(basic.uint8_t):
+    """The sink table entry status."""
 
 
 class SecureEzspSecurityType(basic.uint32_t):

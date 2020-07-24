@@ -486,6 +486,12 @@ COMMANDS = {
     "zllSetRadioIdleMode": (0xD4, (t.EmberRadioPowerMode,), ()),
     "setZllNodeType": (0xD5, (t.EmberNodeType,), ()),
     "setZllAdditionalState": (0xD6, (t.uint16_t,), ()),
+    "zllOperationInProgress": (0xD7, (), (t.Bool,)),
+    "zllRxOnWhenIdleGetActive": (0xD8, (), (t.Bool,)),
+    "getZllPrimaryChannelMask": (0xD9, (), (t.Channels,)),
+    "getZllSecondaryChannelMask": (0xDA, (), (t.Channels,)),
+    "setZllPrimaryChannelMask": (0xDB, (t.Channels,), ()),
+    "setZllSecondaryChannelMask": (0xDC, (t.Channels,), ()),
     # 15 Green Power Frames
     "gpProxyTableProcessGpPairing": (
         0xC9,
@@ -526,6 +532,27 @@ COMMANDS = {
             t.LVBytes,
         ),
     ),
+    "gpProxyTableGetEntry": (
+        0xC8,
+        (t.uint8_t,),
+        (t.EmberStatus, t.EmberGpProxyTableEntry),
+    ),
+    "gpProxyTableLookup": (0xC0, (t.EmberGpAddress,), (t.uint8_t,)),
+    "gpSinkTableGetEntry": (
+        0xDD,
+        (t.uint8_t,),
+        (t.EmberStatus, t.EmberGpSinkTableEntry),
+    ),
+    "gpSinkTableLookup": (0xDE, (t.EmberGpAddress,), (t.uint8_t)),
+    "gpSinkTableSetEntry": (
+        0xDF,
+        (t.uint8_t, t.EmberGpSinkTableEntry),
+        (t.EmberStatus,),
+    ),
+    "gpSinkTableRemoveEntry": (0xE0, (t.uint8_t,), ()),
+    "gpSinkTableFindOrAllocateEntry": (0xE1, (t.EmberGpAddress,), (t.uint8_t)),
+    "gpClearSinkTable": (0xE2, (), ()),
+    # 16 Secure EZSP Frames
     "setSecurityKey": (
         0xCA,
         (t.EmberKeyData, t.SecureEzspSecurityType),

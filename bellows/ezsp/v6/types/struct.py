@@ -56,6 +56,60 @@ class EmberGpSinkListEntry(EzspStruct):
     sinkNodeId: named.EmberNodeId
 
 
+class EmberGpProxyTableEntry(EzspStruct):
+    """The internal representation of a proxy table entry."""
+
+    # The link key to be used to secure this pairing link.
+    securityLinkKey: named.EmberKeyData
+    # Internal status of the proxy table entry.
+    status: named.EmberGpProxyTableEntryStatus
+    # The tunneling options
+    # (this contains both options and extendedOptions from the spec).
+    options: basic.uint32_t
+    # The addressing info of the GPD.
+    gpd: EmberGpAddress
+    # The assigned alias for the GPD.
+    assignedAlias: named.EmberNodeId
+    # The security options field.
+    securityOptions: basic.uint8_t
+    # The security frame counter of the GPD.
+    gpdSecurityFrameCounter: named.EmberGpSecurityFrameCounter
+    # The key to use for GPD.
+    gpdKey: named.EmberKeyData
+    # The list of sinks (hardcoded to 2 which is the spec minimum).
+    sinkList: basic.fixed_list(2, EmberGpSinkListEntry)
+    # The groupcast radius.
+    groupcastRadius: basic.uint8_t
+    # The search counter
+    searchCounter: basic.uint8_t
+
+
+class EmberGpSinkTableEntry(EzspStruct):
+    """The internal representation of a sink table entry."""
+
+    # Internal status of the sink table entry
+    status: named.EmberGpSinkTableEntryStatus
+    # The tunneling options
+    # (this contains both options and extendedOptions from the spec).
+    options: basic.uint32_t
+    # The addressing info of the GPD.
+    gpd: EmberGpAddress
+    # The device id for the GPD.
+    deviceId: basic.uint8_t
+    # The list of sinks (hardcoded to 2 which is the spec minimum).
+    sinkList: basic.fixed_list(2, EmberGpSinkListEntry)
+    # The assigned alias for the GPD.
+    assignedAlias: named.EmberNodeId
+    # The groupcast radius.
+    groupcastRadius: basic.uint8_t
+    # The security options field.
+    securityOptions: basic.uint8_t
+    # The security frame counter of the GPD.
+    gpdSecurityFrameCounter: named.EmberGpSecurityFrameCounter
+    # The key to use for GPD.
+    gpdKey: named.EmberKeyData
+
+
 class EmberDutyCycleLimits(EzspStruct):
     """A structure containing duty cycle limit configurations.
 
