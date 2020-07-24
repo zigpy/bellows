@@ -51,10 +51,6 @@ EZSP_SCHEMA = {
     vol.Optional(c.CONFIG_ROUTE_TABLE_SIZE.name): vol.All(
         int, vol.Range(min=0, max=255)
     ),
-    # The units used for timing out end devices on their parent
-    vol.Optional(c.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT.name, default=8): vol.All(
-        int, vol.Range(min=0, max=10)
-    ),
     #
     # The number of simultaneous route discoveries that a node will support
     vol.Optional(c.CONFIG_DISCOVERY_TABLE_SIZE.name): vol.All(
@@ -141,6 +137,10 @@ EZSP_SCHEMA = {
     # The size of the source route table
     vol.Optional(c.CONFIG_SOURCE_ROUTE_TABLE_SIZE.name, default=16): vol.All(
         int, vol.Range(min=0)
+    ),
+    # The units used for timing out end devices on their parent
+    vol.Optional(c.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT.name, default=8): vol.All(
+        int, vol.Range(min=0, max=10)
     ),
     #
     # The number of blocks of a fragmented message that can be sent in a single
