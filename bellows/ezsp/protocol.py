@@ -45,12 +45,24 @@ class ProtocolHandler(abc.ABC):
         """Handler for received data frame."""
 
     @abc.abstractmethod
-    def _ezsp_frame_tx(self, command_id: int) -> bytes:
+    def _ezsp_frame_tx(self, name: str) -> bytes:
         """Serialize the named frame."""
 
-    @abc.abstractmethod
     async def initialize(self, ezsp_config: Dict) -> None:
         """Initialize EmberZNet Stack."""
+
+        ezsp_config = self.SCHEMA(ezsp_config)
+        for config, value in ezsp_config.items():
+            if config in (self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name,):
+                # we want to set these last
+                continue
+            await self._cfg(self.types.EzspConfigId[config], value)
+
+        c = self.types.EzspConfigId
+        await self._cfg(
+            self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT,
+            ezsp_config[c.CONFIG_PACKET_BUFFER_COUNT.name],
+        )
 
     def command(self, name, *args) -> asyncio.Future:
         """Serialize command and send it."""
@@ -63,7 +75,7 @@ class ProtocolHandler(abc.ABC):
         self._seq = (self._seq + 1) % 256
         return asyncio.wait_for(future, timeout=EZSP_CMD_TIMEOUT)
 
-    async def update_policies(self, ezsp_config: dict) -> None:
+    async def update_policies(self, zigpy_config: dict) -> None:
         """Set up the policies for what the NCP should do."""
 
         v = await self.setPolicy(
