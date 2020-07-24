@@ -1,8 +1,6 @@
 """"EZSP Protocol version 4 command."""
-import asyncio
-import binascii
 import logging
-from typing import Any, Dict, Tuple
+from typing import Dict, Tuple
 
 from . import commands, config as v4_config, types as v4_types
 from .. import protocol
@@ -18,12 +16,14 @@ class EZSPv4(protocol.ProtocolHandler):
     SCHEMA = v4_config.EZSP_SCHEMA
     types = v4_types
 
-    def _ezsp_frame(self, name: str, *args: Tuple[Any, ...]) -> bytes:
-        """Serialize the named frame and data."""
+    def _ezsp_frame_tx(self, name: str) -> bytes:
+        """Serialize the frame id."""
         c = self.COMMANDS[name]
-        frame = bytes([self._seq & 0xFF, 0, c[0]])  # Frame control. TODO.  # Frame ID
-        data = self.types.serialize(args, c[1])
-        return frame + data
+        return bytes([self._seq & 0xFF, 0, c[0]])  # Frame control. TODO.  # Frame ID
+
+    def _ezsp_frame_rx(self, data: bytes) -> Tuple[int, int, bytes]:
+        """Handler for received data frame."""
+        return data[0], data[2], data[3:]
 
     async def initialize(self, ezsp_config: Dict) -> None:
         """Initialize EmberZNet per passed configuration."""
@@ -42,32 +42,3 @@ class EZSPv4(protocol.ProtocolHandler):
             self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT,
             ezsp_config[c.CONFIG_PACKET_BUFFER_COUNT.name],
         )
-
-    def __call__(self, data: bytes) -> None:
-        """Handler for received data frame."""
-        sequence, frame_id, data = data[0], data[2], data[3:]
-        frame_name = self.COMMANDS_BY_ID[frame_id][0]
-        LOGGER.debug(
-            "Application frame %s (%s) received: %s",
-            frame_id,
-            frame_name,
-            binascii.hexlify(data),
-        )
-
-        if sequence in self._awaiting:
-            expected_id, schema, future = self._awaiting.pop(sequence)
-            assert expected_id == frame_id
-            result, data = self.types.deserialize(data, schema)
-            try:
-                future.set_result(result)
-            except asyncio.InvalidStateError:
-                LOGGER.debug(
-                    "Error processing %s response. %s command timed out?",
-                    sequence,
-                    self.COMMANDS_BY_ID.get(expected_id, [expected_id])[0],
-                )
-        else:
-            schema = self.COMMANDS_BY_ID[frame_id][2]
-            frame_name = self.COMMANDS_BY_ID[frame_id][0]
-            result, data = self.types.deserialize(data, schema)
-            self._handle_callback(frame_name, result)

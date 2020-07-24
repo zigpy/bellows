@@ -1,5 +1,6 @@
 import abc
 import asyncio
+import binascii
 import functools
 import logging
 from typing import Any, Callable, Dict, Tuple
@@ -27,18 +28,25 @@ class ProtocolHandler(abc.ABC):
             for name, (cmd_id, tx_schema, rx_schema) in self.COMMANDS.items()
         }
 
-    @abc.abstractmethod
-    def __call__(self, data: bytes) -> None:
-        """Handler for received data frame."""
-
     async def _cfg(self, config_id: int, value: Any, optional=False) -> None:
         v = await self.setConfigurationValue(config_id, value)
         if not optional:
             assert v[0] == self.types.EmberStatus.SUCCESS  # TODO: Better check
 
-    @abc.abstractmethod
     def _ezsp_frame(self, name: str, *args: Tuple[Any, ...]) -> bytes:
         """Serialize the named frame and data."""
+        c = self.COMMANDS[name]
+        frame = self._ezsp_frame_tx(name)
+        data = self.types.serialize(args, c[1])
+        return frame + data
+
+    @abc.abstractmethod
+    def _ezsp_frame_rx(self, data: bytes) -> Tuple[int, int, bytes]:
+        """Handler for received data frame."""
+
+    @abc.abstractmethod
+    def _ezsp_frame_tx(self, command_id: int) -> bytes:
+        """Serialize the named frame."""
 
     @abc.abstractmethod
     async def initialize(self, ezsp_config: Dict) -> None:
@@ -73,6 +81,35 @@ class ProtocolHandler(abc.ABC):
             self.types.EzspDecisionId.ALLOW_PRECONFIGURED_KEY_JOINS,
         )
         assert v[0] == self.types.EmberStatus.SUCCESS  # TODO: Better check
+
+    def __call__(self, data: bytes) -> None:
+        """Handler for received data frame."""
+        sequence, frame_id, data = self._ezsp_frame_rx(data)
+        frame_name = self.COMMANDS_BY_ID[frame_id][0]
+        LOGGER.debug(
+            "Application frame %s (%s) received: %s",
+            frame_id,
+            frame_name,
+            binascii.hexlify(data),
+        )
+
+        if sequence in self._awaiting:
+            expected_id, schema, future = self._awaiting.pop(sequence)
+            assert expected_id == frame_id
+            result, data = self.types.deserialize(data, schema)
+            try:
+                future.set_result(result)
+            except asyncio.InvalidStateError:
+                LOGGER.debug(
+                    "Error processing %s response. %s command timed out?",
+                    sequence,
+                    self.COMMANDS_BY_ID.get(expected_id, [expected_id])[0],
+                )
+        else:
+            schema = self.COMMANDS_BY_ID[frame_id][2]
+            frame_name = self.COMMANDS_BY_ID[frame_id][0]
+            result, data = self.types.deserialize(data, schema)
+            self._handle_callback(frame_name, result)
 
     def __getattr__(self, name: str) -> Callable:
         if name not in self.COMMANDS:
