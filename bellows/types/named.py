@@ -299,19 +299,19 @@ class EzspStatus(basic.uint8_t, enum.Enum):
     # Sent ASH Ack
     ASH_ACK_SENT = 0x7E
     # Received ASH Nak
-    EZSP_ASH_NAK_RECEIVED = 0x7F
+    ASH_NAK_RECEIVED = 0x7F
     # Sent ASH Nak
-    EZSP_ASH_NAK_SENT = 0x80
+    ASH_NAK_SENT = 0x80
     # Received ASH RST
-    EZSP_ASH_RST_RECEIVED = 0x81
+    ASH_RST_RECEIVED = 0x81
     # Sent ASH RST
-    EZSP_ASH_RST_SENT = 0x82
+    ASH_RST_SENT = 0x82
     # ASH Status
-    EZSP_ASH_STATUS = 0x83
+    ASH_STATUS = 0x83
     # ASH TX
-    EZSP_ASH_TX = 0x84
+    ASH_TX = 0x84
     # ASH RX
-    EZSP_ASH_RX = 0x85
+    ASH_RX = 0x85
     # No reset or error
     NO_ERROR = 0xFF
 
