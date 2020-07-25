@@ -18,11 +18,11 @@ EZSP_SCHEMA = {
     vol.Optional(EzspConfigId.CONFIG_NEW_BROADCAST_ENTRY_THRESHOLD.name): vol.All(
         int, vol.Range(min=0)
     ),
-    vol.Optional(EzspConfigId.EZSP_CONFIG_BROADCAST_MIN_ACKS_NEEDED.name): vol.All(
+    vol.Optional(EzspConfigId.CONFIG_BROADCAST_MIN_ACKS_NEEDED.name): vol.All(
         int, vol.Range(min=0)
     ),
     vol.Optional(
-        EzspConfigId.EZSP_CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S.name
+        EzspConfigId.CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S.name
     ): vol.All(int, vol.Range(min=0)),
 }
 

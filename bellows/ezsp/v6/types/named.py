@@ -199,12 +199,12 @@ class EzspConfigId(basic.uint8_t, enum.Enum):
     CONFIG_TRANSIENT_KEY_TIMEOUT_S = 0x36
     # The number of passive acknowledgements to record from neighbors before we stop
     # re-transmitting broadcasts
-    EZSP_CONFIG_BROADCAST_MIN_ACKS_NEEDED = 0x37
+    CONFIG_BROADCAST_MIN_ACKS_NEEDED = 0x37
     # The length of time, in seconds, that a trust center will allow a Trust Center
     # (insecure) rejoin for a device that is using the well-known link key. This timeout
     # takes effect once rejoins using the well-known key has been allowed. This command
     # updates the emAllowTcRejoinsUsingWellKnownKeyTimeoutSec value.
-    EZSP_CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S = 0x38
+    CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S = 0x38
 
 
 class EzspValueId(basic.uint8_t, enum.Enum):
@@ -267,7 +267,7 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     # CCA energy detect threshold for radio.
     VALUE_CCA_THRESHOLD = 0x15
     # The RF4CE discovery LQI threshold parameter.
-    EZSP_VALUE_RF4CE_DISCOVERY_LQI_THRESHOLD = 0x16
+    VALUE_RF4CE_DISCOVERY_LQI_THRESHOLD = 0x16
     # The threshold value for a counter
     VALUE_SET_COUNTER_THRESHOLD = 0x17
     # Resets all counters thresholds to 0xFF
@@ -275,11 +275,11 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     # Clears all the counters
     VALUE_CLEAR_COUNTERS = 0x19
     # The node's new certificate signed by the CA.
-    EZSP_VALUE_CERTIFICATE_283K1 = 0x1A
+    VALUE_CERTIFICATE_283K1 = 0x1A
     # The Certificate Authority's public key.
-    EZSP_VALUE_PUBLIC_KEY_283K1 = 0x1B
+    VALUE_PUBLIC_KEY_283K1 = 0x1B
     # The node's new static private key.
-    EZSP_VALUE_PRIVATE_KEY_283K1 = 0x1C
+    VALUE_PRIVATE_KEY_283K1 = 0x1C
     # The NWK layer security frame counter value
     VALUE_NWK_FRAME_COUNTER = 0x23
     # The APS layer security frame counter value
@@ -291,21 +291,21 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     # Configure the antenna mode(0-primary,1-secondary,2- toggle on tx ack fail).
     VALUE_ANTENNA_MODE = 0x30
     # Enable or disable packet traffic arbitration.
-    EZSP_VALUE_ENABLE_PTA = 0x31
+    VALUE_ENABLE_PTA = 0x31
     # Set packet traffic arbitration configuration options.
-    EZSP_VALUE_PTA_OPTIONS = 0x32
+    VALUE_PTA_OPTIONS = 0x32
     # Configure manufacturing library options(0-non-CSMA transmits,1-CSMA transmits).
-    EZSP_VALUE_MFGLIB_OPTIONS = 0x33
+    VALUE_MFGLIB_OPTIONS = 0x33
     # Sets the flag to use either negotiated power by link power delta (LPD) or fixed
     # power value provided by user while forming/joining a network for packet
     # transmissions on subghz interface. This is mainly for testing purposes.
-    EZSP_VALUE_USE_NEGOTIATED_POWER_BY_LPD = 0x34
+    VALUE_USE_NEGOTIATED_POWER_BY_LPD = 0x34
     # Set packet traffic arbitration configuration PWM options.
-    EZSP_VALUE_PTA_PWM_OPTIONS = 0x35
+    VALUE_PTA_PWM_OPTIONS = 0x35
     # Set the mask to filter out unacceptable child timeout options on a router.
-    EZSP_VALUE_END_DEVICE_TIMEOUT_OPTIONS_MASK = 0x36
+    VALUE_END_DEVICE_TIMEOUT_OPTIONS_MASK = 0x36
     # The end device keep alive mode supported by the parent.
-    EZSP_VALUE_END_DEVICE_KEEP_ALIVE_SUPPORT_MODE = 0x37
+    VALUE_END_DEVICE_KEEP_ALIVE_SUPPORT_MODE = 0x37
 
 
 class EzspPolicyId(basic.uint8_t, enum.Enum):
@@ -336,7 +336,7 @@ class EzspPolicyId(basic.uint8_t, enum.Enum):
     # Controls whether Trust Center (insecure) rejoins for devices using the well-known
     # link key are accepted. If rejoining using the well-known key is allowed, it is
     # disabled again after emAllowTcRejoinsUsingWellKnownKeyTimeoutSec seconds.
-    EZSP_TC_REJOINS_USING_WELL_KNOWN_KEY_POLICY = 0x09
+    TC_REJOINS_USING_WELL_KNOWN_KEY_POLICY = 0x09
 
 
 class EzspDecisionId(basic.uint8_t, enum.Enum):
@@ -367,7 +367,7 @@ class EzspDecisionId(basic.uint8_t, enum.Enum):
     # Admit joins only if there is an entry in the transient key table. This corresponds
     # to the Base Device Behavior specification where a Trust Center enforces all
     # devices to join with an install code-derived link key.
-    EZSP_BDB_JOIN_USES_INSTALL_CODE_KEY = 0x06
+    BDB_JOIN_USES_INSTALL_CODE_KEY = 0x06
     # BINDING_MODIFICATION_POLICY default decision. Do not allow the local
     # binding table to be changed by remote nodes.
     DISALLOW_BINDING_MODIFICATION = 0x10
@@ -533,17 +533,15 @@ class EmberCounterType(basic.uint8_t, enum.Enum):
     # The number of low priority packet traffic arbitration requests.
     COUNTER_PTA_LO_PRI_REQUESTED = 34
     # The number of high priority packet traffic arbitration requests.
-    EMBER_COUNTER_PTA_HI_PRI_REQUESTED = 35
+    COUNTER_PTA_HI_PRI_REQUESTED = 35
     # The number of low priority packet traffic arbitration requests denied.
-    EMBER_COUNTER_PTA_LO_PRI_DENIED = 36
+    COUNTER_PTA_LO_PRI_DENIED = 36
     # The number of high priority packet traffic arbitration requests denied.
-    EMBER_COUNTER_PTA_HI_PRI_DENIED = 37
+    COUNTER_PTA_HI_PRI_DENIED = 37
     # The number of aborted low priority packet traffic arbitration transmissions.
-    EMBER_COUNTER_PTA_LO_PRI_TX_ABORTED = 38
+    COUNTER_PTA_LO_PRI_TX_ABORTED = 38
     # The number of aborted high priority packet traffic arbitration transmissions.
-    EMBER_COUNTER_PTA_HI_PRI_TX_ABORTED = 39
-    # A placeholder giving the number of Ember counter types.
-    EMBER_COUNTER_TYPE_COUNT = 40
+    COUNTER_PTA_HI_PRI_TX_ABORTED = 39
 
 
 class EmberNetworkInitBitmask(basic.bitmap16):
@@ -563,31 +561,31 @@ class EmberMultiPhyNwkConfig(basic.uint8_t, enum.Enum):
     """Network configuration for the desired radio interface for multi phy network."""
 
     # Enable broadcast support on Routers
-    EMBER_BROADCAST_SUPPORT = 0x01
+    BROADCAST_SUPPORT = 0x01
 
 
 class EmberDutyCycleState(basic.uint8_t, enum.Enum):
     """Duty cycle states."""
 
     # No Duty cycle tracking or metrics are taking place
-    EMBER_DUTY_CYCLE_TRACKING_OFF = 0
+    DUTY_CYCLE_TRACKING_OFF = 0
     # Duty Cycle is tracked and has not exceeded any thresholds.
-    EMBER_DUTY_CYCLE_LBT_NORMAL = 1
+    DUTY_CYCLE_LBT_NORMAL = 1
     # We have exceeded the limited threshold of our total duty cycle allotment.
-    EMBER_DUTY_CYCLE_LBT_LIMITED_THRESHOLD_REACHED = 2
+    DUTY_CYCLE_LBT_LIMITED_THRESHOLD_REACHED = 2
     # We have exceeded the critical threshold of our total duty cycle allotment.
-    EMBER_DUTY_CYCLE_LBT_CRITICAL_THRESHOLD_REACHED = 3
+    DUTY_CYCLE_LBT_CRITICAL_THRESHOLD_REACHED = 3
     # We have reached the suspend limit and are blocking all outbound transmissions.
-    EMBER_DUTY_CYCLE_LBT_SUSPEND_LIMIT_REACHED = 4
+    DUTY_CYCLE_LBT_SUSPEND_LIMIT_REACHED = 4
 
 
 class EmberRadioPowerMode(basic.uint8_t, enum.Enum):
     """Radio power mode."""
 
     # The radio receiver is switched on.
-    EMBER_RADIO_POWER_MODE_RX_ON = 0
+    RADIO_POWER_MODE_RX_ON = 0
     # The radio receiver is switched off.
-    EMBER_RADIO_POWER_MODE_OFF = 1
+    RADIO_POWER_MODE_OFF = 1
 
 
 class EmberDutyCycleHectoPct(basic.uint16_t):
