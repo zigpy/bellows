@@ -103,7 +103,7 @@ class EmberConfigTxPowerMode(basic.uint16_t, enum.Enum):
     # boost mode and the alternate transmitter output.
     TX_POWER_MODE_ALTERNATE = 0x02
     # Enable both boost mode and the alternate transmitter output.
-    EMBER_TX_POWER_MODE_BOOST_AND_ALTERNATE = 0x03
+    TX_POWER_MODE_BOOST_AND_ALTERNATE = 0x03
 
 
 class EzspMfgTokenId(basic.uint8_t, enum.Enum):
@@ -494,7 +494,7 @@ class EmberStatus(basic.uint8_t, enum.Enum):
     PHY_TX_BUSY = 0x8C
     # The transmit attempt failed because all CCA attempts indicated that the channel
     # was busy
-    EMBER_PHY_TX_CCA_FAIL = 0x8D
+    PHY_TX_CCA_FAIL = 0x8D
     # The software installed on the hardware doesn't recognize the hardware
     # radio type.
     PHY_OSCILLATOR_CHECK_FAILED = 0x8E
@@ -563,7 +563,7 @@ class EmberStatus(basic.uint8_t, enum.Enum):
     APS_ENCRYPTION_ERROR = 0xA6
     # There was an attempt to form a network using commercial security without setting
     # the Trust Center master key first.
-    EMBER_TRUST_CENTER_MASTER_KEY_NOT_SET = 0xA7
+    TRUST_CENTER_MASTER_KEY_NOT_SET = 0xA7
     # There was an attempt to form or join a network with security without
     # calling emberSetInitialSecurityState() first.
     SECURITY_STATE_NOT_SET = 0xA8
@@ -678,7 +678,7 @@ class EmberEventUnits(basic.uint8_t, enum.Enum):
     # The execution time is in 'binary' minutes (65536 approximate milliseconds each).
     EVENT_MINUTE_TIME = 0x03
     # The event is scheduled to run at the earliest opportunity.
-    EMBER_EVENT_ZERO_DELAY = 0x04
+    EVENT_ZERO_DELAY = 0x04
 
 
 class EmberNodeType(basic.uint8_t, enum.Enum):
@@ -897,7 +897,7 @@ class EmberInitialSecurityBitmask(basic.bitmap16):
     # using a trust center, and without sending any messages, this bit must be set and
     # the field ::EmberInitialSecurityState::preconfiguredTrustCenterEui64 must be
     # populated with the appropriate EUI64.
-    EMBER_HAVE_TRUST_CENTER_EUI64 = (0x0040,)
+    HAVE_TRUST_CENTER_EUI64 = (0x0040,)
     # This denotes that the preconfiguredKey is not the actual Link Key but a
     # Secret Key known only to the Trust Center.  It is hashed with the IEEE
     # Address of the destination device in order to create the actual Link Key
