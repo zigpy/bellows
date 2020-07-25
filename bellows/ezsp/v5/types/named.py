@@ -228,7 +228,7 @@ class EzspConfigId(basic.uint8_t, enum.Enum):
     # be updated to fully support Green Power Proxy Basic functionality. The 5.10.1 host
     # software calls new EZSP functions for Green Power.  If this configuration value is
     # not present, the host will not call the new functions.
-    EZSP_CONFIG_GREEN_POWER_ACTIVE = 0x37
+    CONFIG_GREEN_POWER_ACTIVE = 0x37
 
 
 class EzspValueId(basic.uint8_t, enum.Enum):
@@ -291,7 +291,7 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     # CCA energy detect threshold for radio.
     VALUE_CCA_THRESHOLD = 0x15
     # The RF4CE discovery LQI threshold parameter.
-    EZSP_VALUE_RF4CE_DISCOVERY_LQI_THRESHOLD = 0x16
+    VALUE_RF4CE_DISCOVERY_LQI_THRESHOLD = 0x16
     # The threshold value for a counter
     VALUE_SET_COUNTER_THRESHOLD = 0x17
     # Resets all counters thresholds to 0xFF
@@ -299,11 +299,11 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     # Clears all the counters
     VALUE_CLEAR_COUNTERS = 0x19
     # The node's new certificate signed by the CA.
-    EZSP_VALUE_CERTIFICATE_283K1 = 0x1A
+    VALUE_CERTIFICATE_283K1 = 0x1A
     # The Certificate Authority's public key.
-    EZSP_VALUE_PUBLIC_KEY_283K1 = 0x1B
+    VALUE_PUBLIC_KEY_283K1 = 0x1B
     # The node's new static private key.
-    EZSP_VALUE_PRIVATE_KEY_283K1 = 0x1C
+    VALUE_PRIVATE_KEY_283K1 = 0x1C
     # The GDP binding recipient parameters
     VALUE_RF4CE_GDP_BINDING_RECIPIENT_PARAMETERS = 0x1D
     # The GDP binding push button stimulus received pending flag
@@ -333,11 +333,11 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     # Configure the antenna mode(0-primary,1-secondary,2- toggle on tx ack fail).
     VALUE_ANTENNA_MODE = 0x30
     # Enable or disable packet traffic arbitration.
-    EZSP_VALUE_ENABLE_PTA = 0x31
+    VALUE_ENABLE_PTA = 0x31
     # Set packet traffic arbitration configuration options.
-    EZSP_VALUE_PTA_OPTIONS = 0x32
+    VALUE_PTA_OPTIONS = 0x32
     # Configure manufacturing library options(0-non-CSMA transmits,1-CSMA transmits).
-    EZSP_VALUE_MFGLIB_OPTIONS = 0x33
+    VALUE_MFGLIB_OPTIONS = 0x33
 
 
 class EzspPolicyId(basic.uint8_t, enum.Enum):
@@ -371,14 +371,14 @@ class EzspPolicyId(basic.uint8_t, enum.Enum):
     # use standard behavior for the profiles ZRC 1.1 and MSO while it will fall back to
     # the on/off RF4CE policies for other profiles. If this policy is disabled the
     # on/off RF4CE policies are used for all profiles.
-    EZSP_RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_POLICY = 0x09
+    RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_POLICY = 0x09
     # Controls whether the ZigBee RF4CE stack will respond to an incoming discovery
     # request or not.
-    EZSP_RF4CE_DISCOVERY_REQUEST_POLICY = 0x0A
+    RF4CE_DISCOVERY_REQUEST_POLICY = 0x0A
     # Controls the behavior of the ZigBee RF4CE stack discovery process.
-    EZSP_RF4CE_DISCOVERY_POLICY = 0x0B
+    RF4CE_DISCOVERY_POLICY = 0x0B
     # Controls whether the ZigBee RF4CE stack will accept or deny a pair request.
-    EZSP_RF4CE_PAIR_REQUEST_POLICY = 0x0C
+    RF4CE_PAIR_REQUEST_POLICY = 0x0C
 
 
 class EzspDecisionId(basic.uint8_t, enum.Enum):
@@ -455,24 +455,24 @@ class EzspDecisionId(basic.uint8_t, enum.Enum):
     # Indicates that the RF4CE stack during discovery and pairing will use standard
     # profile-dependent behavior for the profiles ZRC 1.1 and MSO, while it will fall
     # back to the on/off policies for any other profile.
-    EZSP_RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_ENABLED = 0x70
+    RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_ENABLED = 0x70
     # Indicates that the RF4CE stack during discovery and pairing will always use the
     # on/off policies.
-    EZSP_RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_DISABLED = 0x71
+    RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_DISABLED = 0x71
     # Indicates that the RF4CE stack will respond to incoming discovery requests.
-    EZSP_RF4CE_DISCOVERY_REQUEST_RESPOND = 0x72
+    RF4CE_DISCOVERY_REQUEST_RESPOND = 0x72
     # Indicates that the RF4CE stack will ignore incoming discovery requests.
-    EZSP_RF4CE_DISCOVERY_REQUEST_IGNORE = 0x73
+    RF4CE_DISCOVERY_REQUEST_IGNORE = 0x73
     # Indicates that the RF4CE stack will perform all the discovery trials the
     # application specified in the ezspRf4ceDiscovery() call.
-    EZSP_RF4CE_DISCOVERY_MAX_DISCOVERY_TRIALS = 0x74
+    RF4CE_DISCOVERY_MAX_DISCOVERY_TRIALS = 0x74
     # Indicates that the RF4CE stack will prematurely stop the discovery process if a
     # matching discovery response is received.
-    EZSP_RF4CE_DISCOVERY_STOP_ON_MATCHING_RESPONSE = 0x75
+    RF4CE_DISCOVERY_STOP_ON_MATCHING_RESPONSE = 0x75
     # Indicates that the RF4CE stack will accept new pairings.
-    EZSP_RF4CE_PAIR_REQUEST_ACCEPT = 0x76
+    RF4CE_PAIR_REQUEST_ACCEPT = 0x76
     # Indicates that the RF4CE stack will NOT accept new pairings.
-    EZSP_RF4CE_PAIR_REQUEST_DENY = 0x77
+    RF4CE_PAIR_REQUEST_DENY = 0x77
 
 
 class EmberKeyType(basic.uint8_t, enum.Enum):
@@ -597,17 +597,15 @@ class EmberCounterType(basic.uint8_t, enum.Enum):
     # The number of low priority packet traffic arbitration requests.
     COUNTER_PTA_LO_PRI_REQUESTED = 34
     # The number of high priority packet traffic arbitration requests.
-    EMBER_COUNTER_PTA_HI_PRI_REQUESTED = 35
+    COUNTER_PTA_HI_PRI_REQUESTED = 35
     # The number of low priority packet traffic arbitration requests denied.
-    EMBER_COUNTER_PTA_LO_PRI_DENIED = 36
+    COUNTER_PTA_LO_PRI_DENIED = 36
     # The number of high priority packet traffic arbitration requests denied.
-    EMBER_COUNTER_PTA_HI_PRI_DENIED = 37
+    COUNTER_PTA_HI_PRI_DENIED = 37
     # The number of aborted low priority packet traffic arbitration transmissions.
-    EMBER_COUNTER_PTA_LO_PRI_TX_ABORTED = 38
+    COUNTER_PTA_LO_PRI_TX_ABORTED = 38
     # The number of aborted high priority packet traffic arbitration transmissions.
-    EMBER_COUNTER_PTA_HI_PRI_TX_ABORTED = 39
-    # A placeholder giving the number of Ember counter types.
-    EMBER_COUNTER_TYPE_COUNT = 40
+    COUNTER_PTA_HI_PRI_TX_ABORTED = 39
 
 
 class EmberNetworkInitBitmask(basic.bitmap16):
