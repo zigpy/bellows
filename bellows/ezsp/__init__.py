@@ -16,9 +16,9 @@ import bellows.types as t
 import bellows.uart
 import serial
 
-from . import v4, v5, v6, v7
+from . import v4, v5, v6, v7, v8
 
-EZSP_LATEST = v7.EZSP_VERSION
+EZSP_LATEST = v8.EZSP_VERSION
 PROBE_TIMEOUT = 3
 LOGGER = logging.getLogger(__name__)
 
@@ -29,6 +29,7 @@ class EZSP:
         v5.EZSP_VERSION: v5.EZSPv5,
         v6.EZSP_VERSION: v6.EZSPv6,
         v7.EZSP_VERSION: v7.EZSPv7,
+        v8.EZSP_VERSION: v8.EZSPv8,
     }
 
     def __init__(self, device_config: Dict):
