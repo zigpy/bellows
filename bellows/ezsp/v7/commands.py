@@ -21,6 +21,7 @@ COMMANDS = {
     ),
     "setPolicy": (0x55, (t.EzspPolicyId, t.EzspDecisionId), (t.EzspStatus,)),
     "getPolicy": (0x56, (t.EzspPolicyId,), (t.EzspStatus, t.EzspDecisionId)),
+    "sendPanIdUpdate": (0x57, (t.EmberPanId,), (t.Bool,)),
     "getValue": (0xAA, (t.EzspValueId,), (t.EzspStatus, t.LVBytes)),
     "getExtendedValue": (
         0x03,
@@ -80,6 +81,8 @@ COMMANDS = {
     "customFrameHandler": (0x54, (), (t.LVBytes,)),
     "getEui64": (0x26, (), (t.EmberEUI64,)),
     "getNodeId": (0x27, (), (t.EmberNodeId,)),
+    "getPhyInterfaceCount": (0xFC, (), (t.uint8_t,)),
+    "getTrueRandomEntropySource": (0x4F, (), (t.EmberEntropySource,)),
     "networkInit": (0x17, (t.EmberNetworkInitStruct,), (t.EmberStatus,)),
     # 6. Networking Frames
     "setManufacturerCode": (0x15, (t.uint16_t,), ()),
@@ -101,6 +104,11 @@ COMMANDS = {
     "joinNetwork": (
         0x1F,
         (t.EmberNodeType, t.EmberNetworkParameters),
+        (t.EmberStatus,),
+    ),
+    "joinNetworkDirectly": (
+        0x3B,
+        (t.EmberNodeType, t.EmberBeaconData, t.int8s, t.Bool),
         (t.EmberStatus,),
     ),
     "leaveNetwork": (0x20, (), (t.EmberStatus,)),
@@ -159,6 +167,27 @@ COMMANDS = {
         (t.EmberDutyCycleLimits,),
         (t.EmberStatus, t.EmberDutyCycleState),
     ),
+    "getDutyCycleLimits": (0x4B, (), (t.EmberStatus, t.EmberDutyCycleLimits)),
+    "getCurrentDutyCycle": (
+        0x4C,
+        (t.uint8_t,),
+        (t.EmberStatus, t.fixed_list(134, t.uint8_t)),
+    ),
+    "dutyCycleHandler": (
+        0x4D,
+        (),
+        (
+            t.uint8_t,
+            t.uint8_t,
+            t.EmberDutyCycleState,
+            t.uint8_t,
+            t.EmberPerDeviceDutyCycle,
+        ),
+    ),
+    "getFirstBeacon": (0x3D, (), (t.EmberStatus, t.EmberBeaconIterator)),
+    "getNextBeacon": (0x04, (), (t.EmberStatus, t.EmberBeaconData)),
+    "getNumStoredBeacons": (0x08, (), (t.uint8_t,)),
+    "clearStoredBeacons": (0x3C, (), ()),
     # 7. Binding Frames
     "clearBindingTable": (0x2A, (), (t.EmberStatus,)),
     "setBinding": (0x2B, (t.uint8_t, t.EmberBindingTableEntry), (t.EmberStatus,)),
@@ -258,6 +287,11 @@ COMMANDS = {
         (t.EmberNodeId, t.EmberEUI64, t.uint8_t),
     ),
     "incomingRouteErrorHandler": (0x80, (), (t.EmberStatus, t.EmberNodeId)),
+    "unicastCurrentNetworkKey": (
+        0x50,
+        (t.EmberNodeId, t.EmberEUI64, t.EmberNodeId),
+        (t.EmberStatus),
+    ),
     "addressTableEntryIsActive": (0x5B, (t.uint8_t,), (t.Bool,)),
     "setAddressTableRemoteEui64": (0x5C, (t.uint8_t, t.EmberEUI64), (t.EmberStatus,)),
     "setAddressTableRemoteNodeId": (0x5D, (t.uint8_t, t.EmberNodeId), ()),
@@ -328,9 +362,20 @@ COMMANDS = {
     "eraseKeyTableEntry": (0x76, (t.uint8_t,), (t.EmberStatus,)),
     "clearKeyTable": (0xB1, (), (t.EmberStatus,)),
     "requestLinkKey": (0x14, (t.EmberEUI64,), (t.EmberStatus,)),
+    "updateTcLinkKey": (0x6C, (t.uint8_t,), (t.EmberStatus,)),
     "zigbeeKeyEstablishmentHandler": (0x9B, (), (t.EmberEUI64, t.EmberKeyStatus)),
     "addTransientLinkKey": (0xAF, (t.EmberEUI64, t.EmberKeyData), (t.EmberStatus,)),
     "clearTransientLinkKeys": (0x6B, (), ()),
+    "getTransientLinkKey": (
+        0xCE,
+        (t.EmberEUI64,),
+        (t.EmberStatus, t.EmberTransientKeyData),
+    ),
+    "getTransientKeyTableEntry": (
+        0x6D,
+        (t.uint8_t,),
+        (t.EmberStatus, t.EmberTransientKeyData),
+    ),
     # 10. Trust Center Frames
     "trustCenterJoinHandler": (
         0x24,

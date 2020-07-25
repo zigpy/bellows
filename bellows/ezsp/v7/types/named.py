@@ -19,7 +19,6 @@ from bellows.types.named import (  # noqa: F401, F403
     EmberIncomingMessageType,
     EmberInitialSecurityBitmask,
     EmberJoinDecision,
-    EmberJoinMethod,
     EmberKeyData,
     EmberKeyStatus,
     EmberKeyStructBitmask,
@@ -119,8 +118,6 @@ class EzspConfigId(basic.uint8_t, enum.Enum):
     CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE = 0x19
     # The size of the source route table.
     CONFIG_SOURCE_ROUTE_TABLE_SIZE = 0x1A
-    # The units used for timing out end devices on their parents.
-    CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT = 0x1B
     # The number of blocks of a fragmented message that can be sent in a single
     # window.
     CONFIG_FRAGMENT_WINDOW_SIZE = 0x1C
@@ -199,12 +196,12 @@ class EzspConfigId(basic.uint8_t, enum.Enum):
     CONFIG_TRANSIENT_KEY_TIMEOUT_S = 0x36
     # The number of passive acknowledgements to record from neighbors before we stop
     # re-transmitting broadcasts
-    EZSP_CONFIG_BROADCAST_MIN_ACKS_NEEDED = 0x37
+    CONFIG_BROADCAST_MIN_ACKS_NEEDED = 0x37
     # The length of time, in seconds, that a trust center will allow a Trust Center
     # (insecure) rejoin for a device that is using the well-known link key. This timeout
     # takes effect once rejoins using the well-known key has been allowed. This command
     # updates the emAllowTcRejoinsUsingWellKnownKeyTimeoutSec value.
-    EZSP_CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S = 0x38
+    CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S = 0x38
 
 
 class EzspValueId(basic.uint8_t, enum.Enum):
@@ -266,8 +263,6 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     VALUE_NEXT_ZIGBEE_SEQUENCE_NUMBER = 0x14
     # CCA energy detect threshold for radio.
     VALUE_CCA_THRESHOLD = 0x15
-    # The RF4CE discovery LQI threshold parameter.
-    EZSP_VALUE_RF4CE_DISCOVERY_LQI_THRESHOLD = 0x16
     # The threshold value for a counter
     VALUE_SET_COUNTER_THRESHOLD = 0x17
     # Resets all counters thresholds to 0xFF
@@ -291,21 +286,44 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     # Configure the antenna mode(0-primary,1-secondary,2- toggle on tx ack fail).
     VALUE_ANTENNA_MODE = 0x30
     # Enable or disable packet traffic arbitration.
-    EZSP_VALUE_ENABLE_PTA = 0x31
+    VALUE_ENABLE_PTA = 0x31
     # Set packet traffic arbitration configuration options.
-    EZSP_VALUE_PTA_OPTIONS = 0x32
+    VALUE_PTA_OPTIONS = 0x32
     # Configure manufacturing library options(0-non-CSMA transmits,1-CSMA transmits).
-    EZSP_VALUE_MFGLIB_OPTIONS = 0x33
+    VALUE_MFGLIB_OPTIONS = 0x33
     # Sets the flag to use either negotiated power by link power delta (LPD) or fixed
     # power value provided by user while forming/joining a network for packet
     # transmissions on subghz interface. This is mainly for testing purposes.
-    EZSP_VALUE_USE_NEGOTIATED_POWER_BY_LPD = 0x34
+    VALUE_USE_NEGOTIATED_POWER_BY_LPD = 0x34
     # Set packet traffic arbitration configuration PWM options.
-    EZSP_VALUE_PTA_PWM_OPTIONS = 0x35
-    # Set the mask to filter out unacceptable child timeout options on a router.
-    EZSP_VALUE_END_DEVICE_TIMEOUT_OPTIONS_MASK = 0x36
-    # The end device keep alive mode supported by the parent.
-    EZSP_VALUE_END_DEVICE_KEEP_ALIVE_SUPPORT_MODE = 0x37
+    VALUE_PTA_PWM_OPTIONS = 0x35
+    # Set packet traffic arbitration directional priority pulse width in microseconds.
+    VALUE_PTA_DIRECTIONAL_PRIORITY_PULSE_WIDTH = 0x36
+    # Set packet traffic arbitration phy select timeout(ms)
+    VALUE_PTA_PHY_SELECT_TIMEOUT = 0x37
+    # Configure the RX antenna mode: (0-do not switch; 1- primary; 2-secondary;
+    # 3-RX antenna diversity).
+    VALUE_ANTENNA_RX_MODE = 0x38
+    # Configure the timeout to wait for the network key before failing a join.
+    VALUE_NWK_KEY_TIMEOUT = 0x39
+    # The number of failed CSMA attempts due to failed CCA made by the MAC before
+    # continuing transmission with CCA disabled. This is the same as calling the
+    # emberForceTxAfterFailedCca(uint8_t csmaAttempts) API. A value of 0 disables the
+    # feature
+    VALUE_FORCE_TX_AFTER_FAILED_CCA_ATTEMPTS = 0x3A
+    # The length of time, in seconds, that a trust center will store a transient link
+    # key that a device can use to join its network. A transient key is added with a
+    # call to emberAddTransientLinkKey. After the transient key is added, it will be
+    # removed once this amount of time has passed. A joining device will not be able to
+    # use that key to join until it is added again on the trust center. The default
+    # value is 300 seconds (5 minutes).
+    VALUE_TRANSIENT_KEY_TIMEOUT_S = 0x3B
+    # Cumulative energy usage metric since the last value reset of the coulomb counter
+    # plugin. Setting this value will reset the coulomb counter.
+    VALUE_COULOMB_COUNTER_USAGE = 0x3C
+    # When scanning, configure the maximum number of beacons to store in cache. Each
+    # beacon consumes one packet buffer in RAM.
+    VALUE_MAX_BEACONS_TO_STORE = 0x3D
 
 
 class EzspPolicyId(basic.uint8_t, enum.Enum):
@@ -336,7 +354,7 @@ class EzspPolicyId(basic.uint8_t, enum.Enum):
     # Controls whether Trust Center (insecure) rejoins for devices using the well-known
     # link key are accepted. If rejoining using the well-known key is allowed, it is
     # disabled again after emAllowTcRejoinsUsingWellKnownKeyTimeoutSec seconds.
-    EZSP_TC_REJOINS_USING_WELL_KNOWN_KEY_POLICY = 0x09
+    TC_REJOINS_USING_WELL_KNOWN_KEY_POLICY = 0x09
 
 
 class EzspDecisionId(basic.uint8_t, enum.Enum):
@@ -367,7 +385,9 @@ class EzspDecisionId(basic.uint8_t, enum.Enum):
     # Admit joins only if there is an entry in the transient key table. This corresponds
     # to the Base Device Behavior specification where a Trust Center enforces all
     # devices to join with an install code-derived link key.
-    EZSP_BDB_JOIN_USES_INSTALL_CODE_KEY = 0x06
+    BDB_JOIN_USES_INSTALL_CODE_KEY = 0x06
+    # Delay sending the network key to a new joining device.
+    DEFER_JOINS_REJOINS_HAVE_LINK_KEYA = 0x07
     # BINDING_MODIFICATION_POLICY default decision. Do not allow the local
     # binding table to be changed by remote nodes.
     DISALLOW_BINDING_MODIFICATION = 0x10
@@ -399,9 +419,13 @@ class EzspDecisionId(basic.uint8_t, enum.Enum):
     DENY_TC_KEY_REQUESTS = 0x50
     # TC_KEY_REQUEST_POLICY decision. When the Trust Center receives a request for a
     # Trust Center link key, it will reply to it with the corresponding key.
+    ALLOW_TC_KEY_REQUESTS_AND_SEND_CURRENT_KEY = 0x51
+    # ALLOW_TC_KEY_REQUESTS -> ALLOW_TC_KEY_REQUESTS_AND_SEND_CURRENT_KEY
     ALLOW_TC_KEY_REQUESTS = 0x51
     # TC_KEY_REQUEST_POLICY decision. When the Trust Center receives a request
     # for a Trust Center link key, it will generate a key to send to the joiner.
+    ALLOW_TC_KEY_REQUEST_AND_GENERATE_NEW_KEY = 0x52
+    # GENERATE_NEW_TC_LINK_KEY -> ALLOW_TC_KEY_REQUEST_AND_GENERATE_NEW_KEY
     GENERATE_NEW_TC_LINK_KEY = 0x52
     # APP_KEY_REQUEST_POLICY decision. When the Trust Center receives a request
     # for an application link key, it will be ignored.
@@ -546,6 +570,36 @@ class EmberCounterType(basic.uint8_t, enum.Enum):
     EMBER_COUNTER_TYPE_COUNT = 40
 
 
+class EmberJoinMethod(basic.uint8_t, enum.Enum):
+    # The type of method used for joining.
+
+    # Normally devices use MAC Association to join a network, which respects
+    # the "permit joining" flag in the MAC Beacon. For mobile nodes this value
+    # causes the device to use an Ember Mobile Node Join, which is functionally
+    # equivalent to a MAC association. This value should be used by default.
+    USE_MAC_ASSOCIATION = 0x0
+    # For those networks where the "permit joining" flag is never turned on,
+    # they will need to use a ZigBee NWK Rejoin. This value causes the rejoin
+    # to be sent without NWK security and the Trust Center will be asked to
+    # send the NWK key to the device. The NWK key sent to the device can be
+    # encrypted with the device's corresponding Trust Center link key. That is
+    # determined by the ::EmberJoinDecision on the Trust Center returned by the
+    # ::emberTrustCenterJoinHandler(). For a mobile node this value will cause
+    # it to use an Ember Mobile node rejoin, which is functionally equivalent.
+    USE_NWK_REJOIN = 0x1
+    # For those networks where the "permit joining" flag is never turned on,
+    # they will need to use a NWK Rejoin. If those devices have been
+    # preconfigured with the NWK key (including sequence number) they can use a
+    # secured rejoin. This is only necessary for end devices since they need a
+    # parent. Routers can simply use the ::USE_NWK_COMMISSIONING join method
+    # below.
+    USE_NWK_REJOIN_HAVE_NWK_KEY = 0x2
+    # For those networks where all network and security information is known
+    # ahead of time, a router device may be commissioned such that it does not
+    # need to send any messages to begin communicating on the network.
+    USE_CONFIGURED_NWK_STATE = 0x3
+
+
 class EmberNetworkInitBitmask(basic.bitmap16):
     # Bitmask options for emberNetworkInit().
 
@@ -588,6 +642,19 @@ class EmberRadioPowerMode(basic.uint8_t, enum.Enum):
     EMBER_RADIO_POWER_MODE_RX_ON = 0
     # The radio receiver is switched off.
     EMBER_RADIO_POWER_MODE_OFF = 1
+
+
+class EmberEntropySource(basic.uint8_t, enum.Enum):
+    """Entropy sources."""
+
+    # Entropy source error
+    ENTROPY_SOURCE_ERROR = 0
+    # Entropy source is the radio.
+    ENTROPY_SOURCE_RADIO = 1
+    # Entropy source is the TRNG powered by mbed TLS.
+    ENTROPY_SOURCE_MBEDTLS_TRNG = 2
+    # Entropy source is powered by mbed TLS, the source is not TRNG.
+    ENTROPY_SOURCE_MBEDTLS = 3
 
 
 class EmberDutyCycleHectoPct(basic.uint16_t):

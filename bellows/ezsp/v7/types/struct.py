@@ -27,6 +27,49 @@ from bellows.types.struct import (  # noqa: F401
 from . import named
 
 
+class EmberBeaconData(EzspStruct):
+    """Beacon data structure."""
+
+    # The channel of the received beacon.
+    channel: basic.uint8_t
+    # The LQI of the received beacon.
+    lqi: basic.uint8_t
+    # The RSSI of the received beacon.
+    rssi: basic.int8s
+    # The depth of the received beacon.
+    depth: basic.uint8_t
+    # The network update ID of the received beacon.
+    nwkUpdateId: basic.uint8_t
+    # The power level of the received beacon. This field is valid only if the beacon is
+    # an enhanced beacon
+    power: basic.int8s
+    # The TC connectivity and long uptime from capacity field.
+    parentPriority: basic.int8s
+    # The PAN ID of the received beacon.
+    panId: named.EmberPanId
+    # The extended PAN ID of the received beacon.
+    extendedPanId: named.ExtendedPanId
+    # The sender of the received beacon.
+    sender: named.EmberNodeId
+    # Whether or not the beacon is enhanced.
+    enhanced: named.Bool
+    # Whether the beacon is advertising permit join.
+    permitJoin: named.Bool
+    # Whether the beacon is advertising capacity.
+    hasCapacity: named.Bool
+
+
+class EmberBeaconIterator(EzspStruct):
+    """Defines an iterator that is used to loop over cached beacons. Do not write to
+     fields denoted as Private.
+     """
+
+    # The retrieved beacon.
+    beacon: EmberBeaconData
+    # (Private) The index of the retrieved beacon.
+    index: basic.uint8_t
+
+
 class EmberBeaconClassificationParams(EzspStruct):
     """The parameters related to beacon prioritization."""
 
