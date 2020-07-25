@@ -324,6 +324,10 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     # When scanning, configure the maximum number of beacons to store in cache. Each
     # beacon consumes one packet buffer in RAM.
     VALUE_MAX_BEACONS_TO_STORE = 0x3D
+    # Set the mask to filter out unacceptable child timeout options on a router.
+    VALUE_END_DEVICE_TIMEOUT_OPTIONS_MASK = 0x3E
+    # The end device keep alive mode supported by the parent.
+    VALUE_END_DEVICE_KEEP_ALIVE_SUPPORT_MODE = 0x3F
 
 
 class EzspPolicyId(basic.uint8_t, enum.Enum):
@@ -387,7 +391,7 @@ class EzspDecisionId(basic.uint8_t, enum.Enum):
     # devices to join with an install code-derived link key.
     BDB_JOIN_USES_INSTALL_CODE_KEY = 0x06
     # Delay sending the network key to a new joining device.
-    DEFER_JOINS_REJOINS_HAVE_LINK_KEYA = 0x07
+    DEFER_JOINS_REJOINS_HAVE_LINK_KEY = 0x07
     # BINDING_MODIFICATION_POLICY default decision. Do not allow the local
     # binding table to be changed by remote nodes.
     DISALLOW_BINDING_MODIFICATION = 0x10
@@ -557,17 +561,18 @@ class EmberCounterType(basic.uint8_t, enum.Enum):
     # The number of low priority packet traffic arbitration requests.
     COUNTER_PTA_LO_PRI_REQUESTED = 34
     # The number of high priority packet traffic arbitration requests.
-    EMBER_COUNTER_PTA_HI_PRI_REQUESTED = 35
+    COUNTER_PTA_HI_PRI_REQUESTED = 35
     # The number of low priority packet traffic arbitration requests denied.
-    EMBER_COUNTER_PTA_LO_PRI_DENIED = 36
+    COUNTER_PTA_LO_PRI_DENIED = 36
     # The number of high priority packet traffic arbitration requests denied.
-    EMBER_COUNTER_PTA_HI_PRI_DENIED = 37
+    COUNTER_PTA_HI_PRI_DENIED = 37
     # The number of aborted low priority packet traffic arbitration transmissions.
-    EMBER_COUNTER_PTA_LO_PRI_TX_ABORTED = 38
+    COUNTER_PTA_LO_PRI_TX_ABORTED = 38
     # The number of aborted high priority packet traffic arbitration transmissions.
-    EMBER_COUNTER_PTA_HI_PRI_TX_ABORTED = 39
-    # A placeholder giving the number of Ember counter types.
-    EMBER_COUNTER_TYPE_COUNT = 40
+    COUNTER_PTA_HI_PRI_TX_ABORTED = 39
+    # The number of times an address conflict has cuased node_id change, and an addresss
+    # conflict error is sent
+    COUNTER_ADDRESS_CONFLICT_SENT = 40
 
 
 class EmberJoinMethod(basic.uint8_t, enum.Enum):
