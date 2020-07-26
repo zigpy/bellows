@@ -270,11 +270,11 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     # Clears all the counters
     VALUE_CLEAR_COUNTERS = 0x19
     # The node's new certificate signed by the CA.
-    EZSP_VALUE_CERTIFICATE_283K1 = 0x1A
+    VALUE_CERTIFICATE_283K1 = 0x1A
     # The Certificate Authority's public key.
-    EZSP_VALUE_PUBLIC_KEY_283K1 = 0x1B
+    VALUE_PUBLIC_KEY_283K1 = 0x1B
     # The node's new static private key.
-    EZSP_VALUE_PRIVATE_KEY_283K1 = 0x1C
+    VALUE_PRIVATE_KEY_283K1 = 0x1C
     # The NWK layer security frame counter value
     VALUE_NWK_FRAME_COUNTER = 0x23
     # The APS layer security frame counter value
@@ -613,6 +613,9 @@ class EmberNetworkInitBitmask(basic.bitmap16):
     # Save parent info (node ID and EUI64) in a token during joining/rejoin,
     # and restore on reboot.
     NETWORK_INIT_PARENT_INFO_IN_TOKEN = 0x0001
+    # Send a rejoin request as an end device on reboot if parent information is
+    # persisted. ZB3 end devices must rejoin on reboot.
+    NETWORK_INIT_END_DEVICE_REJOIN_ON_REBOOT = 0x0002
 
 
 EmberNetworkInitStruct = EmberNetworkInitBitmask
@@ -622,31 +625,31 @@ class EmberMultiPhyNwkConfig(basic.uint8_t, enum.Enum):
     """Network configuration for the desired radio interface for multi phy network."""
 
     # Enable broadcast support on Routers
-    EMBER_BROADCAST_SUPPORT = 0x01
+    BROADCAST_SUPPORT = 0x01
 
 
 class EmberDutyCycleState(basic.uint8_t, enum.Enum):
     """Duty cycle states."""
 
     # No Duty cycle tracking or metrics are taking place
-    EMBER_DUTY_CYCLE_TRACKING_OFF = 0
+    DUTY_CYCLE_TRACKING_OFF = 0
     # Duty Cycle is tracked and has not exceeded any thresholds.
-    EMBER_DUTY_CYCLE_LBT_NORMAL = 1
+    DUTY_CYCLE_LBT_NORMAL = 1
     # We have exceeded the limited threshold of our total duty cycle allotment.
-    EMBER_DUTY_CYCLE_LBT_LIMITED_THRESHOLD_REACHED = 2
+    DUTY_CYCLE_LBT_LIMITED_THRESHOLD_REACHED = 2
     # We have exceeded the critical threshold of our total duty cycle allotment.
-    EMBER_DUTY_CYCLE_LBT_CRITICAL_THRESHOLD_REACHED = 3
+    DUTY_CYCLE_LBT_CRITICAL_THRESHOLD_REACHED = 3
     # We have reached the suspend limit and are blocking all outbound transmissions.
-    EMBER_DUTY_CYCLE_LBT_SUSPEND_LIMIT_REACHED = 4
+    DUTY_CYCLE_LBT_SUSPEND_LIMIT_REACHED = 4
 
 
 class EmberRadioPowerMode(basic.uint8_t, enum.Enum):
     """Radio power mode."""
 
     # The radio receiver is switched on.
-    EMBER_RADIO_POWER_MODE_RX_ON = 0
+    RADIO_POWER_MODE_RX_ON = 0
     # The radio receiver is switched off.
-    EMBER_RADIO_POWER_MODE_OFF = 1
+    RADIO_POWER_MODE_OFF = 1
 
 
 class EmberEntropySource(basic.uint8_t, enum.Enum):
