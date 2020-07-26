@@ -14,7 +14,6 @@ from bellows.types.struct import (  # noqa: F401
     EmberRouteTableEntry,
     EmberTokTypeStackZllData,
     EmberTokTypeStackZllSecurity,
-    EmberTransientKeyData,
     EmberZigbeeNetwork,
     EmberZllAddressAssignment,
     EmberZllDeviceInfoRecord,
@@ -189,3 +188,17 @@ class EmberPerDeviceDutyCycle(EzspStruct):
     nodeId: named.EmberNodeId
     # Amount of overall duty cycle consumed (up to suspend limit).
     dutyCycleConsumed: named.EmberDutyCycleHectoPct
+
+
+class EmberTransientKeyData(EzspStruct):
+    """The transient key data structure. Added in ver. 5. Revised in ver 8"""
+
+    # The IEEE address paired with the transient link key.
+    eui64: named.EmberEUI64
+    # The key data structure matching the transient key.
+    keyData: named.EmberKeyData
+    # This bitmask indicates whether various fields in the structure contain valid data.
+    bitmask: named.EmberKeyStructBitmask
+    # The number of seconds remaining before the key is automatically timed out of the
+    # transient key table.
+    remainingTimeSeconds: basic.uint16_t

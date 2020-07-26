@@ -202,6 +202,9 @@ class EzspConfigId(basic.uint8_t, enum.Enum):
     # takes effect once rejoins using the well-known key has been allowed. This command
     # updates the emAllowTcRejoinsUsingWellKnownKeyTimeoutSec value.
     CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S = 0x38
+    # Valid range of a CTUNE value is 0x0000-0x01FF. Higher order bits (0xFE00) of the
+    # 16-bit value are ignored.
+    CONFIG_CTUNE_VALUE = 0x39
 
 
 class EzspValueId(basic.uint8_t, enum.Enum):
@@ -328,6 +331,12 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     VALUE_END_DEVICE_TIMEOUT_OPTIONS_MASK = 0x3E
     # The end device keep alive mode supported by the parent.
     VALUE_END_DEVICE_KEEP_ALIVE_SUPPORT_MODE = 0x3F
+    # Sets the mask that controls which pins will have their GPIO configuration and
+    # output values set to their power-up and power-down values when the NCP powers
+    # the radio up and down.
+    VALUE_GPIO_RADIO_POWER_MASK = 0x40
+    # Return the active radio config.
+    VALUE_ACTIVE_RADIO_CONFIG = 0x41
 
 
 class EzspPolicyId(basic.uint8_t, enum.Enum):
@@ -361,37 +370,28 @@ class EzspPolicyId(basic.uint8_t, enum.Enum):
     TC_REJOINS_USING_WELL_KNOWN_KEY_POLICY = 0x09
 
 
+class EzspDecisionBitmask(basic.bitmap16):
+    """EZSP Decision bitmask."""
+
+    # Disallow joins and rejoins.
+    DECISION_BITMASK_DEFAULT_CONFIGURATION = 0x0000
+    # Send the network key to all joining devices.
+    DECISION_ALLOW_JOINS = 0x0001
+    # Send the network key to all rejoining devices.
+    DECISION_ALLOW_UNSECURED_REJOINS = 0x0002
+    # Send the network key in the clear.
+    DECISION_SEND_KEY_IN_CLEAR = 0x0004
+    # Do nothing for unsecured rejoins.
+    DECISION_IGNORE_UNSECURED_REJOINS = 0x0008
+    # Allow joins if there is an entry in the transient key table.
+    DECISION_JOINS_USE_INSTALL_CODE_KEY = 0x0010
+    # Delay sending the network key to a new joining device.
+    DECISION_DEFER_JOINS = 0x0020
+
+
 class EzspDecisionId(basic.uint8_t, enum.Enum):
     # Identifies a policy decision.
 
-    # Send the network key in the clear to all joining and rejoining devices.
-    ALLOW_JOINS = 0x00
-    # Send the network key encrypted with the joining or rejoining device's
-    # trust center link key. The trust center and any joining or rejoining
-    # device are assumed to share a link key, either preconfigured or obtained
-    # under a previous policy. This is the default value for the
-    # TRUST_CENTER_POLICY.
-    ALLOW_PRECONFIGURED_KEY_JOINS = 0x01
-    # Send the network key encrypted with the rejoining device's trust center
-    # link key. The trust center and any rejoining device are assumed to share
-    # a link key, either preconfigured or obtained under a previous policy. No
-    # new devices are allowed to join.
-    ALLOW_REJOINS_ONLY = 0x02
-    # Reject all unsecured join and rejoin attempts.
-    DISALLOW_ALL_JOINS_AND_REJOINS = 0x03
-    # Send the network key in the clear to all joining devices.  Rejoining
-    # devices are sent the network key encrypted with their trust center link
-    # key. The trust center and any rejoining device are assumed to share a
-    # link key, either preconfigured or obtained under a previous policy.
-    ALLOW_JOINS_REJOINS_HAVE_LINK_KEY = 0x04
-    # Take no action on trust center rejoin attempts.
-    IGNORE_TRUST_CENTER_REJOINS = 0x05
-    # Admit joins only if there is an entry in the transient key table. This corresponds
-    # to the Base Device Behavior specification where a Trust Center enforces all
-    # devices to join with an install code-derived link key.
-    BDB_JOIN_USES_INSTALL_CODE_KEY = 0x06
-    # Delay sending the network key to a new joining device.
-    DEFER_JOINS_REJOINS_HAVE_LINK_KEY = 0x07
     # BINDING_MODIFICATION_POLICY default decision. Do not allow the local
     # binding table to be changed by remote nodes.
     DISALLOW_BINDING_MODIFICATION = 0x10
@@ -424,13 +424,9 @@ class EzspDecisionId(basic.uint8_t, enum.Enum):
     # TC_KEY_REQUEST_POLICY decision. When the Trust Center receives a request for a
     # Trust Center link key, it will reply to it with the corresponding key.
     ALLOW_TC_KEY_REQUESTS_AND_SEND_CURRENT_KEY = 0x51
-    # ALLOW_TC_KEY_REQUESTS -> ALLOW_TC_KEY_REQUESTS_AND_SEND_CURRENT_KEY
-    ALLOW_TC_KEY_REQUESTS = 0x51
     # TC_KEY_REQUEST_POLICY decision. When the Trust Center receives a request
     # for a Trust Center link key, it will generate a key to send to the joiner.
     ALLOW_TC_KEY_REQUEST_AND_GENERATE_NEW_KEY = 0x52
-    # GENERATE_NEW_TC_LINK_KEY -> ALLOW_TC_KEY_REQUEST_AND_GENERATE_NEW_KEY
-    GENERATE_NEW_TC_LINK_KEY = 0x52
     # APP_KEY_REQUEST_POLICY decision. When the Trust Center receives a request
     # for an application link key, it will be ignored.
     DENY_APP_KEY_REQUESTS = 0x60

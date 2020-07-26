@@ -39,9 +39,6 @@ COMMANDS = {
         (t.uint8_t, t.uint8_t, t.uint8_t, t.uint8_t, t.uint8_t),
         (t.EzspStatus,),
     ),
-    "setGpioRadioPowerMask": (0xAE, (t.uint32_t,), ()),
-    "setCtune": (0xF5, (t.uint16_t,), ()),
-    "getCtune": (0xF6, (), (t.uint16_t,)),
     "setChannelMap": (0xF7, (t.uint8_t, t.uint8_t), ()),
     # 5. Utilities Frames
     "nop": (0x05, (), ()),
@@ -136,6 +133,7 @@ COMMANDS = {
         (t.EmberStatus, t.EmberNodeId, t.EmberEUI64, t.EmberNodeType),
     ),
     "getNeighbor": (0x79, (t.uint8_t,), (t.EmberStatus, t.EmberNeighborTableEntry)),
+    "getNeighborFrameCounter": (0x3E, (t.EmberEUI64,), (t.EmberStatus, t.uint32_t)),
     "setRoutingShortcutThreshold": (0xD0, (t.uint8_t,), (t.EmberStatus,)),
     "getRoutingShortcutThreshold": (0xD1, (), (t.uint8_t,)),
     "neighborCount": (0x7A, (), (t.uint8_t,)),
@@ -188,6 +186,8 @@ COMMANDS = {
     "getNextBeacon": (0x04, (), (t.EmberStatus, t.EmberBeaconData)),
     "getNumStoredBeacons": (0x08, (), (t.uint8_t,)),
     "clearStoredBeacons": (0x3C, (), ()),
+    "setLogicalAndRadioChannel": (0xB9, (t.uint8_t,), (t.EmberStatus,)),
+    "getLogicalChannel": (0xBA, (), (t.uint8_t,)),
     # 7. Binding Frames
     "clearBindingTable": (0x2A, (), (t.EmberStatus,)),
     "setBinding": (0x2B, (t.uint8_t, t.EmberBindingTableEntry), (t.EmberStatus,)),
@@ -270,17 +270,7 @@ COMMANDS = {
             t.LVBytes,
         ),
     ),
-    "incomingRouteRecordHandler": (
-        0x59,
-        (),
-        (t.EmberNodeId, t.EmberEUI64, t.uint8_t, t.int8s, t.LVList(t.EmberNodeId)),
-    ),
-    "changeSourceRouteHandler": (0xC4, (), (t.EmberNodeId, t.EmberNodeId, t.Bool)),
-    "setSourceRoute": (
-        0x5A,
-        (t.EmberNodeId, t.LVList(t.EmberNodeId)),
-        (t.EmberStatus,),
-    ),
+    "setSourceRouteDiscoveryMode": (0x5A, (t.uint8_t,), (t.uint32_t,)),
     "incomingManyToOneRouteRequestHandler": (
         0x7D,
         (),
@@ -319,6 +309,7 @@ COMMANDS = {
     "idConflictHandler": (0x7C, (), (t.EmberNodeId,)),
     "writeNodeData": (0xFE, (t.Bool,), (t.EmberStatus,)),
     "sendRawMessage": (0x96, (t.LVBytes,), (t.EmberStatus,)),
+    "sendRawMessageExtended": (0x51, (t.LVBytes, t.uint8_t, t.Bool), (t.EmberStatus,)),
     "macPassthroughMessageHandler": (
         0x97,
         (),
@@ -528,8 +519,6 @@ COMMANDS = {
         (),
         (t.EmberZllAddressAssignment, t.uint8_t, t.int8s),
     ),
-    "setLogicalAndRadioChannel": (0xB9, (t.uint8_t,), (t.EmberStatus,)),
-    "getLogicalChannel": (0xBA, (), (t.uint8_t,)),
     "zllTouchLinkTargetHandler": (0xBB, (), (t.EmberZllNetwork,)),
     "zllGetTokens": (
         0xBC,
