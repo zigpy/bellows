@@ -383,19 +383,19 @@ class EzspDecisionBitmask(basic.bitmap16):
     """EZSP Decision bitmask."""
 
     # Disallow joins and rejoins.
-    DECISION_BITMASK_DEFAULT_CONFIGURATION = 0x0000
+    DEFAULT_CONFIGURATION = 0x0000
     # Send the network key to all joining devices.
-    DECISION_ALLOW_JOINS = 0x0001
+    ALLOW_JOINS = 0x0001
     # Send the network key to all rejoining devices.
-    DECISION_ALLOW_UNSECURED_REJOINS = 0x0002
+    ALLOW_UNSECURED_REJOINS = 0x0002
     # Send the network key in the clear.
-    DECISION_SEND_KEY_IN_CLEAR = 0x0004
+    SEND_KEY_IN_CLEAR = 0x0004
     # Do nothing for unsecured rejoins.
-    DECISION_IGNORE_UNSECURED_REJOINS = 0x0008
+    IGNORE_UNSECURED_REJOINS = 0x0008
     # Allow joins if there is an entry in the transient key table.
-    DECISION_JOINS_USE_INSTALL_CODE_KEY = 0x0010
+    JOINS_USE_INSTALL_CODE_KEY = 0x0010
     # Delay sending the network key to a new joining device.
-    DECISION_DEFER_JOINS = 0x0020
+    DEFER_JOINS = 0x0020
 
 
 class EzspDecisionId(basic.uint8_t, enum.Enum):
