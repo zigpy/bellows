@@ -5,7 +5,7 @@ from asynctest import CoroutineMock, mock
 import bellows.config as config
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp as ezsp
-import bellows.types as t
+import bellows.ezsp.v4.types as t
 import bellows.uart as uart
 import bellows.zigbee.application
 import pytest
@@ -27,6 +27,7 @@ def app(monkeypatch):
     ezsp = mock.MagicMock()
     ezsp.setConcentrator = asynctest.CoroutineMock(return_value=[0])
     ezsp.setSourceRoute = asynctest.CoroutineMock(return_value=[0])
+    ezsp.initi
     type(ezsp).is_ezsp_running = mock.PropertyMock(return_value=True)
     config = bellows.zigbee.application.ControllerApplication.SCHEMA(APP_CONFIG)
     ctrl = bellows.zigbee.application.ControllerApplication(config)
@@ -69,27 +70,27 @@ def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4):
         return [init]
 
     app._in_flight_msg = None
-    ezsp_mock = mock.MagicMock(spec_set=bellows.ezsp.EZSP)
+    ezsp_mock = mock.MagicMock()
     type(ezsp_mock.return_value).ezsp_version = mock.PropertyMock(
         return_value=ezsp_version
     )
-    ezsp_mock.return_value.connect = CoroutineMock()
-    ezsp_mock.return_value.setConcentrator = CoroutineMock()
-    ezsp_mock.return_value._command = mockezsp
-    ezsp_mock.return_value.addEndpoint = mockezsp
-    ezsp_mock.return_value.setConfigurationValue = mockezsp
-    ezsp_mock.return_value.networkInit = mockinit
-    ezsp_mock.return_value.getNetworkParameters = mockezsp
-    ezsp_mock.return_value.setPolicy = mockezsp
-    ezsp_mock.return_value.getNodeId = mockezsp
-    ezsp_mock.return_value.getEui64.side_effect = CoroutineMock(return_value=[ieee])
-    ezsp_mock.return_value.leaveNetwork = mockezsp
+    ezsp_mock.initialize = CoroutineMock(return_value=ezsp_mock)
+    ezsp_mock.connect = CoroutineMock()
+    ezsp_mock.setConcentrator = CoroutineMock()
+    ezsp_mock._command = mockezsp
+    ezsp_mock.addEndpoint = mockezsp
+    ezsp_mock.setConfigurationValue = mockezsp
+    ezsp_mock.networkInit = mockinit
+    ezsp_mock.getNetworkParameters = mockezsp
+    ezsp_mock.setPolicy = mockezsp
+    ezsp_mock.getNodeId = mockezsp
+    ezsp_mock.getEui64.side_effect = CoroutineMock(return_value=[ieee])
+    ezsp_mock.leaveNetwork = mockezsp
     app.form_network = CoroutineMock()
-    ezsp_mock.return_value.reset.side_effect = CoroutineMock()
-    ezsp_mock.return_value.version.side_effect = CoroutineMock()
-    ezsp_mock.return_value.getConfigurationValue.side_effect = CoroutineMock(
-        return_value=(0, 1)
-    )
+    ezsp_mock.reset.side_effect = CoroutineMock()
+    ezsp_mock.version.side_effect = CoroutineMock()
+    ezsp_mock.getConfigurationValue.side_effect = CoroutineMock(return_value=(0, 1))
+    ezsp_mock.update_policies = CoroutineMock()
 
     loop = asyncio.get_event_loop()
     p1 = mock.patch.object(bellows.ezsp, "EZSP", new=ezsp_mock)
@@ -237,7 +238,7 @@ def test_join_handler(app, ieee):
 
 
 def test_leave_handler(app, ieee):
-    app.devices[ieee] = mock.sentinel.device
+    app.devices[ieee] = mock.MagicMock()
     app.ezsp_callback_handler(
         "trustCenterJoinHandler", [1, ieee, t.EmberDeviceUpdate.DEVICE_LEFT, None, None]
     )

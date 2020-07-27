@@ -1,14 +1,13 @@
 import string
 
-import bellows.ezsp.commands
+import bellows.ezsp.v4.commands
 import pytest
 
 
 @pytest.fixture
 def commands():
     """Return commands for all EZSP protocol versions."""
-    version = range(4, bellows.ezsp.commands.EZSP_VERSION_LATEST + 1)
-    yield bellows.ezsp.commands.by_version(version)
+    return bellows.ezsp.v4.commands.COMMANDS
 
 
 def test_names(commands):
