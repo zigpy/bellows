@@ -1,26 +1,35 @@
 import bellows.multicast
-import bellows.types
 import voluptuous as vol
 
-c = bellows.types.EzspConfigId
-zdo_flags = bellows.types.EmberZdoConfigurationFlags
+from . import types
+
+c = types.EzspConfigId
+zdo_flags = types.EmberZdoConfigurationFlags
 
 EZSP_SCHEMA = {
-    # The maximum number of router neighbors the stack can keep track of. A neighbor is
-    # a node within radio range
+    #
+    # The number of packet buffers available to the stack. When set to the special
+    # value 0xFF, the NCP will allocate all remaining configuration RAM towards
+    # packet buffers, such that the resulting count will be the largest whole number
+    # of packet buffers that can fit into the available memory
+    vol.Optional(c.CONFIG_PACKET_BUFFER_COUNT.name, default=0xFF): vol.All(
+        int, vol.Range(min=1, max=255)
+    ),
+    # The maximum number of router neighbors the stack can keep track of. A neighbor
+    # is a node within radio range
     vol.Optional(c.CONFIG_NEIGHBOR_TABLE_SIZE.name): vol.All(
         int, vol.Range(min=8, max=16)
     ),
     #
-    # The maximum number of APS retried messages the stack can be transmitting at any
-    # time
+    # The maximum number of APS retried messages the stack can be transmitting at
+    # any time
     vol.Optional(c.CONFIG_APS_UNICAST_MESSAGE_COUNT.name): vol.All(
         int, vol.Range(min=0, max=255)
     ),
     #
     # The maximum number of non-volatile bindings supported by the stack
     vol.Optional(c.CONFIG_BINDING_TABLE_SIZE.name): vol.All(
-        int, vol.Range(min=0, max=127)
+        int, vol.Range(min=0, max=32)
     ),
     #
     # The maximum number of EUI64 to network address associations that the stack can
@@ -63,9 +72,9 @@ EZSP_SCHEMA = {
         int, vol.Range(min=0, max=255)
     ),
     #
-    # The security level used for security at the MAC and network layers. The supported
-    # values are 0 (no security) and 5 (payload is encrypted and a four-byte MIC is
-    # used for authentication)
+    # The security level used for security at the MAC and network layers. The
+    # supported values are 0 (no security) and 5 (payload is encrypted and a
+    # four-byte MIC is used for authentication)
     vol.Optional(c.CONFIG_SECURITY_LEVEL.name, default=5): vol.All(
         int, vol.Range(min=0, max=5)
     ),
@@ -84,18 +93,18 @@ EZSP_SCHEMA = {
         int, vol.Range(min=0, max=30000)
     ),
     #
-    # The maximum amount of time that an end device child can wait between polls. If no
-    # poll is heard within this timeout, then the parent removes the end device from
-    # its tables. The timeout corresponding to a value of zero is 10 seconds. The
-    # timeout corresponding to a nonzero value N is 2^N minutes, ranging from 2^1 = 2
-    # minutes to 2^14 = 16384 minutes
-    vol.Optional(c.CONFIG_END_DEVICE_POLL_TIMEOUT.name): vol.All(
-        int, vol.Range(min=0, max=14)
+    # The maximum amount of time that an end device child can wait between polls.
+    # If no poll is heard within this timeout, then the parent removes the end
+    # device from its tables. The timeout corresponding to a value of zero is 10
+    # seconds. The timeout corresponding to a nonzero value N is 2^N minutes,
+    # ranging from 2^1 = 2 minutes to 2^14 = 16384 minutes
+    vol.Optional(c.CONFIG_END_DEVICE_POLL_TIMEOUT.name, default=60): vol.All(
+        int, vol.Range(min=0, max=255)
     ),
     #
-    # The maximum amount of time that a mobile node can wait between polls. If no poll
-    # is heard within this timeout, then the parent removes the mobile node from its
-    # tables
+    # The maximum amount of time that a mobile node can wait between polls. If no
+    # poll is heard within this timeout, then the parent removes the mobile node
+    # from its tables
     vol.Optional(c.CONFIG_MOBILE_NODE_POLL_TIMEOUT.name): vol.All(
         int, vol.Range(min=0)
     ),
@@ -108,17 +117,19 @@ EZSP_SCHEMA = {
     # Enables boost power mode and/or the alternate transmitter output
     vol.Optional(c.CONFIG_TX_POWER_MODE.name): vol.All(int, vol.Range(min=0, max=3)),
     #
-    # 0: Allow this node to relay messages. 1: Prevent this node from relaying messages
+    # 0: Allow this node to relay messages. 1: Prevent this node from relaying
+    # messages
     vol.Optional(c.CONFIG_DISABLE_RELAY.name): vol.All(int, vol.Range(min=0, max=1)),
     #
-    # The maximum number of EUI64 to network address associations that the Trust Center
-    # can maintain. These address cache entries are reserved for and reused by the
-    # Trust Center when processing device join/rejoin authentications. This cache size
-    # limits the number of overlapping joins the Trust Center can process within a
-    # narrow time window (e.g. two seconds), and thus should be set to the maximum
-    # number of near simultaneous joins the Trust Center is expected to accommodate.
-    # (Note: The total number of such address associations maintained by the NCP is the
-    # sum of the value of this setting and the value of EZSP_CONFIG_ADDRESS_TABLE_SIZE)
+    # The maximum number of EUI64 to network address associations that the Trust
+    # Center can maintain. These address cache entries are reserved for and reused
+    # by the Trust Center when processing device join/rejoin authentications. This
+    # cache size limits the number of overlapping joins the Trust Center can process
+    # within a narrow time window (e.g. two seconds), and thus should be set to the
+    # maximum number of near simultaneous joins the Trust Center is expected to
+    # accommodate. (Note: The total number of such address associations maintained
+    # by the NCP is the sum of the value of this setting and the value of
+    # EZSP_CONFIG_ADDRESS_TABLE_SIZE)
     vol.Optional(c.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE.name, default=2): vol.All(
         int, vol.Range(min=0)
     ),
@@ -127,17 +138,23 @@ EZSP_SCHEMA = {
     vol.Optional(c.CONFIG_SOURCE_ROUTE_TABLE_SIZE.name, default=16): vol.All(
         int, vol.Range(min=0)
     ),
+    # The units used for timing out end devices on their parent
+    vol.Optional(c.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT.name, default=8): vol.All(
+        int, vol.Range(min=0, max=10)
+    ),
     #
-    # The number of blocks of a fragmented message that can be sent in a single window
+    # The number of blocks of a fragmented message that can be sent in a single
+    # window
     vol.Optional(c.CONFIG_FRAGMENT_WINDOW_SIZE.name): vol.All(
         int, vol.Range(min=0, max=8)
     ),
     #
-    # The time (ms) the stack will wait between sending blocks of a fragmented message
+    # The time (ms) the stack will wait between sending blocks of a fragmented
+    # message
     vol.Optional(c.CONFIG_FRAGMENT_DELAY_MS.name): vol.All(int, vol.Range(min=0)),
     #
-    # The size of the Key Table used for storing individual link keys (if the device is
-    # a Trust Center) or Application Link Keys (if the device is a normal node)
+    # The size of the Key Table used for storing individual link keys (if the device
+    # is a Trust Center) or Application Link Keys (if the device is a normal node)
     vol.Optional(c.CONFIG_KEY_TABLE_SIZE.name, default=4): vol.All(
         int, vol.Range(min=0)
     ),
@@ -146,14 +163,14 @@ EZSP_SCHEMA = {
     # resends of APS retried messages
     vol.Optional(c.CONFIG_APS_ACK_TIMEOUT.name): vol.All(int, vol.Range(min=0)),
     #
-    # The duration of an active scan 15/4 scan duration units. This also controls the
-    # jitter used when responding to a beacon request
+    # The duration of an active scan 15/4 scan duration units. This also controls
+    # the jitter used when responding to a beacon request
     vol.Optional(c.CONFIG_ACTIVE_SCAN_DURATION.name): vol.All(
         int, vol.Range(min=0, max=6)
     ),
     #
-    # The time (seoonds) the coordinator will wait for a second end device bind request
-    # to arrive
+    # The time (seoonds) the coordinator will wait for a second end device bind
+    # request to arrive
     vol.Optional(c.CONFIG_END_DEVICE_BIND_TIMEOUT.name): vol.All(int, vol.Range(min=1)),
     #
     # The number of PAN id conflict reports that must be received by the network
@@ -162,30 +179,30 @@ EZSP_SCHEMA = {
         int, vol.Range(min=1, max=63)
     ),
     #
-    # The timeout value in minutes for how long the Trust Center or a normal node waits
-    # for the ZigBee Request Key to complete. On the Trust Center this controls whether
-    # or not the device buffers the request, waiting for a matching pair of ZigBee
-    # Request Key. If the value is non-zero, the Trust Center buffers and waits for
-    # that amount of time. If the value is zero, the Trust Center does not buffer the
-    # request and immediately responds to the request. Zero is the most compliant
-    # behavior
+    # The timeout value in minutes for how long the Trust Center or a normal node
+    # waits for the ZigBee Request Key to complete. On the Trust Center this
+    # controls whether or not the device buffers the request, waiting for a matching
+    # pair of ZigBee Request Key. If the value is non-zero, the Trust Center buffers
+    # and waits for that amount of time. If the value is zero, the Trust Center does
+    # not buffer the request and immediately responds to the request. Zero is the
+    # most compliant behavior
     vol.Optional(c.CONFIG_REQUEST_KEY_TIMEOUT.name): vol.All(
         int, vol.Range(min=0, max=10)
     ),
     #
     # This value indicates the size of the runtime modifiable certificate table.
-    # Normally certificates are stored in MFG tokens but this table can be used to field
-    # upgrade devices with new Smart Energy certificates. This value cannot be set, it
-    # can only be queried
+    # Normally certificates are stored in MFG tokens but this table can be used to
+    # field upgrade devices with new Smart Energy certificates. This value cannot be
+    # set, it can only be queried
     vol.Optional(c.CONFIG_CERTIFICATE_TABLE_SIZE.name): vol.All(
         int, vol.Range(min=0, max=1)
     ),
     #
-    # This is a bitmask that controls which incoming ZDO request messages are passed to
-    # the application. The bits are defined in the EmberZdoConfigurationFlags
+    # This is a bitmask that controls which incoming ZDO request messages are passed
+    # to the application. The bits are defined in the EmberZdoConfigurationFlags
     # enumeration. To see if the application is required to send a ZDO response in
-    # reply to an incoming message, the application must check the APS options bitfield
-    # within the incomingMessageHandler callback to see if the
+    # reply to an incoming message, the application must check the APS options
+    # bitfield within the incomingMessageHandler callback to see if the
     # EMBER_APS_OPTION_ZDO_RESPONSE_REQUIRED flag is set
     vol.Optional(
         c.CONFIG_APPLICATION_ZDO_FLAGS.name,
@@ -225,8 +242,9 @@ EZSP_SCHEMA = {
         int, vol.Range(min=-128, max=127)
     ),
     #
-    # The maximum number of pairings supported by the stack. Controllers must support at
-    # least one pairing table entry while targets must support at least five
+    # The maximum number of pairings supported by the stack. Controllers must
+    # support at least one pairing table entry while targets must support at
+    # least five
     vol.Optional(c.CONFIG_RF4CE_PAIRING_TABLE_SIZE.name): vol.All(
         int, vol.Range(min=0, max=126)
     ),
@@ -246,13 +264,5 @@ EZSP_SCHEMA = {
     # with which a device can use to join the network
     vol.Optional(c.CONFIG_TRANSIENT_KEY_TIMEOUT_S.name): vol.All(
         int, vol.Range(min=0, max=65535)
-    ),
-    #
-    # The number of packet buffers available to the stack. When set to the special
-    # value 0xFF, the NCP will allocate all remaining configuration RAM towards packet
-    # buffers, such that the resulting count will be the largest whole number of packet
-    # buffers that can fit into the available memory
-    vol.Optional(c.CONFIG_PACKET_BUFFER_COUNT.name, default=0xFF): vol.All(
-        int, vol.Range(min=1, max=255)
     ),
 }

@@ -22,7 +22,7 @@ async def config(ctx, config, all_):
     s = await util.setup(ctx.obj["device"], ctx.obj["baudrate"], util.print_cb)
 
     if all_:
-        for config in t.EzspConfigId:
+        for config in s.types.EzspConfigId:
             v = await s.getConfigurationValue(config)
             if v[0] == t.EzspStatus.ERROR_INVALID_ID:
                 continue
@@ -34,12 +34,12 @@ async def config(ctx, config, all_):
         config, value = config.split("=", 1)
         if config.isdigit():
             try:
-                config = t.EzspConfigId(int(config))
+                config = s.types.EzspConfigId(int(config))
             except ValueError:
                 raise click.BadArgumentUsage("Invalid config ID: %s" % (config,))
         else:
             try:
-                config = t.EzspConfigId[config]
+                config = s.types.EzspConfigId[config]
             except KeyError:
                 raise click.BadArgumentUsage("Invalid config name: %s" % (config,))
         try:

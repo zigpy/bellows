@@ -8,7 +8,7 @@ import zigpy.config
 def zha_security(config: Dict[str, Any], controller: bool = False) -> None:
 
     isc = t.EmberInitialSecurityState()
-    isc.bitmask = t.uint16_t(
+    isc.bitmask = (
         t.EmberInitialSecurityBitmask.HAVE_PRECONFIGURED_KEY
         | t.EmberInitialSecurityBitmask.REQUIRE_ENCRYPTED_KEY
     )
