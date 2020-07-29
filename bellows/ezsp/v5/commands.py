@@ -295,6 +295,11 @@ COMMANDS = {
     "zigbeeKeyEstablishmentHandler": (0x9B, (), (t.EmberEUI64, t.EmberKeyStatus)),
     "addTransientLinkKey": (0xAF, (t.EmberEUI64, t.EmberKeyData), (t.EmberStatus,)),
     "clearTransientLinkKeys": (0x6B, (), ()),
+    "getTransientLinkKey": (
+        0xCE,
+        (t.EmberEUI64,),
+        (t.EmberStatus, t.EmberTransientKeyData),
+    ),
     # 10. Trust Center Frames
     "trustCenterJoinHandler": (
         0x24,

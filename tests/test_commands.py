@@ -1,13 +1,16 @@
 import string
 
 import bellows.ezsp.v4.commands
+import bellows.ezsp.v5.commands
 import pytest
 
 
-@pytest.fixture
-def commands():
+@pytest.fixture(
+    params=[bellows.ezsp.v4.commands.COMMANDS, bellows.ezsp.v5.commands.COMMANDS]
+)
+def commands(request):
     """Return commands for all EZSP protocol versions."""
-    return bellows.ezsp.v4.commands.COMMANDS
+    yield request.param
 
 
 def test_names(commands):
