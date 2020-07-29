@@ -2,15 +2,20 @@ import string
 
 import bellows.ezsp.v4.commands
 import bellows.ezsp.v5.commands
+import bellows.ezsp.v6.commands
 import pytest
 
 
 @pytest.fixture(
-    params=[bellows.ezsp.v4.commands.COMMANDS, bellows.ezsp.v5.commands.COMMANDS]
+    params=[
+        bellows.ezsp.v4.commands,
+        bellows.ezsp.v5.commands,
+        bellows.ezsp.v6.commands,
+    ]
 )
 def commands(request):
     """Return commands for all EZSP protocol versions."""
-    yield request.param
+    yield request.param.COMMANDS
 
 
 def test_names(commands):
@@ -22,8 +27,11 @@ def test_names(commands):
 
 def test_ids(commands):
     """Test that frame IDs seem valid"""
-    for command, parms in commands.items():
-        assert 0 <= parms[0] <= 255, command
+    seen = set()
+    for command, (cmd_id, _, _) in commands.items():
+        assert 0 <= cmd_id <= 255, command
+        assert cmd_id not in seen
+        seen.add(cmd_id)
 
 
 def test_parms(commands):

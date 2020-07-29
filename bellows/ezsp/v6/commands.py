@@ -1,4 +1,4 @@
-import bellows.ezsp.v6.types as t
+from . import types as t
 
 COMMANDS = {
     # 4. Configuration frames
