@@ -763,7 +763,7 @@ class EmberOutgoingMessageType(basic.uint8_t, enum.Enum):
     OUTGOING_BROADCAST = 0x06
 
 
-class EmberMacPassthroughType(basic.uint8_t, enum.Enum):
+class EmberMacPassthroughType(basic.bitmap8):
     # MAC passthrough message type flags.
 
     # No MAC passthrough messages.
@@ -897,7 +897,7 @@ class EmberInitialSecurityBitmask(basic.bitmap16):
     # using a trust center, and without sending any messages, this bit must be set and
     # the field ::EmberInitialSecurityState::preconfiguredTrustCenterEui64 must be
     # populated with the appropriate EUI64.
-    HAVE_TRUST_CENTER_EUI64 = (0x0040,)
+    HAVE_TRUST_CENTER_EUI64 = 0x0040
     # This denotes that the preconfiguredKey is not the actual Link Key but a
     # Secret Key known only to the Trust Center.  It is hashed with the IEEE
     # Address of the destination device in order to create the actual Link Key
@@ -983,7 +983,7 @@ class EmberKeyStatus(basic.uint8_t, enum.Enum):
 
     KEY_STATUS_NONE = 0x00
     APP_LINK_KEY_ESTABLISHED = 0x01
-    APP_MASTER_KEY_ESTABLISHED = 0x02
+    APP_MASTER_KEY_ESTABLISHED = 0x02  # removed in ver. 5
     TRUST_CENTER_LINK_KEY_ESTABLISHED = 0x03
     KEY_ESTABLISHMENT_TIMEOUT = 0x04
     KEY_TABLE_FULL = 0x05
