@@ -12,10 +12,11 @@ from bellows.config import (
     SCHEMA_DEVICE,
 )
 from bellows.exception import APIException, EzspError
-import bellows.ezsp.v4
 import bellows.types as t
 import bellows.uart
 import serial
+
+from . import v4
 
 PROBE_TIMEOUT = 3
 LOGGER = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ class EZSP:
         self._config = device_config
         self._callbacks = {}
         self._ezsp_event = asyncio.Event()
-        self._ezsp_version = bellows.ezsp.v4.EZSP_VERSION
+        self._ezsp_version = v4.EZSP_VERSION
         self._gw = None
         self._protocol = None
 
@@ -69,7 +70,7 @@ class EZSP:
     async def connect(self) -> None:
         assert self._gw is None
         self._gw = await bellows.uart.connect(self._config, self)
-        self._protocol = bellows.ezsp.v4.EZSPv4(self.handle_callback, self._gw)
+        self._protocol = v4.EZSPv4(self.handle_callback, self._gw)
 
     async def reset(self):
         LOGGER.debug("Resetting EZSP")
@@ -90,9 +91,9 @@ class EZSP:
                 LOGGER.warning(
                     "Protocol version %s is not supported, using version %s instead",
                     ver,
-                    bellows.ezsp.v4.EZSP_VERSION,
+                    v4.EZSP_VERSION,
                 )
-                protcol_cls = bellows.ezsp.v4.EZSPv4
+                protcol_cls = v4.EZSPv4
             self._protocol = protcol_cls(self.handle_callback, self._gw)
             await self._command("version", ver)
         LOGGER.debug(
