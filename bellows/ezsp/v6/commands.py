@@ -41,7 +41,6 @@ COMMANDS = {
     "setGpioRadioPowerMask": (0xAE, (t.uint32_t,), ()),
     "setCtune": (0xF5, (t.uint16_t,), ()),
     "getCtune": (0xF6, (), (t.uint16_t,)),
-    "setChannelMap": (0xF7, (t.uint8_t, t.uint8_t), ()),
     # 5. Utilities Frames
     "nop": (0x05, (), ()),
     "echo": (0x81, (t.LVBytes,), (t.LVBytes,)),
@@ -80,6 +79,7 @@ COMMANDS = {
     "customFrameHandler": (0x54, (), (t.LVBytes,)),
     "getEui64": (0x26, (), (t.EmberEUI64,)),
     "getNodeId": (0x27, (), (t.EmberNodeId,)),
+    "getPhyInterfaceCount": (0xFC, (), (t.uint8_t,)),
     "networkInit": (0x17, (t.EmberNetworkInitStruct,), (t.EmberStatus,)),
     # 6. Networking Frames
     "setManufacturerCode": (0x15, (t.uint16_t,), ()),
@@ -121,11 +121,23 @@ COMMANDS = {
         (),
         (t.EmberStatus, t.EmberNodeType, t.EmberNetworkParameters),
     ),
+    "getRadioParameters": (
+        0xFD,
+        (t.uint8_t,),
+        (t.EmberStatus, t.EmberNodeType, t.EmberNetworkParameters),
+    ),
     "getParentChildParameters": (0x29, (), (t.uint8_t, t.EmberEUI64, t.EmberNodeId)),
     "getChildData": (
         0x4A,
         (t.uint8_t,),
         (t.EmberStatus, t.EmberNodeId, t.EmberEUI64, t.EmberNodeType),
+    ),
+    "getSourceRouteTableTotalSize": (0xC3, (), (t.uint8_t,)),
+    "getSourceRouteTableFilledSize": (0xC2, (), (t.uint8_t,)),
+    "getSourceRouteTableEntry": (
+        0xC1,
+        (t.uint8_t,),
+        (t.EmberStatus, t.EmberNodeId, t.uint8_t),
     ),
     "getNeighbor": (0x79, (t.uint8_t,), (t.EmberStatus, t.EmberNeighborTableEntry)),
     "setRoutingShortcutThreshold": (0xD0, (t.uint8_t,), (t.EmberStatus,)),
@@ -158,6 +170,23 @@ COMMANDS = {
         0x40,
         (t.EmberDutyCycleLimits,),
         (t.EmberStatus, t.EmberDutyCycleState),
+    ),
+    "getDutyCycleLimits": (0x4B, (), (t.EmberStatus, t.EmberDutyCycleLimits)),
+    "getCurrentDutyCycle": (
+        0x4C,
+        (t.uint8_t,),
+        (t.EmberStatus, t.fixed_list(134, t.uint8_t)),
+    ),
+    "dutyCycleHandler": (
+        0x4D,
+        (),
+        (
+            t.uint8_t,
+            t.uint8_t,
+            t.EmberDutyCycleState,
+            t.uint8_t,
+            t.EmberPerDeviceDutyCycle,
+        ),
     ),
     # 7. Binding Frames
     "clearBindingTable": (0x2A, (), (t.EmberStatus,)),
@@ -207,6 +236,19 @@ COMMANDS = {
     "sendMulticast": (
         0x38,
         (t.EmberApsFrame, t.uint8_t, t.uint8_t, t.uint8_t, t.LVBytes),
+        (t.EmberStatus, t.uint8_t),
+    ),
+    "sendMulticastWithAlias": (
+        0x3A,
+        (
+            t.EmberApsFrame,
+            t.uint8_t,
+            t.uint8_t,
+            t.uint16_t,
+            t.uint8_t,
+            t.uint8_t,
+            t.LVBytes,
+        ),
         (t.EmberStatus, t.uint8_t),
     ),
     "sendReply": (0x39, (t.EmberNodeId, t.EmberApsFrame, t.LVBytes), (t.EmberStatus,)),
@@ -320,6 +362,11 @@ COMMANDS = {
     "zigbeeKeyEstablishmentHandler": (0x9B, (), (t.EmberEUI64, t.EmberKeyStatus)),
     "addTransientLinkKey": (0xAF, (t.EmberEUI64, t.EmberKeyData), (t.EmberStatus,)),
     "clearTransientLinkKeys": (0x6B, (), ()),
+    "getTransientLinkKey": (
+        0xCE,
+        (t.EmberEUI64,),
+        (t.EmberStatus, t.EmberTransientKeyData),
+    ),
     # 10. Trust Center Frames
     "trustCenterJoinHandler": (
         0x24,
