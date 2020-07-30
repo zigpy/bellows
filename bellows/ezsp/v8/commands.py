@@ -316,7 +316,7 @@ COMMANDS = {
     "unicastCurrentNetworkKey": (
         0x0050,
         (t.EmberNodeId, t.EmberEUI64, t.EmberNodeId),
-        (t.EmberStatus),
+        (t.EmberStatus,),
     ),
     "addressTableEntryIsActive": (0x005B, (t.uint8_t,), (t.Bool,)),
     "setAddressTableRemoteEui64": (0x005C, (t.uint8_t, t.EmberEUI64), (t.EmberStatus,)),
