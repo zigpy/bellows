@@ -39,7 +39,6 @@ COMMANDS = {
         (t.uint8_t, t.uint8_t, t.uint8_t, t.uint8_t, t.uint8_t),
         (t.EzspStatus,),
     ),
-    "setChannelMap": (0x00F7, (t.uint8_t, t.uint8_t), ()),
     # 5. Utilities Frames
     "nop": (0x0005, (), ()),
     "echo": (0x0081, (t.LVBytes,), (t.LVBytes,)),
@@ -126,11 +125,23 @@ COMMANDS = {
         (),
         (t.EmberStatus, t.EmberNodeType, t.EmberNetworkParameters),
     ),
+    "getRadioParameters": (
+        0x00FD,
+        (t.uint8_t,),
+        (t.EmberStatus, t.EmberNodeType, t.EmberNetworkParameters),
+    ),
     "getParentChildParameters": (0x0029, (), (t.uint8_t, t.EmberEUI64, t.EmberNodeId)),
     "getChildData": (
         0x004A,
         (t.uint8_t,),
         (t.EmberStatus, t.EmberNodeId, t.EmberEUI64, t.EmberNodeType),
+    ),
+    "getSourceRouteTableTotalSize": (0x00C3, (), (t.uint8_t,)),
+    "getSourceRouteTableFilledSize": (0x00C2, (), (t.uint8_t,)),
+    "getSourceRouteTableEntry": (
+        0x00C1,
+        (t.uint8_t,),
+        (t.EmberStatus, t.EmberNodeId, t.uint8_t),
     ),
     "getNeighbor": (0x0079, (t.uint8_t,), (t.EmberStatus, t.EmberNeighborTableEntry)),
     "getNeighborFrameCounter": (0x003E, (t.EmberEUI64,), (t.EmberStatus, t.uint32_t)),
@@ -242,6 +253,19 @@ COMMANDS = {
         (t.EmberApsFrame, t.uint8_t, t.uint8_t, t.uint8_t, t.LVBytes),
         (t.EmberStatus, t.uint8_t),
     ),
+    "sendMulticastWithAlias": (
+        0x3A,
+        (
+            t.EmberApsFrame,
+            t.uint8_t,
+            t.uint8_t,
+            t.uint16_t,
+            t.uint8_t,
+            t.uint8_t,
+            t.LVBytes,
+        ),
+        (t.EmberStatus, t.uint8_t),
+    ),
     "sendReply": (
         0x0039,
         (t.EmberNodeId, t.EmberApsFrame, t.LVBytes),
@@ -337,7 +361,7 @@ COMMANDS = {
         (t.uint8_t, t.EmberMacPassthroughType, t.uint8_t, t.int8s, t.LVBytes),
     ),
     "rawTransmitCompleteHandler": (0x0098, (), (t.EmberStatus,)),
-    "setMacPollCcaWaitTime": (0x00F4, (t.uint8_t,), ()),
+    "setMacPollFailureWaitTime": (0x00F4, (t.uint8_t,), ()),
     "setBeaconClassificationParams": (
         0x00EF,
         (),
