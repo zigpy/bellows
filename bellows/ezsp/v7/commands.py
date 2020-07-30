@@ -1,4 +1,4 @@
-import bellows.ezsp.v7.types as t
+from . import types as t
 
 COMMANDS = {
     # 4. Configuration frames
@@ -42,7 +42,6 @@ COMMANDS = {
     "setGpioRadioPowerMask": (0xAE, (t.uint32_t,), ()),
     "setCtune": (0xF5, (t.uint16_t,), ()),
     "getCtune": (0xF6, (), (t.uint16_t,)),
-    "setChannelMap": (0xF7, (t.uint8_t, t.uint8_t), ()),
     # 5. Utilities Frames
     "nop": (0x05, (), ()),
     "echo": (0x81, (t.LVBytes,), (t.LVBytes,)),
@@ -129,11 +128,23 @@ COMMANDS = {
         (),
         (t.EmberStatus, t.EmberNodeType, t.EmberNetworkParameters),
     ),
+    "getRadioParameters": (
+        0xFD,
+        (t.uint8_t,),
+        (t.EmberStatus, t.EmberNodeType, t.EmberNetworkParameters),
+    ),
     "getParentChildParameters": (0x29, (), (t.uint8_t, t.EmberEUI64, t.EmberNodeId)),
     "getChildData": (
         0x4A,
         (t.uint8_t,),
         (t.EmberStatus, t.EmberNodeId, t.EmberEUI64, t.EmberNodeType),
+    ),
+    "getSourceRouteTableTotalSize": (0xC3, (), (t.uint8_t,)),
+    "getSourceRouteTableFilledSize": (0xC2, (), (t.uint8_t,)),
+    "getSourceRouteTableEntry": (
+        0xC1,
+        (t.uint8_t,),
+        (t.EmberStatus, t.EmberNodeId, t.uint8_t),
     ),
     "getNeighbor": (0x79, (t.uint8_t,), (t.EmberStatus, t.EmberNeighborTableEntry)),
     "setRoutingShortcutThreshold": (0xD0, (t.uint8_t,), (t.EmberStatus,)),
@@ -238,6 +249,19 @@ COMMANDS = {
         (t.EmberApsFrame, t.uint8_t, t.uint8_t, t.uint8_t, t.LVBytes),
         (t.EmberStatus, t.uint8_t),
     ),
+    "sendMulticastWithAlias": (
+        0x3A,
+        (
+            t.EmberApsFrame,
+            t.uint8_t,
+            t.uint8_t,
+            t.uint16_t,
+            t.uint8_t,
+            t.uint8_t,
+            t.LVBytes,
+        ),
+        (t.EmberStatus, t.uint8_t),
+    ),
     "sendReply": (0x39, (t.EmberNodeId, t.EmberApsFrame, t.LVBytes), (t.EmberStatus,)),
     "messageSentHandler": (
         0x3F,
@@ -290,7 +314,7 @@ COMMANDS = {
     "unicastCurrentNetworkKey": (
         0x50,
         (t.EmberNodeId, t.EmberEUI64, t.EmberNodeId),
-        (t.EmberStatus),
+        (t.EmberStatus,),
     ),
     "addressTableEntryIsActive": (0x5B, (t.uint8_t,), (t.Bool,)),
     "setAddressTableRemoteEui64": (0x5C, (t.uint8_t, t.EmberEUI64), (t.EmberStatus,)),
