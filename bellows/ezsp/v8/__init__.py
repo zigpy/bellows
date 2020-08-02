@@ -21,7 +21,7 @@ class EZSPv8(protocol.ProtocolHandler):
     def _ezsp_frame_tx(self, name: str) -> bytes:
         """Serialize the frame id."""
         cmd_id = self.COMMANDS[name][0]
-        hdr = [self._seq, 0x01, 0x00]
+        hdr = [self._seq, 0x00, 0x01]
         return bytes(hdr) + self.types.uint16_t(cmd_id).serialize()
 
     def _ezsp_frame_rx(self, data: bytes) -> Tuple[int, int, bytes]:
