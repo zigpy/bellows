@@ -10,6 +10,6 @@ EZSP_SCHEMA = {k: v for k, v in v4_config.EZSP_SCHEMA.items() if k not in _delet
 del _deletions
 
 EZSP_POLICIES_SCH = {
-    **{vol.Optional(policy.name): cv_uint16 for policy in types.EzspPolicyId},
     **v4_config.EZSP_POLICIES_SHARED,
+    **{vol.Optional(policy.name): cv_uint16 for policy in types.EzspPolicyId},
 }

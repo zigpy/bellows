@@ -284,6 +284,6 @@ EZSP_POLICIES_SHARED = {
 }
 
 EZSP_POLICIES_SCH = {
-    **{vol.Optional(policy.name): cv_uint16 for policy in types.EzspPolicyId},
     **EZSP_POLICIES_SHARED,
+    **{vol.Optional(policy.name): cv_uint16 for policy in types.EzspPolicyId},
 }
