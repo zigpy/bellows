@@ -81,7 +81,7 @@ class ProtocolHandler(abc.ABC):
 
         policies = self.SCHEMAS[CONF_EZSP_POLICIES](zigpy_config[CONF_EZSP_POLICIES])
         for policy, value in policies.items():
-            status, = await self.setPolicy(self.types.EzspPolicyId[policy], value)
+            (status,) = await self.setPolicy(self.types.EzspPolicyId[policy], value)
             assert status == self.types.EmberStatus.SUCCESS  # TODO: Better check
 
     def __call__(self, data: bytes) -> None:
