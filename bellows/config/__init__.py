@@ -9,6 +9,7 @@ from zigpy.config import (  # noqa: F401 pylint: disable=unused-import
 
 CONF_DEVICE_BAUDRATE = "baudrate"
 CONF_EZSP_CONFIG = "ezsp_config"
+CONF_EZSP_POLICIES = "ezsp_policies"
 CONF_PARAM_SRC_RTG = "source_routing"
 
 SCHEMA_DEVICE = SCHEMA_DEVICE.extend(
@@ -20,5 +21,10 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
         vol.Required(CONF_DEVICE): SCHEMA_DEVICE,
         vol.Optional(CONF_PARAM_SRC_RTG, default=False): cv_boolean,
         vol.Optional(CONF_EZSP_CONFIG, default={}): dict,
+        vol.Optional(CONF_EZSP_POLICIES, default={}): vol.Schema(
+            {vol.Optional(str): int}
+        ),
     }
 )
+
+cv_uint16 = vol.All(int, vol.Range(min=0, max=65535))

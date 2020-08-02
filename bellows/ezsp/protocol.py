@@ -5,6 +5,7 @@ import functools
 import logging
 from typing import Any, Callable, Dict, Tuple
 
+from bellows.config import CONF_EZSP_CONFIG, CONF_EZSP_POLICIES
 from bellows.typing import GatewayType
 
 LOGGER = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ class ProtocolHandler(abc.ABC):
     async def initialize(self, ezsp_config: Dict) -> None:
         """Initialize EmberZNet Stack."""
 
-        ezsp_config = self.SCHEMA(ezsp_config)
+        ezsp_config = self.SCHEMAS[CONF_EZSP_CONFIG](ezsp_config)
         for config, value in ezsp_config.items():
             if config in (self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name,):
                 # we want to set these last
@@ -78,21 +79,10 @@ class ProtocolHandler(abc.ABC):
     async def update_policies(self, zigpy_config: dict) -> None:
         """Set up the policies for what the NCP should do."""
 
-        v = await self.setPolicy(
-            self.types.EzspPolicyId.TC_KEY_REQUEST_POLICY,
-            self.types.EzspDecisionId.GENERATE_NEW_TC_LINK_KEY,
-        )
-        assert v[0] == self.types.EmberStatus.SUCCESS  # TODO: Better check
-        v = await self.setPolicy(
-            self.types.EzspPolicyId.APP_KEY_REQUEST_POLICY,
-            self.types.EzspDecisionId.DENY_APP_KEY_REQUESTS,
-        )
-        assert v[0] == self.types.EmberStatus.SUCCESS  # TODO: Better check
-        v = await self.setPolicy(
-            self.types.EzspPolicyId.TRUST_CENTER_POLICY,
-            self.types.EzspDecisionId.ALLOW_PRECONFIGURED_KEY_JOINS,
-        )
-        assert v[0] == self.types.EmberStatus.SUCCESS  # TODO: Better check
+        policies = self.SCHEMAS[CONF_EZSP_POLICIES](zigpy_config[CONF_EZSP_POLICIES])
+        for policy, value in policies.items():
+            (status,) = await self.setPolicy(self.types.EzspPolicyId[policy], value)
+            assert status == self.types.EmberStatus.SUCCESS  # TODO: Better check
 
     def __call__(self, data: bytes) -> None:
         """Handler for received data frame."""

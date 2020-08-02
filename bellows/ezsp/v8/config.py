@@ -1,7 +1,14 @@
+from bellows.config import cv_uint16
 import bellows.multicast
 import voluptuous as vol
 
-from .types import EmberZdoConfigurationFlags, EzspConfigId
+from ..v4.config import EZSP_POLICIES_SHARED
+from .types import (
+    EmberZdoConfigurationFlags,
+    EzspConfigId,
+    EzspDecisionBitmask,
+    EzspPolicyId,
+)
 
 EZSP_SCHEMA = {
     # The number of packet buffers available to the stack. When set to the special
@@ -246,4 +253,15 @@ EZSP_SCHEMA = {
     vol.Optional(
         EzspConfigId.CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S.name
     ): vol.All(int, vol.Range(min=0)),
+}
+
+EZSP_POLICIES_SCH = {
+    vol.Optional(
+        EzspPolicyId.TRUST_CENTER_POLICY.name,
+        default=EzspDecisionBitmask.ALLOW_JOINS
+        | EzspDecisionBitmask.JOINS_USE_INSTALL_CODE_KEY
+        | EzspDecisionBitmask.IGNORE_UNSECURED_REJOINS,
+    ): cv_uint16,
+    **EZSP_POLICIES_SHARED,
+    **{vol.Optional(policy.name): cv_uint16 for policy in EzspPolicyId},
 }

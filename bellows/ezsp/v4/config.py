@@ -1,3 +1,4 @@
+from bellows.config import cv_uint16
 import bellows.multicast
 import voluptuous as vol
 
@@ -265,4 +266,24 @@ EZSP_SCHEMA = {
     vol.Optional(c.CONFIG_TRANSIENT_KEY_TIMEOUT_S.name): vol.All(
         int, vol.Range(min=0, max=65535)
     ),
+}
+
+EZSP_POLICIES_SHARED = {
+    vol.Optional(
+        types.EzspPolicyId.TC_KEY_REQUEST_POLICY.name,
+        default=types.EzspDecisionId.GENERATE_NEW_TC_LINK_KEY,
+    ): cv_uint16,
+    vol.Optional(
+        types.EzspPolicyId.APP_KEY_REQUEST_POLICY.name,
+        default=types.EzspDecisionId.DENY_APP_KEY_REQUESTS,
+    ): cv_uint16,
+    vol.Optional(
+        types.EzspPolicyId.TRUST_CENTER_POLICY.name,
+        default=types.EzspDecisionId.ALLOW_PRECONFIGURED_KEY_JOINS,
+    ): cv_uint16,
+}
+
+EZSP_POLICIES_SCH = {
+    **EZSP_POLICIES_SHARED,
+    **{vol.Optional(policy.name): cv_uint16 for policy in types.EzspPolicyId},
 }

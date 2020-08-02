@@ -2,9 +2,10 @@
 import logging
 from typing import Tuple
 
+import bellows.config
 import voluptuous
 
-from . import commands, config as v8_config, types as v8_types
+from . import commands, config, types as v8_types
 from .. import protocol
 
 EZSP_VERSION = 8
@@ -15,7 +16,10 @@ class EZSPv8(protocol.ProtocolHandler):
     """EZSP Version 8 Protocol version handler."""
 
     COMMANDS = commands.COMMANDS
-    SCHEMA = voluptuous.Schema(v8_config.EZSP_SCHEMA)
+    SCHEMAS = {
+        bellows.config.CONF_EZSP_CONFIG: voluptuous.Schema(config.EZSP_SCHEMA),
+        bellows.config.CONF_EZSP_POLICIES: voluptuous.Schema(config.EZSP_POLICIES_SCH),
+    }
     types = v8_types
 
     def _ezsp_frame_tx(self, name: str) -> bytes:
@@ -30,24 +34,3 @@ class EZSPv8(protocol.ProtocolHandler):
         frame_id, data = self.types.uint16_t.deserialize(data)
 
         return seq, frame_id, data
-
-    async def update_policies(self, zigpy_config: dict) -> None:
-        """Set up the policies for what the NCP should do."""
-
-        v = await self.setPolicy(
-            self.types.EzspPolicyId.TC_KEY_REQUEST_POLICY,
-            self.types.EzspDecisionId.GENERATE_NEW_TC_LINK_KEY,
-        )
-        assert v[0] == self.types.EmberStatus.SUCCESS  # TODO: Better check
-        v = await self.setPolicy(
-            self.types.EzspPolicyId.APP_KEY_REQUEST_POLICY,
-            self.types.EzspDecisionId.DENY_APP_KEY_REQUESTS,
-        )
-        assert v[0] == self.types.EmberStatus.SUCCESS  # TODO: Better check
-        v = await self.setPolicy(
-            self.types.EzspPolicyId.TRUST_CENTER_POLICY,
-            v8_types.EzspDecisionBitmask.ALLOW_JOINS
-            | v8_types.EzspDecisionBitmask.JOINS_USE_INSTALL_CODE_KEY
-            | v8_types.EzspDecisionBitmask.IGNORE_UNSECURED_REJOINS,
-        )
-        assert v[0] == self.types.EmberStatus.SUCCESS  # TODO: Better check
