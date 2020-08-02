@@ -16,7 +16,10 @@ class EZSPv5(protocol.ProtocolHandler):
     """EZSP Version 5 Protocol version handler."""
 
     COMMANDS = commands.COMMANDS
-    SCHEMAS = {bellows.config.CONF_EZSP_CONFIG: voluptuous.Schema(config.EZSP_SCHEMA)}
+    SCHEMAS = {
+        bellows.config.CONF_EZSP_CONFIG: voluptuous.Schema(config.EZSP_SCHEMA),
+        bellows.config.CONF_EZSP_POLICIES: voluptuous.Schema(config.EZSP_POLICIES_SCH),
+    }
     types = v5_types
 
     def _ezsp_frame_tx(self, name: str) -> bytes:

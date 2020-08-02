@@ -1,7 +1,9 @@
+from bellows.config import cv_uint16
 import voluptuous as vol
 
+from ..v4.config import EZSP_POLICIES_SHARED
 from ..v5 import config as v5_config
-from .types import EzspConfigId
+from .types import EzspConfigId, EzspPolicyId
 
 _deletions = (
     "CONFIG_MOBILE_NODE_POLL_TIMEOUT",
@@ -27,3 +29,8 @@ EZSP_SCHEMA = {
 }
 
 del _deletions
+
+EZSP_POLICIES_SCH = {
+    **{vol.Optional(policy.name): cv_uint16 for policy in EzspPolicyId},
+    **EZSP_POLICIES_SHARED,
+}

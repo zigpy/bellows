@@ -16,7 +16,10 @@ class EZSPv8(protocol.ProtocolHandler):
     """EZSP Version 8 Protocol version handler."""
 
     COMMANDS = commands.COMMANDS
-    SCHEMAS = {bellows.config.CONF_EZSP_CONFIG: voluptuous.Schema(config.EZSP_SCHEMA)}
+    SCHEMAS = {
+        bellows.config.CONF_EZSP_CONFIG: voluptuous.Schema(config.EZSP_SCHEMA),
+        bellows.config.CONF_EZSP_POLICIES: voluptuous.Schema(config.EZSP_POLICIES_SCH),
+    }
     types = v8_types
 
     def _ezsp_frame_tx(self, name: str) -> bytes:

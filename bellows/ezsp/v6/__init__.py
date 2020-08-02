@@ -15,5 +15,8 @@ class EZSPv6(EZSPv5):
     """EZSP Version 6 Protocol version handler."""
 
     COMMANDS = commands.COMMANDS
-    SCHEMAS = {bellows.config.CONF_EZSP_CONFIG: voluptuous.Schema(config.EZSP_SCHEMA)}
+    SCHEMAS = {
+        bellows.config.CONF_EZSP_CONFIG: voluptuous.Schema(config.EZSP_SCHEMA),
+        bellows.config.CONF_EZSP_POLICIES: voluptuous.Schema(config.EZSP_POLICIES_SCH),
+    }
     types = v6_types
