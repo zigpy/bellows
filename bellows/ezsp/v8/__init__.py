@@ -2,9 +2,10 @@
 import logging
 from typing import Tuple
 
+import bellows.config
 import voluptuous
 
-from . import commands, config as v8_config, types as v8_types
+from . import commands, config, types as v8_types
 from .. import protocol
 
 EZSP_VERSION = 8
@@ -15,7 +16,7 @@ class EZSPv8(protocol.ProtocolHandler):
     """EZSP Version 8 Protocol version handler."""
 
     COMMANDS = commands.COMMANDS
-    SCHEMA = voluptuous.Schema(v8_config.EZSP_SCHEMA)
+    SCHEMAS = {bellows.config.CONF_EZSP_CONFIG: voluptuous.Schema(config.EZSP_SCHEMA)}
     types = v8_types
 
     def _ezsp_frame_tx(self, name: str) -> bytes:

@@ -5,6 +5,7 @@ import functools
 import logging
 from typing import Any, Callable, Dict, Tuple
 
+import bellows.config
 from bellows.typing import GatewayType
 
 LOGGER = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ class ProtocolHandler(abc.ABC):
     async def initialize(self, ezsp_config: Dict) -> None:
         """Initialize EmberZNet Stack."""
 
-        ezsp_config = self.SCHEMA(ezsp_config)
+        ezsp_config = self.SCHEMAS[bellows.config.CONF_EZSP_CONFIG](ezsp_config)
         for config, value in ezsp_config.items():
             if config in (self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name,):
                 # we want to set these last
