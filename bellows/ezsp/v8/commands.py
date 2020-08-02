@@ -19,7 +19,7 @@ COMMANDS = {
         ),
         (t.EzspStatus,),
     ),
-    "setPolicy": (0x0055, (t.EzspPolicyId, t.EzspDecisionId), (t.EzspStatus,)),
+    "setPolicy": (0x0055, (t.EzspPolicyId, t.uint16_t), (t.EzspStatus,)),
     "getPolicy": (0x0056, (t.EzspPolicyId,), (t.EzspStatus, t.EzspDecisionId)),
     "sendPanIdUpdate": (0x0057, (t.EmberPanId,), (t.Bool,)),
     "getValue": (0x00AA, (t.EzspValueId,), (t.EzspStatus, t.LVBytes)),
