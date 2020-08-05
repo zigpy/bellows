@@ -83,8 +83,10 @@ def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4):
     ezsp_mock.networkInit = mockinit
     ezsp_mock.getNetworkParameters = mockezsp
     ezsp_mock.setPolicy = mockezsp
+    ezsp_mock.getMfgToken = CoroutineMock(return_value=(b"Some token\xff",))
     ezsp_mock.getNodeId = mockezsp
     ezsp_mock.getEui64.side_effect = CoroutineMock(return_value=[ieee])
+    ezsp_mock.getValue = CoroutineMock(return_value=(0, b"\x01" * 6))
     ezsp_mock.leaveNetwork = mockezsp
     app.form_network = CoroutineMock()
     ezsp_mock.reset.side_effect = CoroutineMock()
