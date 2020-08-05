@@ -104,7 +104,7 @@ class EZSP:
             self._protocol = protcol_cls(self.handle_callback, self._gw)
             await self._command("version", ver)
         LOGGER.debug(
-            "EZSP Stack Type: %s, Stack Version: %s, Protocol version: %s",
+            "EZSP Stack Type: %s, Stack Version: %04x, Protocol version: %s",
             stack_type,
             stack_version,
             ver,
