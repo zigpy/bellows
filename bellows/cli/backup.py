@@ -108,10 +108,11 @@ async def _backup(ezsp):
 
 
 @main.command()
+@click.option("-f", "--force", is_flag=True, required=False, default=False)
 @click.option("-B", "--backup-file", type=str, required=True)
 @click.pass_context
 @util.background
-async def restore(ctx, backup_file):
+async def restore(ctx, backup_file, force):
     """Backup NCP config to stdio."""
     click.echo("Restoring NCP")
     try:
@@ -129,12 +130,12 @@ async def restore(ctx, backup_file):
 
     ezsp = await util.setup(ctx.obj["device"], ctx.obj["baudrate"], _print_cb)
     try:
-        await _restore(ezsp, backup_data)
+        await _restore(ezsp, backup_data, force)
     finally:
         ezsp.close()
 
 
-async def _restore(ezsp, backup_data):
+async def _restore(ezsp, backup_data, force):
     """Restore backup."""
 
     stack_up = asyncio.Future()
@@ -155,6 +156,9 @@ async def _restore(ezsp, backup_data):
     assert status in (t.EmberStatus.SUCCESS, t.EmberStatus.NOT_JOINED)
 
     if status == t.EmberStatus.SUCCESS:
+        if not force:
+            LOGGER.info("Network is up, not forcing restore")
+            return
         try:
             await asyncio.wait_for(stack_up, timeout=5)
             await ezsp.leaveNetwork()
