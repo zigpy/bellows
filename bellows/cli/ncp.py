@@ -19,7 +19,9 @@ async def config(ctx, config, all_):
     if not (config or all_):
         raise click.BadOptionUsage("One of config or --all must be specified")
 
-    s = await util.setup(ctx.obj["device"], ctx.obj["baudrate"], util.print_cb)
+    s = await util.setup(
+        ctx.obj["device"], ctx.obj["baudrate"], util.print_cb, configure=False
+    )
 
     if all_:
         for config in t.EzspConfigId:
