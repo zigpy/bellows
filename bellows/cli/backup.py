@@ -187,7 +187,7 @@ async def _restore(ezsp, backup_data, force):
 
     if status == t.EmberStatus.SUCCESS:
         if not force:
-            LOGGER.info("Network is up, not forcing restore")
+            click.echo("Network is up, not forcing restore")
             return
         try:
             await asyncio.wait_for(stack_up, timeout=5)
@@ -217,6 +217,9 @@ async def _restore(ezsp, backup_data, force):
     LOGGER.debug("Set initial security state: %s", status)
     assert status == t.EmberStatus.SUCCESS
 
+    if backup_data[ATTR_KEY_TABLE]:
+        await _restore_keys(ezsp, backup_data[ATTR_KEY_TABLE])
+
     network_key = backup_data[ATTR_KEY_NWK]
     (status,) = await ezsp.setValue(
         ezsp.types.EzspValueId.VALUE_NWK_FRAME_COUNTER,
@@ -232,9 +235,6 @@ async def _restore(ezsp, backup_data, force):
     )
     LOGGER.debug("Set network frame counter: %s", status)
     assert status == t.EmberStatus.SUCCESS
-
-    if backup_data[ATTR_KEY_TABLE]:
-        await _restore_keys(ezsp, backup_data[ATTR_KEY_TABLE])
 
     await _form_network(ezsp, backup_data)
 
@@ -262,3 +262,20 @@ async def _restore_keys(ezsp, key_table):
 
 async def _form_network(ezsp, backup_data):
     """Form network."""
+    network = t.EmberNetworkParameters(
+        panId=backup_data[ATTR_PAN_ID],
+        extendedPanId=backup_data[ATTR_EXT_PAN_ID],
+        radioTxPower=backup_data[ATTR_RADIO_TX_PWR],
+        radioChannel=backup_data[ATTR_RADIO_CHANNEL],
+        joinMethod=t.EmberJoinMethod.USE_MAC_ASSOCIATION,
+        nwkManagerId=0x0000,
+        nwkUpdateId=backup_data[ATTR_NWK_UPDATE_ID],
+        channels=backup_data[ATTR_CHANNELS],
+    )
+    (status,) = await ezsp.formNetwork(network)
+    LOGGER.debug("Form network: %s", status)
+    assert status == t.EmberStatus.NETWORK_UP
+
+    (status,) = await ezsp.setValue(ezsp.types.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
+    LOGGER.debug("Set token writing: %s", status)
+    assert status == t.EmberStatus.SUCCESS
