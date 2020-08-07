@@ -204,9 +204,28 @@ async def _restore(ezsp, backup_data, force):
     )
     (status,) = await ezsp.setInitialSecurityState(init_sec_state)
     LOGGER.debug("Set initial security state: %s", status)
+    assert status == t.EmberStatus.SUCCESS
+
+    network_key = backup_data[ATTR_KEY_NWK]
+    (status,) = await ezsp.setValue(
+        ezsp.types.EzspValueId.VALUE_NWK_FRAME_COUNTER,
+        t.uint32_t(network_key[ATTR_KEY_FRAME_COUNTER_OUT]).serialize(),
+    )
+    LOGGER.debug("Set network frame counter: %s", status)
+    assert status == t.EmberStatus.SUCCESS
+
+    tc_key = backup_data[ATTR_KEY_GLOBAL]
+    (status,) = await ezsp.setValue(
+        ezsp.types.EzspValueId.VALUE_APS_FRAME_COUNTER,
+        t.uint32_t(tc_key[ATTR_KEY_FRAME_COUNTER_OUT]).serialize(),
+    )
+    LOGGER.debug("Set network frame counter: %s", status)
+    assert status == t.EmberStatus.SUCCESS
 
     if backup_data[ATTR_KEY_TABLE]:
         await _restore_keys(ezsp, backup_data[ATTR_KEY_TABLE])
+
+    await _form_network(ezsp, backup_data)
 
 
 async def _restore_keys(ezsp, key_table):
@@ -228,3 +247,7 @@ async def _restore_keys(ezsp, key_table):
         if status != t.EmberStatus.SUCCESS:
             LOGGER.warning("Couldn't add %s key: %s", key, status)
         await asyncio.sleep(0.2)
+
+
+async def _form_network(ezsp, backup_data):
+    """Form network."""
