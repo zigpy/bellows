@@ -204,3 +204,27 @@ async def _restore(ezsp, backup_data, force):
     )
     (status,) = await ezsp.setInitialSecurityState(init_sec_state)
     LOGGER.debug("Set initial security state: %s", status)
+
+    if backup_data[ATTR_KEY_TABLE]:
+        await _restore_keys(ezsp, backup_data[ATTR_KEY_TABLE])
+
+
+async def _restore_keys(ezsp, key_table):
+    """Restore keys."""
+
+    (status,) = await ezsp.setConfigurationValue(
+        ezsp.types.EzspConfigId.CONFIG_KEY_TABLE_SIZE, len(key_table)
+    )
+    assert status == t.EmberStatus.SUCCESS
+
+    for key in key_table:
+        is_link_key = key[ATTR_KEY_TYPE] in (
+            ezsp.types.EmberKeyType.APPLICATION_LINK_KEY,
+            ezsp.types.EmberKeyType.TRUST_CENTER_LINK_KEY,
+        )
+        (status,) = await ezsp.addOrUpdateKeyTableEntry(
+            key[ATTR_KEY_PARTNER], is_link_key, key[ATTR_KEY]
+        )
+        if status != t.EmberStatus.SUCCESS:
+            LOGGER.warning("Couldn't add %s key: %s", key, status)
+        await asyncio.sleep(0.2)
