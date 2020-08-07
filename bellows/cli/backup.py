@@ -15,11 +15,15 @@ LOGGER = logging.getLogger(__name__)
 ATTR_CHANNEL = "channel"
 ATTR_EXT_PAN_ID = "extended_pan_id"
 ATTR_KEY = "key"
-ATTR_KEY_FRAME_COUNTER = "frame_counter"
+ATTR_KEY_BITMASK = "bitmask"
+ATTR_KEY_FRAME_COUNTER_IN = "incomingFrameCounter"
+ATTR_KEY_FRAME_COUNTER_OUT = "outgoingFrameCounter"
 ATTR_KEY_GLOBAL = "tc_link_key"
 ATTR_KEY_NWK = "network_key"
-ATTR_KEY_SEQ = "sequence_number"
-ATTR_KEY_TYPE = "key_type"
+ATTR_KEY_PARTNER = "partnerEUI64"
+ATTR_KEY_SEQ = "sequenceNumber"
+ATTR_KEY_TABLE = "key_table"
+ATTR_KEY_TYPE = "type"
 ATTR_NODE_EUI64 = "node_ieee"
 ATTR_NODE_ID = "node_id"
 ATTR_NODE_TYPE = "node_type"
@@ -27,10 +31,13 @@ ATTR_PAN_ID = "pan_id"
 
 SCHEMA_KEY = vol.Schema(
     {
-        vol.Optional(ATTR_KEY_TYPE): cv_hex,
+        ATTR_KEY_BITMASK: cv_hex,
+        ATTR_KEY_TYPE: cv_hex,
         ATTR_KEY: cv_key,
-        ATTR_KEY_FRAME_COUNTER: cv_hex,
+        ATTR_KEY_FRAME_COUNTER_OUT: cv_hex,
+        ATTR_KEY_FRAME_COUNTER_IN: cv_hex,
         ATTR_KEY_SEQ: cv_hex,
+        ATTR_KEY_PARTNER: vol.All(str, t.EmberEUI64.convert),
     }
 )
 SCHEMA_BAK = vol.Schema(
@@ -42,6 +49,7 @@ SCHEMA_BAK = vol.Schema(
         ATTR_EXT_PAN_ID: vol.All(str, t.ExtendedPanId.convert),
         ATTR_KEY_GLOBAL: SCHEMA_KEY,
         ATTR_KEY_NWK: SCHEMA_KEY,
+        ATTR_KEY_TABLE: vol.Any([], vol.Schema([SCHEMA_KEY])),
     }
 )
 
@@ -55,23 +63,12 @@ def _print_cb(frame_name, response):
 @util.background
 async def backup(ctx):
     """Backup NCP config to stdio."""
-    click.echo("Backing up NCP")
     ezsp = await util.setup(ctx.obj["device"], ctx.obj["baudrate"], _print_cb)
 
     try:
         await _backup(ezsp)
     finally:
         ezsp.close()
-
-
-def _dump_key(key):
-    """Return a dict with key data."""
-    return {
-        ATTR_KEY_TYPE: key.type,
-        ATTR_KEY: key.key,
-        ATTR_KEY_FRAME_COUNTER: key.outgoingFrameCounter,
-        ATTR_KEY_SEQ: key.sequenceNumber,
-    }
 
 
 async def _backup(ezsp):
@@ -102,9 +99,29 @@ async def _backup(ezsp):
         (status, key) = await ezsp.getKey(key_type)
         assert status == t.EmberStatus.SUCCESS
         LOGGER.debug("%s key: %s", key_name, key)
-        result[key_name] = _dump_key(key)
+        result[key_name] = key.as_dict()
+        result[key_name][ATTR_KEY_PARTNER] = str(key.partnerEUI64)
+
+    keys = await _backup_keys(ezsp)
+    result[ATTR_KEY_TABLE] = keys
 
     click.echo(json.dumps(result))
+
+
+async def _backup_keys(ezsp):
+    """Backup keys."""
+
+    keys = []
+    for idx in range(0, 192):
+        LOGGER.debug("Getting key index %s", idx)
+        (status, key_struct) = await ezsp.getKeyTableEntry(idx)
+        if status == t.EmberStatus.SUCCESS:
+            key_dict = key_struct.as_dict()
+            key_dict[ATTR_KEY_PARTNER] = str(key_struct.partnerEUI64)
+            keys.append(key_dict)
+        elif status == t.EmberStatus.INDEX_OUT_OF_RANGE:
+            break
+    return keys
 
 
 @main.command()
@@ -127,6 +144,8 @@ async def restore(ctx, backup_file, force):
     except vol.Error as exc:
         LOGGER.error("backup file does not pass schema validation: %s", exc)
         return
+
+    LOGGER.info("backup file: %s", backup_data)
 
     ezsp = await util.setup(ctx.obj["device"], ctx.obj["baudrate"], _print_cb)
     try:
