@@ -3,6 +3,8 @@ import logging
 
 import bellows.types as t
 import click
+import voluptuous as vol
+from zigpy.config.validators import cv_hex, cv_key
 
 from . import util
 from .main import main
@@ -21,6 +23,26 @@ ATTR_NODE_EUI64 = "node_ieee"
 ATTR_NODE_ID = "node_id"
 ATTR_NODE_TYPE = "node_type"
 ATTR_PAN_ID = "pan_id"
+
+SCHEMA_KEY = vol.Schema(
+    {
+        vol.Optional(ATTR_KEY_TYPE): cv_hex,
+        ATTR_KEY: cv_key,
+        ATTR_KEY_FRAME_COUNTER: cv_hex,
+        ATTR_KEY_SEQ: cv_hex,
+    }
+)
+SCHEMA_BAK = vol.Schema(
+    {
+        ATTR_NODE_TYPE: cv_hex,
+        ATTR_NODE_ID: cv_hex,
+        ATTR_NODE_EUI64: vol.All(str, t.EmberEUI64.convert),
+        ATTR_PAN_ID: cv_hex,
+        ATTR_EXT_PAN_ID: vol.All(str, t.ExtendedPanId.convert),
+        ATTR_KEY_GLOBAL: SCHEMA_KEY,
+        ATTR_KEY_NWK: SCHEMA_KEY,
+    }
+)
 
 
 def _print_cb(frame_name, response):
@@ -82,3 +104,26 @@ async def _backup(ezsp):
         result[key_name] = _dump_key(key)
 
     click.echo(json.dumps(result))
+
+
+@main.command()
+@click.option("-B", "--backup-file", type=str, required=True)
+@click.pass_context
+@util.background
+async def restore(ctx, backup_file):
+    """Backup NCP config to stdio."""
+    click.echo("Restoring NCP")
+    try:
+        with open(backup_file, "r") as file:
+            backup_data = json.load(file)
+            LOGGER.debug("loaded: %s", backup_data)
+            backup_data = SCHEMA_BAK(backup_data)
+            LOGGER.debug("schame pass: %s", backup_data)
+    except OSError as exc:
+        LOGGER.error(f"Couldn't import backup file: %s", exc)
+        return
+    except vol.Error as exc:
+        LOGGER.error("backup file does not pass schema validation: %s", exc)
+        return
+
+    # ezsp = await util.setup(ctx.obj["device"], ctx.obj["baudrate"], _print_cb)
