@@ -12,8 +12,8 @@ from .main import main
 
 LOGGER = logging.getLogger(__name__)
 
-ATTR_CHANNEL = "channel"
-ATTR_EXT_PAN_ID = "extended_pan_id"
+ATTR_CHANNELS = "channels"
+ATTR_EXT_PAN_ID = "extendedPanId"
 ATTR_KEY = "key"
 ATTR_KEY_BITMASK = "bitmask"
 ATTR_KEY_FRAME_COUNTER_IN = "incomingFrameCounter"
@@ -27,7 +27,10 @@ ATTR_KEY_TYPE = "type"
 ATTR_NODE_EUI64 = "node_ieee"
 ATTR_NODE_ID = "node_id"
 ATTR_NODE_TYPE = "node_type"
-ATTR_PAN_ID = "pan_id"
+ATTR_NWK_UPDATE_ID = "nwkUpdateId"
+ATTR_PAN_ID = "panId"
+ATTR_RADIO_CHANNEL = "radioChannel"
+ATTR_RADIO_TX_PWR = "radioTxPower"
 
 SCHEMA_KEY = vol.Schema(
     {
@@ -42,10 +45,14 @@ SCHEMA_KEY = vol.Schema(
 )
 SCHEMA_BAK = vol.Schema(
     {
+        ATTR_CHANNELS: cv_hex,
         ATTR_NODE_TYPE: cv_hex,
         ATTR_NODE_ID: cv_hex,
         ATTR_NODE_EUI64: vol.All(str, t.EmberEUI64.convert),
+        ATTR_NWK_UPDATE_ID: cv_hex,
         ATTR_PAN_ID: cv_hex,
+        ATTR_RADIO_CHANNEL: cv_hex,
+        ATTR_RADIO_TX_PWR: cv_hex,
         ATTR_EXT_PAN_ID: vol.All(str, t.ExtendedPanId.convert),
         ATTR_KEY_GLOBAL: SCHEMA_KEY,
         ATTR_KEY_NWK: SCHEMA_KEY,
@@ -90,6 +97,10 @@ async def _backup(ezsp):
         ATTR_NODE_EUI64: str(ieee),
         ATTR_PAN_ID: network.panId,
         ATTR_EXT_PAN_ID: str(network.extendedPanId),
+        ATTR_RADIO_CHANNEL: network.radioChannel,
+        ATTR_RADIO_TX_PWR: network.radioTxPower,
+        ATTR_NWK_UPDATE_ID: network.nwkUpdateId,
+        ATTR_CHANNELS: network.channels,
     }
 
     for key_name, key_type in (
