@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 
@@ -126,4 +127,57 @@ async def restore(ctx, backup_file):
         LOGGER.error("backup file does not pass schema validation: %s", exc)
         return
 
-    # ezsp = await util.setup(ctx.obj["device"], ctx.obj["baudrate"], _print_cb)
+    ezsp = await util.setup(ctx.obj["device"], ctx.obj["baudrate"], _print_cb)
+    try:
+        await _restore(ezsp, backup_data)
+    finally:
+        ezsp.close()
+
+
+async def _restore(ezsp, backup_data):
+    """Restore backup."""
+
+    stack_up = asyncio.Future()
+    stack_dwn = asyncio.Future()
+
+    def _stack_handler(frame, args):
+        if frame != "stackStatusHandler":
+            return
+        if args[0] == t.EmberStatus.NETWORK_UP:
+            stack_up.set_result(True)
+        else:
+            stack_dwn.set_result(True)
+
+    cb_id = ezsp.add_callback(_stack_handler)
+
+    (status,) = await ezsp.networkInit()
+    LOGGER.debug("Network init status: %s", status)
+    assert status in (t.EmberStatus.SUCCESS, t.EmberStatus.NOT_JOINED)
+
+    if status == t.EmberStatus.SUCCESS:
+        try:
+            await asyncio.wait_for(stack_up, timeout=5)
+            await ezsp.leaveNetwork()
+            await asyncio.wait_for(stack_dwn, timeout=15)
+        except asyncio.TimeoutError:
+            LOGGER.error("Didn't not receive stack changed status callback")
+            return
+
+    ezsp.remove_callback(cb_id)
+
+    sec_bitmask = (
+        t.EmberInitialSecurityBitmask.HAVE_PRECONFIGURED_KEY
+        | t.EmberInitialSecurityBitmask.REQUIRE_ENCRYPTED_KEY
+        | t.EmberInitialSecurityBitmask.TRUST_CENTER_GLOBAL_LINK_KEY
+        | t.EmberInitialSecurityBitmask.HAVE_NETWORK_KEY
+        | t.EmberInitialSecurityBitmask.NO_FRAME_COUNTER_RESET
+    )
+    init_sec_state = t.EmberInitialSecurityState(
+        bitmask=sec_bitmask,
+        preconfiguredKey=backup_data[ATTR_KEY_GLOBAL][ATTR_KEY],
+        networkKey=backup_data[ATTR_KEY_NWK][ATTR_KEY],
+        networkKeySequenceNumber=backup_data[ATTR_KEY_NWK][ATTR_KEY_SEQ],
+        preconfiguredTrustCenterEui64=[0x00] * 8,
+    )
+    (status,) = await ezsp.setInitialSecurityState(init_sec_state)
+    LOGGER.debug("Set initial security state: %s", status)
