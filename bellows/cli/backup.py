@@ -136,11 +136,26 @@ async def _backup_keys(ezsp):
 
 
 @main.command()
+@click.option(
+    "--i-understand-i-can-update-eui64-only-once-and-i-still-want-to-do-it",
+    is_flag=True,
+    required=False,
+    default=False,
+    help=(
+        "EUI64 can be overridden using a manufacturer token only once and will not "
+        "accept new changes once it is set"
+    ),
+)
 @click.option("-f", "--force", is_flag=True, required=False, default=False)
 @click.option("-B", "--backup-file", type=str, required=True)
 @click.pass_context
 @util.background
-async def restore(ctx, backup_file, force):
+async def restore(
+    ctx,
+    backup_file,
+    force,
+    i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it,
+):
     """Backup NCP config to stdio."""
     click.echo("Restoring NCP")
     try:
@@ -160,12 +175,17 @@ async def restore(ctx, backup_file, force):
 
     ezsp = await util.setup(ctx.obj["device"], ctx.obj["baudrate"], _print_cb)
     try:
-        await _restore(ezsp, backup_data, force)
+        await _restore(
+            ezsp,
+            backup_data,
+            force,
+            i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it,
+        )
     finally:
         ezsp.close()
 
 
-async def _restore(ezsp, backup_data, force):
+async def _restore(ezsp, backup_data, force, update_eui64_token=False):
     """Restore backup."""
 
     stack_up = asyncio.Future()
@@ -216,6 +236,12 @@ async def _restore(ezsp, backup_data, force):
     (status,) = await ezsp.setInitialSecurityState(init_sec_state)
     LOGGER.debug("Set initial security state: %s", status)
     assert status == t.EmberStatus.SUCCESS
+
+    if update_eui64_token:
+        ncp_eui64 = t.EmberEUI64(backup_data[ATTR_NODE_EUI64]).serialize()
+        (status,) = await ezsp.setMfgToken(
+            t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, ncp_eui64
+        )
 
     if backup_data[ATTR_KEY_TABLE]:
         await _restore_keys(ezsp, backup_data[ATTR_KEY_TABLE])
