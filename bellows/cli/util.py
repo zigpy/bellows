@@ -126,7 +126,7 @@ async def setup(dev, baudrate, cbh=None, configure=True):
         await cfg(c.CONFIG_STACK_PROFILE, 2)
         await cfg(c.CONFIG_SECURITY_LEVEL, 5)
         await cfg(c.CONFIG_SUPPORTED_NETWORKS, 1)
-        await cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xFF)
+        await cfg(c.CONFIG_PACKET_BUFFER_COUNT, 64)
 
     return s
 
