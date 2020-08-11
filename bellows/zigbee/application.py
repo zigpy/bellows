@@ -22,8 +22,6 @@ APS_ACK_TIMEOUT = 120
 EZSP_DEFAULT_RADIUS = 0
 EZSP_MULTICAST_NON_MEMBER_RADIUS = 3
 MAX_WATCHDOG_FAILURES = 4
-MTOR_MIN_INTERVAL = 600
-MTOR_MAX_INTERVAL = 1800
 RESET_ATTEMPT_BACKOFF_TIME = 5
 WATCHDOG_WAKE_PERIOD = 10
 
@@ -139,7 +137,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 build,
             )
 
-        await self.set_source_routing()
         v = await ezsp.networkInit()
         if v[0] != t.EmberStatus.SUCCESS:
             if not auto_form:
@@ -171,22 +168,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         LOGGER.debug("EZSP nwk=0x%04x, IEEE=%s", self._nwk, str(self._ieee))
 
         await self.multicast.startup(self.get_device(self.ieee))
-
-    async def set_source_routing(self) -> None:
-        res = await self._ezsp.setConcentrator(
-            self.use_source_routing,
-            t.EmberConcentratorType.HIGH_RAM_CONCENTRATOR,
-            MTOR_MIN_INTERVAL,
-            MTOR_MAX_INTERVAL,
-            2,
-            5,
-            0,
-        )
-        LOGGER.debug("Set concentrator type: %s", res)
-        if res[0] != t.EmberStatus.SUCCESS:
-            LOGGER.warning(
-                "Couldn't set concentrator type %s: %s", self.use_source_routing, res
-            )
 
     async def shutdown(self):
         """Shutdown and cleanup ControllerApplication."""
@@ -473,11 +454,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                                 device.nwk,
                             )
                             await self._ezsp.setExtendedTimeout(device.ieee, True)
-                        if self.use_source_routing and device.relays is not None:
-                            res = await self._ezsp.setSourceRoute(
-                                device.nwk, device.relays
-                            )
-                            if res[0] != t.EmberStatus.SUCCESS:
+                        if self.use_source_routing and self._ezsp.ezsp_version < 8:
+                            res = await self._ezsp.set_source_route(device)
+
+                            if res != t.EmberStatus.SUCCESS:
                                 LOGGER.warning(
                                     "Couldn't set source route for %s: %s",
                                     device.nwk,

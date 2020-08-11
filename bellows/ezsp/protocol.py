@@ -5,8 +5,10 @@ import functools
 import logging
 from typing import Any, Callable, Dict, Tuple
 
-from bellows.config import CONF_EZSP_CONFIG, CONF_EZSP_POLICIES
+from bellows.config import CONF_EZSP_CONFIG, CONF_EZSP_POLICIES, CONF_PARAM_SRC_RTG
+import bellows.types as t
 from bellows.typing import GatewayType
+from zigpy.typing import DeviceType
 
 LOGGER = logging.getLogger(__name__)
 
@@ -49,10 +51,10 @@ class ProtocolHandler(abc.ABC):
     def _ezsp_frame_tx(self, name: str) -> bytes:
         """Serialize the named frame."""
 
-    async def initialize(self, ezsp_config: Dict) -> None:
+    async def initialize(self, zigpy_config: Dict) -> None:
         """Initialize EmberZNet Stack."""
 
-        ezsp_config = self.SCHEMAS[CONF_EZSP_CONFIG](ezsp_config)
+        ezsp_config = self.SCHEMAS[CONF_EZSP_CONFIG](zigpy_config[CONF_EZSP_CONFIG])
         for config, value in ezsp_config.items():
             if config in (self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name,):
                 # we want to set these last
@@ -64,6 +66,8 @@ class ProtocolHandler(abc.ABC):
             self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT,
             ezsp_config[c.CONFIG_PACKET_BUFFER_COUNT.name],
         )
+        if zigpy_config[CONF_PARAM_SRC_RTG]:
+            await self.set_source_routing()
 
     def command(self, name, *args) -> asyncio.Future:
         """Serialize command and send it."""
@@ -75,6 +79,14 @@ class ProtocolHandler(abc.ABC):
         self._awaiting[self._seq] = (c[0], c[2], future)
         self._seq = (self._seq + 1) % 256
         return asyncio.wait_for(future, timeout=EZSP_CMD_TIMEOUT)
+
+    @abc.abstractmethod
+    def set_source_route(self, device: DeviceType) -> t.EmberStatus:
+        """Set source route to the device if known."""
+
+    @abc.abstractmethod
+    async def set_source_routing(self) -> None:
+        """Enable source routing on NCP."""
 
     async def update_policies(self, zigpy_config: dict) -> None:
         """Set up the policies for what the NCP should do."""
