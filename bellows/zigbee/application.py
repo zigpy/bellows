@@ -456,14 +456,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             await self._ezsp.setExtendedTimeout(device.ieee, True)
                         if self.use_source_routing and self._ezsp.ezsp_version < 8:
                             res = await self._ezsp.set_source_route(device)
-
-                            if res != t.EmberStatus.SUCCESS:
-                                LOGGER.warning(
-                                    "Couldn't set source route for %s: %s",
-                                    device.nwk,
-                                    res,
-                                )
-                            else:
+                            if res == t.EmberStatus.SUCCESS:
                                 aps_frame.options ^= (
                                     t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
                                 )
@@ -473,6 +466,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                                     device.relays,
                                     res,
                                 )
+                            else:
+                                LOGGER.warning(
+                                    "Couldn't set source route for %s: %s",
+                                    device.nwk,
+                                    res,
+                                )
+
                         status, _ = await self._ezsp.sendUnicast(
                             self.direct, device.nwk, aps_frame, message_tag, data
                         )
