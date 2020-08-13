@@ -219,6 +219,12 @@ async def _restore(ezsp, backup_data, force, update_eui64_token=False):
 
     ezsp.remove_callback(cb_id)
 
+    if update_eui64_token:
+        ncp_eui64 = t.EmberEUI64(backup_data[ATTR_NODE_EUI64]).serialize()
+        (status,) = await ezsp.setMfgToken(
+            t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, ncp_eui64
+        )
+
     sec_bitmask = (
         t.EmberInitialSecurityBitmask.HAVE_PRECONFIGURED_KEY
         | t.EmberInitialSecurityBitmask.REQUIRE_ENCRYPTED_KEY
@@ -236,12 +242,6 @@ async def _restore(ezsp, backup_data, force, update_eui64_token=False):
     (status,) = await ezsp.setInitialSecurityState(init_sec_state)
     LOGGER.debug("Set initial security state: %s", status)
     assert status == t.EmberStatus.SUCCESS
-
-    if update_eui64_token:
-        ncp_eui64 = t.EmberEUI64(backup_data[ATTR_NODE_EUI64]).serialize()
-        (status,) = await ezsp.setMfgToken(
-            t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, ncp_eui64
-        )
 
     if backup_data[ATTR_KEY_TABLE]:
         await _restore_keys(ezsp, backup_data[ATTR_KEY_TABLE])
