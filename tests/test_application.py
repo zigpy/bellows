@@ -25,9 +25,8 @@ APP_CONFIG = {
 @pytest.fixture
 def app(monkeypatch):
     ezsp = mock.MagicMock()
-    ezsp.setConcentrator = asynctest.CoroutineMock(return_value=[0])
-    ezsp.setSourceRoute = asynctest.CoroutineMock(return_value=[0])
-    ezsp.initi
+    ezsp.ezsp_version = 7
+    ezsp.set_source_route = asynctest.CoroutineMock(return_value=t.EmberStatus.SUCCESS)
     type(ezsp).is_ezsp_running = mock.PropertyMock(return_value=True)
     config = bellows.zigbee.application.ControllerApplication.SCHEMA(APP_CONFIG)
     ctrl = bellows.zigbee.application.ControllerApplication(config)
@@ -440,22 +439,7 @@ async def test_request_extended_timeout(app):
 @pytest.mark.asyncio
 async def test_request_src_rtg_not_enabled(relays, app):
     app.use_source_routing = False
-    await app.set_source_routing()
     res = await _request(app, relays=relays)
-    assert res[0] == 0
-    assert app._ezsp.setSourceRoute.call_count == 0
-    assert app._ezsp.sendUnicast.call_count == 1
-    assert (
-        app._ezsp.sendUnicast.call_args[0][2].options
-        & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-    )
-
-
-@pytest.mark.asyncio
-async def test_request_src_rtg_no_route(app):
-    app.use_source_routing = True
-    await app.set_source_routing()
-    res = await _request(app, relays=None)
     assert res[0] == 0
     assert app._ezsp.setSourceRoute.call_count == 0
     assert app._ezsp.sendUnicast.call_count == 1
@@ -469,10 +453,9 @@ async def test_request_src_rtg_no_route(app):
 @pytest.mark.asyncio
 async def test_request_src_rtg_success(relays, app):
     app.use_source_routing = True
-    await app.set_source_routing()
     res = await _request(app, relays=relays)
     assert res[0] == 0
-    assert app._ezsp.setSourceRoute.call_count == 1
+    assert app._ezsp.set_source_route.call_count == 1
     assert app._ezsp.sendUnicast.call_count == 1
     assert (
         not app._ezsp.sendUnicast.call_args[0][2].options
@@ -484,11 +467,10 @@ async def test_request_src_rtg_success(relays, app):
 @pytest.mark.asyncio
 async def test_request_src_rtg_fail(relays, app):
     app.use_source_routing = True
-    await app.set_source_routing()
-    app._ezsp.setSourceRoute.return_value = [1]
+    app._ezsp.set_source_route.return_value = 1
     res = await _request(app, relays=relays)
     assert res[0] == 0
-    assert app._ezsp.setSourceRoute.call_count == 1
+    assert app._ezsp.set_source_route.call_count == 1
     assert app._ezsp.sendUnicast.call_count == 1
     assert (
         app._ezsp.sendUnicast.call_args[0][2].options
@@ -988,16 +970,6 @@ async def test_mrequest_ctrl_not_running(app):
     app._ctrl_event.clear()
     with pytest.raises(ControllerError):
         await _mrequest(app)
-
-
-@pytest.mark.parametrize("use_src_rtg, status", [(False, 0), (True, 1), (True, 0)])
-@pytest.mark.asyncio
-async def test_set_source_routing(use_src_rtg, status, app):
-    """Test setting source routing."""
-    app.use_source_routing = use_src_rtg
-    app._ezsp.setConcentrator.return_value = [status]
-    await app.set_source_routing()
-    assert app._ezsp.setConcentrator.call_args[0][0] is use_src_rtg
 
 
 def test_handle_route_record(app):

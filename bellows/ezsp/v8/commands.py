@@ -306,6 +306,12 @@ COMMANDS = {
             t.LVBytes,
         ),
     ),
+    "incomingRouteRecordHandler": (
+        0x0059,
+        (),
+        (t.EmberNodeId, t.EmberEUI64, t.uint8_t, t.int8s, t.LVList(t.EmberNodeId)),
+    ),
+    "changeSourceRouteHandler": (0x00C4, (), (t.EmberNodeId, t.EmberNodeId, t.Bool)),
     "setSourceRouteDiscoveryMode": (0x005A, (t.uint8_t,), (t.uint32_t,)),
     "incomingManyToOneRouteRequestHandler": (
         0x007D,

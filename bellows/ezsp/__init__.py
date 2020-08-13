@@ -5,16 +5,12 @@ import functools
 import logging
 from typing import Any, Callable, Coroutine, Dict, Tuple
 
-from bellows.config import (
-    CONF_DEVICE,
-    CONF_DEVICE_PATH,
-    CONF_EZSP_CONFIG,
-    SCHEMA_DEVICE,
-)
+from bellows.config import CONF_DEVICE, CONF_DEVICE_PATH, SCHEMA_DEVICE
 from bellows.exception import APIException, EzspError
 import bellows.types as t
 import bellows.uart
 import serial
+from zigpy.typing import DeviceType
 
 from . import v4, v5, v6, v7, v8
 
@@ -71,7 +67,7 @@ class EZSP:
         await ezsp.connect()
         await ezsp.reset()
         await ezsp.version()
-        await ezsp._protocol.initialize(zigpy_config[CONF_EZSP_CONFIG])
+        await ezsp._protocol.initialize(zigpy_config)
         return ezsp
 
     async def connect(self) -> None:
@@ -237,6 +233,9 @@ class EZSP:
                 handler(*args)
             except Exception as e:
                 LOGGER.exception("Exception running handler", exc_info=e)
+
+    def set_source_route(self, device: DeviceType) -> t.EmberStatus:
+        return self._protocol.set_source_route(device)
 
     def update_policies(self, zigpy_config: dict) -> Coroutine:
         """Set up the policies for what the NCP should do."""
