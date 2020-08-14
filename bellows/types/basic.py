@@ -194,3 +194,51 @@ class bitmap8(bitmap_factory(uint8_t)):  # noqa: N801
 
 class bitmap16(bitmap_factory(uint16_t)):  # noqa: N801
     """16 bit bitmap class."""
+
+
+class _IntEnumMeta(enum.EnumMeta):
+    def __call__(cls, value, names=None, *args, **kwargs):
+        if isinstance(value, str) and value.startswith("0x"):
+            value = int(value, base=16)
+        else:
+            value = int(value)
+        return super().__call__(value, names, *args, **kwargs)
+
+
+def enum_factory(int_type: CALLABLE_T, undefined: str = "undefined") -> CALLABLE_T:
+    """Enum factory."""
+
+    class _NewEnum(enum.IntEnum, metaclass=_IntEnumMeta):
+        def serialize(self):
+            """Serialize enum."""
+            return int_type(self.value).serialize()
+
+        @classmethod
+        def deserialize(cls, data: bytes) -> (bytes, bytes):
+            """Deserialize data."""
+            val, data = int_type.deserialize(data)
+            return cls(val), data
+
+        @classmethod
+        def _missing_(cls, value):
+            new = int_type.__new__(cls, value)
+            name = (
+                f"{undefined}_0x{{:0{int_type._size * 2}x}}"
+            )  # pylint: disable=protected-access
+            new._name_ = name.format(value)
+            new._value_ = value
+            return new
+
+    return _NewEnum
+
+
+class enum8(enum_factory(uint8_t)):  # noqa: N801
+    pass
+
+
+class enum16(enum_factory(uint16_t)):  # noqa: N801
+    pass
+
+
+class enum32(enum_factory(uint16_t)):  # noqa: N801
+    pass

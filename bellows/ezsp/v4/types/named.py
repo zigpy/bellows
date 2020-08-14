@@ -1,5 +1,4 @@
 """Protocol version 4 named types."""
-import enum
 
 import bellows.types.basic as basic
 from bellows.types.named import (  # noqa: F401, F403
@@ -69,7 +68,7 @@ class EmberRf4ceApplicationCapabilities(basic.uint8_t):
     pass
 
 
-class EzspConfigId(basic.uint8_t, enum.Enum):
+class EzspConfigId(basic.enum8):
     # Identifies a configuration value.
 
     # The number of packet buffers available to the stack.  When set to the
@@ -230,7 +229,7 @@ class EzspConfigId(basic.uint8_t, enum.Enum):
     CONFIG_TRANSIENT_KEY_TIMEOUT_S = 0x36
 
 
-class EzspValueId(basic.uint8_t, enum.Enum):
+class EzspValueId(basic.enum8):
     # Identifies a value.
 
     # The contents of the node data stack token.
@@ -339,7 +338,7 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     VALUE_MFGLIB_OPTIONS = 0x33
 
 
-class EzspPolicyId(basic.uint8_t, enum.Enum):
+class EzspPolicyId(basic.enum8):
     # Identifies a policy.
 
     # Controls trust center behavior.
@@ -380,7 +379,7 @@ class EzspPolicyId(basic.uint8_t, enum.Enum):
     RF4CE_PAIR_REQUEST_POLICY = 0x0C
 
 
-class EzspDecisionId(basic.uint8_t, enum.Enum):
+class EzspDecisionId(basic.enum8):
     # Identifies a policy decision.
 
     # Send the network key in the clear to all joining and rejoining devices.
@@ -474,7 +473,7 @@ class EzspDecisionId(basic.uint8_t, enum.Enum):
     RF4CE_PAIR_REQUEST_DENY = 0x77
 
 
-class EmberKeyType(basic.uint8_t, enum.Enum):
+class EmberKeyType(basic.enum8):
     # Describes the type of ZigBee security key.
 
     # an enum member to represent a missing key
@@ -496,7 +495,7 @@ class EmberKeyType(basic.uint8_t, enum.Enum):
     APPLICATION_MASTER_KEY = 0x06
 
 
-class EmberDeviceUpdate(basic.uint8_t, enum.Enum):
+class EmberDeviceUpdate(basic.enum8):
     # The status of the device update.
 
     STANDARD_SECURITY_SECURED_REJOIN = 0x0
@@ -508,7 +507,7 @@ class EmberDeviceUpdate(basic.uint8_t, enum.Enum):
     HIGH_SECURITY_UNSECURED_REJOIN = 0x7
 
 
-class EmberCounterType(basic.uint8_t, enum.Enum):
+class EmberCounterType(basic.enum8):
     # Defines the events reported to the application by the
     # readAndClearCounters command.
     @property
