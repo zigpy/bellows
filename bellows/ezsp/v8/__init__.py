@@ -4,7 +4,6 @@ from typing import Tuple
 
 import bellows.config
 import voluptuous
-from zigpy.typing import DeviceType
 
 from . import commands, config, types as v8_types
 from .. import protocol
@@ -35,10 +34,6 @@ class EZSPv8(protocol.ProtocolHandler):
         frame_id, data = self.types.uint16_t.deserialize(data)
 
         return seq, frame_id, data
-
-    async def set_source_route(self, device: DeviceType) -> v8_types.EmberStatus:
-        """Set source route to the device if known."""
-        return v8_types.EmberStatus.SUCCESS
 
     async def set_source_routing(self) -> None:
         """Enable source routing on NCP."""

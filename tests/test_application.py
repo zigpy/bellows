@@ -26,7 +26,9 @@ APP_CONFIG = {
 def app(monkeypatch):
     ezsp = mock.MagicMock()
     ezsp.ezsp_version = 7
-    ezsp.set_source_route = asynctest.CoroutineMock(return_value=t.EmberStatus.SUCCESS)
+    ezsp.set_source_route = asynctest.CoroutineMock(
+        return_value=[t.EmberStatus.SUCCESS]
+    )
     type(ezsp).is_ezsp_running = mock.PropertyMock(return_value=True)
     config = bellows.zigbee.application.ControllerApplication.SCHEMA(APP_CONFIG)
     ctrl = bellows.zigbee.application.ControllerApplication(config)
@@ -441,8 +443,8 @@ async def test_request_src_rtg_not_enabled(relays, app):
     app.use_source_routing = False
     res = await _request(app, relays=relays)
     assert res[0] == 0
-    assert app._ezsp.setSourceRoute.call_count == 0
-    assert app._ezsp.sendUnicast.call_count == 1
+    assert app._ezsp.set_source_route.await_count == 0
+    assert app._ezsp.sendUnicast.await_count == 1
     assert (
         app._ezsp.sendUnicast.call_args[0][2].options
         & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
@@ -455,8 +457,8 @@ async def test_request_src_rtg_success(relays, app):
     app.use_source_routing = True
     res = await _request(app, relays=relays)
     assert res[0] == 0
-    assert app._ezsp.set_source_route.call_count == 1
-    assert app._ezsp.sendUnicast.call_count == 1
+    assert app._ezsp.set_source_route.await_count == 1
+    assert app._ezsp.sendUnicast.await_count == 1
     assert (
         not app._ezsp.sendUnicast.call_args[0][2].options
         & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
@@ -467,11 +469,11 @@ async def test_request_src_rtg_success(relays, app):
 @pytest.mark.asyncio
 async def test_request_src_rtg_fail(relays, app):
     app.use_source_routing = True
-    app._ezsp.set_source_route.return_value = 1
+    app._ezsp.set_source_route.return_value = [1]
     res = await _request(app, relays=relays)
     assert res[0] == 0
-    assert app._ezsp.set_source_route.call_count == 1
-    assert app._ezsp.sendUnicast.call_count == 1
+    assert app._ezsp.set_source_route.await_count == 1
+    assert app._ezsp.sendUnicast.await_count == 1
     assert (
         app._ezsp.sendUnicast.call_args[0][2].options
         & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY

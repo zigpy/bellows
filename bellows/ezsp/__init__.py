@@ -3,7 +3,7 @@
 import asyncio
 import functools
 import logging
-from typing import Any, Callable, Coroutine, Dict, Tuple
+from typing import Any, Awaitable, Callable, Coroutine, Dict, Tuple
 
 from bellows.config import CONF_DEVICE, CONF_DEVICE_PATH, SCHEMA_DEVICE
 from bellows.exception import APIException, EzspError
@@ -234,8 +234,13 @@ class EZSP:
             except Exception as e:
                 LOGGER.exception("Exception running handler", exc_info=e)
 
-    def set_source_route(self, device: DeviceType) -> t.EmberStatus:
-        return self._protocol.set_source_route(device)
+    def set_source_route(self, device: DeviceType) -> Awaitable:
+        if device.relays is not None:
+            return self.setSourceRoute(device.nwk, device.relays)
+
+        status = asyncio.Future()
+        status.set_result(t.EmberStatus.ERR_FATAL)
+        return status
 
     def update_policies(self, zigpy_config: dict) -> Coroutine:
         """Set up the policies for what the NCP should do."""

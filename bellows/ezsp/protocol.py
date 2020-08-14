@@ -6,9 +6,7 @@ import logging
 from typing import Any, Callable, Dict, Tuple
 
 from bellows.config import CONF_EZSP_CONFIG, CONF_EZSP_POLICIES, CONF_PARAM_SRC_RTG
-import bellows.types as t
 from bellows.typing import GatewayType
-from zigpy.typing import DeviceType
 
 LOGGER = logging.getLogger(__name__)
 
@@ -79,10 +77,6 @@ class ProtocolHandler(abc.ABC):
         self._awaiting[self._seq] = (c[0], c[2], future)
         self._seq = (self._seq + 1) % 256
         return asyncio.wait_for(future, timeout=EZSP_CMD_TIMEOUT)
-
-    @abc.abstractmethod
-    def set_source_route(self, device: DeviceType) -> t.EmberStatus:
-        """Set source route to the device if known."""
 
     @abc.abstractmethod
     async def set_source_routing(self) -> None:
