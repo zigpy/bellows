@@ -1,5 +1,3 @@
-import enum
-
 import zigpy.types as ztypes
 
 from . import basic
@@ -8,7 +6,7 @@ Channels = ztypes.Channels
 EmberEUI64 = ztypes.EUI64
 
 
-class NcpResetCode(basic.uint8_t, enum.Enum):
+class NcpResetCode(basic.enum8):
     # Reset and Error Codes for NCP
     RESET_UNKNOWN_REASON = 0x00
     RESET_EXTERNAL = 0x01
@@ -55,14 +53,14 @@ class EmberGpKeyType(basic.uint8_t):
     pass
 
 
-class Bool(basic.uint8_t, enum.Enum):
+class Bool(basic.enum8):
     # Boolean type with values true and false.
 
     false = 0x00  # An alias for zero, used for clarity.
     true = 0x01  # An alias for one, used for clarity.
 
 
-class EzspExtendedValueId(basic.uint8_t, enum.Enum):
+class EzspExtendedValueId(basic.enum8):
     # Identifies a value based on specified characteristics. Each set of characteristics
     # is unique to that value and is specified during the call to get the extended
     # value.
@@ -79,7 +77,7 @@ class EzspExtendedValueId(basic.uint8_t, enum.Enum):
     EXTENDED_VALUE_GET_SOURCE_ROUTE_OVERHEAD = 0x02
 
 
-class EzspEndpointFlags(basic.uint16_t, enum.Enum):
+class EzspEndpointFlags(basic.enum16):
     # Flags associated with the endpoint data configured on the NCP.
 
     # Indicates that the endpoint is disabled and NOT discoverable via ZDO.
@@ -88,7 +86,7 @@ class EzspEndpointFlags(basic.uint16_t, enum.Enum):
     ENDPOINT_ENABLED = 0x01
 
 
-class EmberConfigTxPowerMode(basic.uint16_t, enum.Enum):
+class EmberConfigTxPowerMode(basic.enum16):
     # Values for CONFIG_TX_POWER_MODE.
 
     # Normal power mode and bi-directional RF transmitter output.
@@ -106,7 +104,7 @@ class EmberConfigTxPowerMode(basic.uint16_t, enum.Enum):
     TX_POWER_MODE_BOOST_AND_ALTERNATE = 0x03
 
 
-class EzspMfgTokenId(basic.uint8_t, enum.Enum):
+class EzspMfgTokenId(basic.enum8):
     # Manufacturing token IDs used by ezspGetMfgToken().
 
     # Custom version (2 bytes).
@@ -143,7 +141,7 @@ class EzspMfgTokenId(basic.uint8_t, enum.Enum):
     MFG_CTUNE = 0x0D
 
 
-class EzspStatus(basic.uint8_t, enum.Enum):
+class EzspStatus(basic.enum8):
     # Status values used by EZSP.
 
     # Success.
@@ -316,7 +314,7 @@ class EzspStatus(basic.uint8_t, enum.Enum):
     NO_ERROR = 0xFF
 
 
-class EmberStatus(basic.uint8_t, enum.Enum):
+class EmberStatus(basic.enum8):
     # Return type for stack functions.
 
     # The generic 'no error' message.
@@ -664,7 +662,7 @@ class EmberStatus(basic.uint8_t, enum.Enum):
     APPLICATION_ERROR_15 = 0xFF
 
 
-class EmberEventUnits(basic.uint8_t, enum.Enum):
+class EmberEventUnits(basic.enum8):
     # Either marks an event as inactive or specifies the units for the event
     # execution time.
 
@@ -681,7 +679,7 @@ class EmberEventUnits(basic.uint8_t, enum.Enum):
     EVENT_ZERO_DELAY = 0x04
 
 
-class EmberNodeType(basic.uint8_t, enum.Enum):
+class EmberNodeType(basic.enum8):
     # The type of the node.
 
     # Device is not joined.
@@ -705,7 +703,7 @@ class EmberNodeType(basic.uint8_t, enum.Enum):
     UNKNOWN_NODE_TYPE = 0xFF
 
 
-class EmberNetworkStatus(basic.uint8_t, enum.Enum):
+class EmberNetworkStatus(basic.enum8):
     # The possible join states for a node.
 
     # The node is not associated with a network in any way.
@@ -721,7 +719,7 @@ class EmberNetworkStatus(basic.uint8_t, enum.Enum):
     LEAVING_NETWORK = 0x04
 
 
-class EmberIncomingMessageType(basic.uint8_t, enum.Enum):
+class EmberIncomingMessageType(basic.enum8):
     # Incoming message types.
 
     # Unicast.
@@ -740,7 +738,7 @@ class EmberIncomingMessageType(basic.uint8_t, enum.Enum):
     INCOMING_MANY_TO_ONE_ROUTE_REQUEST = 0x06
 
 
-class EmberOutgoingMessageType(basic.uint8_t, enum.Enum):
+class EmberOutgoingMessageType(basic.enum8):
     # Outgoing message types.
 
     # Unicast sent directly to an EmberNodeId.
@@ -780,7 +778,7 @@ class EmberMacPassthroughType(basic.bitmap8):
     MAC_PASSTHROUGH_INTERNAL = 0x80
 
 
-class EmberBindingType(basic.uint8_t, enum.Enum):
+class EmberBindingType(basic.enum8):
     # Binding types.
 
     # A binding that is currently not in use.
@@ -849,7 +847,7 @@ class EmberApsOption(basic.bitmap16):
     APS_OPTION_FRAGMENT = 0x8000
 
 
-class EzspNetworkScanType(basic.uint8_t, enum.Enum):
+class EzspNetworkScanType(basic.enum8):
     # Network scan types.
 
     # An energy scan scans each channel for its RSSI value.
@@ -858,7 +856,7 @@ class EzspNetworkScanType(basic.uint8_t, enum.Enum):
     ACTIVE_SCAN = 0x01
 
 
-class EmberJoinDecision(basic.uint8_t, enum.Enum):
+class EmberJoinDecision(basic.enum8):
     # Decision made by the trust center when a node attempts to join.
 
     # Allow the node to join. The joining node should have a pre-configured
@@ -978,7 +976,7 @@ class EmberKeyStructBitmask(basic.bitmap16):
     KEY_PARTNER_IS_SLEEPY = 0x0020
 
 
-class EmberKeyStatus(basic.uint8_t, enum.Enum):
+class EmberKeyStatus(basic.enum8):
     # The status of the attempt to establish a key.
 
     KEY_STATUS_NONE = 0x00
@@ -1009,7 +1007,7 @@ class EmberKeyStatus(basic.uint8_t, enum.Enum):
     VERIFY_LINK_KEY_SUCCESS = 0x65
 
 
-class EmberJoinMethod(basic.uint8_t, enum.Enum):
+class EmberJoinMethod(basic.enum8):
     # The type of method used for joining.
 
     # Normally devices use MAC Association to join a network, which respects
@@ -1074,7 +1072,7 @@ class EmberZdoConfigurationFlags(basic.bitmap8):
     APP_HANDLES_ZDO_BINDING_REQUESTS = 0x08
 
 
-class EmberConcentratorType(basic.uint16_t, enum.Enum):
+class EmberConcentratorType(basic.enum16):
     # Type of concentrator.
 
     # A concentrator with insufficient memory to store source routes for the
@@ -1087,7 +1085,7 @@ class EmberConcentratorType(basic.uint16_t, enum.Enum):
     HIGH_RAM_CONCENTRATOR = 0xFFF9
 
 
-class EmberZllState(basic.uint16_t, enum.Enum):
+class EmberZllState(basic.enum16):
     # ZLL device state identifier.
 
     # No state.
@@ -1104,7 +1102,7 @@ class EmberZllState(basic.uint16_t, enum.Enum):
     ZLL_STATE_NON_ZLL_NETWORK = 0x0100
 
 
-class EmberZllKeyIndex(basic.uint8_t, enum.Enum):
+class EmberZllKeyIndex(basic.enum8):
     # ZLL key encryption algorithm enumeration.
 
     # Key encryption algorithm for use during development.
@@ -1115,14 +1113,14 @@ class EmberZllKeyIndex(basic.uint8_t, enum.Enum):
     ZLL_KEY_INDEX_CERTIFICATION = 0x0F
 
 
-class EzspZllNetworkOperation(basic.uint8_t, enum.Enum):
+class EzspZllNetworkOperation(basic.enum8):
     # Differentiates among ZLL network operations.
 
     ZLL_FORM_NETWORK = 0x00  # ZLL form network command.
     ZLL_JOIN_TARGET = 0x01  # ZLL join target command.
 
 
-class EzspSourceRouteOverheadInformation(basic.uint8_t, enum.Enum):
+class EzspSourceRouteOverheadInformation(basic.enum8):
     # Validates Source Route Overhead Information cached.
 
     # Ezsp source route overhead unknown

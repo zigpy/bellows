@@ -1,5 +1,4 @@
 """Protocol version 8 named types."""
-import enum
 
 import bellows.types.basic as basic
 from bellows.types.named import (  # noqa: F401, F403
@@ -53,7 +52,7 @@ from bellows.types.named import (  # noqa: F401, F403
 )
 
 
-class EzspConfigId(basic.uint8_t, enum.Enum):
+class EzspConfigId(basic.enum8):
     # Identifies a configuration value.
 
     # The number of packet buffers available to the stack.  When set to the
@@ -216,7 +215,7 @@ class EzspConfigId(basic.uint8_t, enum.Enum):
     CONFIG_ASSUME_TC_CONCENTRATOR_TYPE = 0x40
 
 
-class EzspValueId(basic.uint8_t, enum.Enum):
+class EzspValueId(basic.enum8):
     # Identifies a value.
 
     # The contents of the node data stack token.
@@ -348,7 +347,7 @@ class EzspValueId(basic.uint8_t, enum.Enum):
     VALUE_ACTIVE_RADIO_CONFIG = 0x41
 
 
-class EzspPolicyId(basic.uint8_t, enum.Enum):
+class EzspPolicyId(basic.enum8):
     # Identifies a policy.
 
     # Controls trust center behavior.
@@ -398,7 +397,7 @@ class EzspDecisionBitmask(basic.bitmap16):
     DEFER_JOINS = 0x0020
 
 
-class EzspDecisionId(basic.uint8_t, enum.Enum):
+class EzspDecisionId(basic.enum8):
     # Identifies a policy decision.
 
     # BINDING_MODIFICATION_POLICY default decision. Do not allow the local
@@ -449,11 +448,9 @@ class EzspDecisionId(basic.uint8_t, enum.Enum):
     PACKET_VALIDATE_LIBRARY_CHECKS_DISABLED = 0x63
 
 
-class EmberKeyType(basic.uint8_t, enum.Enum):
+class EmberKeyType(basic.enum8):
     # Describes the type of ZigBee security key.
 
-    # an enum member to represent a missing key
-    NO_KEY = 0x00
     # A shared key between the Trust Center and a device.
     TRUST_CENTER_LINK_KEY = 0x01
     # A shared secret used for deriving keys between the Trust Center and a
@@ -466,7 +463,7 @@ class EmberKeyType(basic.uint8_t, enum.Enum):
     APPLICATION_LINK_KEY = 0x05
 
 
-class EmberDeviceUpdate(basic.uint8_t, enum.Enum):
+class EmberDeviceUpdate(basic.enum8):
     # The status of the device update.
 
     STANDARD_SECURITY_SECURED_REJOIN = 0x0
@@ -475,7 +472,7 @@ class EmberDeviceUpdate(basic.uint8_t, enum.Enum):
     STANDARD_SECURITY_UNSECURED_REJOIN = 0x3
 
 
-class EmberCounterType(basic.uint8_t, enum.Enum):
+class EmberCounterType(basic.enum8):
     # Defines the events reported to the application by the
     # readAndClearCounters command.
     @property
@@ -582,7 +579,7 @@ class EmberCounterType(basic.uint8_t, enum.Enum):
     COUNTER_ADDRESS_CONFLICT_SENT = 40
 
 
-class EmberJoinMethod(basic.uint8_t, enum.Enum):
+class EmberJoinMethod(basic.enum8):
     # The type of method used for joining.
 
     # Normally devices use MAC Association to join a network, which respects
@@ -628,14 +625,14 @@ class EmberNetworkInitBitmask(basic.bitmap16):
 EmberNetworkInitStruct = EmberNetworkInitBitmask
 
 
-class EmberMultiPhyNwkConfig(basic.uint8_t, enum.Enum):
+class EmberMultiPhyNwkConfig(basic.enum8):
     """Network configuration for the desired radio interface for multi phy network."""
 
     # Enable broadcast support on Routers
     BROADCAST_SUPPORT = 0x01
 
 
-class EmberDutyCycleState(basic.uint8_t, enum.Enum):
+class EmberDutyCycleState(basic.enum8):
     """Duty cycle states."""
 
     # No Duty cycle tracking or metrics are taking place
@@ -650,7 +647,7 @@ class EmberDutyCycleState(basic.uint8_t, enum.Enum):
     DUTY_CYCLE_LBT_SUSPEND_LIMIT_REACHED = 4
 
 
-class EmberRadioPowerMode(basic.uint8_t, enum.Enum):
+class EmberRadioPowerMode(basic.enum8):
     """Radio power mode."""
 
     # The radio receiver is switched on.
@@ -659,7 +656,7 @@ class EmberRadioPowerMode(basic.uint8_t, enum.Enum):
     RADIO_POWER_MODE_OFF = 1
 
 
-class EmberEntropySource(basic.uint8_t, enum.Enum):
+class EmberEntropySource(basic.enum8):
     """Entropy sources."""
 
     # Entropy source error
