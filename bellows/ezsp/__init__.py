@@ -239,7 +239,7 @@ class EZSP:
             return self.setSourceRoute(device.nwk, device.relays)
 
         status = asyncio.Future()
-        status.set_result(t.EmberStatus.ERR_FATAL)
+        status.set_result((t.EmberStatus.ERR_FATAL,))
         return status
 
     def update_policies(self, zigpy_config: dict) -> Coroutine:
