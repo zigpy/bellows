@@ -245,7 +245,7 @@ class StructField:
         types = set(self.type.__args__) - {NoneType}
 
         if len(types) > 1:
-            raise TypeError(f"Struct field cannot have more than one concrete type")
+            raise TypeError("Struct field cannot have more than one concrete type")
 
         return tuple(types)[0]
 

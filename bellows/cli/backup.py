@@ -165,7 +165,7 @@ async def restore(
             backup_data = SCHEMA_BAK(backup_data)
             LOGGER.debug("schame pass: %s", backup_data)
     except OSError as exc:
-        LOGGER.error(f"Couldn't import backup file: %s", exc)
+        LOGGER.error("Couldn't import backup file: %s", exc)
         return
     except vol.Error as exc:
         LOGGER.error("backup file does not pass schema validation: %s", exc)
