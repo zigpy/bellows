@@ -222,9 +222,7 @@ def enum_factory(int_type: CALLABLE_T, undefined: str = "undefined") -> CALLABLE
         @classmethod
         def _missing_(cls, value):
             new = int_type.__new__(cls, value)
-            name = (
-                f"{undefined}_0x{{:0{int_type._size * 2}x}}"
-            )  # pylint: disable=protected-access
+            name = f"{undefined}_0x{{:0{int_type._size * 2}x}}"  # pylint: disable=protected-access
             new._name_ = name.format(value)
             new._value_ = value
             return new
