@@ -197,7 +197,7 @@ class bitmap16(bitmap_factory(uint16_t)):  # noqa: N801
 
 
 class _IntEnumMeta(enum.EnumMeta):
-    def __call__(cls, value, names=None, *args, **kwargs):
+    def __call__(cls, value, names=None, *args, **kwargs):  # noqa: N805
         if isinstance(value, str) and value.startswith("0x"):
             value = int(value, base=16)
         else:
