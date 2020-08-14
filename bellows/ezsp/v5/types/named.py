@@ -477,8 +477,6 @@ class EzspDecisionId(basic.enum8):
 class EmberKeyType(basic.enum8):
     # Describes the type of ZigBee security key.
 
-    # an enum member to represent a missing key
-    NO_KEY = 0x00
     # A shared key between the Trust Center and a device.
     TRUST_CENTER_LINK_KEY = 0x01
     # A shared secret used for deriving keys between the Trust Center and a
