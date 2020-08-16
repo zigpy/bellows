@@ -186,14 +186,6 @@ async def restore(
     finally:
         ezsp.close()
 
-    ezsp = await util.setup(ctx.obj["device"], ctx.obj["baudrate"], _print_cb)
-    try:
-        await _update_nwk_id(
-            ezsp, backup_data[ATTR_NWK_UPDATE_ID],
-        )
-    finally:
-        ezsp.close()
-
 
 async def _restore(ezsp, backup_data, force, update_eui64_token=False):
     """Restore backup."""
@@ -313,6 +305,8 @@ async def _form_network(ezsp, backup_data):
     LOGGER.debug("Form network: %s", status)
     assert status == t.EmberStatus.NETWORK_UP
 
+    await _update_nwk_id(ezsp, backup_data[ATTR_NWK_UPDATE_ID])
+
     (status,) = await ezsp.setValue(ezsp.types.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
     LOGGER.debug("Set token writing: %s", status)
     assert status == t.EmberStatus.SUCCESS
@@ -320,26 +314,6 @@ async def _form_network(ezsp, backup_data):
 
 async def _update_nwk_id(ezsp, nwk_update_id):
     """Update NWK id by sending a ZDO broadcast."""
-
-    stack_up = asyncio.Future()
-    stack_dwn = asyncio.Future()
-
-    def _stack_handler(frame, args):
-        if frame != "stackStatusHandler":
-            return
-        if args[0] == t.EmberStatus.NETWORK_UP:
-            stack_up.set_result(True)
-        else:
-            stack_dwn.set_result(True)
-
-    cb_id = ezsp.add_callback(_stack_handler)
-
-    (status,) = await ezsp.networkInit()
-    LOGGER.debug("Network init status: %s", status)
-    assert status == t.EmberStatus.SUCCESS
-
-    await asyncio.wait_for(stack_up, timeout=5)
-    ezsp.remove_callback(cb_id)
 
     aps_frame = t.EmberApsFrame(
         profileId=0x0000,
@@ -358,4 +332,4 @@ async def _update_nwk_id(ezsp, nwk_update_id):
         zigpy.types.BroadcastAddress.ALL_DEVICES, aps_frame, 0x00, 0x01, payload,
     )
     assert status == t.EmberStatus.SUCCESS
-    await asyncio.sleep(3)
+    await asyncio.sleep(1)
