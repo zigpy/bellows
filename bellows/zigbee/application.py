@@ -267,7 +267,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         except KeyError:
             LOGGER.debug("No such device %s", sender)
             if self.config[CONF_PARAM_UNK_DEV]:
-                asyncio.create_task(self._handle_no_such_device(sender))
+                asyncio.ensure_future(self._handle_no_such_device(sender))
             return
 
         device.radio_details(lqi, rssi)
