@@ -18,6 +18,7 @@ APP_CONFIG = {
         config.CONF_DEVICE_PATH: "/dev/null",
         config.CONF_DEVICE_BAUDRATE: 115200,
     },
+    config.CONF_PARAM_UNK_DEV: "yes",
     zigpy.config.CONF_DATABASE: None,
 }
 
@@ -151,10 +152,15 @@ def _frame_handler(app, aps, ieee, src_ep, cluster=0, data=b"\x01\x00\x00"):
     )
 
 
-def test_frame_handler_unknown_device(app, aps, ieee):
+@pytest.mark.asyncio
+async def test_frame_handler_unknown_device(app, aps, ieee):
     app.handle_join = mock.MagicMock()
     app.add_device(ieee, 99)
-    _frame_handler(app, aps, ieee, 0)
+    with mock.patch.object(app, "_handle_no_such_device") as no_dev_mock:
+        _frame_handler(app, aps, ieee, 0)
+        await asyncio.sleep(0)
+    assert no_dev_mock.call_count == 1
+    assert no_dev_mock.await_count == 1
     assert app.handle_message.call_count == 0
     assert app.handle_join.call_count == 0
 
@@ -1076,3 +1082,33 @@ def test_handle_id_conflict(app, ieee):
     app.ezsp_callback_handler("idConflictHandler", [nwk])
     assert app.handle_leave.call_count == 1
     assert app.handle_leave.call_args[0][0] == nwk
+
+
+@pytest.mark.asyncio
+async def test_handle_no_such_device(app, ieee):
+    """Test handling of an unknown device IEEE lookup."""
+
+    p1 = mock.patch.object(
+        app._ezsp,
+        "lookupEui64ByNodeId",
+        CoroutineMock(return_value=(t.EmberStatus.ERR_FATAL, ieee)),
+    )
+    p2 = mock.patch.object(app, "handle_join")
+    with p1 as lookup_mock, p2 as handle_join_mock:
+        await app._handle_no_such_device(mock.sentinel.nwk)
+        assert lookup_mock.await_count == 1
+        assert lookup_mock.await_args[0][0] is mock.sentinel.nwk
+        assert handle_join_mock.call_count == 0
+
+    p1 = mock.patch.object(
+        app._ezsp,
+        "lookupEui64ByNodeId",
+        CoroutineMock(return_value=(t.EmberStatus.SUCCESS, mock.sentinel.ieee)),
+    )
+    with p1 as lookup_mock, p2 as handle_join_mock:
+        await app._handle_no_such_device(mock.sentinel.nwk)
+        assert lookup_mock.await_count == 1
+        assert lookup_mock.await_args[0][0] is mock.sentinel.nwk
+        assert handle_join_mock.call_count == 1
+        assert handle_join_mock.call_args[0][0] == mock.sentinel.nwk
+        assert handle_join_mock.call_args[0][1] == mock.sentinel.ieee

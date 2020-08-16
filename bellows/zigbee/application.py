@@ -3,7 +3,12 @@ import logging
 import os
 from typing import Dict
 
-from bellows.config import CONF_PARAM_SRC_RTG, CONFIG_SCHEMA, SCHEMA_DEVICE
+from bellows.config import (
+    CONF_PARAM_SRC_RTG,
+    CONF_PARAM_UNK_DEV,
+    CONFIG_SCHEMA,
+    SCHEMA_DEVICE,
+)
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp
 import bellows.multicast
@@ -261,6 +266,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             device = self.get_device(nwk=sender)
         except KeyError:
             LOGGER.debug("No such device %s", sender)
+            if self.config[CONF_PARAM_UNK_DEV]:
+                asyncio.ensure_future(self._handle_no_such_device(sender))
             return
 
         device.radio_details(lqi, rssi)
@@ -312,6 +319,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 message_tag,
                 exc,
             )
+
+    async def _handle_no_such_device(self, sender: int) -> None:
+        """Try to match unknown device by its EUI64 address."""
+        status, ieee = await self._ezsp.lookupEui64ByNodeId(sender)
+        if status == t.EmberStatus.SUCCESS:
+            LOGGER.debug("Found %s ieee for %s sender", ieee, sender)
+            self.handle_join(sender, ieee, 0)
+            return
+        LOGGER.debug("Couldn't look up ieee for %s", sender)
 
     def _handle_reset_request(self, error):
         """Reinitialize application controller."""
