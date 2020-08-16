@@ -6,6 +6,8 @@ import bellows.types as t
 import click
 import voluptuous as vol
 from zigpy.config.validators import cv_hex, cv_key
+import zigpy.types
+import zigpy.zdo.types
 
 from . import util
 from .main import main
@@ -263,6 +265,7 @@ async def _restore(ezsp, backup_data, force, update_eui64_token=False):
     assert status == t.EmberStatus.SUCCESS
 
     await _form_network(ezsp, backup_data)
+    await asyncio.sleep(2)
 
 
 async def _restore_keys(ezsp, key_table):
@@ -302,6 +305,31 @@ async def _form_network(ezsp, backup_data):
     LOGGER.debug("Form network: %s", status)
     assert status == t.EmberStatus.NETWORK_UP
 
+    await _update_nwk_id(ezsp, backup_data[ATTR_NWK_UPDATE_ID])
+
     (status,) = await ezsp.setValue(ezsp.types.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
     LOGGER.debug("Set token writing: %s", status)
     assert status == t.EmberStatus.SUCCESS
+
+
+async def _update_nwk_id(ezsp, nwk_update_id):
+    """Update NWK id by sending a ZDO broadcast."""
+
+    aps_frame = t.EmberApsFrame(
+        profileId=0x0000,
+        clusterId=zigpy.zdo.types.ZDOCmd.Mgmt_NWK_Update_req,
+        sourceEndpoint=0x00,
+        destinationEndpoint=0x00,
+        options=t.EmberApsOption.APS_OPTION_NONE,
+        groupId=0x0000,
+        sequence=0xDE,
+    )
+    nwk_update_id = t.uint8_t(nwk_update_id).serialize()
+    payload = b"\xDE" + zigpy.types.Channels.ALL_CHANNELS.serialize() + b"\xFF"
+    payload += nwk_update_id + b"\x00\x00"
+
+    status, _ = await ezsp.sendBroadcast(
+        zigpy.types.BroadcastAddress.ALL_DEVICES, aps_frame, 0x00, 0x01, payload,
+    )
+    assert status == t.EmberStatus.SUCCESS
+    await asyncio.sleep(1)
