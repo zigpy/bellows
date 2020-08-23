@@ -1,4 +1,5 @@
 """"EZSP Protocol version 8 protocol handler."""
+import asyncio
 import logging
 from typing import Tuple
 
@@ -34,6 +35,19 @@ class EZSPv8(protocol.ProtocolHandler):
         frame_id, data = self.types.uint16_t.deserialize(data)
 
         return seq, frame_id, data
+
+    async def pre_permit(self, time_s: int) -> None:
+        """Schedule task before allowing new joins."""
+        await self.setPolicy(
+            v8_types.EzspPolicyId.TRUST_CENTER_POLICY,
+            v8_types.EzspDecisionBitmask.ALLOW_JOINS
+            | v8_types.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS,
+        )
+        await asyncio.sleep(time_s + 2)
+        await self.setPolicy(
+            v8_types.EzspPolicyId.TRUST_CENTER_POLICY,
+            v8_types.EzspDecisionBitmask.IGNORE_UNSECURED_REJOINS,
+        )
 
     async def set_source_routing(self) -> None:
         """Enable source routing on NCP."""

@@ -49,6 +49,9 @@ class ProtocolHandler(abc.ABC):
     def _ezsp_frame_tx(self, name: str) -> bytes:
         """Serialize the named frame."""
 
+    async def pre_permit(self, time_s: int) -> None:
+        """Schedule task before allowing new joins."""
+
     async def initialize(self, zigpy_config: Dict) -> None:
         """Initialize EmberZNet Stack."""
 

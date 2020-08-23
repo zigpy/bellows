@@ -537,16 +537,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def permit(self, time_s: int = 60, node: t.EmberNodeId = None):
         """Permit joining."""
-        asyncio.create_task(
-            self._ezsp.setPolicy(self._ezsp.types.EzspPolicyId.TRUST_CENTER_POLICY, 3)
-        )
-        loop = asyncio.get_running_loop()
-        loop.call_later(
-            time_s + 2,
-            self._ezsp.setPolicy,
-            self._ezsp.types.EzspPolicyId.TRUST_CENTER_POLICY,
-            9,
-        )
+        asyncio.create_task(self._ezsp.pre_permit(time_s))
         return super().permit(time_s, node)
 
     def permit_ncp(self, time_s=60):
