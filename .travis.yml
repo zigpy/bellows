@@ -2,12 +2,10 @@ language: python
 matrix:
   fast_finish: true
   include:
-    - python: "3.6"
+    - python: "3.7"
       env: TOXENV=lint
-    - python: "3.6"
+    - python: "3.7"
       env: TOXENV=black
-    - python: "3.6"
-      env: TOXENV=py36
     - python: "3.7"
       env: TOXENV=py37
       dist: xenial
