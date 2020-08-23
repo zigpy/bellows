@@ -44,7 +44,7 @@ class Gateway(asyncio.Protocol):
         self._transport = transport
         if self._connected_future is not None:
             self._connected_future.set_result(True)
-            asyncio.ensure_future(self._send_task())
+            asyncio.create_task(self._send_task())
 
     def data_received(self, data):
         """Callback when there is data received from the uart"""
