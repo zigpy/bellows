@@ -11,6 +11,7 @@ from bellows.config import (
 )
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp
+from bellows.ezsp.v8.types.named import EmberDeviceUpdate
 import bellows.multicast
 import bellows.types as t
 import bellows.zigbee.util
@@ -92,6 +93,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             output_clusters,
         )
         LOGGER.debug("Ezsp adding endpoint: %s", res)
+
+    async def cleanup_tc_link_key(self, ieee: t.EmberEUI64) -> None:
+        """Remove tc link_key for the given device."""
+        (index,) = await self._ezsp.findKeyTableEntry(ieee, True)
+        if index != 0xFF:
+            # found a key
+            status = await self._ezsp.eraseKeyTableEntry(index)
+            LOGGER.debug("Cleaned up TC link key for %s device: %s", ieee, status)
 
     async def startup(self, auto_form=False):
         """Perform a complete application startup"""
@@ -229,11 +238,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             else:
                 self._handle_frame_sent(*args)
         elif frame_name == "trustCenterJoinHandler":
-            nwk, ieee, dev_update_status, decision, parent_nwk = args
-            if dev_update_status == self._ezsp.types.EmberDeviceUpdate.DEVICE_LEFT:
-                self.handle_leave(nwk, ieee)
-            else:
-                self.handle_join(nwk, ieee, parent_nwk)
+            self._handle_tc_join_handler(*args)
         elif frame_name == "incomingRouteRecordHandler":
             self.handle_route_record(*args)
         elif frame_name == "incomingRouteErrorHandler":
@@ -328,6 +333,28 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self.handle_join(sender, ieee, 0)
             return
         LOGGER.debug("Couldn't look up ieee for %s", sender)
+
+    def _handle_tc_join_handler(
+        self,
+        nwk: t.EmberNodeId,
+        ieee: t.EmberEUI64,
+        device_update_status: EmberDeviceUpdate,
+        decision: t.EmberJoinDecision,
+        parent_nwk: t.EmberNodeId,
+    ) -> None:
+        """Trust Center Join handler."""
+        if device_update_status == EmberDeviceUpdate.DEVICE_LEFT:
+            self.handle_leave(nwk, ieee)
+            return
+
+        if device_update_status == EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN:
+            asyncio.create_task(self.cleanup_tc_link_key(ieee))
+
+        if decision == t.EmberJoinDecision.DENY_JOIN:
+            # no point in handling the join if it was denied
+            return
+
+        self.handle_join(nwk, ieee, parent_nwk)
 
     def _handle_reset_request(self, error):
         """Reinitialize application controller."""
