@@ -259,8 +259,7 @@ EZSP_POLICIES_SCH = {
     vol.Optional(
         EzspPolicyId.TRUST_CENTER_POLICY.name,
         default=EzspDecisionBitmask.ALLOW_JOINS
-        | EzspDecisionBitmask.JOINS_USE_INSTALL_CODE_KEY
-        | EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS,
+        | EzspDecisionBitmask.IGNORE_UNSECURED_REJOINS,
     ): cv_uint16,
     **EZSP_POLICIES_SHARED,
     **{vol.Optional(policy.name): cv_uint16 for policy in EzspPolicyId},
