@@ -167,7 +167,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         ezsp.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
-        self._watchdog_task = asyncio.ensure_future(self._watchdog())
+        self._watchdog_task = asyncio.create_task(self._watchdog())
 
         self.handle_join(self.nwk, self.ieee, 0)
         LOGGER.debug("EZSP nwk=0x%04x, IEEE=%s", self._nwk, str(self._ieee))
@@ -267,7 +267,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         except KeyError:
             LOGGER.debug("No such device %s", sender)
             if self.config[CONF_PARAM_UNK_DEV]:
-                asyncio.ensure_future(self._handle_no_such_device(sender))
+                asyncio.create_task(self._handle_no_such_device(sender))
             return
 
         device.radio_details(lqi, rssi)
@@ -337,7 +337,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             LOGGER.debug("Preempting ControllerApplication reset")
             self._reset_task.cancel()
 
-        self._reset_task = asyncio.ensure_future(self._reset_controller_loop())
+        self._reset_task = asyncio.create_task(self._reset_controller_loop())
 
     async def _reset_controller_loop(self):
         """Keep trying to reset controller until we succeed."""
