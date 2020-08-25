@@ -242,6 +242,10 @@ class EZSP:
         status.set_result((t.EmberStatus.ERR_FATAL,))
         return status
 
+    def pre_permit(self, time_s: int) -> Coroutine:
+        """Pass through to protocol handler."""
+        return self._protocol.pre_permit(time_s)
+
     def update_policies(self, zigpy_config: dict) -> Coroutine:
         """Set up the policies for what the NCP should do."""
         return self._protocol.update_policies(zigpy_config)

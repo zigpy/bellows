@@ -28,6 +28,7 @@ class ProtocolHandler(abc.ABC):
             cmd_id: (name, tx_schema, rx_schema)
             for name, (cmd_id, tx_schema, rx_schema) in self.COMMANDS.items()
         }
+        self.tc_policy = 0
 
     async def _cfg(self, config_id: int, value: Any, optional=False) -> None:
         v = await self.setConfigurationValue(config_id, value)
@@ -48,6 +49,9 @@ class ProtocolHandler(abc.ABC):
     @abc.abstractmethod
     def _ezsp_frame_tx(self, name: str) -> bytes:
         """Serialize the named frame."""
+
+    async def pre_permit(self, time_s: int) -> None:
+        """Schedule task before allowing new joins."""
 
     async def initialize(self, zigpy_config: Dict) -> None:
         """Initialize EmberZNet Stack."""
@@ -86,6 +90,8 @@ class ProtocolHandler(abc.ABC):
         """Set up the policies for what the NCP should do."""
 
         policies = self.SCHEMAS[CONF_EZSP_POLICIES](zigpy_config[CONF_EZSP_POLICIES])
+        self.tc_policy = policies[self.types.EzspPolicyId.TRUST_CENTER_POLICY.name]
+
         for policy, value in policies.items():
             (status,) = await self.setPolicy(self.types.EzspPolicyId[policy], value)
             assert status == self.types.EmberStatus.SUCCESS  # TODO: Better check
