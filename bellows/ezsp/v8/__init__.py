@@ -37,7 +37,7 @@ class EZSPv8(protocol.ProtocolHandler):
         return seq, frame_id, data
 
     async def pre_permit(self, time_s: int) -> None:
-        """Schedule task before allowing new joins."""
+        """Temporarily change TC policy while allowing new joins."""
         await self.setPolicy(
             v8_types.EzspPolicyId.TRUST_CENTER_POLICY,
             v8_types.EzspDecisionBitmask.ALLOW_JOINS
