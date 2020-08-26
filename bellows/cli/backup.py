@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 
 import bellows.types as t
 import click
@@ -150,6 +151,9 @@ async def _backup_keys(ezsp):
 )
 @click.option("-f", "--force", is_flag=True, required=False, default=False)
 @click.option("-B", "--backup-file", type=str, required=True)
+@click.option(
+    "-U", "--upgrade-to-hashed-tc-link-key", is_flag=True, required=False, default=False
+)
 @click.pass_context
 @util.background
 async def restore(
@@ -157,6 +161,7 @@ async def restore(
     backup_file,
     force,
     i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it,
+    upgrade_to_hashed_tc_link_key,
 ):
     """Backup NCP config to stdio."""
     click.echo("Restoring NCP")
@@ -165,7 +170,7 @@ async def restore(
             backup_data = json.load(file)
             LOGGER.debug("loaded: %s", backup_data)
             backup_data = SCHEMA_BAK(backup_data)
-            LOGGER.debug("schame pass: %s", backup_data)
+            LOGGER.debug("schema pass: %s", backup_data)
     except OSError as exc:
         LOGGER.error("Couldn't import backup file: %s", exc)
         return
@@ -182,12 +187,15 @@ async def restore(
             backup_data,
             force,
             i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it,
+            upgrade_to_hashed_tc_link_key,
         )
     finally:
         ezsp.close()
 
 
-async def _restore(ezsp, backup_data, force, update_eui64_token=False):
+async def _restore(
+    ezsp, backup_data, force, update_eui64_token=False, upg_tc_link_key=False
+):
     """Restore backup."""
 
     stack_up = asyncio.Future()
@@ -241,6 +249,10 @@ async def _restore(ezsp, backup_data, force, update_eui64_token=False):
         networkKeySequenceNumber=backup_data[ATTR_KEY_NWK][ATTR_KEY_SEQ],
         preconfiguredTrustCenterEui64=[0x00] * 8,
     )
+    if upg_tc_link_key:
+        sec_bitmask |= t.EmberInitialSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
+        init_sec_state.preconfiguredKey = t.EmberKeyData(os.urandom(16))
+
     (status,) = await ezsp.setInitialSecurityState(init_sec_state)
     LOGGER.debug("Set initial security state: %s", status)
     assert status == t.EmberStatus.SUCCESS
