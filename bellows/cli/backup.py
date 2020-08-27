@@ -250,7 +250,9 @@ async def _restore(
         preconfiguredTrustCenterEui64=[0x00] * 8,
     )
     if upg_tc_link_key:
-        sec_bitmask |= t.EmberInitialSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
+        init_sec_state.bitmask |= (
+            t.EmberInitialSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
+        )
         init_sec_state.preconfiguredKey = t.EmberKeyData(os.urandom(16))
 
     (status,) = await ezsp.setInitialSecurityState(init_sec_state)
