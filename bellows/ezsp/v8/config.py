@@ -251,7 +251,7 @@ EZSP_SCHEMA = {
         int, vol.Range(min=0)
     ),
     vol.Optional(
-        EzspConfigId.CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S.name
+        EzspConfigId.CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S.name, default=90
     ): vol.All(int, vol.Range(min=0)),
 }
 
