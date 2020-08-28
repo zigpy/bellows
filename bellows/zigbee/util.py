@@ -26,7 +26,8 @@ def zha_security(config: Dict[str, Any], controller: bool = False) -> None:
     if controller:
         isc.bitmask |= (
             t.EmberInitialSecurityBitmask.TRUST_CENTER_GLOBAL_LINK_KEY
+            | t.EmberInitialSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
             | t.EmberInitialSecurityBitmask.HAVE_NETWORK_KEY
         )
-        isc.bitmask = t.uint16_t(isc.bitmask)
+        isc.preconfiguredKey = t.EmberKeyData(os.urandom(16))
     return isc

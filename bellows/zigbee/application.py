@@ -535,10 +535,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 res = await asyncio.wait_for(req.result, APS_ACK_TIMEOUT)
         return res
 
-    def permit(self, time_s: int = 60, node: t.EmberNodeId = None):
+    async def permit(self, time_s: int = 60, node: t.EmberNodeId = None) -> None:
         """Permit joining."""
+        wild_card_ieee = t.EmberEUI64([0xFF] * 8)
+        tc_link_key = t.EmberKeyData(b"ZigBeeAlliance09")
+        await self._ezsp.addTransientLinkKey(wild_card_ieee, tc_link_key)
         asyncio.create_task(self._ezsp.pre_permit(time_s))
-        return super().permit(time_s, node)
+        await super().permit(time_s, node)
 
     def permit_ncp(self, time_s=60):
         assert 0 <= time_s <= 254
