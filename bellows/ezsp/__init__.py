@@ -183,6 +183,12 @@ class EZSP:
         self.close()
         self.handle_callback("_reset_controller_application", (error,))
 
+    def __getattr__(self, name: str) -> Callable:
+        if name not in self._protocol.COMMANDS:
+            return getattr(self._protocol, name)
+
+        return functools.partial(self._command, name)
+
     async def formNetwork(self, parameters):  # noqa: N802
         fut = asyncio.Future()
 
@@ -193,20 +199,14 @@ class EZSP:
 
         self.add_callback(cb)
         v = await self._command("formNetwork", parameters)
-        if v[0] != t.EmberStatus.SUCCESS:
-            raise Exception("Failure forming network: %s" % (v,))
+        if v[0] != self.types.EmberStatus.SUCCESS:
+            raise Exception(f"Failure forming network: {v}")
 
         v = await fut
-        if v[0] != t.EmberStatus.NETWORK_UP:
-            raise Exception("Failure forming network: %s" % (v,))
+        if v[0] != self.types.EmberStatus.NETWORK_UP:
+            raise Exception(f"Failure forming network: {v}")
 
         return v
-
-    def __getattr__(self, name: str) -> Callable:
-        if name not in self._protocol.COMMANDS:
-            raise AttributeError(f"{name} not found in COMMANDS")
-
-        return functools.partial(self._command, name)
 
     def frame_received(self, data: bytes) -> None:
         """Handle a received EZSP frame
