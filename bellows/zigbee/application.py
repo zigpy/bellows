@@ -510,10 +510,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                                     res,
                                 )
                             else:
-                                LOGGER.warning(
-                                    "Couldn't set source route for %s: %s",
-                                    device.nwk,
-                                    res,
+                                LOGGER.debug(
+                                    "using route discovery for %s device", device.nwk,
                                 )
 
                         status, _ = await self._ezsp.sendUnicast(

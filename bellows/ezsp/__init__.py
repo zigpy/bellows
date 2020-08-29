@@ -238,6 +238,7 @@ class EZSP:
         if device.relays is not None:
             return self.setSourceRoute(device.nwk, device.relays)
 
+        LOGGER.debug("No known routes for %s", device.nwk)
         status = asyncio.Future()
         status.set_result((t.EmberStatus.ERR_FATAL,))
         return status
