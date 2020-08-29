@@ -69,7 +69,7 @@ def get_mock_coro(return_value):
 
 def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4):
     async def mockezsp(*args, **kwargs):
-        return [0, nwk_type]
+        return [0, nwk_type, mock.sentinel.nework_parameters]
 
     async def mockinit(*args, **kwargs):
         return [init]
