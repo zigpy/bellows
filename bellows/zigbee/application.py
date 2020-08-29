@@ -179,7 +179,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if extended_pan_id is None:
             extended_pan_id = t.EmberEUI64([t.uint8_t(0)] * 8)
 
-        initial_security_state = bellows.zigbee.util.zha_security(nwk, controller=True)
+        hashed_tclk = self._ezsp.ezsp_version > 4
+        initial_security_state = bellows.zigbee.util.zha_security(
+            nwk, controller=True, hashed_tclk=hashed_tclk
+        )
         v = await self._ezsp.setInitialSecurityState(initial_security_state)
         assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
         parameters = t.EmberNetworkParameters()
