@@ -30,6 +30,9 @@ def app(monkeypatch):
     ezsp.set_source_route = asynctest.CoroutineMock(
         return_value=[t.EmberStatus.SUCCESS]
     )
+    ezsp.get_board_info = CoroutineMock(
+        return_value=("Mock Manufacturer", "Mock board", "Mock version")
+    )
     type(ezsp).is_ezsp_running = mock.PropertyMock(return_value=True)
     config = bellows.zigbee.application.ControllerApplication.SCHEMA(APP_CONFIG)
     ctrl = bellows.zigbee.application.ControllerApplication(config)
@@ -84,6 +87,9 @@ def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4):
     ezsp_mock.setConfigurationValue = mockezsp
     ezsp_mock.networkInit = mockinit
     ezsp_mock.getNetworkParameters = mockezsp
+    ezsp_mock.get_board_info = CoroutineMock(
+        return_value=("Mock Manufacturer", "Mock board", "Mock version")
+    )
     ezsp_mock.setPolicy = mockezsp
     ezsp_mock.getMfgToken = CoroutineMock(return_value=(b"Some token\xff",))
     ezsp_mock.getNodeId = mockezsp

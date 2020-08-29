@@ -78,6 +78,11 @@ async def info(ctx):
         v = await getattr(s, c)()
         click.echo(v)
 
+    brd_manuf, brd_name, version = await s.get_board_info()
+    click.echo(f"Manufacturer: {brd_manuf}")
+    click.echo(f"Board name: {brd_name}")
+    click.echo(f"EmberZNet version: {version}")
+
     s.close()
 
 

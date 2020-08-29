@@ -120,36 +120,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             output_clusters=[zigpy.zcl.clusters.security.IasZone.cluster_id]
         )
 
-        tokens = []
-        for token in (t.EzspMfgTokenId.MFG_STRING, t.EzspMfgTokenId.MFG_BOARD_NAME):
-            LOGGER.debug("getting " "%s" " token", token.name)
-            (result,) = await ezsp.getMfgToken(token)
-            try:
-                result = result.split(b"\xFF")[0]
-                result = result.decode()
-            except UnicodeDecodeError:
-                pass
-            tokens.append(result)
-
-        (status, ver_info_bytes) = await ezsp.getValue(
-            ezsp.types.EzspValueId.VALUE_VERSION_INFO
-        )
-        LOGGER.info("EZSP Radio manufacturer: %s", tokens[0])
-        LOGGER.info("EZSP Radio board name: %s", tokens[1])
-        if status == t.EmberStatus.SUCCESS:
-            build, ver_info_bytes = t.uint16_t.deserialize(ver_info_bytes)
-            major, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
-            minor, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
-            patch, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
-            special, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
-            LOGGER.info(
-                "EmberZNet version: %s.%s.%s.%s build %s",
-                major,
-                minor,
-                patch,
-                special,
-                build,
-            )
+        brd_manuf, brd_name, version = await self._ezsp.get_board_info()
+        LOGGER.info("EZSP Radio manufacturer: %s", brd_manuf)
+        LOGGER.info("EZSP Radio board name: %s", brd_name)
+        LOGGER.info("EmberZNet version: %s", version)
 
         v = await ezsp.networkInit()
         if v[0] != t.EmberStatus.SUCCESS:
