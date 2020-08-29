@@ -217,6 +217,34 @@ class EZSP:
         """
         self._protocol(data)
 
+    async def get_board_info(self) -> Tuple[str, str, str]:
+        """Return board info."""
+
+        tokens = []
+        for token in (t.EzspMfgTokenId.MFG_STRING, t.EzspMfgTokenId.MFG_BOARD_NAME):
+            LOGGER.debug("getting " "%s" " token", token.name)
+            (result,) = await self.getMfgToken(token)
+            try:
+                result = result.split(b"\xFF")[0]
+                result = result.decode()
+            except UnicodeDecodeError:
+                pass
+            tokens.append(result)
+
+        (status, ver_info_bytes) = await self.getValue(
+            self.types.EzspValueId.VALUE_VERSION_INFO
+        )
+        if status == t.EmberStatus.SUCCESS:
+            build, ver_info_bytes = t.uint16_t.deserialize(ver_info_bytes)
+            major, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
+            minor, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
+            patch, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
+            special, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
+            version = f"{major}.{minor}.{patch}.{special} build {build}"
+        else:
+            version = "unknown stack version"
+        return tokens[0], tokens[1], version
+
     def add_callback(self, cb):
         id_ = hash(cb)
         while id_ in self._callbacks:
