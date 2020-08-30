@@ -1,4 +1,4 @@
-from asynctest import mock
+from asynctest import CoroutineMock, mock
 import bellows.ezsp.v8
 import pytest
 
@@ -21,6 +21,25 @@ def test_ezsp_frame_rx(ezsp_f):
     assert ezsp_f._handle_callback.call_count == 1
     assert ezsp_f._handle_callback.call_args[0][0] == "version"
     assert ezsp_f._handle_callback.call_args[0][1] == [0x01, 0x02, 0x1234]
+
+
+@pytest.mark.asyncio
+async def test_set_source_routing(ezsp_f):
+    """Test setting source routing."""
+    with mock.patch.object(
+        ezsp_f, "setSourceRouteDiscoveryMode", new=CoroutineMock()
+    ) as src_mock:
+        await ezsp_f.set_source_routing()
+        assert src_mock.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_pre_permit(ezsp_f):
+    """Test pre permit."""
+    p1 = mock.patch.object(ezsp_f, "setPolicy", new=CoroutineMock())
+    with p1 as pre_permit_mock:
+        await ezsp_f.pre_permit(-1.9)
+    assert pre_permit_mock.await_count == 2
 
 
 def test_command_frames(ezsp_f):
