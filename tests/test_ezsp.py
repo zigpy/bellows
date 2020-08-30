@@ -4,6 +4,7 @@ import functools
 from asynctest import CoroutineMock, mock
 from bellows import config, ezsp, uart
 from bellows.exception import EzspError
+import bellows.ezsp.v4.types as t
 import pytest
 import serial
 
@@ -290,3 +291,86 @@ async def test_probe_fail(mock_connect, mock_reset, exception):
     assert mock_connect.await_count == 1
     assert mock_reset.call_count == 1
     assert mock_connect.return_value.close.call_count == 1
+
+
+@pytest.mark.asyncio
+@mock.patch("bellows.ezsp.v4.EZSPv4.initialize", new_callable=CoroutineMock)
+@mock.patch.object(ezsp.EZSP, "version", new_callable=CoroutineMock)
+@mock.patch.object(ezsp.EZSP, "reset", new_callable=CoroutineMock)
+@mock.patch.object(uart, "connect")
+async def test_ezsp_init(conn_mock, reset_mock, version_mock, prot_handler_mock):
+    """Test initializat methdod."""
+    await ezsp.EZSP.initialize({"device": DEVICE_CONFIG})
+    assert conn_mock.await_count == 1
+    assert reset_mock.await_count == 1
+    assert version_mock.await_count == 1
+    assert prot_handler_mock.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_ezsp_newer_version(ezsp_f):
+    """Test newer version of ezsp."""
+    with mock.patch.object(
+        ezsp_f, "_command", new=CoroutineMock(return_value=(9, 0x12, 0x12345))
+    ):
+        await ezsp_f.version()
+
+
+@pytest.mark.asyncio
+async def test_board_info(ezsp_f):
+    """Test getting board info."""
+
+    status = 0x00
+
+    async def cmd_mock(cmd_name, *args):
+        assert cmd_name in ("getMfgToken", "getValue")
+        if cmd_name == "getMfgToken":
+            if args[0] == t.EzspMfgTokenId.MFG_BOARD_NAME:
+                return (b"\xfe\xff\xff\xff",)
+            return (b"Manufacturer\xff\xff\xff",)
+
+        if cmd_name == "getValue":
+            return (status, b"\x01\x02\x03\x04\x05\x06")
+
+    with mock.patch.object(ezsp_f, "_command", new=cmd_mock):
+        mfg, brd, ver = await ezsp_f.get_board_info()
+    assert mfg == "Manufacturer"
+    assert brd == b"\xfe"
+    assert ver == "3.4.5.6 build 513"
+
+    with mock.patch.object(ezsp_f, "_command", new=cmd_mock):
+        status = 0x01
+        mfg, brd, ver = await ezsp_f.get_board_info()
+    assert mfg == "Manufacturer"
+    assert brd == b"\xfe"
+    assert ver == "unknown stack version"
+
+
+@pytest.mark.asyncio
+async def test_set_source_route(ezsp_f):
+    """Test setting a src route for device."""
+    device = mock.MagicMock()
+    device.relays = None
+
+    with mock.patch.object(ezsp_f, "setSourceRoute", new=CoroutineMock()) as src_mock:
+        src_mock.return_value = (mock.sentinel.success,)
+        res = await ezsp_f.set_source_route(device)
+        assert src_mock.await_count == 0
+        assert res == (t.EmberStatus.ERR_FATAL,)
+
+        device.relays = []
+        res = await ezsp_f.set_source_route(device)
+        assert src_mock.await_count == 1
+        assert res == (mock.sentinel.success,)
+
+
+def test_pre_permit(ezsp_f):
+    with mock.patch("bellows.ezsp.v4.EZSPv4.pre_permit") as pre_mock:
+        ezsp_f.pre_permit(mock.sentinel.time)
+        assert pre_mock.call_count == 1
+
+
+def test_update_policies(ezsp_f):
+    with mock.patch("bellows.ezsp.v4.EZSPv4.update_policies") as pol_mock:
+        ezsp_f.update_policies(mock.sentinel.time)
+        assert pol_mock.call_count == 1
