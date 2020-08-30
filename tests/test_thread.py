@@ -3,7 +3,6 @@ import sys
 import threading
 from unittest import mock
 
-from async_generator import async_generator, yield_
 from bellows.thread import EventLoopThread, ThreadsafeProxy
 import pytest
 
@@ -40,14 +39,13 @@ class ExceptionCollector:
 
 
 @pytest.fixture
-@async_generator  # Remove when Python 3.5 is no longer supported
 async def thread():
     thread = EventLoopThread()
     await thread.start()
     thread.loop.call_soon_threadsafe(
         thread.loop.set_exception_handler, ExceptionCollector()
     )
-    await yield_(thread)
+    yield thread
     thread.force_stop()
     if thread.thread_complete is not None:
         await asyncio.wait_for(thread.thread_complete, 1)
