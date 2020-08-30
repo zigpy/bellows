@@ -62,13 +62,9 @@ COMMANDS = {
     "readAndClearCounters": (
         0x0065,
         (),
-        (t.fixed_list(t.EmberCounterType.COUNTER_TYPE_COUNT, t.uint16_t),),
+        (t.fixed_list(len(t.EmberCounterType), t.uint16_t),),
     ),
-    "readCounters": (
-        0x00F1,
-        (),
-        (t.fixed_list(t.EmberCounterType.COUNTER_TYPE_COUNT, t.uint16_t),),
-    ),
+    "readCounters": (0x00F1, (), (t.fixed_list(len(t.EmberCounterType), t.uint16_t),),),
     "counterRolloverHandler": (0x00F2, (), (t.EmberCounterType,)),
     "delayTest": (0x009D, (t.uint16_t,), ()),
     "getLibraryStatus": (0x0001, (t.uint8_t,), (t.EmberLibraryStatus,)),

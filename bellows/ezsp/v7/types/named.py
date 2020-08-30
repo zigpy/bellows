@@ -470,10 +470,6 @@ class EmberDeviceUpdate(basic.enum8):
 class EmberCounterType(basic.enum8):
     # Defines the events reported to the application by the
     # readAndClearCounters command.
-    @property
-    def COUNTER_TYPE_COUNT(self) -> int:  # noqa: N802
-        """Return the number of counters."""
-        return len(self)
 
     # The MAC received a broadcast.
     COUNTER_MAC_RX_BROADCAST = 0
