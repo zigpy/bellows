@@ -190,3 +190,13 @@ def test_enum():
     assert r.name == "ALL"
     assert isinstance(r, TestEnum)
     assert TestEnum.ALL + TestEnum.ERR == 0x56
+
+
+def test_fixed_list():
+    list_type = t.fixed_list(2, t.uint8_t)
+    data = b"\x01\xFE"
+    extra = b"extarlist \xaa\55"
+
+    res, rest = list_type.deserialize(data + extra)
+    assert rest == extra
+    assert res == [1, 254]
