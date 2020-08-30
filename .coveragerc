@@ -1,3 +1,5 @@
 [run]
 source = bellows
-omit = bellows/cli/*.py
+omit = 
+    bellows/cli/*.py
+    bellows/typing.py

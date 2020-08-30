@@ -24,7 +24,7 @@ async def config(ctx, config, all_):
     )
 
     if all_:
-        for config in t.EzspConfigId:
+        for config in s.types.EzspConfigId:
             v = await s.getConfigurationValue(config)
             if v[0] == t.EzspStatus.ERROR_INVALID_ID:
                 continue
@@ -36,12 +36,12 @@ async def config(ctx, config, all_):
         config, value = config.split("=", 1)
         if config.isdigit():
             try:
-                config = t.EzspConfigId(int(config))
+                config = s.types.EzspConfigId(int(config))
             except ValueError:
                 raise click.BadArgumentUsage("Invalid config ID: %s" % (config,))
         else:
             try:
-                config = t.EzspConfigId[config]
+                config = s.types.EzspConfigId[config]
             except KeyError:
                 raise click.BadArgumentUsage("Invalid config name: %s" % (config,))
         try:
@@ -79,6 +79,11 @@ async def info(ctx):
     for c in commands:
         v = await getattr(s, c)()
         click.echo(v)
+
+    brd_manuf, brd_name, version = await s.get_board_info()
+    click.echo(f"Manufacturer: {brd_manuf}")
+    click.echo(f"Board name: {brd_name}")
+    click.echo(f"EmberZNet version: {version}")
 
     s.close()
 

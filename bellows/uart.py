@@ -44,7 +44,7 @@ class Gateway(asyncio.Protocol):
         self._transport = transport
         if self._connected_future is not None:
             self._connected_future.set_result(True)
-            asyncio.ensure_future(self._send_task())
+            asyncio.create_task(self._send_task())
 
     def data_received(self, data):
         """Callback when there is data received from the uart"""
@@ -156,11 +156,7 @@ class Gateway(asyncio.Protocol):
     @staticmethod
     def _get_error_code(data):
         """Extracts error code from RSTACK or ERROR frames."""
-        try:
-            code = t.NcpResetCode(data[2])
-        except ValueError:
-            code = t.NcpResetCode.ERROR_UNKNOWN_EM3XX_ERROR
-        return code, data[1]
+        return t.NcpResetCode(data[2]), data[1]
 
     def error_frame_received(self, data):
         """Error frame receive handler."""

@@ -245,7 +245,7 @@ class StructField:
         types = set(self.type.__args__) - {NoneType}
 
         if len(types) > 1:
-            raise TypeError(f"Struct field cannot have more than one concrete type")
+            raise TypeError("Struct field cannot have more than one concrete type")
 
         return tuple(types)[0]
 
@@ -256,9 +256,9 @@ class StructField:
 class EmberNetworkParameters(EzspStruct):
     # Network parameters.
     # The network's extended PAN identifier.
-    extendedPanId: basic.fixed_list(8, basic.uint8_t)
+    extendedPanId: named.ExtendedPanId
     # The network's PAN identifier.
-    panId: basic.uint16_t
+    panId: named.EmberPanId
     # A power setting, in dBm.
     radioTxPower: basic.uint8_t
     # A radio channel.
@@ -278,7 +278,7 @@ class EmberNetworkParameters(EzspStruct):
     # has told this device to use when searching for the network. This may
     # only be set at joining when using USE_NWK_COMMISSIONING as the join
     # method.
-    channels: basic.uint32_t
+    channels: named.Channels
 
 
 class EmberZigbeeNetwork(EzspStruct):
@@ -286,9 +286,9 @@ class EmberZigbeeNetwork(EzspStruct):
     # The 802.15.4 channel associated with the network.
     channel: basic.uint8_t
     # The network's PAN identifier.
-    panId: basic.uint16_t
+    panId: named.EmberPanId
     # The network's extended PAN identifier.
-    extendedPanId: basic.fixed_list(8, basic.uint8_t)
+    extendedPanId: named.ExtendedPanId
     # Whether the network is allowing MAC associations.
     allowingJoin: named.Bool
     # The Stack Profile associated with the network.
@@ -350,26 +350,8 @@ class EmberMulticastTableEntry(EzspStruct):
     networkIndex: basic.uint8_t
 
 
-class EmberCertificateData(EzspStruct):
-    # The implicit certificate used in CBKE.
-    # The certificate data.
-    contents: basic.fixed_list(48, basic.uint8_t)
-
-
-class EmberPublicKeyData(EzspStruct):
-    # The public key data used in CBKE.
-    # The public key data.
-    contents: basic.fixed_list(22, basic.uint8_t)
-
-
-class EmberPrivateKeyData(EzspStruct):
-    # The private key data used in CBKE.
-    # The private key data.
-    contents: basic.fixed_list(21, basic.uint8_t)
-
-
 class EmberTransientKeyData(EzspStruct):
-    # The transient key data structure
+    # The transient key data structure. Added in ver. 5
     # The IEEE address paired with the transient link key.
     eui64: named.EmberEUI64
     # The key data structure matching the transient key.
@@ -379,48 +361,6 @@ class EmberTransientKeyData(EzspStruct):
     # The number of milliseconds remaining before the key
     # is automatically timed out of the transient key table.
     countdownTimerMs: basic.uint32_t
-
-
-class EmberSmacData(EzspStruct):
-    # The Shared Message Authentication Code data used in CBKE.
-    # The Shared Message Authentication Code data.
-    contents: basic.fixed_list(16, basic.uint8_t)
-
-
-class EmberSignatureData(EzspStruct):
-    # An ECDSA signature
-    # The signature data.
-    contents: basic.fixed_list(42, basic.uint8_t)
-
-
-class EmberCertificate283k1Data(EzspStruct):
-    # The implicit certificate used in CBKE.
-    # The 283k1 certificate data.
-    contents: basic.fixed_list(74, basic.uint8_t)
-
-
-class EmberPublicKey283k1Data(EzspStruct):
-    # The public key data used in CBKE.
-    # The 283k1 public key data.
-    contents: basic.fixed_list(37, basic.uint8_t)
-
-
-class EmberPrivateKey283k1Data(EzspStruct):
-    # The private key data used in CBKE.
-    # The 283k1 private key data.
-    contents: basic.fixed_list(36, basic.uint8_t)
-
-
-class EmberSignature283k1Data(EzspStruct):
-    # An ECDSA signature
-    # The 283k1 signature data.
-    contents: basic.fixed_list(72, basic.uint8_t)
-
-
-class EmberMessageDigest(EzspStruct):
-    # The calculated digest of a message
-    # The calculated digest of a message.
-    contents: basic.fixed_list(16, basic.uint8_t)
 
 
 class EmberAesMmoHashContext(EzspStruct):
@@ -435,7 +375,7 @@ class EmberNeighborTableEntry(EzspStruct):
     # A neighbor table entry stores information about the reliability of RF
     # links to and from neighboring nodes.
     # The neighbor's two byte network id
-    shortId: basic.uint16_t
+    shortId: named.EmberNodeId
     # An exponentially weighted moving average of the link quality values
     # of incoming packets from this neighbor as reported by the PHY.
     averageLqi: basic.uint8_t
@@ -460,7 +400,7 @@ class EmberRouteTableEntry(EzspStruct):
     # to the destination.
     # The short id of the destination. A value of 0xFFFF indicates the
     # entry is unused.
-    destination: basic.uint16_t
+    destination: named.EmberNodeId
     # The short id of the next hop to this destination.
     nextHop: basic.uint16_t
     # Indicates whether this entry is active (0), being discovered (1)),
@@ -515,31 +455,6 @@ class EmberCurrentSecurityState(EzspStruct):
     bitmask: named.EmberCurrentSecurityBitmask
     # The IEEE Address of the Trust Center device.
     trustCenterLongAddress: named.EmberEUI64
-
-
-class EmberKeyStruct(EzspStruct):
-    # A structure containing a key and its associated data.
-    # A bitmask indicating the presence of data within the various fields
-    # in the structure.
-    bitmask: named.EmberKeyStructBitmask
-    # The type of the key.
-    type: named.EmberKeyType
-    # The actual key data.
-    key: named.EmberKeyData
-    # The outgoing frame counter associated with the key.
-    outgoingFrameCounter: basic.uint32_t
-    # The frame counter of the partner device associated with the key.
-    incomingFrameCounter: basic.uint32_t
-    # The sequence number associated with the key.
-    sequenceNumber: basic.uint8_t
-    # The IEEE address of the partner device also in possession of the key.
-    partnerEUI64: named.EmberEUI64
-
-
-class EmberNetworkInitStruct(EzspStruct):
-    # Network Initialization parameters.
-    # Configuration options for network init.
-    bitmask: named.EmberNetworkInitBitmask
 
 
 class EmberZllSecurityAlgorithmData(EzspStruct):
@@ -647,64 +562,9 @@ class EmberTokTypeStackZllSecurity(EzspStruct):
     # Key index.
     keyIndex: basic.uint8_t
     # Encryption key.
-    encryptionKey: basic.fixed_list(16, basic.uint8_t)
+    encryptionKey: named.EmberKeyData
     # Preconfigured key.
-    preconfiguredKey: basic.fixed_list(16, basic.uint8_t)
-
-
-class EmberRf4ceVendorInfo(EzspStruct):
-    # The RF4CE vendor information block.
-    # The vendor identifier field shall contain the vendor identifier of
-    # the node.
-    vendorId: basic.uint16_t
-    # The vendor string field shall contain the vendor string of the node.
-    vendorString: basic.fixed_list(7, basic.uint8_t)
-
-
-class EmberRf4ceApplicationInfo(EzspStruct):
-    # The RF4CE application information block.
-    # The application capabilities field shall contain information relating
-    # to the capabilities of the application of the node.
-    capabilities: named.EmberRf4ceApplicationCapabilities
-    # The user string field shall contain the user specified identification
-    # string.
-    userString: basic.fixed_list(15, basic.uint8_t)
-    # The device type list field shall contain the list of device types
-    # supported by the node.
-    deviceTypeList: basic.fixed_list(3, basic.uint8_t)
-    # The profile ID list field shall contain the list of profile
-    # identifiers disclosed as supported by the node.
-    profileIdList: basic.fixed_list(7, basic.uint8_t)
-
-
-class EmberRf4cePairingTableEntry(EzspStruct):
-    # The internal representation of an RF4CE pairing table entry.
-    # The link key to be used to secure this pairing link.
-    securityLinkKey: named.EmberKeyData
-    # The IEEE address of the destination device.
-    destLongId: named.EmberEUI64
-    # The frame counter last received from the recipient node.
-    frameCounter: basic.uint32_t
-    # The network address to be assumed by the source device.
-    sourceNodeId: named.EmberNodeId
-    # The PAN identifier of the destination device.
-    destPanId: named.EmberPanId
-    # The network address of the destination device.
-    destNodeId: named.EmberNodeId
-    # The vendor ID of the destination device.
-    destVendorId: basic.uint16_t
-    # The list of profiles supported by the destination device.
-    destProfileIdList: basic.fixed_list(7, basic.uint8_t)
-    # The length of the list of supported profiles.
-    destProfileIdListLength: basic.uint8_t
-    # Info byte.
-    info: basic.uint8_t
-    # The expected channel of the destination device.
-    channel: basic.uint8_t
-    # The node capabilities of the recipient node.
-    capabilities: basic.uint8_t
-    # Last MAC sequence number seen on this pairing link.
-    lastSeqn: basic.uint8_t
+    preconfiguredKey: named.EmberKeyData
 
 
 class EmberGpAddress(EzspStruct):
@@ -717,13 +577,3 @@ class EmberGpAddress(EzspStruct):
     applicationId: basic.uint8_t
     # The GPD endpoint.
     endpoint: basic.uint8_t
-
-
-class EmberGpSinkListEntry(EzspStruct):
-    # A sink list entry
-    # The sink list type.
-    type: basic.uint8_t
-    # The EUI64 of the target sink.
-    sinkEUI: named.EmberEUI64
-    # The short address of the target sink.
-    sinkNodeId: named.EmberNodeId

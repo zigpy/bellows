@@ -119,14 +119,14 @@ async def setup(dev, baudrate, cbh=None, configure=True):
         v = await s.setConfigurationValue(config_id, value)
         check(v[0], "Setting config %s to %s: %s" % (config_id, value, v[0]))
 
-    c = t.EzspConfigId
+    c = s.types.EzspConfigId
 
     if configure:
         LOGGER.debug("Configuring...")
         await cfg(c.CONFIG_STACK_PROFILE, 2)
         await cfg(c.CONFIG_SECURITY_LEVEL, 5)
         await cfg(c.CONFIG_SUPPORTED_NETWORKS, 1)
-        await cfg(c.CONFIG_PACKET_BUFFER_COUNT, 0xFF)
+        await cfg(c.CONFIG_PACKET_BUFFER_COUNT, 64)
 
     return s
 
@@ -169,14 +169,16 @@ async def basic_tc_permits(s):
         check(v[0], "Failed to set policy %s to %s: %s" % (policy, decision, v[0]))
 
     await set_policy(
-        t.EzspPolicyId.TC_KEY_REQUEST_POLICY, t.EzspDecisionId.DENY_TC_KEY_REQUESTS
+        s.types.EzspPolicyId.TC_KEY_REQUEST_POLICY,
+        s.types.EzspDecisionId.DENY_TC_KEY_REQUESTS,
     )
     await set_policy(
-        t.EzspPolicyId.APP_KEY_REQUEST_POLICY, t.EzspDecisionId.ALLOW_APP_KEY_REQUESTS
+        s.types.EzspPolicyId.APP_KEY_REQUEST_POLICY,
+        s.types.EzspDecisionId.ALLOW_APP_KEY_REQUESTS,
     )
     await set_policy(
-        t.EzspPolicyId.TRUST_CENTER_POLICY,
-        t.EzspDecisionId.ALLOW_PRECONFIGURED_KEY_JOINS,
+        s.types.EzspPolicyId.TRUST_CENTER_POLICY,
+        s.types.EzspDecisionId.ALLOW_PRECONFIGURED_KEY_JOINS,
     )
 
 

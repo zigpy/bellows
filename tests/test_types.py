@@ -129,3 +129,74 @@ def test_bitmap_undef():
     assert TestBitmap.ALL not in r
     assert r.value == 0x0F60
     assert r.serialize() == data
+
+
+def test_enum_undef():
+    class TestEnum(t.enum8):
+        ALL = 0xAA
+
+    data = b"\x55"
+    extra = b"extra"
+
+    r, rest = TestEnum.deserialize(data + extra)
+    assert rest == extra
+    assert r == 0x55
+    assert r.value == 0x55
+    assert r.name == "undefined_0x55"
+    assert r.serialize() == data
+    assert isinstance(r, TestEnum)
+
+    r = TestEnum("85")
+    assert r == 0x55
+    assert r.value == 0x55
+    assert r.name == "undefined_0x55"
+    assert r.serialize() == data
+    assert isinstance(r, TestEnum)
+
+    r = TestEnum("0x55")
+    assert r == 0x55
+    assert r.value == 0x55
+    assert r.name == "undefined_0x55"
+    assert r.serialize() == data
+    assert isinstance(r, TestEnum)
+
+
+def test_enum():
+    class TestEnum(t.enum8):
+        ALL = 0x55
+        ERR = 1
+
+    data = b"\x55"
+    extra = b"extra"
+
+    r, rest = TestEnum.deserialize(data + extra)
+    assert rest == extra
+    assert r == 0x55
+    assert r.value == 0x55
+    assert r.name == "ALL"
+    assert isinstance(r, TestEnum)
+    assert TestEnum.ALL + TestEnum.ERR == 0x56
+
+    r = TestEnum("85")
+    assert r == 0x55
+    assert r.value == 0x55
+    assert r.name == "ALL"
+    assert isinstance(r, TestEnum)
+    assert TestEnum.ALL + TestEnum.ERR == 0x56
+
+    r = TestEnum("0x55")
+    assert r == 0x55
+    assert r.value == 0x55
+    assert r.name == "ALL"
+    assert isinstance(r, TestEnum)
+    assert TestEnum.ALL + TestEnum.ERR == 0x56
+
+
+def test_fixed_list():
+    list_type = t.fixed_list(2, t.uint8_t)
+    data = b"\x01\xFE"
+    extra = b"extarlist \xaa\55"
+
+    res, rest = list_type.deserialize(data + extra)
+    assert rest == extra
+    assert res == [1, 254]
