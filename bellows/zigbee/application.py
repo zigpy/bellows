@@ -722,4 +722,8 @@ class EZSPCoordinator(CustomDevice):
         }
     }
 
-    replacement = {"endpoints": {1: (EZSPEndpoint, {})}}
+    replacement = {
+        "endpoints": {1: (EZSPEndpoint, {})},
+        "manufacturer": "Silicon Labs",
+        "model": "EZSP",
+    }

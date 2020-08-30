@@ -1,7 +1,8 @@
 import asyncio
 
-from asynctest import mock
+from asynctest import CoroutineMock, mock
 import bellows.ezsp.v4
+import bellows.ezsp.v4.types as t
 import pytest
 
 
@@ -54,3 +55,32 @@ def test_receive_reply_after_timeout(prot_hndl):
     assert callback_mock.set_result.call_count == 1
     callback_mock.set_result.assert_called_once_with([4, 5, 6])
     assert prot_hndl.cb_mock.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_cfg_initialize(prot_hndl):
+    """Test initialization."""
+
+    p1 = mock.patch.object(prot_hndl, "setConfigurationValue", new=CoroutineMock())
+    p2 = mock.patch.object(prot_hndl, "set_source_routing", new=CoroutineMock())
+    with p1 as cfg_mock, p2 as src_mock:
+        cfg_mock.return_value = (t.EzspStatus.SUCCESS,)
+        await prot_hndl.initialize({"ezsp_config": {}, "source_routing": True})
+        assert src_mock.call_count == 1
+
+        cfg_mock.return_value = (t.EzspStatus.ERROR_OUT_OF_MEMORY,)
+        with pytest.raises(AssertionError):
+            await prot_hndl.initialize({"ezsp_config": {}, "source_routing": False})
+
+
+@pytest.mark.asyncio
+async def test_update_policies(prot_hndl):
+    """Test update_policies."""
+
+    with mock.patch.object(prot_hndl, "setPolicy", new=CoroutineMock()) as pol_mock:
+        pol_mock.return_value = (t.EzspStatus.SUCCESS,)
+        await prot_hndl.update_policies({"ezsp_policies": {}})
+
+        pol_mock.return_value = (t.EzspStatus.ERROR_OUT_OF_MEMORY,)
+        with pytest.raises(AssertionError):
+            await prot_hndl.update_policies({"ezsp_policies": {}})

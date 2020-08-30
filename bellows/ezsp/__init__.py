@@ -3,7 +3,7 @@
 import asyncio
 import functools
 import logging
-from typing import Any, Awaitable, Callable, Coroutine, Dict, Tuple
+from typing import Any, Awaitable, Callable, Dict, Tuple
 
 from bellows.config import CONF_DEVICE, CONF_DEVICE_PATH, SCHEMA_DEVICE
 from bellows.exception import APIException, EzspError
@@ -270,14 +270,6 @@ class EZSP:
         status = asyncio.Future()
         status.set_result((t.EmberStatus.ERR_FATAL,))
         return status
-
-    def pre_permit(self, time_s: int) -> Coroutine:
-        """Pass through to protocol handler."""
-        return self._protocol.pre_permit(time_s)
-
-    def update_policies(self, zigpy_config: dict) -> Coroutine:
-        """Set up the policies for what the NCP should do."""
-        return self._protocol.update_policies(zigpy_config)
 
     def start_ezsp(self):
         """Mark EZSP as running."""

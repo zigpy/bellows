@@ -239,25 +239,57 @@ def test_dup_send_success(app, aps, ieee):
     assert req.result.set_result.call_count == 1
 
 
-def test_join_handler(app, ieee):
+@pytest.mark.asyncio
+async def test_join_handler(app, ieee):
     # Calls device.initialize, leaks a task
     app.handle_join = mock.MagicMock()
+    app.cleanup_tc_link_key = CoroutineMock()
     app.ezsp_callback_handler(
-        "trustCenterJoinHandler", [1, ieee, None, None, mock.sentinel.parent]
+        "trustCenterJoinHandler",
+        [
+            1,
+            ieee,
+            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            t.EmberJoinDecision.NO_ACTION,
+            mock.sentinel.parent,
+        ],
     )
+    await asyncio.sleep(0)
     assert ieee not in app.devices
     assert app.handle_join.call_count == 1
     assert app.handle_join.call_args[0][0] == 1
     assert app.handle_join.call_args[0][1] == ieee
     assert app.handle_join.call_args[0][2] is mock.sentinel.parent
+    assert app.cleanup_tc_link_key.await_count == 1
+    assert app.cleanup_tc_link_key.call_args[0][0] is ieee
+
+    # cleanup TCLK, but no join handling
+    app.handle_join.reset_mock()
+    app.cleanup_tc_link_key.reset_mock()
+    app.ezsp_callback_handler(
+        "trustCenterJoinHandler",
+        [
+            1,
+            ieee,
+            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            t.EmberJoinDecision.DENY_JOIN,
+            mock.sentinel.parent,
+        ],
+    )
+    await asyncio.sleep(0)
+    assert app.cleanup_tc_link_key.await_count == 1
+    assert app.cleanup_tc_link_key.call_args[0][0] is ieee
+    assert app.handle_join.call_count == 0
 
 
 def test_leave_handler(app, ieee):
+    app.handle_join = mock.MagicMock()
     app.devices[ieee] = mock.MagicMock()
     app.ezsp_callback_handler(
         "trustCenterJoinHandler", [1, ieee, t.EmberDeviceUpdate.DEVICE_LEFT, None, None]
     )
     assert ieee in app.devices
+    assert app.handle_join.call_count == 0
 
 
 def test_force_remove(app, ieee):
@@ -274,7 +306,7 @@ def test_sequence(app):
         assert seq < 256
 
 
-def test_permit(app):
+def test_permit_ncp(app):
     app.permit_ncp(60)
     assert app._ezsp.permitJoining.call_count == 1
 
@@ -919,6 +951,12 @@ async def test_ezsp_remove_from_group_fail_ep(coordinator):
     assert mc.unsubscribe.call_args[0][0] == grp_id
 
 
+def test_coordinator_model_manuf(coordinator):
+    """Test we get coordinator manufacturer and model."""
+    assert coordinator.endpoints[1].manufacturer
+    assert coordinator.endpoints[1].model
+
+
 @pytest.mark.asyncio
 async def _mrequest(
     app,
@@ -1118,3 +1156,39 @@ async def test_handle_no_such_device(app, ieee):
         assert handle_join_mock.call_count == 1
         assert handle_join_mock.call_args[0][0] == mock.sentinel.nwk
         assert handle_join_mock.call_args[0][1] == mock.sentinel.ieee
+
+
+@pytest.mark.asyncio
+async def test_cleanup_tc_link_key(app):
+    """Test cleaning up tc link key."""
+    ezsp = app._ezsp
+    ezsp.findKeyTableEntry = CoroutineMock(
+        side_effect=((0xFF,), (mock.sentinel.index,))
+    )
+    ezsp.eraseKeyTableEntry = CoroutineMock(return_value=(0x00,))
+
+    await app.cleanup_tc_link_key(mock.sentinel.ieee)
+    assert ezsp.findKeyTableEntry.await_count == 1
+    assert ezsp.findKeyTableEntry.await_args[0][0] is mock.sentinel.ieee
+    assert ezsp.eraseKeyTableEntry.await_count == 0
+    assert ezsp.eraseKeyTableEntry.call_count == 0
+
+    ezsp.findKeyTableEntry.reset_mock()
+    await app.cleanup_tc_link_key(mock.sentinel.ieee2)
+    assert ezsp.findKeyTableEntry.await_count == 1
+    assert ezsp.findKeyTableEntry.await_args[0][0] is mock.sentinel.ieee2
+    assert ezsp.eraseKeyTableEntry.await_count == 1
+    assert ezsp.eraseKeyTableEntry.await_args[0][0] is mock.sentinel.index
+
+
+@pytest.mark.asyncio
+@mock.patch("zigpy.application.ControllerApplication.permit", new=CoroutineMock())
+async def test_permit(app):
+    """Test permi method."""
+    ezsp = app._ezsp
+    ezsp.addTransientLinkKey = CoroutineMock(return_value=(t.EmberStatus.SUCCESS,))
+    ezsp.pre_permit = CoroutineMock()
+    await app.permit(10, None)
+    await asyncio.sleep(0)
+    assert ezsp.addTransientLinkKey.await_count == 1
+    assert ezsp.pre_permit.await_count == 1
