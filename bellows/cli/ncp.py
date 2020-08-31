@@ -95,6 +95,12 @@ async def bootloader(ctx):
     """Start bootloader"""
 
     ezsp = await util.setup(ctx.obj["device"], ctx.obj["baudrate"], configure=False)
+
+    brd_manuf, brd_name, version = await ezsp.get_board_info()
+    click.echo(f"Manufacturer: {brd_manuf}")
+    click.echo(f"Board name: {brd_name}")
+    click.echo(f"Current EmberZNet version: {version}")
+
     version, plat, micro, phy = await ezsp.getStandaloneBootloaderVersionPlatMicroPhy()
     if version == 0xFFFF:
         click.echo("No boot loader installed")
