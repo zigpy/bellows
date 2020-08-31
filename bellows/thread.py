@@ -61,9 +61,9 @@ class EventLoopThread:
 
 
 class ThreadsafeProxy:
-    """ Proxy class which enforces threadsafe non-blocking calls
-        This class can be used to wrap an object to ensure any calls
-        using that object's methods are done on a particular event loop
+    """Proxy class which enforces threadsafe non-blocking calls
+    This class can be used to wrap an object to ensure any calls
+    using that object's methods are done on a particular event loop
     """
 
     def __init__(self, obj, obj_loop):

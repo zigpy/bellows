@@ -343,7 +343,11 @@ async def _update_nwk_id(ezsp, nwk_update_id):
     payload += nwk_update_id + b"\x00\x00"
 
     status, _ = await ezsp.sendBroadcast(
-        zigpy.types.BroadcastAddress.ALL_DEVICES, aps_frame, 0x00, 0x01, payload,
+        zigpy.types.BroadcastAddress.ALL_DEVICES,
+        aps_frame,
+        0x00,
+        0x01,
+        payload,
     )
     assert status == t.EmberStatus.SUCCESS
     await asyncio.sleep(1)
