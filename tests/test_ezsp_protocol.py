@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from asynctest import CoroutineMock, mock
 import bellows.ezsp.v4
@@ -58,7 +59,7 @@ def test_receive_reply_after_timeout(prot_hndl):
 
 
 @pytest.mark.asyncio
-async def test_cfg_initialize(prot_hndl):
+async def test_cfg_initialize(prot_hndl, caplog):
     """Test initialization."""
 
     p1 = mock.patch.object(prot_hndl, "setConfigurationValue", new=CoroutineMock())
@@ -69,8 +70,9 @@ async def test_cfg_initialize(prot_hndl):
         assert src_mock.call_count == 1
 
         cfg_mock.return_value = (t.EzspStatus.ERROR_OUT_OF_MEMORY,)
-        with pytest.raises(AssertionError):
+        with caplog.at_level(logging.WARNING):
             await prot_hndl.initialize({"ezsp_config": {}, "source_routing": False})
+            assert "Couldn't set" in caplog.text
 
 
 @pytest.mark.asyncio

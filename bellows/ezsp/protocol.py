@@ -30,10 +30,12 @@ class ProtocolHandler(abc.ABC):
         }
         self.tc_policy = 0
 
-    async def _cfg(self, config_id: int, value: Any, optional=False) -> None:
-        v = await self.setConfigurationValue(config_id, value)
-        if not optional:
-            assert v[0] == self.types.EmberStatus.SUCCESS  # TODO: Better check
+    async def _cfg(self, config_id: int, value: Any) -> None:
+        (status,) = await self.setConfigurationValue(config_id, value)
+        if status != self.types.EmberStatus.SUCCESS:
+            LOGGER.warning(
+                "Couldn't set %s=%s configuration value: %s", config_id, value, status
+            )
 
     def _ezsp_frame(self, name: str, *args: Tuple[Any, ...]) -> bytes:
         """Serialize the named frame and data."""
