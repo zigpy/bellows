@@ -60,8 +60,8 @@ class EmberBeaconData(EzspStruct):
 
 class EmberBeaconIterator(EzspStruct):
     """Defines an iterator that is used to loop over cached beacons. Do not write to
-     fields denoted as Private.
-     """
+    fields denoted as Private.
+    """
 
     # The retrieved beacon.
     beacon: EmberBeaconData

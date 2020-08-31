@@ -45,7 +45,8 @@ class EZSPv8(protocol.ProtocolHandler):
         )
         await asyncio.sleep(time_s + 2)
         await self.setPolicy(
-            v8_types.EzspPolicyId.TRUST_CENTER_POLICY, self.tc_policy,
+            v8_types.EzspPolicyId.TRUST_CENTER_POLICY,
+            self.tc_policy,
         )
 
     async def set_source_routing(self) -> None:

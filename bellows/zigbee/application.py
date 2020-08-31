@@ -492,7 +492,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                                 )
                             else:
                                 LOGGER.debug(
-                                    "using route discovery for %s device", device.nwk,
+                                    "using route discovery for %s device",
+                                    device.nwk,
                                 )
 
                         status, _ = await self._ezsp.sendUnicast(
