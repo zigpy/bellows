@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 import asynctest
 from asynctest import CoroutineMock, mock
@@ -765,6 +766,31 @@ async def test_watchdog(app, monkeypatch):
 
     assert app._ezsp.nop.call_count > 4
     assert app._handle_reset_request.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_watchdog_counters(app, monkeypatch, caplog):
+    from bellows.zigbee import application
+
+    monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.1)
+    nop_success = 3
+
+    async def counters_mock():
+        nonlocal nop_success
+        if nop_success:
+            nop_success -= 1
+            if nop_success % 2:
+                raise EzspError
+            else:
+                return ([0, 1, 2, 3],)
+        raise asyncio.TimeoutError
+
+    app._ezsp.readCounters = mock.MagicMock(side_effect=counters_mock)
+    app._handle_reset_request = mock.MagicMock()
+    app._ctrl_event.set()
+
+    caplog.set_level(logging.DEBUG, "bellows.zigbee.application")
+    await app._watchdog()
 
 
 @pytest.mark.asyncio
