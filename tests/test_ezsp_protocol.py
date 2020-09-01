@@ -63,11 +63,9 @@ async def test_cfg_initialize(prot_hndl, caplog):
     """Test initialization."""
 
     p1 = mock.patch.object(prot_hndl, "setConfigurationValue", new=CoroutineMock())
-    p2 = mock.patch.object(prot_hndl, "set_source_routing", new=CoroutineMock())
-    with p1 as cfg_mock, p2 as src_mock:
+    with p1 as cfg_mock:
         cfg_mock.return_value = (t.EzspStatus.SUCCESS,)
         await prot_hndl.initialize({"ezsp_config": {}, "source_routing": True})
-        assert src_mock.call_count == 1
 
         cfg_mock.return_value = (t.EzspStatus.ERROR_OUT_OF_MEMORY,)
         with caplog.at_level(logging.WARNING):

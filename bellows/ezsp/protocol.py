@@ -5,7 +5,7 @@ import functools
 import logging
 from typing import Any, Callable, Dict, Tuple
 
-from bellows.config import CONF_EZSP_CONFIG, CONF_EZSP_POLICIES, CONF_PARAM_SRC_RTG
+from bellows.config import CONF_EZSP_CONFIG, CONF_EZSP_POLICIES
 from bellows.typing import GatewayType
 
 LOGGER = logging.getLogger(__name__)
@@ -70,8 +70,6 @@ class ProtocolHandler(abc.ABC):
             self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT,
             ezsp_config[c.CONFIG_PACKET_BUFFER_COUNT.name],
         )
-        if zigpy_config[CONF_PARAM_SRC_RTG]:
-            await self.set_source_routing()
 
     def command(self, name, *args) -> asyncio.Future:
         """Serialize command and send it."""
@@ -84,7 +82,6 @@ class ProtocolHandler(abc.ABC):
         self._seq = (self._seq + 1) % 256
         return asyncio.wait_for(future, timeout=EZSP_CMD_TIMEOUT)
 
-    @abc.abstractmethod
     async def set_source_routing(self) -> None:
         """Enable source routing on NCP."""
 

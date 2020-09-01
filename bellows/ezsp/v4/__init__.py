@@ -10,8 +10,6 @@ from .. import protocol
 
 EZSP_VERSION = 4
 LOGGER = logging.getLogger(__name__)
-MTOR_MIN_INTERVAL = 600
-MTOR_MAX_INTERVAL = 1800
 
 
 class EZSPv4(protocol.ProtocolHandler):
@@ -32,18 +30,3 @@ class EZSPv4(protocol.ProtocolHandler):
     def _ezsp_frame_rx(self, data: bytes) -> Tuple[int, int, bytes]:
         """Handler for received data frame."""
         return data[0], data[2], data[3:]
-
-    async def set_source_routing(self) -> None:
-        """Enable source routing on NCP."""
-        res = await self.setConcentrator(
-            True,
-            v4_types.EmberConcentratorType.HIGH_RAM_CONCENTRATOR,
-            MTOR_MIN_INTERVAL,
-            MTOR_MAX_INTERVAL,
-            2,
-            5,
-            0,
-        )
-        LOGGER.debug("Set concentrator type: %s", res)
-        if res[0] != v4_types.EmberStatus.SUCCESS:
-            LOGGER.warning("Couldn't set concentrator type %s: %s", True, res)

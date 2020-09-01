@@ -294,17 +294,29 @@ async def test_probe_fail(mock_connect, mock_reset, exception):
 
 
 @pytest.mark.asyncio
+@mock.patch.object(ezsp.EZSP, "set_source_routing", new_callable=CoroutineMock)
 @mock.patch("bellows.ezsp.v4.EZSPv4.initialize", new_callable=CoroutineMock)
 @mock.patch.object(ezsp.EZSP, "version", new_callable=CoroutineMock)
 @mock.patch.object(ezsp.EZSP, "reset", new_callable=CoroutineMock)
 @mock.patch.object(uart, "connect")
-async def test_ezsp_init(conn_mock, reset_mock, version_mock, prot_handler_mock):
-    """Test initializat methdod."""
-    await ezsp.EZSP.initialize({"device": DEVICE_CONFIG})
+async def test_ezsp_init(
+    conn_mock, reset_mock, version_mock, prot_handler_mock, src_mock
+):
+    """Test initialize method."""
+    zigpy_config = config.CONFIG_SCHEMA({"device": DEVICE_CONFIG})
+    await ezsp.EZSP.initialize(zigpy_config)
     assert conn_mock.await_count == 1
     assert reset_mock.await_count == 1
     assert version_mock.await_count == 1
     assert prot_handler_mock.await_count == 1
+    assert src_mock.call_count == 0
+    assert src_mock.await_count == 0
+
+    zigpy_config = config.CONFIG_SCHEMA(
+        {"device": DEVICE_CONFIG, "source_routing": "yes"}
+    )
+    await ezsp.EZSP.initialize(zigpy_config)
+    assert src_mock.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -374,3 +386,16 @@ def test_update_policies(ezsp_f):
     with mock.patch("bellows.ezsp.v4.EZSPv4.update_policies") as pol_mock:
         ezsp_f.update_policies(mock.sentinel.time)
         assert pol_mock.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_set_concentrator(ezsp_f):
+    """Test enabling source routing."""
+    with mock.patch.object(ezsp_f, "setConcentrator", new=CoroutineMock()) as cnc_mock:
+        cnc_mock.return_value = (ezsp_f.types.EmberStatus.SUCCESS,)
+        await ezsp_f.set_source_routing()
+        assert cnc_mock.await_count == 1
+
+        cnc_mock.return_value = (ezsp_f.types.EmberStatus.ERR_FATAL,)
+        await ezsp_f.set_source_routing()
+        assert cnc_mock.await_count == 2

@@ -5,7 +5,12 @@ import functools
 import logging
 from typing import Any, Awaitable, Callable, Dict, Tuple
 
-from bellows.config import CONF_DEVICE, CONF_DEVICE_PATH, SCHEMA_DEVICE
+from bellows.config import (
+    CONF_DEVICE,
+    CONF_DEVICE_PATH,
+    CONF_PARAM_SRC_RTG,
+    SCHEMA_DEVICE,
+)
 from bellows.exception import APIException, EzspError
 import bellows.types as t
 import bellows.uart
@@ -17,6 +22,10 @@ from . import v4, v5, v6, v7, v8
 EZSP_LATEST = v8.EZSP_VERSION
 PROBE_TIMEOUT = 3
 LOGGER = logging.getLogger(__name__)
+MTOR_MIN_INTERVAL = 10
+MTOR_MAX_INTERVAL = 90
+MTOR_ROUTE_ERROR_THRESHOLD = 4
+MTOR_DELIVERY_FAIL_THRESHOLD = 3
 
 
 class EZSP:
@@ -68,6 +77,8 @@ class EZSP:
         await ezsp.reset()
         await ezsp.version()
         await ezsp._protocol.initialize(zigpy_config)
+        if zigpy_config[CONF_PARAM_SRC_RTG]:
+            await ezsp.set_source_routing()
         return ezsp
 
     async def connect(self) -> None:
@@ -270,6 +281,22 @@ class EZSP:
         status = asyncio.Future()
         status.set_result((t.EmberStatus.ERR_FATAL,))
         return status
+
+    async def set_source_routing(self) -> None:
+        """Enable source routing on NCP."""
+        res = await self.setConcentrator(
+            True,
+            self.types.EmberConcentratorType.HIGH_RAM_CONCENTRATOR,
+            MTOR_MIN_INTERVAL,
+            MTOR_MAX_INTERVAL,
+            MTOR_ROUTE_ERROR_THRESHOLD,
+            MTOR_DELIVERY_FAIL_THRESHOLD,
+            0,
+        )
+        LOGGER.debug("Set concentrator type: %s", res)
+        if res[0] != self.types.EmberStatus.SUCCESS:
+            LOGGER.warning("Couldn't set concentrator type %s: %s", True, res)
+        await self._protocol.set_source_routing()
 
     def start_ezsp(self):
         """Mark EZSP as running."""
