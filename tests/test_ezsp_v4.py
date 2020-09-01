@@ -1,4 +1,4 @@
-from asynctest import CoroutineMock, mock
+from asynctest import mock
 import bellows.ezsp.v4
 import pytest
 
@@ -21,19 +21,6 @@ def test_ezsp_frame_rx(ezsp_f):
     assert ezsp_f._handle_callback.call_count == 1
     assert ezsp_f._handle_callback.call_args[0][0] == "version"
     assert ezsp_f._handle_callback.call_args[0][1] == [0x01, 0x02, 0x1234]
-
-
-@pytest.mark.asyncio
-async def test_set_concentrator(ezsp_f):
-    """Test enabling source routing."""
-    with mock.patch.object(ezsp_f, "setConcentrator", new=CoroutineMock()) as cnc_mock:
-        cnc_mock.return_value = (ezsp_f.types.EmberStatus.SUCCESS,)
-        await ezsp_f.set_source_routing()
-        assert cnc_mock.await_count == 1
-
-        cnc_mock.return_value = (ezsp_f.types.EmberStatus.ERR_FATAL,)
-        await ezsp_f.set_source_routing()
-        assert cnc_mock.await_count == 2
 
 
 command_frames = {
