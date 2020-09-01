@@ -629,7 +629,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 await asyncio.wait_for(
                     self.controller_event.wait(), timeout=WATCHDOG_WAKE_PERIOD * 2
                 )
-                await self._ezsp.nop()
+                if LOGGER.level < logging.DEBUG:
+                    await self._ezsp.nop()
+                else:
+                    (res,) = await self._ezsp.readCounters()
+                    counters = (
+                        f"{counter.name}: {value}"
+                        for counter, value in zip(
+                            self._ezsp.types.EmberCounterType, res
+                        )
+                    )
+                    LOGGER.debug("EZSP Counters: %s", ",".join(counters))
                 failures = 0
             except (asyncio.TimeoutError, EzspError) as exc:
                 LOGGER.warning("Watchdog heartbeat timeout: %s", str(exc))
