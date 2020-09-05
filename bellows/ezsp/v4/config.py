@@ -84,7 +84,7 @@ EZSP_SCHEMA = {
     vol.Optional(c.CONFIG_MAX_HOPS.name): vol.All(int, vol.Range(min=0, max=30)),
     #
     # The maximum number of end device children that a router will support
-    vol.Optional(c.CONFIG_MAX_END_DEVICE_CHILDREN.name, default=32): vol.All(
+    vol.Optional(c.CONFIG_MAX_END_DEVICE_CHILDREN.name, default=24): vol.All(
         int, vol.Range(min=0, max=32)
     ),
     #
