@@ -1,11 +1,12 @@
 import asyncio
+import logging
 
 import asynctest
 from asynctest import CoroutineMock, mock
 import bellows.config as config
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp as ezsp
-import bellows.types as t
+import bellows.ezsp.v4.types as t
 import bellows.uart as uart
 import bellows.zigbee.application
 import pytest
@@ -18,6 +19,7 @@ APP_CONFIG = {
         config.CONF_DEVICE_PATH: "/dev/null",
         config.CONF_DEVICE_BAUDRATE: 115200,
     },
+    config.CONF_PARAM_UNK_DEV: "yes",
     zigpy.config.CONF_DATABASE: None,
 }
 
@@ -25,8 +27,13 @@ APP_CONFIG = {
 @pytest.fixture
 def app(monkeypatch):
     ezsp = mock.MagicMock()
-    ezsp.setConcentrator = asynctest.CoroutineMock(return_value=[0])
-    ezsp.setSourceRoute = asynctest.CoroutineMock(return_value=[0])
+    ezsp.ezsp_version = 7
+    ezsp.set_source_route = asynctest.CoroutineMock(
+        return_value=[t.EmberStatus.SUCCESS]
+    )
+    ezsp.get_board_info = CoroutineMock(
+        return_value=("Mock Manufacturer", "Mock board", "Mock version")
+    )
     type(ezsp).is_ezsp_running = mock.PropertyMock(return_value=True)
     config = bellows.zigbee.application.ControllerApplication.SCHEMA(APP_CONFIG)
     ctrl = bellows.zigbee.application.ControllerApplication(config)
@@ -63,33 +70,38 @@ def get_mock_coro(return_value):
 
 def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4):
     async def mockezsp(*args, **kwargs):
-        return [0, nwk_type]
+        return [0, nwk_type, mock.sentinel.nework_parameters]
 
     async def mockinit(*args, **kwargs):
         return [init]
 
     app._in_flight_msg = None
-    ezsp_mock = mock.MagicMock(spec_set=bellows.ezsp.EZSP)
+    ezsp_mock = mock.MagicMock()
     type(ezsp_mock.return_value).ezsp_version = mock.PropertyMock(
         return_value=ezsp_version
     )
-    ezsp_mock.return_value.connect = CoroutineMock()
-    ezsp_mock.return_value.setConcentrator = CoroutineMock()
-    ezsp_mock.return_value._command = mockezsp
-    ezsp_mock.return_value.addEndpoint = mockezsp
-    ezsp_mock.return_value.setConfigurationValue = mockezsp
-    ezsp_mock.return_value.networkInit = mockinit
-    ezsp_mock.return_value.getNetworkParameters = mockezsp
-    ezsp_mock.return_value.setPolicy = mockezsp
-    ezsp_mock.return_value.getNodeId = mockezsp
-    ezsp_mock.return_value.getEui64.side_effect = CoroutineMock(return_value=[ieee])
-    ezsp_mock.return_value.leaveNetwork = mockezsp
-    app.form_network = CoroutineMock()
-    ezsp_mock.return_value.reset.side_effect = CoroutineMock()
-    ezsp_mock.return_value.version.side_effect = CoroutineMock()
-    ezsp_mock.return_value.getConfigurationValue.side_effect = CoroutineMock(
-        return_value=(0, 1)
+    ezsp_mock.initialize = CoroutineMock(return_value=ezsp_mock)
+    ezsp_mock.connect = CoroutineMock()
+    ezsp_mock.setConcentrator = CoroutineMock()
+    ezsp_mock._command = mockezsp
+    ezsp_mock.addEndpoint = mockezsp
+    ezsp_mock.setConfigurationValue = mockezsp
+    ezsp_mock.networkInit = mockinit
+    ezsp_mock.getNetworkParameters = mockezsp
+    ezsp_mock.get_board_info = CoroutineMock(
+        return_value=("Mock Manufacturer", "Mock board", "Mock version")
     )
+    ezsp_mock.setPolicy = mockezsp
+    ezsp_mock.getMfgToken = CoroutineMock(return_value=(b"Some token\xff",))
+    ezsp_mock.getNodeId = mockezsp
+    ezsp_mock.getEui64.side_effect = CoroutineMock(return_value=[ieee])
+    ezsp_mock.getValue = CoroutineMock(return_value=(0, b"\x01" * 6))
+    ezsp_mock.leaveNetwork = mockezsp
+    app.form_network = CoroutineMock()
+    ezsp_mock.reset.side_effect = CoroutineMock()
+    ezsp_mock.version.side_effect = CoroutineMock()
+    ezsp_mock.getConfigurationValue.side_effect = CoroutineMock(return_value=(0, 1))
+    ezsp_mock.update_policies = CoroutineMock()
 
     loop = asyncio.get_event_loop()
     p1 = mock.patch.object(bellows.ezsp, "EZSP", new=ezsp_mock)
@@ -147,10 +159,15 @@ def _frame_handler(app, aps, ieee, src_ep, cluster=0, data=b"\x01\x00\x00"):
     )
 
 
-def test_frame_handler_unknown_device(app, aps, ieee):
+@pytest.mark.asyncio
+async def test_frame_handler_unknown_device(app, aps, ieee):
     app.handle_join = mock.MagicMock()
     app.add_device(ieee, 99)
-    _frame_handler(app, aps, ieee, 0)
+    with mock.patch.object(app, "_handle_no_such_device") as no_dev_mock:
+        _frame_handler(app, aps, ieee, 0)
+        await asyncio.sleep(0)
+    assert no_dev_mock.call_count == 1
+    assert no_dev_mock.await_count == 1
     assert app.handle_message.call_count == 0
     assert app.handle_join.call_count == 0
 
@@ -223,20 +240,57 @@ def test_dup_send_success(app, aps, ieee):
     assert req.result.set_result.call_count == 1
 
 
-def test_join_handler(app, ieee):
+@pytest.mark.asyncio
+async def test_join_handler(app, ieee):
     # Calls device.initialize, leaks a task
     app.handle_join = mock.MagicMock()
-    app.ezsp_callback_handler("trustCenterJoinHandler", [1, ieee, None, None, None])
+    app.cleanup_tc_link_key = CoroutineMock()
+    app.ezsp_callback_handler(
+        "trustCenterJoinHandler",
+        [
+            1,
+            ieee,
+            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            t.EmberJoinDecision.NO_ACTION,
+            mock.sentinel.parent,
+        ],
+    )
+    await asyncio.sleep(0)
     assert ieee not in app.devices
+    assert app.handle_join.call_count == 1
+    assert app.handle_join.call_args[0][0] == 1
+    assert app.handle_join.call_args[0][1] == ieee
+    assert app.handle_join.call_args[0][2] is mock.sentinel.parent
+    assert app.cleanup_tc_link_key.await_count == 1
+    assert app.cleanup_tc_link_key.call_args[0][0] is ieee
+
+    # cleanup TCLK, but no join handling
+    app.handle_join.reset_mock()
+    app.cleanup_tc_link_key.reset_mock()
+    app.ezsp_callback_handler(
+        "trustCenterJoinHandler",
+        [
+            1,
+            ieee,
+            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            t.EmberJoinDecision.DENY_JOIN,
+            mock.sentinel.parent,
+        ],
+    )
+    await asyncio.sleep(0)
+    assert app.cleanup_tc_link_key.await_count == 1
+    assert app.cleanup_tc_link_key.call_args[0][0] is ieee
     assert app.handle_join.call_count == 0
 
 
 def test_leave_handler(app, ieee):
-    app.devices[ieee] = mock.sentinel.device
+    app.handle_join = mock.MagicMock()
+    app.devices[ieee] = mock.MagicMock()
     app.ezsp_callback_handler(
         "trustCenterJoinHandler", [1, ieee, t.EmberDeviceUpdate.DEVICE_LEFT, None, None]
     )
     assert ieee in app.devices
+    assert app.handle_join.call_count == 0
 
 
 def test_force_remove(app, ieee):
@@ -253,7 +307,7 @@ def test_sequence(app):
         assert seq < 256
 
 
-def test_permit(app):
+def test_permit_ncp(app):
     app.permit_ncp(60)
     assert app._ezsp.permitJoining.call_count == 1
 
@@ -432,25 +486,10 @@ async def test_request_extended_timeout(app):
 @pytest.mark.asyncio
 async def test_request_src_rtg_not_enabled(relays, app):
     app.use_source_routing = False
-    await app.set_source_routing()
     res = await _request(app, relays=relays)
     assert res[0] == 0
-    assert app._ezsp.setSourceRoute.call_count == 0
-    assert app._ezsp.sendUnicast.call_count == 1
-    assert (
-        app._ezsp.sendUnicast.call_args[0][2].options
-        & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-    )
-
-
-@pytest.mark.asyncio
-async def test_request_src_rtg_no_route(app):
-    app.use_source_routing = True
-    await app.set_source_routing()
-    res = await _request(app, relays=None)
-    assert res[0] == 0
-    assert app._ezsp.setSourceRoute.call_count == 0
-    assert app._ezsp.sendUnicast.call_count == 1
+    assert app._ezsp.set_source_route.await_count == 0
+    assert app._ezsp.sendUnicast.await_count == 1
     assert (
         app._ezsp.sendUnicast.call_args[0][2].options
         & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
@@ -461,11 +500,10 @@ async def test_request_src_rtg_no_route(app):
 @pytest.mark.asyncio
 async def test_request_src_rtg_success(relays, app):
     app.use_source_routing = True
-    await app.set_source_routing()
     res = await _request(app, relays=relays)
     assert res[0] == 0
-    assert app._ezsp.setSourceRoute.call_count == 1
-    assert app._ezsp.sendUnicast.call_count == 1
+    assert app._ezsp.set_source_route.await_count == 1
+    assert app._ezsp.sendUnicast.await_count == 1
     assert (
         not app._ezsp.sendUnicast.call_args[0][2].options
         & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
@@ -476,12 +514,11 @@ async def test_request_src_rtg_success(relays, app):
 @pytest.mark.asyncio
 async def test_request_src_rtg_fail(relays, app):
     app.use_source_routing = True
-    await app.set_source_routing()
-    app._ezsp.setSourceRoute.return_value = [1]
+    app._ezsp.set_source_route.return_value = [1]
     res = await _request(app, relays=relays)
     assert res[0] == 0
-    assert app._ezsp.setSourceRoute.call_count == 1
-    assert app._ezsp.sendUnicast.call_count == 1
+    assert app._ezsp.set_source_route.await_count == 1
+    assert app._ezsp.sendUnicast.await_count == 1
     assert (
         app._ezsp.sendUnicast.call_args[0][2].options
         & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
@@ -732,6 +769,31 @@ async def test_watchdog(app, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_watchdog_counters(app, monkeypatch, caplog):
+    from bellows.zigbee import application
+
+    monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.1)
+    nop_success = 3
+
+    async def counters_mock():
+        nonlocal nop_success
+        if nop_success:
+            nop_success -= 1
+            if nop_success % 2:
+                raise EzspError
+            else:
+                return ([0, 1, 2, 3],)
+        raise asyncio.TimeoutError
+
+    app._ezsp.readCounters = mock.MagicMock(side_effect=counters_mock)
+    app._handle_reset_request = mock.MagicMock()
+    app._ctrl_event.set()
+
+    caplog.set_level(logging.DEBUG, "bellows.zigbee.application")
+    await app._watchdog()
+
+
+@pytest.mark.asyncio
 async def test_shutdown(app):
     reset_f = asyncio.Future()
     watchdog_f = asyncio.Future()
@@ -915,6 +977,12 @@ async def test_ezsp_remove_from_group_fail_ep(coordinator):
     assert mc.unsubscribe.call_args[0][0] == grp_id
 
 
+def test_coordinator_model_manuf(coordinator):
+    """Test we get coordinator manufacturer and model."""
+    assert coordinator.endpoints[1].manufacturer
+    assert coordinator.endpoints[1].model
+
+
 @pytest.mark.asyncio
 async def _mrequest(
     app,
@@ -980,16 +1048,6 @@ async def test_mrequest_ctrl_not_running(app):
     app._ctrl_event.clear()
     with pytest.raises(ControllerError):
         await _mrequest(app)
-
-
-@pytest.mark.parametrize("use_src_rtg, status", [(False, 0), (True, 1), (True, 0)])
-@pytest.mark.asyncio
-async def test_set_source_routing(use_src_rtg, status, app):
-    """Test setting source routing."""
-    app.use_source_routing = use_src_rtg
-    app._ezsp.setConcentrator.return_value = [status]
-    await app.set_source_routing()
-    assert app._ezsp.setConcentrator.call_args[0][0] is use_src_rtg
 
 
 def test_handle_route_record(app):
@@ -1080,3 +1138,83 @@ async def test_probe_success(mock_connect, mock_reset):
     assert mock_connect.await_count == 1
     assert mock_reset.call_count == 1
     assert mock_connect.return_value.close.call_count == 1
+
+
+def test_handle_id_conflict(app, ieee):
+    """Test handling of an ID confict report."""
+    nwk = t.EmberNodeId(0x1234)
+    app.add_device(ieee, nwk)
+    app.handle_leave = mock.MagicMock()
+
+    app.ezsp_callback_handler("idConflictHandler", [nwk + 1])
+    assert app.handle_leave.call_count == 0
+
+    app.ezsp_callback_handler("idConflictHandler", [nwk])
+    assert app.handle_leave.call_count == 1
+    assert app.handle_leave.call_args[0][0] == nwk
+
+
+@pytest.mark.asyncio
+async def test_handle_no_such_device(app, ieee):
+    """Test handling of an unknown device IEEE lookup."""
+
+    p1 = mock.patch.object(
+        app._ezsp,
+        "lookupEui64ByNodeId",
+        CoroutineMock(return_value=(t.EmberStatus.ERR_FATAL, ieee)),
+    )
+    p2 = mock.patch.object(app, "handle_join")
+    with p1 as lookup_mock, p2 as handle_join_mock:
+        await app._handle_no_such_device(mock.sentinel.nwk)
+        assert lookup_mock.await_count == 1
+        assert lookup_mock.await_args[0][0] is mock.sentinel.nwk
+        assert handle_join_mock.call_count == 0
+
+    p1 = mock.patch.object(
+        app._ezsp,
+        "lookupEui64ByNodeId",
+        CoroutineMock(return_value=(t.EmberStatus.SUCCESS, mock.sentinel.ieee)),
+    )
+    with p1 as lookup_mock, p2 as handle_join_mock:
+        await app._handle_no_such_device(mock.sentinel.nwk)
+        assert lookup_mock.await_count == 1
+        assert lookup_mock.await_args[0][0] is mock.sentinel.nwk
+        assert handle_join_mock.call_count == 1
+        assert handle_join_mock.call_args[0][0] == mock.sentinel.nwk
+        assert handle_join_mock.call_args[0][1] == mock.sentinel.ieee
+
+
+@pytest.mark.asyncio
+async def test_cleanup_tc_link_key(app):
+    """Test cleaning up tc link key."""
+    ezsp = app._ezsp
+    ezsp.findKeyTableEntry = CoroutineMock(
+        side_effect=((0xFF,), (mock.sentinel.index,))
+    )
+    ezsp.eraseKeyTableEntry = CoroutineMock(return_value=(0x00,))
+
+    await app.cleanup_tc_link_key(mock.sentinel.ieee)
+    assert ezsp.findKeyTableEntry.await_count == 1
+    assert ezsp.findKeyTableEntry.await_args[0][0] is mock.sentinel.ieee
+    assert ezsp.eraseKeyTableEntry.await_count == 0
+    assert ezsp.eraseKeyTableEntry.call_count == 0
+
+    ezsp.findKeyTableEntry.reset_mock()
+    await app.cleanup_tc_link_key(mock.sentinel.ieee2)
+    assert ezsp.findKeyTableEntry.await_count == 1
+    assert ezsp.findKeyTableEntry.await_args[0][0] is mock.sentinel.ieee2
+    assert ezsp.eraseKeyTableEntry.await_count == 1
+    assert ezsp.eraseKeyTableEntry.await_args[0][0] is mock.sentinel.index
+
+
+@pytest.mark.asyncio
+@mock.patch("zigpy.application.ControllerApplication.permit", new=CoroutineMock())
+async def test_permit(app):
+    """Test permi method."""
+    ezsp = app._ezsp
+    ezsp.addTransientLinkKey = CoroutineMock(return_value=(t.EmberStatus.SUCCESS,))
+    ezsp.pre_permit = CoroutineMock()
+    await app.permit(10, None)
+    await asyncio.sleep(0)
+    assert ezsp.addTransientLinkKey.await_count == 1
+    assert ezsp.pre_permit.await_count == 1

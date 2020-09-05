@@ -4,13 +4,14 @@ import os
 from typing import Dict
 
 from bellows.config import (
-    CONF_EZSP_CONFIG,
     CONF_PARAM_SRC_RTG,
+    CONF_PARAM_UNK_DEV,
     CONFIG_SCHEMA,
     SCHEMA_DEVICE,
 )
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp
+from bellows.ezsp.v8.types.named import EmberDeviceUpdate
 import bellows.multicast
 import bellows.types as t
 import bellows.zigbee.util
@@ -27,8 +28,6 @@ APS_ACK_TIMEOUT = 120
 EZSP_DEFAULT_RADIUS = 0
 EZSP_MULTICAST_NON_MEMBER_RADIUS = 3
 MAX_WATCHDOG_FAILURES = 4
-MTOR_MIN_INTERVAL = 600
-MTOR_MAX_INTERVAL = 1800
 RESET_ATTEMPT_BACKOFF_TIME = 5
 WATCHDOG_WAKE_PERIOD = 10
 
@@ -50,11 +49,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._watchdog_task = None
         self._reset_task = None
         self._in_flight_msg = None
-        self._tx_options = t.EmberApsOption(
+        self._tx_options = (
             t.EmberApsOption.APS_OPTION_RETRY
             | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
         )
+
         self.use_source_routing = self.config[CONF_PARAM_SRC_RTG]
+        self._req_lock = asyncio.Lock()
 
     @property
     def controller_event(self):
@@ -70,44 +71,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     def multicast(self):
         """Return EZSP MulticastController."""
         return self._multicast
-
-    async def initialize(self):
-        """Perform basic NCP initialization steps"""
-        e = self._ezsp
-        await e.connect()
-
-        await e.reset()
-        await e.version()
-        self._multicast = bellows.multicast.Multicast(e)
-
-        ezsp_config = self.config[CONF_EZSP_CONFIG]
-        for config, value in ezsp_config.items():
-            if config in (t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name,):
-                # we want to set these last
-                continue
-            await self._cfg(t.EzspConfigId[config], value)
-
-        c = t.EzspConfigId
-        if self._ezsp.ezsp_version >= 7:
-            await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT, 8)
-        else:
-            await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT, 60)
-            await self._cfg(c.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8)
-        await self._cfg(
-            t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT,
-            ezsp_config[c.CONFIG_PACKET_BUFFER_COUNT.name],
-        )
-
-        status, count = await e.getConfigurationValue(
-            c.CONFIG_APS_UNICAST_MESSAGE_COUNT
-        )
-        assert status == t.EmberStatus.SUCCESS
-        self._in_flight_msg = asyncio.Semaphore(count)
-        LOGGER.debug("APS_UNICAST_MESSAGE_COUNT is set to %s", count)
-
-        await self.add_endpoint(
-            output_clusters=[zigpy.zcl.clusters.security.IasZone.cluster_id]
-        )
 
     async def add_endpoint(
         self,
@@ -131,22 +94,46 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         )
         LOGGER.debug("Ezsp adding endpoint: %s", res)
 
+    async def cleanup_tc_link_key(self, ieee: t.EmberEUI64) -> None:
+        """Remove tc link_key for the given device."""
+        (index,) = await self._ezsp.findKeyTableEntry(ieee, True)
+        if index != 0xFF:
+            # found a key
+            status = await self._ezsp.eraseKeyTableEntry(index)
+            LOGGER.debug("Cleaned up TC link key for %s device: %s", ieee, status)
+
     async def startup(self, auto_form=False):
         """Perform a complete application startup"""
-        ezsp = bellows.ezsp.EZSP(self.config[zigpy.config.CONF_DEVICE])
-        self._ezsp = ezsp
-        await self.initialize()
+        self._ezsp = await bellows.ezsp.EZSP.initialize(self.config)
+        ezsp = self._ezsp
 
-        await self.set_source_routing()
+        self._multicast = bellows.multicast.Multicast(ezsp)
+
+        status, count = await ezsp.getConfigurationValue(
+            ezsp.types.EzspConfigId.CONFIG_APS_UNICAST_MESSAGE_COUNT
+        )
+        assert status == t.EmberStatus.SUCCESS
+        self._in_flight_msg = asyncio.Semaphore(count)
+        LOGGER.debug("APS_UNICAST_MESSAGE_COUNT is set to %s", count)
+
+        await self.add_endpoint(
+            output_clusters=[zigpy.zcl.clusters.security.IasZone.cluster_id]
+        )
+
+        brd_manuf, brd_name, version = await self._ezsp.get_board_info()
+        LOGGER.info("EZSP Radio manufacturer: %s", brd_manuf)
+        LOGGER.info("EZSP Radio board name: %s", brd_name)
+        LOGGER.info("EmberZNet version: %s", version)
+
         v = await ezsp.networkInit()
         if v[0] != t.EmberStatus.SUCCESS:
             if not auto_form:
                 raise Exception("Could not initialize network")
             await self.form_network()
 
-        v = await ezsp.getNetworkParameters()
-        assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
-        if v[1] != t.EmberNodeType.COORDINATOR:
+        status, node_type, nwk_params = await ezsp.getNetworkParameters()
+        assert status == t.EmberStatus.SUCCESS  # TODO: Better check
+        if node_type != t.EmberNodeType.COORDINATOR:
             if not auto_form:
                 raise Exception("Network not configured as coordinator")
 
@@ -154,8 +141,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             await self._ezsp.leaveNetwork()
             await asyncio.sleep(1)  # TODO
             await self.form_network()
+            status, node_type, nwk_params = await ezsp.getNetworkParameters()
+            assert status == t.EmberStatus.SUCCESS
 
-        await self._policy()
+        LOGGER.info("Node type: %s, Network parameters: %s", node_type, nwk_params)
+
+        await ezsp.update_policies(self.config)
         nwk = await ezsp.getNodeId()
         self._nwk = nwk[0]
         ieee = await ezsp.getEui64()
@@ -163,28 +154,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         ezsp.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
-        self._watchdog_task = asyncio.ensure_future(self._watchdog())
+        self._watchdog_task = asyncio.create_task(self._watchdog())
 
         self.handle_join(self.nwk, self.ieee, 0)
         LOGGER.debug("EZSP nwk=0x%04x, IEEE=%s", self._nwk, str(self._ieee))
 
         await self.multicast.startup(self.get_device(self.ieee))
-
-    async def set_source_routing(self) -> None:
-        res = await self._ezsp.setConcentrator(
-            self.use_source_routing,
-            t.EmberConcentratorType.HIGH_RAM_CONCENTRATOR,
-            MTOR_MIN_INTERVAL,
-            MTOR_MAX_INTERVAL,
-            2,
-            5,
-            0,
-        )
-        LOGGER.debug("Set concentrator type: %s", res)
-        if res[0] != t.EmberStatus.SUCCESS:
-            LOGGER.warning(
-                "Couldn't set concentrator type %s: %s", self.use_source_routing, res
-            )
 
     async def shutdown(self):
         """Shutdown and cleanup ControllerApplication."""
@@ -208,7 +183,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if extended_pan_id is None:
             extended_pan_id = t.EmberEUI64([t.uint8_t(0)] * 8)
 
-        initial_security_state = bellows.zigbee.util.zha_security(nwk, controller=True)
+        hashed_tclk = self._ezsp.ezsp_version > 4
+        initial_security_state = bellows.zigbee.util.zha_security(
+            nwk, controller=True, hashed_tclk=hashed_tclk
+        )
         v = await self._ezsp.setInitialSecurityState(initial_security_state)
         assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
         parameters = t.EmberNetworkParameters()
@@ -222,31 +200,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         parameters.channels = nwk[zigpy.config.CONF_NWK_CHANNELS]
 
         await self._ezsp.formNetwork(parameters)
-        await self._ezsp.setValue(t.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
-
-    async def _cfg(self, config_id, value, optional=False):
-        v = await self._ezsp.setConfigurationValue(config_id, value)
-        if not optional:
-            assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
-
-    async def _policy(self):
-        """Set up the policies for what the NCP should do"""
-        e = self._ezsp
-        v = await e.setPolicy(
-            t.EzspPolicyId.TC_KEY_REQUEST_POLICY,
-            t.EzspDecisionId.GENERATE_NEW_TC_LINK_KEY,
+        await self._ezsp.setValue(
+            self._ezsp.types.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1
         )
-        assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
-        v = await e.setPolicy(
-            t.EzspPolicyId.APP_KEY_REQUEST_POLICY,
-            t.EzspDecisionId.ALLOW_APP_KEY_REQUESTS,
-        )
-        assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
-        v = await e.setPolicy(
-            t.EzspPolicyId.TRUST_CENTER_POLICY,
-            t.EzspDecisionId.ALLOW_PRECONFIGURED_KEY_JOINS,
-        )
-        assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
 
     async def force_remove(self, dev):
         # This should probably be delivered to the parent device instead
@@ -263,14 +219,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             else:
                 self._handle_frame_sent(*args)
         elif frame_name == "trustCenterJoinHandler":
-            if args[2] == t.EmberDeviceUpdate.DEVICE_LEFT:
-                self.handle_leave(args[0], args[1])
+            self._handle_tc_join_handler(*args)
         elif frame_name == "incomingRouteRecordHandler":
             self.handle_route_record(*args)
         elif frame_name == "incomingRouteErrorHandler":
             self.handle_route_error(*args)
         elif frame_name == "_reset_controller_application":
             self._handle_reset_request(*args)
+        elif frame_name == "idConflictHandler":
+            self._handle_id_conflict(*args)
 
     def _handle_frame(
         self,
@@ -295,6 +252,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             device = self.get_device(nwk=sender)
         except KeyError:
             LOGGER.debug("No such device %s", sender)
+            if self.config[CONF_PARAM_UNK_DEV]:
+                asyncio.create_task(self._handle_no_such_device(sender))
             return
 
         device.radio_details(lqi, rssi)
@@ -347,6 +306,37 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 exc,
             )
 
+    async def _handle_no_such_device(self, sender: int) -> None:
+        """Try to match unknown device by its EUI64 address."""
+        status, ieee = await self._ezsp.lookupEui64ByNodeId(sender)
+        if status == t.EmberStatus.SUCCESS:
+            LOGGER.debug("Found %s ieee for %s sender", ieee, sender)
+            self.handle_join(sender, ieee, 0)
+            return
+        LOGGER.debug("Couldn't look up ieee for %s", sender)
+
+    def _handle_tc_join_handler(
+        self,
+        nwk: t.EmberNodeId,
+        ieee: t.EmberEUI64,
+        device_update_status: EmberDeviceUpdate,
+        decision: t.EmberJoinDecision,
+        parent_nwk: t.EmberNodeId,
+    ) -> None:
+        """Trust Center Join handler."""
+        if device_update_status == EmberDeviceUpdate.DEVICE_LEFT:
+            self.handle_leave(nwk, ieee)
+            return
+
+        if device_update_status == EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN:
+            asyncio.create_task(self.cleanup_tc_link_key(ieee))
+
+        if decision == t.EmberJoinDecision.DENY_JOIN:
+            # no point in handling the join if it was denied
+            return
+
+        self.handle_join(nwk, ieee, parent_nwk)
+
     def _handle_reset_request(self, error):
         """Reinitialize application controller."""
         LOGGER.debug("Resetting ControllerApplication. Cause: '%s'", error)
@@ -355,7 +345,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             LOGGER.debug("Preempting ControllerApplication reset")
             self._reset_task.cancel()
 
-        self._reset_task = asyncio.ensure_future(self._reset_controller_loop())
+        self._reset_task = asyncio.create_task(self._reset_controller_loop())
 
     async def _reset_controller_loop(self):
         """Keep trying to reset controller until we succeed."""
@@ -413,18 +403,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.clusterId = t.uint16_t(cluster)
         aps_frame.sourceEndpoint = t.uint8_t(src_ep)
         aps_frame.destinationEndpoint = t.uint8_t(src_ep)
-        aps_frame.options = t.EmberApsOption(
-            t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-        )
+        aps_frame.options = t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
         aps_frame.groupId = t.uint16_t(group_id)
         aps_frame.sequence = t.uint8_t(sequence)
         message_tag = self.get_sequence()
 
         with self._pending.new(message_tag) as req:
             async with self._in_flight_msg:
-                res = await self._ezsp.sendMulticast(
-                    aps_frame, hops, non_member_radius, message_tag, data
-                )
+                async with self._req_lock:
+                    res = await self._ezsp.sendMulticast(
+                        aps_frame, hops, non_member_radius, message_tag, data
+                    )
                 if res[0] != t.EmberStatus.SUCCESS:
                     return res[0], "EZSP sendMulticast failure: %s" % (res[0],)
 
@@ -476,33 +465,40 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             )
         with self._pending.new(message_tag) as req:
             async with self._in_flight_msg:
-                if expect_reply and device.node_desc.is_end_device in (True, None):
-                    LOGGER.debug(
-                        "Extending timeout for %s/0x%04x", device.ieee, device.nwk
-                    )
-                    await self._ezsp.setExtendedTimeout(device.ieee, True)
-                if self.use_source_routing and device.relays is not None:
-                    res = await self._ezsp.setSourceRoute(device.nwk, device.relays)
-                    if res[0] != t.EmberStatus.SUCCESS:
-                        LOGGER.warning(
-                            "Couldn't set source route for %s: %s", device.nwk, res
-                        )
-                    else:
-                        aps_frame.options = t.EmberApsOption(
-                            aps_frame.options
-                            ^ t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-                        )
-                        LOGGER.debug(
-                            "Set source route for %s to %s: %s",
-                            device.nwk,
-                            device.relays,
-                            res,
-                        )
                 delays = [0.5, 1.0, 1.5]
                 while True:
-                    status, _ = await self._ezsp.sendUnicast(
-                        self.direct, device.nwk, aps_frame, message_tag, data
-                    )
+                    async with self._req_lock:
+                        if expect_reply and device.node_desc.is_end_device in (
+                            True,
+                            None,
+                        ):
+                            LOGGER.debug(
+                                "Extending timeout for %s/0x%04x",
+                                device.ieee,
+                                device.nwk,
+                            )
+                            await self._ezsp.setExtendedTimeout(device.ieee, True)
+                        if self.use_source_routing and self._ezsp.ezsp_version < 8:
+                            (res,) = await self._ezsp.set_source_route(device)
+                            if res == t.EmberStatus.SUCCESS:
+                                aps_frame.options ^= (
+                                    t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                                )
+                                LOGGER.debug(
+                                    "Set source route for %s to %s: %s",
+                                    device.nwk,
+                                    device.relays,
+                                    res,
+                                )
+                            else:
+                                LOGGER.debug(
+                                    "using route discovery for %s device",
+                                    device.nwk,
+                                )
+
+                        status, _ = await self._ezsp.sendUnicast(
+                            self.direct, device.nwk, aps_frame, message_tag, data
+                        )
                     if not (
                         status == t.EmberStatus.MAX_MESSAGE_LIMIT_REACHED and delays
                     ):
@@ -518,6 +514,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
                 res = await asyncio.wait_for(req.result, APS_ACK_TIMEOUT)
         return res
+
+    async def permit(self, time_s: int = 60, node: t.EmberNodeId = None) -> None:
+        """Permit joining."""
+        wild_card_ieee = t.EmberEUI64([0xFF] * 8)
+        tc_link_key = t.EmberKeyData(b"ZigBeeAlliance09")
+        await self._ezsp.addTransientLinkKey(wild_card_ieee, tc_link_key)
+        asyncio.create_task(self._ezsp.pre_permit(time_s))
+        await super().permit(time_s, node)
 
     def permit_ncp(self, time_s=60):
         assert 0 <= time_s <= 254
@@ -538,8 +542,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             raise Exception("Failed to set link key")
 
         v = await self._ezsp.setPolicy(
-            t.EzspPolicyId.TC_KEY_REQUEST_POLICY,
-            t.EzspDecisionId.GENERATE_NEW_TC_LINK_KEY,
+            self._ezsp.types.EzspPolicyId.TC_KEY_REQUEST_POLICY,
+            self._ezsp.types.EzspDecisionId.GENERATE_NEW_TC_LINK_KEY,
         )
         if v[0] != t.EmberStatus.SUCCESS:
             raise Exception(
@@ -547,6 +551,20 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             )
 
         return await self.permit(time_s)
+
+    def _handle_id_conflict(self, nwk: t.EmberNodeId) -> None:
+        LOGGER.warning("NWK conflict is reported for 0x%04x", nwk)
+        for device in self.devices.values():
+            if device.nwk != nwk:
+                continue
+            LOGGER.warning(
+                "Found %s device for 0x%04x NWK conflict: %s %s",
+                device.ieee,
+                nwk,
+                device.manufacturer,
+                device.model,
+            )
+            self.handle_leave(nwk, device.ieee)
 
     async def broadcast(
         self,
@@ -583,16 +601,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.clusterId = t.uint16_t(cluster)
         aps_frame.sourceEndpoint = t.uint8_t(src_ep)
         aps_frame.destinationEndpoint = t.uint8_t(dst_ep)
-        aps_frame.options = t.EmberApsOption(t.EmberApsOption.APS_OPTION_NONE)
+        aps_frame.options = t.EmberApsOption.APS_OPTION_NONE
         aps_frame.groupId = t.uint16_t(grpid)
         aps_frame.sequence = t.uint8_t(sequence)
         message_tag = self.get_sequence()
 
         with self._pending.new(message_tag) as req:
             async with self._in_flight_msg:
-                res = await self._ezsp.sendBroadcast(
-                    broadcast_address, aps_frame, radius, message_tag, data
-                )
+                async with self._req_lock:
+                    res = await self._ezsp.sendBroadcast(
+                        broadcast_address, aps_frame, radius, message_tag, data
+                    )
                 if res[0] != t.EmberStatus.SUCCESS:
                     return res[0], "broadcast send failure"
 
@@ -610,7 +629,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 await asyncio.wait_for(
                     self.controller_event.wait(), timeout=WATCHDOG_WAKE_PERIOD * 2
                 )
-                await self._ezsp.nop()
+                if LOGGER.level < logging.DEBUG:
+                    await self._ezsp.nop()
+                else:
+                    (res,) = await self._ezsp.readCounters()
+                    counters = (
+                        f"{counter.name}: {value}"
+                        for counter, value in zip(
+                            self._ezsp.types.EmberCounterType, res
+                        )
+                    )
+                    LOGGER.debug("EZSP Counters: %s", ",".join(counters))
                 failures = 0
             except (asyncio.TimeoutError, EzspError) as exc:
                 LOGGER.warning("Watchdog heartbeat timeout: %s", str(exc))
@@ -656,6 +685,16 @@ class EZSPCoordinator(CustomDevice):
     """Zigpy Device representing Coordinator."""
 
     class EZSPEndpoint(CustomEndpoint):
+        @property
+        def manufacturer(self) -> str:
+            """Manufacturer."""
+            return "Silicon Labs"
+
+        @property
+        def model(self) -> str:
+            """Model."""
+            return "EZSP"
+
         async def add_to_group(self, grp_id: int, name: str = None) -> t.EmberStatus:
             if grp_id in self.member_of:
                 return t.EmberStatus.SUCCESS
@@ -695,7 +734,7 @@ class EZSPCoordinator(CustomDevice):
     }
 
     replacement = {
+        "endpoints": {1: (EZSPEndpoint, {})},
         "manufacturer": "Silicon Labs",
         "model": "EZSP",
-        "endpoints": {1: (EZSPEndpoint, {})},
     }

@@ -20,7 +20,7 @@ class Multicast:
         self._available = set()
 
         status, size = await self._ezsp.getConfigurationValue(
-            t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE
+            self._ezsp.types.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE
         )
         if status != t.EmberStatus.SUCCESS:
             return

@@ -1,4 +1,4 @@
-import bellows.types as t
+from . import types as t
 
 COMMANDS = {
     # 4. Configuration frames
@@ -41,7 +41,6 @@ COMMANDS = {
     "setGpioRadioPowerMask": (0xAE, (t.uint32_t,), ()),
     "setCtune": (0xF5, (t.uint16_t,), ()),
     "getCtune": (0xF6, (), (t.uint16_t,)),
-    "setChannelMap": (0xF7, (t.uint8_t, t.uint8_t), ()),
     # 5. Utilities Frames
     "nop": (0x05, (), ()),
     "echo": (0x81, (t.LVBytes,), (t.LVBytes,)),
@@ -65,12 +64,12 @@ COMMANDS = {
     "readAndClearCounters": (
         0x65,
         (),
-        (t.fixed_list(t.EmberCounterType.COUNTER_TYPE_COUNT, t.uint16_t),),
+        (t.fixed_list(len(t.EmberCounterType), t.uint16_t),),
     ),
     "readCounters": (
         0xF1,
         (),
-        (t.fixed_list(t.EmberCounterType.COUNTER_TYPE_COUNT, t.uint16_t),),
+        (t.fixed_list(len(t.EmberCounterType), t.uint16_t),),
     ),
     "counterRolloverHandler": (0xF2, (), (t.EmberCounterType,)),
     "delayTest": (0x9D, (t.uint16_t,), ()),
@@ -112,7 +111,7 @@ COMMANDS = {
     ),
     "energyScanRequest": (
         0x9C,
-        (t.EmberNodeId, t.uint32_t, t.uint8_t, t.uint16_t),
+        (t.EmberNodeId, t.Channels, t.uint8_t, t.uint16_t),
         (t.EmberStatus,),
     ),
     "getNetworkParameters": (
@@ -143,8 +142,12 @@ COMMANDS = {
     "deleteBinding": (0x2D, (t.uint8_t,), (t.EmberStatus,)),
     "bindingIsActive": (0x2E, (t.uint8_t,), (t.Bool,)),
     "getBindingRemoteNodeId": (0x2F, (t.uint8_t,), (t.EmberNodeId,)),
-    "setBindingRemoteNodeId": (0x30, (t.uint8_t,), ()),
-    "remoteSetBindingHandler": (0x31, (), (t.EmberBindingTableEntry,)),
+    "setBindingRemoteNodeId": (0x30, (t.uint8_t, t.EmberNodeId), ()),
+    "remoteSetBindingHandler": (
+        0x31,
+        (),
+        (t.EmberBindingTableEntry, t.uint8_t, t.EmberStatus),
+    ),
     "remoteDeleteBindingHandler": (0x32, (), (t.uint8_t, t.EmberStatus)),
     # 8. Messaging Frames
     "maximumPayloadLength": (0x33, (), (t.uint8_t,)),
@@ -219,7 +222,6 @@ COMMANDS = {
         (),
         (t.EmberNodeId, t.EmberEUI64, t.uint8_t, t.int8s, t.LVList(t.EmberNodeId)),
     ),
-    "changeSourceRouteHandler": (0xC4, (), (t.EmberNodeId, t.EmberNodeId, t.Bool)),
     "setSourceRoute": (
         0x5A,
         (t.EmberNodeId, t.LVList(t.EmberNodeId)),
@@ -291,23 +293,6 @@ COMMANDS = {
     "zigbeeKeyEstablishmentHandler": (0x9B, (), (t.EmberEUI64, t.EmberKeyStatus)),
     "addTransientLinkKey": (0xAF, (t.EmberEUI64, t.EmberKeyData), (t.EmberStatus,)),
     "clearTransientLinkKeys": (0x6B, (), ()),
-    "getTransientLinkKey": (
-        0xCE,
-        (t.EmberEUI64,),
-        (t.EmberStatus, t.EmberTransientKeyData),
-    ),
-    "setSecurityKey": (
-        0xCA,
-        (t.EmberKeyData, t.SecureEzspSecurityType),
-        (t.EzspStatus,),
-    ),
-    "setSecurityParameters": (
-        0xCB,
-        (t.SecureEzspSecurityLevel, t.SecureEzspRandomNumber),
-        (t.EzspStatus, t.SecureEzspRandomNumber),
-    ),
-    "resetToFactoryDefaults": (0xCC, (), (t.EzspStatus,)),
-    "getSecurityKeyStatus": (0xCD, (), (t.EzspStatus, t.SecureEzspSecurityType)),
     # 10. Trust Center Frames
     "trustCenterJoinHandler": (
         0x24,
@@ -442,7 +427,7 @@ COMMANDS = {
         (t.EmberKeyData, t.EmberZllInitialSecurityState),
         (t.EmberStatus,),
     ),
-    "zllStartScan": (0xB4, (t.uint32_t, t.int8s, t.EmberNodeType), (t.EmberStatus,)),
+    "zllStartScan": (0xB4, (t.Channels, t.int8s, t.EmberNodeType), (t.EmberStatus,)),
     "zllSetRxOnWhenIdle": (0xB5, (t.uint16_t,), (t.EmberStatus,)),
     "zllNetworkFoundHandler": (
         0xB6,
@@ -510,7 +495,14 @@ COMMANDS = {
     "rf4ceStop": (0xD8, (), (t.EmberStatus,)),
     "rf4ceDiscovery": (
         0xD9,
-        (t.EmberPanId, t.EmberNodeId, t.uint8_t, t.uint16_t, t.LVBytes),
+        (
+            t.EmberPanId,
+            t.EmberNodeId,
+            t.uint8_t,
+            t.uint16_t,
+            t.uint8_t,
+            t.LVList(t.uint8_t),
+        ),
         (t.EmberStatus,),
     ),
     "rf4ceDiscoveryCompleteHandler": (0xDA, (), (t.EmberStatus,)),
@@ -604,7 +596,7 @@ COMMANDS = {
             t.uint16_t,
             t.uint16_t,
             t.uint16_t,
-            t.fixed_list(8, t.uint8_t),
+            t.EmberEUI64,
             t.EmberKeyData,
         ),
         (),

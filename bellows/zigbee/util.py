@@ -5,10 +5,12 @@ import bellows.types as t
 import zigpy.config
 
 
-def zha_security(config: Dict[str, Any], controller: bool = False) -> None:
+def zha_security(
+    config: Dict[str, Any], controller: bool = False, hashed_tclk: bool = True
+) -> None:
 
     isc = t.EmberInitialSecurityState()
-    isc.bitmask = t.uint16_t(
+    isc.bitmask = (
         t.EmberInitialSecurityBitmask.HAVE_PRECONFIGURED_KEY
         | t.EmberInitialSecurityBitmask.REQUIRE_ENCRYPTED_KEY
     )
@@ -28,5 +30,9 @@ def zha_security(config: Dict[str, Any], controller: bool = False) -> None:
             t.EmberInitialSecurityBitmask.TRUST_CENTER_GLOBAL_LINK_KEY
             | t.EmberInitialSecurityBitmask.HAVE_NETWORK_KEY
         )
-        isc.bitmask = t.uint16_t(isc.bitmask)
+        if hashed_tclk:
+            isc.preconfiguredKey = t.EmberKeyData(os.urandom(16))
+            isc.bitmask |= (
+                t.EmberInitialSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
+            )
     return isc

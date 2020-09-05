@@ -1,42 +1,49 @@
+"""EZSP protocol."""
+
 import asyncio
-import binascii
 import functools
 import logging
-from typing import Dict
+from typing import Any, Awaitable, Callable, Dict, Tuple
 
-from bellows.commands import COMMANDS
-from bellows.config import CONF_DEVICE_BAUDRATE, CONF_DEVICE_PATH, SCHEMA_DEVICE
+from bellows.config import (
+    CONF_DEVICE,
+    CONF_DEVICE_PATH,
+    CONF_PARAM_SRC_RTG,
+    SCHEMA_DEVICE,
+)
 from bellows.exception import APIException, EzspError
 import bellows.types as t
-import bellows.uart as uart
+import bellows.uart
 import serial
+from zigpy.typing import DeviceType
 
-EZSP_CMD_TIMEOUT = 10
-LOGGER = logging.getLogger(__name__)
+from . import v4, v5, v6, v7, v8
+
+EZSP_LATEST = v8.EZSP_VERSION
 PROBE_TIMEOUT = 3
+LOGGER = logging.getLogger(__name__)
+MTOR_MIN_INTERVAL = 10
+MTOR_MAX_INTERVAL = 90
+MTOR_ROUTE_ERROR_THRESHOLD = 4
+MTOR_DELIVERY_FAIL_THRESHOLD = 3
 
 
 class EZSP:
-
-    COMMANDS = COMMANDS
-    EZSP_VERSION = 4
+    _BY_VERSION = {
+        v4.EZSP_VERSION: v4.EZSPv4,
+        v5.EZSP_VERSION: v5.EZSPv5,
+        v6.EZSP_VERSION: v6.EZSPv6,
+        v7.EZSP_VERSION: v7.EZSPv7,
+        v8.EZSP_VERSION: v8.EZSPv8,
+    }
 
     def __init__(self, device_config: Dict):
-        self._awaiting = {}
         self._config = device_config
         self._callbacks = {}
         self._ezsp_event = asyncio.Event()
-        self._seq = 0
+        self._ezsp_version = v4.EZSP_VERSION
         self._gw = None
-        self._ezsp_version = self.EZSP_VERSION
-        self._awaiting = {}
-        self.COMMANDS_BY_ID = {}
-        for name, details in self.COMMANDS.items():
-            self.COMMANDS_BY_ID[details[0]] = (name, details[1], details[2])
-
-    async def connect(self) -> None:
-        assert self._gw is None
-        self._gw = await uart.connect(self._config, self)
+        self._protocol = None
 
     @classmethod
     async def probe(cls, device_config: Dict) -> bool:
@@ -62,25 +69,26 @@ class EZSP:
         await self.reset()
         self.close()
 
-    def reconnect(self):
-        """Reconnect using saved parameters."""
-        LOGGER.debug(
-            "Reconnecting %s serial port on %s bauds",
-            self._config[CONF_DEVICE_PATH],
-            self._config[CONF_DEVICE_BAUDRATE],
-        )
-        return self.connect()
+    @classmethod
+    async def initialize(cls, zigpy_config: Dict) -> "EZSP":
+        """Return initialized EZSP instance. """
+        ezsp = cls(zigpy_config[CONF_DEVICE])
+        await ezsp.connect()
+        await ezsp.reset()
+        await ezsp.version()
+        await ezsp._protocol.initialize(zigpy_config)
+        if zigpy_config[CONF_PARAM_SRC_RTG]:
+            await ezsp.set_source_routing()
+        return ezsp
+
+    async def connect(self) -> None:
+        assert self._gw is None
+        self._gw = await bellows.uart.connect(self._config, self)
+        self._protocol = v4.EZSPv4(self.handle_callback, self._gw)
 
     async def reset(self):
         LOGGER.debug("Resetting EZSP")
         self.stop_ezsp()
-        for seq in self._awaiting:
-            future = self._awaiting[seq][2]
-            if not future.done():
-                future.cancel()
-        self._awaiting = {}
-        self._callbacks = {}
-        self._seq = 0
         await self._gw.reset()
         self.start_ezsp()
 
@@ -90,10 +98,23 @@ class EZSP:
         )
         if ver != self.ezsp_version:
             self._ezsp_version = ver
+            LOGGER.debug("Switching to EZSP protocol version %d", self.ezsp_version)
+            try:
+                protcol_cls = self._BY_VERSION[ver]
+            except KeyError:
+                LOGGER.warning(
+                    "Protocol version %s is not supported, using version %s instead",
+                    ver,
+                    EZSP_LATEST,
+                )
+                protcol_cls = self._BY_VERSION[EZSP_LATEST]
+            self._protocol = protcol_cls(self.handle_callback, self._gw)
             await self._command("version", ver)
-            LOGGER.debug("Switched to EZSP protocol version %d", self.ezsp_version)
         LOGGER.debug(
-            "EZSP Stack Type: %s, Stack Version: %s", stack_type, stack_version
+            "EZSP Stack Type: %s, Stack Version: %04x, Protocol version: %s",
+            stack_type,
+            stack_version,
+            ver,
         )
 
     def close(self):
@@ -102,28 +123,14 @@ class EZSP:
             self._gw.close()
             self._gw = None
 
-    def _ezsp_frame(self, name, *args):
-        c = self.COMMANDS[name]
-        data = t.serialize(args, c[1])
-        frame = [self._seq & 0xFF, 0, c[0]]  # Frame control. TODO.  # Frame ID
-        if self.ezsp_version >= 5:
-            frame.insert(1, 0xFF)  # Legacy Frame ID
-            frame.insert(1, 0x00)  # Ext frame control. TODO.
-
-        return bytes(frame) + data
-
-    def _command(self, name, *args):
-        LOGGER.debug("Send command %s: %s", name, args)
+    def _command(self, name: str, *args: Tuple[Any, ...]) -> asyncio.Future:
         if not self.is_ezsp_running:
+            LOGGER.debug(
+                "Couldn't send command %s(%s). EZSP is not running", name, args
+            )
             raise EzspError("EZSP is not running")
 
-        data = self._ezsp_frame(name, *args)
-        self._gw.data(data)
-        c = self.COMMANDS[name]
-        future = asyncio.Future()
-        self._awaiting[self._seq] = (c[0], c[2], future)
-        self._seq = (self._seq + 1) % 256
-        return asyncio.wait_for(future, timeout=EZSP_CMD_TIMEOUT)
+        return self._protocol.command(name, *args)
 
     async def _list_command(self, name, item_frames, completion_frame, spos, *args):
         """Run a command, returning result callbacks as a list"""
@@ -187,6 +194,12 @@ class EZSP:
         self.close()
         self.handle_callback("_reset_controller_application", (error,))
 
+    def __getattr__(self, name: str) -> Callable:
+        if name not in self._protocol.COMMANDS:
+            return getattr(self._protocol, name)
+
+        return functools.partial(self._command, name)
+
     async def formNetwork(self, parameters):  # noqa: N802
         fut = asyncio.Future()
 
@@ -197,60 +210,51 @@ class EZSP:
 
         self.add_callback(cb)
         v = await self._command("formNetwork", parameters)
-        if v[0] != t.EmberStatus.SUCCESS:
-            raise Exception("Failure forming network: %s" % (v,))
+        if v[0] != self.types.EmberStatus.SUCCESS:
+            raise Exception(f"Failure forming network: {v}")
 
         v = await fut
-        if v[0] != t.EmberStatus.NETWORK_UP:
-            raise Exception("Failure forming network: %s" % (v,))
+        if v[0] != self.types.EmberStatus.NETWORK_UP:
+            raise Exception(f"Failure forming network: {v}")
 
         return v
 
-    def __getattr__(self, name):
-        if name not in self.COMMANDS:
-            raise AttributeError("%s not found in COMMANDS" % (name,))
-
-        return functools.partial(self._command, name)
-
-    def frame_received(self, data):
+    def frame_received(self, data: bytes) -> None:
         """Handle a received EZSP frame
 
         The protocol has taken care of UART specific framing etc, so we should
         just have EZSP application stuff here, with all escaping/stuffing and
         data randomization removed.
         """
-        sequence, frame_id, data = data[0], data[2], data[3:]
-        if frame_id == 0xFF:
-            frame_id = 0
-            if len(data) > 1:
-                frame_id = data[1]
-                data = data[2:]
+        self._protocol(data)
 
-        frame_name = self.COMMANDS_BY_ID[frame_id][0]
-        LOGGER.debug(
-            "Application frame %s (%s) received: %s",
-            frame_id,
-            frame_name,
-            binascii.hexlify(data),
-        )
+    async def get_board_info(self) -> Tuple[str, str, str]:
+        """Return board info."""
 
-        if sequence in self._awaiting:
-            expected_id, schema, future = self._awaiting.pop(sequence)
-            assert expected_id == frame_id
-            result, data = t.deserialize(data, schema)
+        tokens = []
+        for token in (t.EzspMfgTokenId.MFG_STRING, t.EzspMfgTokenId.MFG_BOARD_NAME):
+            LOGGER.debug("getting " "%s" " token", token.name)
+            (result,) = await self.getMfgToken(token)
             try:
-                future.set_result(result)
-            except asyncio.InvalidStateError:
-                LOGGER.debug(
-                    "Error processing %s response. %s command timed out?",
-                    sequence,
-                    self.COMMANDS_BY_ID.get(expected_id, [expected_id])[0],
-                )
+                result = result.split(b"\xFF")[0]
+                result = result.decode()
+            except UnicodeDecodeError:
+                pass
+            tokens.append(result)
+
+        (status, ver_info_bytes) = await self.getValue(
+            self.types.EzspValueId.VALUE_VERSION_INFO
+        )
+        if status == t.EmberStatus.SUCCESS:
+            build, ver_info_bytes = t.uint16_t.deserialize(ver_info_bytes)
+            major, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
+            minor, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
+            patch, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
+            special, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
+            version = f"{major}.{minor}.{patch}.{special} build {build}"
         else:
-            schema = self.COMMANDS_BY_ID[frame_id][2]
-            frame_name = self.COMMANDS_BY_ID[frame_id][0]
-            result, data = t.deserialize(data, schema)
-            self.handle_callback(frame_name, result)
+            version = "unknown stack version"
+        return tokens[0], tokens[1], version
 
     def add_callback(self, cb):
         id_ = hash(cb)
@@ -269,6 +273,31 @@ class EZSP:
             except Exception as e:
                 LOGGER.exception("Exception running handler", exc_info=e)
 
+    def set_source_route(self, device: DeviceType) -> Awaitable:
+        if device.relays is not None:
+            return self.setSourceRoute(device.nwk, device.relays)
+
+        LOGGER.debug("No known routes for %s", device.nwk)
+        status = asyncio.Future()
+        status.set_result((t.EmberStatus.ERR_FATAL,))
+        return status
+
+    async def set_source_routing(self) -> None:
+        """Enable source routing on NCP."""
+        res = await self.setConcentrator(
+            True,
+            self.types.EmberConcentratorType.HIGH_RAM_CONCENTRATOR,
+            MTOR_MIN_INTERVAL,
+            MTOR_MAX_INTERVAL,
+            MTOR_ROUTE_ERROR_THRESHOLD,
+            MTOR_DELIVERY_FAIL_THRESHOLD,
+            0,
+        )
+        LOGGER.debug("Set concentrator type: %s", res)
+        if res[0] != self.types.EmberStatus.SUCCESS:
+            LOGGER.warning("Couldn't set concentrator type %s: %s", True, res)
+        await self._protocol.set_source_routing()
+
     def start_ezsp(self):
         """Mark EZSP as running."""
         self._ezsp_event.set()
@@ -286,3 +315,8 @@ class EZSP:
     def ezsp_version(self):
         """Return protocol version."""
         return self._ezsp_version
+
+    @property
+    def types(self):
+        """Return EZSP types for this specific version."""
+        return self._protocol.types

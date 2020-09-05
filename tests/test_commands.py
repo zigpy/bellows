@@ -1,31 +1,53 @@
 import string
 
-from bellows import commands
+import bellows.ezsp.v4.commands
+import bellows.ezsp.v5.commands
+import bellows.ezsp.v6.commands
+import bellows.ezsp.v7.commands
+import bellows.ezsp.v8.commands
+import pytest
 
 
-def test_names():
+@pytest.fixture(
+    params=[
+        bellows.ezsp.v4.commands,
+        bellows.ezsp.v5.commands,
+        bellows.ezsp.v6.commands,
+        bellows.ezsp.v7.commands,
+        bellows.ezsp.v8.commands,
+    ]
+)
+def commands(request):
+    """Return commands for all EZSP protocol versions."""
+    yield request.param.COMMANDS
+
+
+def test_names(commands):
     """Test that names of commands seem valid"""
     anum = string.ascii_letters + string.digits
-    for command in commands.COMMANDS.keys():
+    for command in commands.keys():
         assert all([c in anum for c in command]), command
 
 
-def test_ids():
+def test_ids(commands):
     """Test that frame IDs seem valid"""
-    for command, parms in commands.COMMANDS.items():
-        assert 0 <= parms[0] <= 255, command
+    seen = set()
+    for command, (cmd_id, _, _) in commands.items():
+        assert 0 <= cmd_id <= 255, command
+        assert cmd_id not in seen
+        seen.add(cmd_id)
 
 
-def test_parms():
+def test_parms(commands):
     """Test that parameter descriptions seem valid"""
-    for command, parms in commands.COMMANDS.items():
+    for command, parms in commands.items():
         assert isinstance(parms[1], tuple), command
         assert isinstance(parms[2], tuple), command
 
 
-def test_handlers():
+def test_handlers(commands):
     """Test that handler methods only have responses"""
-    for command, parms in commands.COMMANDS.items():
+    for command, parms in commands.items():
         if not command.endswith("Handler"):
             continue
         assert len(parms[1]) == 0, command
