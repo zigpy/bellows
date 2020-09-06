@@ -170,7 +170,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._watchdog_task.cancel()
         if self._reset_task and not self._reset_task.done():
             self._reset_task.cancel()
-        self._ezsp.close()
+        if self._ezsp is not None:
+            self._ezsp.close()
 
     async def form_network(self):
         nwk = self.config[zigpy.config.CONF_NWK]
