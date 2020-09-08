@@ -135,7 +135,7 @@ EZSP_SCHEMA = {
     #
     # The size of the Key Table used for storing individual link keys (if the device
     # is a Trust Center) or Application Link Keys (if the device is a normal node)
-    vol.Optional(EzspConfigId.CONFIG_KEY_TABLE_SIZE.name, default=4): vol.All(
+    vol.Optional(EzspConfigId.CONFIG_KEY_TABLE_SIZE.name, default=12): vol.All(
         int, vol.Range(min=0)
     ),
     #
