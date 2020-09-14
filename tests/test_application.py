@@ -1210,11 +1210,11 @@ async def test_cleanup_tc_link_key(app):
 @pytest.mark.asyncio
 @mock.patch("zigpy.application.ControllerApplication.permit", new=CoroutineMock())
 async def test_permit(app):
-    """Test permi method."""
+    """Test permit method."""
     ezsp = app._ezsp
     ezsp.addTransientLinkKey = CoroutineMock(return_value=(t.EmberStatus.SUCCESS,))
     ezsp.pre_permit = CoroutineMock()
     await app.permit(10, None)
     await asyncio.sleep(0)
-    assert ezsp.addTransientLinkKey.await_count == 1
+    assert ezsp.addTransientLinkKey.await_count == 0
     assert ezsp.pre_permit.await_count == 1
