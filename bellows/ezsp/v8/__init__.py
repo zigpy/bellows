@@ -38,6 +38,9 @@ class EZSPv8(protocol.ProtocolHandler):
 
     async def pre_permit(self, time_s: int) -> None:
         """Temporarily change TC policy while allowing new joins."""
+        wild_card_ieee = v8_types.EmberEUI64([0xFF] * 8)
+        tc_link_key = v8_types.EmberKeyData(b"ZigBeeAlliance09")
+        await self.addTransientLinkKey(wild_card_ieee, tc_link_key)
         await self.setPolicy(
             v8_types.EzspPolicyId.TRUST_CENTER_POLICY,
             v8_types.EzspDecisionBitmask.ALLOW_JOINS
