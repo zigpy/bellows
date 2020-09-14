@@ -37,9 +37,11 @@ async def test_set_source_routing(ezsp_f):
 async def test_pre_permit(ezsp_f):
     """Test pre permit."""
     p1 = mock.patch.object(ezsp_f, "setPolicy", new=CoroutineMock())
-    with p1 as pre_permit_mock:
+    p2 = mock.patch.object(ezsp_f, "addTransientLinkKey", new=CoroutineMock())
+    with p1 as pre_permit_mock, p2 as tclk_mock:
         await ezsp_f.pre_permit(-1.9)
     assert pre_permit_mock.await_count == 2
+    assert tclk_mock.await_count == 1
 
 
 def test_command_frames(ezsp_f):
