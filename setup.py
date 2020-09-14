@@ -20,7 +20,7 @@ setup(
         "pure_pcapy3==1.0.1",
         "pyserial-asyncio",
         "voluptuous",
-        "zigpy>=0.20.1a3",
+        "zigpy>=0.21.0",
     ],
     dependency_links=["https://codeload.github.com/rcloran/pure-pcapy-3/zip/master"],
     tests_require=["asynctest", "pytest", "pytest-asyncio"],
