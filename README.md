@@ -36,7 +36,7 @@ Silicon Labs do not currently have a consolidated list of changes by EmberZNet S
 
 The largest change was between EZSP v4 (first added in EmberZNet 4.7.2 SDK) and EZSP v5 that was added in EmberZNet 5.9.0 SDK which requires the Legacy Frame ID 0xFF. The change from EZSP v5 to EZSP v6 was done in EmberZNet 6.0.0 SDK. The change from EZSP v6 to EZSP v7 was in EmberZNet 6.4.0 SDK. EmberZNet 6.7.0 SDK added EZSP v8 (and Secure EZSP Protocol Version 2).
 
-Perhaps more important to know today is that EmberZNet 6.6.4.x is backwards compatible with EZSP v5 and v6, but EmberZNet 6.7.0.x and later is not.
+Perhaps more important to know today is that  EZSP v5, v6 and v7 (EmberZNet 6.6.x.x) use the same framing format, but EmberZNet 6.7.x.x/EZSP v8 introduced new framing format and expanded command id field from 8 bits to 16 bits.
 
 ## Project status
 
