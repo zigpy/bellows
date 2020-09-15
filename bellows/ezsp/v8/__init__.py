@@ -3,8 +3,9 @@ import asyncio
 import logging
 from typing import Tuple
 
-import bellows.config
 import voluptuous
+
+import bellows.config
 
 from . import commands, config, types as v8_types
 from .. import protocol

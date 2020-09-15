@@ -3,16 +3,17 @@ import logging
 
 import asynctest
 from asynctest import CoroutineMock, mock
+import pytest
+import zigpy.config
+from zigpy.device import Device
+from zigpy.zcl.clusters import security
+
 import bellows.config as config
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp as ezsp
 import bellows.ezsp.v4.types as t
 import bellows.uart as uart
 import bellows.zigbee.application
-import pytest
-import zigpy.config
-from zigpy.device import Device
-from zigpy.zcl.clusters import security
 
 APP_CONFIG = {
     config.CONF_DEVICE: {

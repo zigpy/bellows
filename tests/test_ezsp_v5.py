@@ -1,6 +1,7 @@
 from asynctest import CoroutineMock, mock
-import bellows.ezsp.v5
 import pytest
+
+import bellows.ezsp.v5
 
 
 @pytest.fixture

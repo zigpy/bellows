@@ -3,12 +3,13 @@ import json
 import logging
 import os
 
-import bellows.types as t
 import click
 import voluptuous as vol
 from zigpy.config.validators import cv_hex, cv_key
 import zigpy.types
 import zigpy.zdo.types
+
+import bellows.types as t
 
 from . import util
 from .main import main

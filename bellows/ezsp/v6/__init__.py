@@ -1,8 +1,9 @@
 """"EZSP Protocol version 6 protocol handler."""
 import logging
 
-import bellows.config
 import voluptuous
+
+import bellows.config
 
 from . import commands, config, types as v6_types
 from ..v5 import EZSPv5

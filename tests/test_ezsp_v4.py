@@ -1,6 +1,7 @@
 from asynctest import mock
-import bellows.ezsp.v4
 import pytest
+
+import bellows.ezsp.v4
 
 
 @pytest.fixture

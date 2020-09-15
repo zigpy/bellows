@@ -2,11 +2,12 @@ import asyncio
 import functools
 
 from asynctest import CoroutineMock, mock
+import pytest
+import serial
+
 from bellows import config, ezsp, uart
 from bellows.exception import EzspError
 import bellows.ezsp.v4.types as t
-import pytest
-import serial
 
 DEVICE_CONFIG = {
     config.CONF_DEVICE_PATH: "/dev/null",

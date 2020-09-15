@@ -1,7 +1,8 @@
 """Setup module for bellows"""
 
-import bellows
 from setuptools import find_packages, setup
+
+import bellows
 
 setup(
     name="bellows",

@@ -2,9 +2,10 @@ import asyncio
 import logging
 
 from asynctest import CoroutineMock, mock
+import pytest
+
 import bellows.ezsp.v4
 import bellows.ezsp.v4.types as t
-import pytest
 
 
 class _DummyProtocolHandler(bellows.ezsp.v4.EZSPv4):
