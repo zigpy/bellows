@@ -5,6 +5,9 @@ import functools
 import logging
 from typing import Any, Awaitable, Callable, Dict, Tuple
 
+import serial
+from zigpy.typing import DeviceType
+
 from bellows.config import (
     CONF_DEVICE,
     CONF_DEVICE_PATH,
@@ -14,8 +17,6 @@ from bellows.config import (
 from bellows.exception import APIException, EzspError
 import bellows.types as t
 import bellows.uart
-import serial
-from zigpy.typing import DeviceType
 
 from . import v4, v5, v6, v7, v8
 

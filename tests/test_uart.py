@@ -2,10 +2,11 @@ import asyncio
 import threading
 
 from asynctest import CoroutineMock, mock
-from bellows import uart
-import bellows.config as conf
 import pytest
 import serial_asyncio
+
+from bellows import uart
+import bellows.config as conf
 
 
 @pytest.mark.asyncio

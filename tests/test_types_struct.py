@@ -1,8 +1,9 @@
 import enum
 import typing
 
-import bellows.types as t
 import pytest
+
+import bellows.types as t
 
 
 def test_struct_fields():

@@ -1,6 +1,7 @@
+import voluptuous as vol
+
 from bellows.config import cv_uint16
 import bellows.multicast
-import voluptuous as vol
 
 from . import types
 

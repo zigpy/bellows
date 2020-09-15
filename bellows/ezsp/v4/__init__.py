@@ -2,8 +2,9 @@
 import logging
 from typing import Tuple
 
-import bellows.config
 import voluptuous
+
+import bellows.config
 
 from . import commands, config, types as v4_types
 from .. import protocol

@@ -3,8 +3,9 @@ import sys
 import threading
 from unittest import mock
 
-from bellows.thread import EventLoopThread, ThreadsafeProxy
 import pytest
+
+from bellows.thread import EventLoopThread, ThreadsafeProxy
 
 
 @pytest.mark.asyncio

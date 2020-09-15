@@ -2,11 +2,12 @@ import asyncio
 import functools
 import logging
 
+import click
+import zigpy.config as zigpy_conf
+
 import bellows.config as config
 import bellows.ezsp
 import bellows.types as t
-import click
-import zigpy.config as zigpy_conf
 
 LOGGER = logging.getLogger(__name__)
 
