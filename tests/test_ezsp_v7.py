@@ -1,4 +1,5 @@
-from asynctest import mock
+from unittest import mock
+
 import pytest
 
 import bellows.ezsp.v7

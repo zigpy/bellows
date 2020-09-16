@@ -1,11 +1,14 @@
 import asyncio
 import logging
 
-from asynctest import CoroutineMock, mock
 import pytest
 
 import bellows.ezsp.v4
 import bellows.ezsp.v4.types as t
+
+from .async_mock import AsyncMock, MagicMock, patch
+
+pytestmark = pytest.mark.asyncio
 
 
 class _DummyProtocolHandler(bellows.ezsp.v4.EZSPv4):
@@ -23,7 +26,7 @@ class _DummyProtocolHandler(bellows.ezsp.v4.EZSPv4):
 @pytest.fixture
 def prot_hndl():
     """Protocol handler mock."""
-    return _DummyProtocolHandler(mock.MagicMock(), mock.MagicMock())
+    return _DummyProtocolHandler(MagicMock(), MagicMock())
 
 
 @pytest.mark.asyncio
@@ -35,7 +38,7 @@ async def test_command(prot_hndl):
 
 
 def test_receive_reply(prot_hndl):
-    callback_mock = mock.MagicMock(spec_set=asyncio.Future)
+    callback_mock = MagicMock(spec_set=asyncio.Future)
     prot_hndl._awaiting[0] = (0, prot_hndl.COMMANDS["version"][2], callback_mock)
     prot_hndl(b"\x00\xff\x00\x04\x05\x06")
 
@@ -47,7 +50,7 @@ def test_receive_reply(prot_hndl):
 
 
 def test_receive_reply_after_timeout(prot_hndl):
-    callback_mock = mock.MagicMock(spec_set=asyncio.Future)
+    callback_mock = MagicMock(spec_set=asyncio.Future)
     callback_mock.set_result.side_effect = asyncio.InvalidStateError()
     prot_hndl._awaiting[0] = (0, prot_hndl.COMMANDS["version"][2], callback_mock)
     prot_hndl(b"\x00\xff\x00\x04\x05\x06")
@@ -63,7 +66,7 @@ def test_receive_reply_after_timeout(prot_hndl):
 async def test_cfg_initialize(prot_hndl, caplog):
     """Test initialization."""
 
-    p1 = mock.patch.object(prot_hndl, "setConfigurationValue", new=CoroutineMock())
+    p1 = patch.object(prot_hndl, "setConfigurationValue", new=AsyncMock())
     with p1 as cfg_mock:
         cfg_mock.return_value = (t.EzspStatus.SUCCESS,)
         await prot_hndl.initialize({"ezsp_config": {}, "source_routing": True})
@@ -78,7 +81,7 @@ async def test_cfg_initialize(prot_hndl, caplog):
 async def test_update_policies(prot_hndl):
     """Test update_policies."""
 
-    with mock.patch.object(prot_hndl, "setPolicy", new=CoroutineMock()) as pol_mock:
+    with patch.object(prot_hndl, "setPolicy", new=AsyncMock()) as pol_mock:
         pol_mock.return_value = (t.EzspStatus.SUCCESS,)
         await prot_hndl.update_policies({"ezsp_policies": {}})
 
