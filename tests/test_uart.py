@@ -1,19 +1,21 @@
 import asyncio
 import threading
 
-from asynctest import CoroutineMock, mock
 import pytest
 import serial_asyncio
 
 from bellows import uart
 import bellows.config as conf
 
+from .async_mock import AsyncMock, MagicMock, sentinel
 
-@pytest.mark.asyncio
+pytestmark = pytest.mark.asyncio
+
+
 async def test_connect(monkeypatch):
-    portmock = mock.MagicMock()
-    appmock = mock.MagicMock()
-    transport = mock.MagicMock()
+    portmock = MagicMock()
+    appmock = MagicMock()
+    transport = MagicMock()
 
     async def mockconnect(loop, protocol_factory, **kwargs):
         protocol = protocol_factory()
@@ -32,12 +34,11 @@ async def test_connect(monkeypatch):
     gw.close()
 
 
-@pytest.mark.asyncio
 async def test_connect_threaded(monkeypatch):
 
-    portmock = mock.MagicMock()
-    appmock = mock.MagicMock()
-    transport = mock.MagicMock()
+    portmock = MagicMock()
+    appmock = MagicMock()
+    transport = MagicMock()
 
     async def mockconnect(loop, protocol_factory, **kwargs):
         protocol = protocol_factory()
@@ -63,14 +64,13 @@ async def test_connect_threaded(monkeypatch):
     assert len(threads) == 0
 
 
-@pytest.mark.asyncio
 async def test_connect_threaded_failure(monkeypatch):
 
-    portmock = mock.MagicMock()
-    appmock = mock.MagicMock()
-    transport = mock.MagicMock()
+    portmock = MagicMock()
+    appmock = MagicMock()
+    transport = MagicMock()
 
-    mockconnect = CoroutineMock()
+    mockconnect = AsyncMock()
     mockconnect.side_effect = OSError
 
     monkeypatch.setattr(serial_asyncio, "create_serial_connection", mockconnect)
@@ -93,8 +93,8 @@ async def test_connect_threaded_failure(monkeypatch):
 
 @pytest.fixture
 def gw():
-    gw = uart.Gateway(mock.MagicMock())
-    gw._transport = mock.MagicMock()
+    gw = uart.Gateway(MagicMock())
+    gw._transport = MagicMock()
     return gw
 
 
@@ -129,7 +129,7 @@ def test_data_frame(gw):
 
 
 def test_cancel_received(gw):
-    gw.rst_frame_received = mock.MagicMock()
+    gw.rst_frame_received = MagicMock()
     gw.data_received(b"garbage")
     gw.data_received(b"\x1a\xc0\x38\xbc\x7e")
     assert gw.rst_frame_received.call_count == 1
@@ -137,7 +137,7 @@ def test_cancel_received(gw):
 
 
 def test_substitute_received(gw):
-    gw.rst_frame_received = mock.MagicMock()
+    gw.rst_frame_received = MagicMock()
     gw.data_received(b"garbage")
     gw.data_received(b"\x18\x38\xbc\x7epart")
     gw.data_received(b"ial")
@@ -146,7 +146,7 @@ def test_substitute_received(gw):
 
 
 def test_partial_data_received(gw):
-    gw.write = mock.MagicMock()
+    gw.write = MagicMock()
     gw.data_received(b"\x54\x79\xa1\xb0")
     gw.data_received(b"\x50\xf2\x6e\x7e")
     assert gw.write.call_count == 1
@@ -154,14 +154,14 @@ def test_partial_data_received(gw):
 
 
 def test_crc_error(gw):
-    gw.write = mock.MagicMock()
+    gw.write = MagicMock()
     gw.data_received(b"L\xa1\x8e\x03\xcd\x07\xb9Y\xfbG%\xae\xbd~")
     assert gw.write.call_count == 1
     assert gw._application.frame_received.call_count == 0
 
 
 def test_crc_error_and_valid_frame(gw):
-    gw.write = mock.MagicMock()
+    gw.write = MagicMock()
     gw.data_received(
         b"L\xa1\x8e\x03\xcd\x07\xb9Y\xfbG%\xae\xbd~\x54\x79\xa1\xb0\x50\xf2\x6e\x7e"
     )
@@ -170,7 +170,7 @@ def test_crc_error_and_valid_frame(gw):
 
 
 def test_data_frame_received(gw):
-    gw.write = mock.MagicMock()
+    gw.write = MagicMock()
     gw.data_received(b"\x54\x79\xa1\xb0\x50\xf2\x6e\x7e")
     assert gw.write.call_count == 1
     assert gw._application.frame_received.call_count == 1
@@ -189,21 +189,21 @@ def test_rst_frame_received(gw):
 
 
 def test_rstack_frame_received(gw):
-    gw._reset_future = mock.MagicMock()
-    gw._reset_future.done = mock.MagicMock(return_value=False)
+    gw._reset_future = MagicMock()
+    gw._reset_future.done = MagicMock(return_value=False)
     gw.data_received(b"\xc1\x02\x0b\nR\x7e")
     assert gw._reset_future.done.call_count == 1
     assert gw._reset_future.set_result.call_count == 1
 
 
 def test_wrong_rstack_frame_received(gw):
-    gw._reset_future = mock.MagicMock()
+    gw._reset_future = MagicMock()
     gw.data_received(b"\xc1\x02\x01\xab\x18\x7e")
     assert gw._reset_future.set_result.call_count == 0
 
 
 def test_error_rstack_frame_received(gw):
-    gw._reset_future = mock.MagicMock()
+    gw._reset_future = MagicMock()
     gw.data_received(b"\xc1\x02\x81\x3a\x90\x7e")
     assert gw._reset_future.set_result.call_count == 0
 
@@ -213,8 +213,8 @@ def test_rstack_frame_received_nofut(gw):
 
 
 def test_rstack_frame_received_out_of_order(gw):
-    gw._reset_future = mock.MagicMock()
-    gw._reset_future.done = mock.MagicMock(return_value=True)
+    gw._reset_future = MagicMock()
+    gw._reset_future.done = MagicMock(return_value=True)
     gw.data_received(b"\xc1\x02\x0b\nR\x7e")
     assert gw._reset_future.done.call_count == 1
     assert gw._reset_future.set_result.call_count == 0
@@ -238,14 +238,13 @@ def test_close(gw):
     assert gw._transport.close.call_count == 1
 
 
-@pytest.mark.asyncio
 async def test_reset(gw):
     gw._loop = asyncio.get_event_loop()
-    gw._sendq.put_nowait(mock.sentinel.queue_item)
+    gw._sendq.put_nowait(sentinel.queue_item)
     fut = asyncio.Future()
-    gw._pending = (mock.sentinel.seq, fut)
+    gw._pending = (sentinel.seq, fut)
     gw._transport.write.side_effect = lambda *args: gw._reset_future.set_result(
-        mock.sentinel.reset_result
+        sentinel.reset_result
     )
     reset_result = await gw.reset()
 
@@ -257,10 +256,9 @@ async def test_reset(gw):
     assert fut.done()
     assert gw._pending == (-1, None)
 
-    assert reset_result is mock.sentinel.reset_result
+    assert reset_result is sentinel.reset_result
 
 
-@pytest.mark.asyncio
 async def test_reset_timeout(gw, monkeypatch):
     gw._loop = asyncio.get_event_loop()
     monkeypatch.setattr(uart, "RESET_TIMEOUT", 0.1)
@@ -268,14 +266,13 @@ async def test_reset_timeout(gw, monkeypatch):
         await gw.reset()
 
 
-@pytest.mark.asyncio
 async def test_reset_old(gw):
     gw._loop = asyncio.get_event_loop()
     future = asyncio.get_event_loop().create_future()
-    future.set_result(mock.sentinel.result)
+    future.set_result(sentinel.result)
     gw._reset_future = future
     ret = await gw.reset()
-    assert ret == mock.sentinel.result
+    assert ret == sentinel.result
     gw._transport.write.assert_not_called()
 
 
@@ -304,11 +301,11 @@ def test_data(gw):
 
 
 def test_connection_lost_exc(gw):
-    gw.connection_lost(mock.sentinel.exception)
+    gw.connection_lost(sentinel.exception)
 
     conn_lost = gw._application.connection_lost
     assert conn_lost.call_count == 1
-    assert conn_lost.call_args[0][0] is mock.sentinel.exception
+    assert conn_lost.call_args[0][0] is sentinel.exception
 
 
 def test_connection_closed(gw):
