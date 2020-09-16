@@ -1032,7 +1032,7 @@ def test_src_rtg_config(config, result):
 
 
 @patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
-@patch.object(uart, "connect")
+@patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
 async def test_probe_success(mock_connect, mock_reset):
     """Test device probing."""
 
