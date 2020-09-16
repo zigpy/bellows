@@ -1,8 +1,6 @@
 import asyncio
 import logging
 
-import asynctest
-from asynctest import CoroutineMock, mock
 import pytest
 import zigpy.config
 from zigpy.device import Device
@@ -15,6 +13,10 @@ import bellows.ezsp.v4.types as t
 import bellows.uart as uart
 import bellows.zigbee.application
 
+from .async_mock import AsyncMock, MagicMock, PropertyMock, patch, sentinel
+
+pytestmark = pytest.mark.asyncio
+
 APP_CONFIG = {
     config.CONF_DEVICE: {
         config.CONF_DEVICE_PATH: "/dev/null",
@@ -26,23 +28,21 @@ APP_CONFIG = {
 
 
 @pytest.fixture
-def app(monkeypatch):
-    ezsp = mock.MagicMock()
+def app(monkeypatch, event_loop):
+    ezsp = MagicMock()
     ezsp.ezsp_version = 7
-    ezsp.set_source_route = asynctest.CoroutineMock(
-        return_value=[t.EmberStatus.SUCCESS]
-    )
-    ezsp.get_board_info = CoroutineMock(
+    ezsp.set_source_route = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    ezsp.get_board_info = AsyncMock(
         return_value=("Mock Manufacturer", "Mock board", "Mock version")
     )
-    type(ezsp).is_ezsp_running = mock.PropertyMock(return_value=True)
+    type(ezsp).is_ezsp_running = PropertyMock(return_value=True)
     config = bellows.zigbee.application.ControllerApplication.SCHEMA(APP_CONFIG)
     ctrl = bellows.zigbee.application.ControllerApplication(config)
     ctrl._ezsp = ezsp
     monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.1)
     ctrl._ctrl_event.set()
     ctrl._in_flight_msg = asyncio.Semaphore()
-    ctrl.handle_message = mock.MagicMock()
+    ctrl.handle_message = MagicMock()
     return ctrl
 
 
@@ -62,92 +62,83 @@ def ieee(init=0):
     return t.EmberEUI64(map(t.uint8_t, range(init, init + 8)))
 
 
-def get_mock_coro(return_value):
-    async def mock_coro(*args, **kwargs):
-        return return_value
-
-    return mock.Mock(wraps=mock_coro)
-
-
-def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4):
+@patch("zigpy.device.Device._initialize", new=AsyncMock())
+@patch("bellows.zigbee.application.ControllerApplication._watchdog", new=AsyncMock())
+async def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4):
     async def mockezsp(*args, **kwargs):
-        return [0, nwk_type, mock.sentinel.nework_parameters]
+        return [0, nwk_type, sentinel.nework_parameters]
 
     async def mockinit(*args, **kwargs):
         return [init]
 
     app._in_flight_msg = None
-    ezsp_mock = mock.MagicMock()
-    type(ezsp_mock.return_value).ezsp_version = mock.PropertyMock(
-        return_value=ezsp_version
-    )
-    ezsp_mock.initialize = CoroutineMock(return_value=ezsp_mock)
-    ezsp_mock.connect = CoroutineMock()
-    ezsp_mock.setConcentrator = CoroutineMock()
+    ezsp_mock = MagicMock()
+    type(ezsp_mock.return_value).ezsp_version = PropertyMock(return_value=ezsp_version)
+    ezsp_mock.initialize = AsyncMock(return_value=ezsp_mock)
+    ezsp_mock.connect = AsyncMock()
+    ezsp_mock.setConcentrator = AsyncMock()
     ezsp_mock._command = mockezsp
     ezsp_mock.addEndpoint = mockezsp
     ezsp_mock.setConfigurationValue = mockezsp
     ezsp_mock.networkInit = mockinit
     ezsp_mock.getNetworkParameters = mockezsp
-    ezsp_mock.get_board_info = CoroutineMock(
+    ezsp_mock.get_board_info = AsyncMock(
         return_value=("Mock Manufacturer", "Mock board", "Mock version")
     )
     ezsp_mock.setPolicy = mockezsp
-    ezsp_mock.getMfgToken = CoroutineMock(return_value=(b"Some token\xff",))
+    ezsp_mock.getMfgToken = AsyncMock(return_value=(b"Some token\xff",))
     ezsp_mock.getNodeId = mockezsp
-    ezsp_mock.getEui64.side_effect = CoroutineMock(return_value=[ieee])
-    ezsp_mock.getValue = CoroutineMock(return_value=(0, b"\x01" * 6))
+    ezsp_mock.getEui64 = AsyncMock(return_value=[ieee])
+    ezsp_mock.getValue = AsyncMock(return_value=(0, b"\x01" * 6))
     ezsp_mock.leaveNetwork = mockezsp
-    app.form_network = CoroutineMock()
-    ezsp_mock.reset.side_effect = CoroutineMock()
-    ezsp_mock.version.side_effect = CoroutineMock()
-    ezsp_mock.getConfigurationValue.side_effect = CoroutineMock(return_value=(0, 1))
-    ezsp_mock.update_policies = CoroutineMock()
+    app.form_network = AsyncMock()
+    ezsp_mock.reset = AsyncMock()
+    ezsp_mock.version = AsyncMock()
+    ezsp_mock.getConfigurationValue = AsyncMock(return_value=(0, 1))
+    ezsp_mock.update_policies = AsyncMock()
 
-    loop = asyncio.get_event_loop()
-    p1 = mock.patch.object(bellows.ezsp, "EZSP", new=ezsp_mock)
-    p2 = mock.patch.object(bellows.multicast.Multicast, "startup")
+    p1 = patch.object(bellows.ezsp, "EZSP", new=ezsp_mock)
+    p2 = patch.object(bellows.multicast.Multicast, "startup")
 
     with p1, p2 as multicast_mock:
-        loop.run_until_complete(app.startup(auto_form=auto_form))
+        await app.startup(auto_form=auto_form)
     assert multicast_mock.await_count == 1
 
 
-def test_startup(app, ieee):
-    return _test_startup(app, t.EmberNodeType.COORDINATOR, ieee)
+async def test_startup(app, ieee):
+    await _test_startup(app, t.EmberNodeType.COORDINATOR, ieee)
 
 
-def test_startup_ezsp_ver7(app, ieee):
-    return _test_startup(app, t.EmberNodeType.COORDINATOR, ieee, ezsp_version=7)
+async def test_startup_ezsp_ver7(app, ieee):
+    await _test_startup(app, t.EmberNodeType.COORDINATOR, ieee, ezsp_version=7)
 
 
-def test_startup_no_status(app, ieee):
+async def test_startup_no_status(app, ieee):
     with pytest.raises(Exception):
-        return _test_startup(app, None, ieee, init=1)
+        await _test_startup(app, None, ieee, init=1)
 
 
-def test_startup_no_status_form(app, ieee):
-    return _test_startup(app, None, ieee, auto_form=True, init=1)
+async def test_startup_no_status_form(app, ieee):
+    await _test_startup(app, None, ieee, auto_form=True, init=1)
 
 
-def test_startup_end(app, ieee):
+async def test_startup_end(app, ieee):
     with pytest.raises(Exception):
-        return _test_startup(app, t.EmberNodeType.SLEEPY_END_DEVICE, ieee)
+        await _test_startup(app, t.EmberNodeType.SLEEPY_END_DEVICE, ieee)
 
 
-def test_startup_end_form(app, ieee):
-    return _test_startup(app, t.EmberNodeType.SLEEPY_END_DEVICE, ieee, True)
+async def test_startup_end_form(app, ieee):
+    await _test_startup(app, t.EmberNodeType.SLEEPY_END_DEVICE, ieee, True)
 
 
-def test_form_network(app):
+async def test_form_network(app):
     f = asyncio.Future()
     f.set_result([0])
     app._ezsp.setInitialSecurityState.side_effect = [f]
-    app._ezsp.formNetwork.side_effect = asyncio.coroutine(mock.MagicMock())
-    app._ezsp.setValue.side_effect = asyncio.coroutine(mock.MagicMock())
+    app._ezsp.formNetwork = AsyncMock()
+    app._ezsp.setValue = AsyncMock()
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(app.form_network())
+    await app.form_network()
 
 
 def _frame_handler(app, aps, ieee, src_ep, cluster=0, data=b"\x01\x00\x00"):
@@ -160,11 +151,10 @@ def _frame_handler(app, aps, ieee, src_ep, cluster=0, data=b"\x01\x00\x00"):
     )
 
 
-@pytest.mark.asyncio
 async def test_frame_handler_unknown_device(app, aps, ieee):
-    app.handle_join = mock.MagicMock()
+    app.handle_join = MagicMock()
     app.add_device(ieee, 99)
-    with mock.patch.object(app, "_handle_no_such_device") as no_dev_mock:
+    with patch.object(app, "_handle_no_such_device") as no_dev_mock:
         _frame_handler(app, aps, ieee, 0)
         await asyncio.sleep(0)
     assert no_dev_mock.call_count == 1
@@ -174,7 +164,7 @@ async def test_frame_handler_unknown_device(app, aps, ieee):
 
 
 def test_frame_handler(app, aps, ieee):
-    app.handle_join = mock.MagicMock()
+    app.handle_join = MagicMock()
     data = b"\x18\x19\x22\xaa\x55"
     _frame_handler(app, aps, ieee, 0, data=data)
     assert app.handle_message.call_count == 1
@@ -184,7 +174,7 @@ def test_frame_handler(app, aps, ieee):
 
 def test_frame_handler_zdo_annce(app, aps, ieee):
     aps.destinationEndpoint = 0
-    app.handle_join = mock.MagicMock()
+    app.handle_join = MagicMock()
     nwk = t.uint16_t(0xAA55)
     data = b"\x18" + nwk.serialize() + ieee.serialize()
     _frame_handler(app, aps, ieee, 0, cluster=0x0013, data=data)
@@ -196,20 +186,20 @@ def test_frame_handler_zdo_annce(app, aps, ieee):
 
 
 def test_send_failure(app, aps, ieee):
-    req = app._pending[254] = mock.MagicMock()
+    req = app._pending[254] = MagicMock()
     app.ezsp_callback_handler(
-        "messageSentHandler", [None, 0xBEED, aps, 254, mock.sentinel.status, b""]
+        "messageSentHandler", [None, 0xBEED, aps, 254, sentinel.status, b""]
     )
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
-    assert req.result.set_result.call_args[0][0][0] is mock.sentinel.status
+    assert req.result.set_result.call_args[0][0][0] is sentinel.status
 
 
 def test_dup_send_failure(app, aps, ieee):
-    req = app._pending[254] = mock.MagicMock()
+    req = app._pending[254] = MagicMock()
     req.result.set_result.side_effect = asyncio.InvalidStateError()
     app.ezsp_callback_handler(
-        "messageSentHandler", [None, 0xBEED, aps, 254, mock.sentinel.status, b""]
+        "messageSentHandler", [None, 0xBEED, aps, 254, sentinel.status, b""]
     )
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
@@ -220,13 +210,13 @@ def test_send_failure_unexpected(app, aps, ieee):
 
 
 def test_send_success(app, aps, ieee):
-    req = app._pending[253] = mock.MagicMock()
+    req = app._pending[253] = MagicMock()
     app.ezsp_callback_handler(
-        "messageSentHandler", [None, 0xBEED, aps, 253, mock.sentinel.success, b""]
+        "messageSentHandler", [None, 0xBEED, aps, 253, sentinel.success, b""]
     )
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
-    assert req.result.set_result.call_args[0][0][0] is mock.sentinel.success
+    assert req.result.set_result.call_args[0][0][0] is sentinel.success
 
 
 def test_unexpected_send_success(app, aps, ieee):
@@ -234,18 +224,17 @@ def test_unexpected_send_success(app, aps, ieee):
 
 
 def test_dup_send_success(app, aps, ieee):
-    req = app._pending[253] = mock.MagicMock()
+    req = app._pending[253] = MagicMock()
     req.result.set_result.side_effect = asyncio.InvalidStateError()
     app.ezsp_callback_handler("messageSentHandler", [None, 0xBEED, aps, 253, 0, b""])
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
 
 
-@pytest.mark.asyncio
 async def test_join_handler(app, ieee):
     # Calls device.initialize, leaks a task
-    app.handle_join = mock.MagicMock()
-    app.cleanup_tc_link_key = CoroutineMock()
+    app.handle_join = MagicMock()
+    app.cleanup_tc_link_key = AsyncMock()
     app.ezsp_callback_handler(
         "trustCenterJoinHandler",
         [
@@ -253,7 +242,7 @@ async def test_join_handler(app, ieee):
             ieee,
             t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
             t.EmberJoinDecision.NO_ACTION,
-            mock.sentinel.parent,
+            sentinel.parent,
         ],
     )
     await asyncio.sleep(0)
@@ -261,7 +250,7 @@ async def test_join_handler(app, ieee):
     assert app.handle_join.call_count == 1
     assert app.handle_join.call_args[0][0] == 1
     assert app.handle_join.call_args[0][1] == ieee
-    assert app.handle_join.call_args[0][2] is mock.sentinel.parent
+    assert app.handle_join.call_args[0][2] is sentinel.parent
     assert app.cleanup_tc_link_key.await_count == 1
     assert app.cleanup_tc_link_key.call_args[0][0] is ieee
 
@@ -275,7 +264,7 @@ async def test_join_handler(app, ieee):
             ieee,
             t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
             t.EmberJoinDecision.DENY_JOIN,
-            mock.sentinel.parent,
+            sentinel.parent,
         ],
     )
     await asyncio.sleep(0)
@@ -285,8 +274,8 @@ async def test_join_handler(app, ieee):
 
 
 def test_leave_handler(app, ieee):
-    app.handle_join = mock.MagicMock()
-    app.devices[ieee] = mock.MagicMock()
+    app.handle_join = MagicMock()
+    app.devices[ieee] = MagicMock()
     app.ezsp_callback_handler(
         "trustCenterJoinHandler", [1, ieee, t.EmberDeviceUpdate.DEVICE_LEFT, None, None]
     )
@@ -294,11 +283,10 @@ def test_leave_handler(app, ieee):
     assert app.handle_join.call_count == 0
 
 
-def test_force_remove(app, ieee):
-    app._ezsp.removeDevice.side_effect = asyncio.coroutine(mock.MagicMock())
-    dev = mock.MagicMock()
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(app.force_remove(dev))
+async def test_force_remove(app, ieee):
+    app._ezsp.removeDevice = AsyncMock()
+    dev = MagicMock()
+    await app.force_remove(dev)
 
 
 def test_sequence(app):
@@ -313,83 +301,67 @@ def test_permit_ncp(app):
     assert app._ezsp.permitJoining.call_count == 1
 
 
-def test_permit_with_key(app):
-    app._ezsp.addTransientLinkKey = get_mock_coro([0])
-    app._ezsp.setPolicy = get_mock_coro([0])
-    app.permit = get_mock_coro([0])
+async def test_permit_with_key(app):
+    app._ezsp.addTransientLinkKey = AsyncMock(return_value=[0])
+    app._ezsp.setPolicy = AsyncMock(return_value=[0])
+    app.permit = AsyncMock(return_value=[0])
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(
-        app.permit_with_key(
-            bytes([1, 2, 3, 4, 5, 6, 7, 8]),
-            bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
-            60,
-        )
+    await app.permit_with_key(
+        bytes([1, 2, 3, 4, 5, 6, 7, 8]),
+        bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
+        60,
     )
 
-    assert app._ezsp.addTransientLinkKey.call_count == 1
-    assert app.permit.call_count == 1
+    assert app._ezsp.addTransientLinkKey.await_count == 1
+    assert app.permit.await_count == 1
 
 
-def test_permit_with_key_ieee(app, ieee):
-    app._ezsp.addTransientLinkKey = get_mock_coro([0])
-    app._ezsp.setPolicy = get_mock_coro([0])
-    app.permit = get_mock_coro([0])
+async def test_permit_with_key_ieee(app, ieee):
+    app._ezsp.addTransientLinkKey = AsyncMock(return_value=[0])
+    app._ezsp.setPolicy = AsyncMock(return_value=[0])
+    app.permit = AsyncMock(return_value=[0])
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(
-        app.permit_with_key(
+    await app.permit_with_key(
+        ieee,
+        bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
+        60,
+    )
+
+    assert app._ezsp.addTransientLinkKey.await_count == 1
+    assert app.permit.await_count == 1
+
+
+async def test_permit_with_key_invalid_install_code(app, ieee):
+
+    with pytest.raises(Exception):
+        await app.permit_with_key(
+            ieee, bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]), 60
+        )
+
+
+async def test_permit_with_key_failed_add_key(app, ieee):
+    app._ezsp.addTransientLinkKey = AsyncMock(return_value=[1, 1])
+
+    with pytest.raises(Exception):
+        await app.permit_with_key(
             ieee,
             bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
             60,
         )
-    )
-
-    assert app._ezsp.addTransientLinkKey.call_count == 1
-    assert app.permit.call_count == 1
 
 
-def test_permit_with_key_invalid_install_code(app, ieee):
-    loop = asyncio.get_event_loop()
+async def test_permit_with_key_failed_set_policy(app, ieee):
+    app._ezsp.addTransientLinkKey = AsyncMock(return_value=[0])
+    app._ezsp.setPolicy = AsyncMock(return_value=[1])
 
     with pytest.raises(Exception):
-        loop.run_until_complete(
-            app.permit_with_key(
-                ieee, bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]), 60
-            )
+        await app.permit_with_key(
+            ieee,
+            bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
+            60,
         )
 
 
-def test_permit_with_key_failed_add_key(app, ieee):
-    app._ezsp.addTransientLinkKey = get_mock_coro([1, 1])
-
-    loop = asyncio.get_event_loop()
-    with pytest.raises(Exception):
-        loop.run_until_complete(
-            app.permit_with_key(
-                ieee,
-                bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
-                60,
-            )
-        )
-
-
-def test_permit_with_key_failed_set_policy(app, ieee):
-    app._ezsp.addTransientLinkKey = get_mock_coro([0])
-    app._ezsp.setPolicy = get_mock_coro([1])
-
-    loop = asyncio.get_event_loop()
-    with pytest.raises(Exception):
-        loop.run_until_complete(
-            app.permit_with_key(
-                ieee,
-                bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
-                60,
-            )
-        )
-
-
-@pytest.mark.asyncio
 async def _request(
     app,
     send_status=0,
@@ -411,9 +383,9 @@ async def _request(
                 req.result.set_result((102, "failure"))
         return [send_status, "send message"]
 
-    app._ezsp.sendUnicast = mock.CoroutineMock(side_effect=mocksend)
-    app._ezsp.setExtendedTimeout = mock.CoroutineMock()
-    device = mock.MagicMock()
+    app._ezsp.sendUnicast = AsyncMock(side_effect=mocksend)
+    app._ezsp.setExtendedTimeout = AsyncMock()
+    device = MagicMock()
     device.relays = relays
     device.node_desc.is_end_device = is_end_device
     res = await app.request(device, 9, 8, 7, 6, 5, b"", **kwargs)
@@ -421,52 +393,44 @@ async def _request(
     return res
 
 
-@pytest.mark.asyncio
 async def test_request(app):
     res = await _request(app)
     assert res[0] == 0
 
 
-@pytest.mark.asyncio
 async def test_request_ack_timeout(app, aps):
     with pytest.raises(asyncio.TimeoutError):
         await _request(app, send_ack_received=False)
 
 
-@pytest.mark.asyncio
 async def test_request_send_unicast_fail(app):
     res = await _request(app, send_status=2)
     assert res[0] != 0
 
 
-@pytest.mark.asyncio
 async def test_request_ezsp_failed(app):
     with pytest.raises(EzspError):
         await _request(app, ezsp_operational=False)
     assert len(app._pending) == 0
 
 
-@pytest.mark.asyncio
 async def test_request_reply_timeout_send_timeout(app):
     with pytest.raises(asyncio.TimeoutError):
         await _request(app, send_ack_received=False)
     assert app._pending == {}
 
 
-@pytest.mark.asyncio
 async def test_request_ctrl_not_running(app):
     app._ctrl_event.clear()
     with pytest.raises(ControllerError):
         await _request(app)
 
 
-@pytest.mark.asyncio
 async def test_request_use_ieee(app):
     res = await _request(app, use_ieee=True)
     assert res[0] == 0
 
 
-@pytest.mark.asyncio
 async def test_request_extended_timeout(app):
     res = await _request(app)
     assert res[0] == 0
@@ -484,7 +448,6 @@ async def test_request_extended_timeout(app):
 
 
 @pytest.mark.parametrize("relays", [None, [], [0x1234]])
-@pytest.mark.asyncio
 async def test_request_src_rtg_not_enabled(relays, app):
     app.use_source_routing = False
     res = await _request(app, relays=relays)
@@ -498,7 +461,6 @@ async def test_request_src_rtg_not_enabled(relays, app):
 
 
 @pytest.mark.parametrize("relays", [[], [0x1234]])
-@pytest.mark.asyncio
 async def test_request_src_rtg_success(relays, app):
     app.use_source_routing = True
     res = await _request(app, relays=relays)
@@ -512,7 +474,6 @@ async def test_request_src_rtg_success(relays, app):
 
 
 @pytest.mark.parametrize("relays", [[], [0x1234]])
-@pytest.mark.asyncio
 async def test_request_src_rtg_fail(relays, app):
     app.use_source_routing = True
     app._ezsp.set_source_route.return_value = [1]
@@ -529,7 +490,6 @@ async def test_request_src_rtg_fail(relays, app):
 @pytest.mark.parametrize(
     "send_status, sleep_count, send_unicast_count", ((0, 0, 1), (114, 3, 4), (2, 0, 1))
 )
-@pytest.mark.asyncio
 async def test_request_max_message_limit(
     send_status, sleep_count, send_unicast_count, app
 ):
@@ -539,19 +499,18 @@ async def test_request_max_message_limit(
             req.result.set_result((0, "success"))
         return [send_status, "send message"]
 
-    app._ezsp.sendUnicast = mock.CoroutineMock(side_effect=mocksend)
-    app._ezsp.setExtendedTimeout = mock.CoroutineMock()
-    device = mock.MagicMock()
+    app._ezsp.sendUnicast = AsyncMock(side_effect=mocksend)
+    app._ezsp.setExtendedTimeout = AsyncMock()
+    device = MagicMock()
     device.relays = []
     device.node_desc.is_end_device = False
 
-    with mock.patch("asyncio.sleep") as sleep_mock:
+    with patch("asyncio.sleep") as sleep_mock:
         await app.request(device, 9, 8, 7, 6, 5, b"", expect_reply=False)
     assert sleep_mock.await_count == sleep_count
     assert app._ezsp.sendUnicast.await_count == send_unicast_count
 
 
-@pytest.mark.asyncio
 async def _test_broadcast(
     app, broadcast_success=True, send_timeout=False, ezsp_running=True
 ):
@@ -577,47 +536,42 @@ async def _test_broadcast(
             return [t.EmberStatus.ERR_FATAL]
 
     app._ezsp.sendBroadcast.side_effect = mock_send
-    app.get_sequence = mock.MagicMock(return_value=mock.sentinel.msg_tag)
+    app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
     res = await app.broadcast(
         profile, cluster, src_ep, dst_ep, grpid, radius, tsn, data
     )
     assert app._ezsp.sendBroadcast.call_count == 1
     assert app._ezsp.sendBroadcast.call_args[0][2] == radius
-    assert app._ezsp.sendBroadcast.call_args[0][3] == mock.sentinel.msg_tag
+    assert app._ezsp.sendBroadcast.call_args[0][3] == sentinel.msg_tag
     assert app._ezsp.sendBroadcast.call_args[0][4] == data
     assert len(app._pending) == 0
     return res
 
 
-@pytest.mark.asyncio
 async def test_broadcast(app):
     await _test_broadcast(app)
     assert len(app._pending) == 0
 
 
-@pytest.mark.asyncio
 async def test_broadcast_fail(app):
     res = await _test_broadcast(app, broadcast_success=False)
     assert res[0] != 0
     assert len(app._pending) == 0
 
 
-@pytest.mark.asyncio
 async def test_broadcast_send_timeout(app):
     with pytest.raises(asyncio.TimeoutError):
         await _test_broadcast(app, send_timeout=True)
     assert len(app._pending) == 0
 
 
-@pytest.mark.asyncio
 async def test_broadcast_ezsp_fail(app):
     with pytest.raises(EzspError):
         await _test_broadcast(app, ezsp_running=False)
     assert len(app._pending) == 0
 
 
-@pytest.mark.asyncio
 async def test_broadcast_ctrl_not_running(app):
     app._ctrl_event.clear()
     (profile, cluster, src_ep, dst_ep, grpid, radius, tsn, data) = (
@@ -643,7 +597,7 @@ async def test_broadcast_ctrl_not_running(app):
 
 
 def test_is_controller_running(app):
-    ezsp_running = mock.PropertyMock(return_value=False)
+    ezsp_running = PropertyMock(return_value=False)
     type(app._ezsp).is_ezsp_running = ezsp_running
     app._ctrl_event.clear()
     assert app.is_controller_running is False
@@ -651,7 +605,7 @@ def test_is_controller_running(app):
     assert app.is_controller_running is False
     assert ezsp_running.call_count == 1
 
-    ezsp_running = mock.PropertyMock(return_value=True)
+    ezsp_running = PropertyMock(return_value=True)
     type(app._ezsp).is_ezsp_running = ezsp_running
     app._ctrl_event.clear()
     assert app.is_controller_running is False
@@ -661,21 +615,20 @@ def test_is_controller_running(app):
 
 
 def test_reset_frame(app):
-    app._handle_reset_request = mock.MagicMock(spec_set=app._handle_reset_request)
-    app.ezsp_callback_handler("_reset_controller_application", (mock.sentinel.error,))
+    app._handle_reset_request = MagicMock(spec_set=app._handle_reset_request)
+    app.ezsp_callback_handler("_reset_controller_application", (sentinel.error,))
     assert app._handle_reset_request.call_count == 1
-    assert app._handle_reset_request.call_args[0][0] is mock.sentinel.error
+    assert app._handle_reset_request.call_args[0][0] is sentinel.error
 
 
-@pytest.mark.asyncio
 async def test_handle_reset_req(app):
     # no active reset task, no reset task preemption
     app._ctrl_event.set()
     assert app._reset_task is None
-    reset_ctrl_mock = asyncio.coroutine(mock.MagicMock())
-    app._reset_controller_loop = mock.MagicMock(side_effect=reset_ctrl_mock)
+    reset_ctrl_mock = AsyncMock()
+    app._reset_controller_loop = MagicMock(side_effect=reset_ctrl_mock)
 
-    app._handle_reset_request(mock.sentinel.error)
+    app._handle_reset_request(sentinel.error)
 
     assert asyncio.isfuture(app._reset_task)
     assert app._ctrl_event.is_set() is False
@@ -683,17 +636,16 @@ async def test_handle_reset_req(app):
     assert app._reset_controller_loop.call_count == 1
 
 
-@pytest.mark.asyncio
 async def test_handle_reset_req_existing_preempt(app):
     # active reset task, preempt reset task
     app._ctrl_event.set()
     assert app._reset_task is None
     old_reset = asyncio.Future()
     app._reset_task = old_reset
-    reset_ctrl_mock = asyncio.coroutine(mock.MagicMock())
-    app._reset_controller_loop = mock.MagicMock(side_effect=reset_ctrl_mock)
+    reset_ctrl_mock = AsyncMock()
+    app._reset_controller_loop = MagicMock(side_effect=reset_ctrl_mock)
 
-    app._handle_reset_request(mock.sentinel.error)
+    app._handle_reset_request(sentinel.error)
 
     assert asyncio.isfuture(app._reset_task)
     await app._reset_task
@@ -703,7 +655,6 @@ async def test_handle_reset_req_existing_preempt(app):
     assert old_reset.cancelled() is True
 
 
-@pytest.mark.asyncio
 async def test_reset_controller_loop(app, monkeypatch):
     from bellows.zigbee import application
 
@@ -720,7 +671,7 @@ async def test_reset_controller_loop(app, monkeypatch):
                 raise asyncio.TimeoutError
         return
 
-    app._reset_controller = mock.MagicMock(side_effect=reset_controller_mock)
+    app._reset_controller = AsyncMock(side_effect=reset_controller_mock)
 
     await app._reset_controller_loop()
 
@@ -729,12 +680,9 @@ async def test_reset_controller_loop(app, monkeypatch):
     assert app._reset_task is None
 
 
-@pytest.mark.asyncio
 async def test_reset_controller_routine(app):
-    reconn_mock = asyncio.coroutine(mock.MagicMock())
-    app._ezsp.reconnect = mock.MagicMock(side_effect=reconn_mock)
-    startup_mock = asyncio.coroutine(mock.MagicMock())
-    app.startup = mock.MagicMock(side_effect=startup_mock)
+    app._ezsp.reconnect = AsyncMock()
+    app.startup = AsyncMock()
 
     await app._reset_controller()
 
@@ -742,7 +690,6 @@ async def test_reset_controller_routine(app):
     assert app.startup.call_count == 1
 
 
-@pytest.mark.asyncio
 async def test_watchdog(app, monkeypatch):
     from bellows.zigbee import application
 
@@ -759,8 +706,8 @@ async def test_watchdog(app, monkeypatch):
                 return
         raise asyncio.TimeoutError
 
-    app._ezsp.nop = mock.MagicMock(side_effect=nop_mock)
-    app._handle_reset_request = mock.MagicMock()
+    app._ezsp.nop = AsyncMock(side_effect=nop_mock)
+    app._handle_reset_request = MagicMock()
     app._ctrl_event.set()
 
     await app._watchdog()
@@ -769,7 +716,6 @@ async def test_watchdog(app, monkeypatch):
     assert app._handle_reset_request.call_count == 1
 
 
-@pytest.mark.asyncio
 async def test_watchdog_counters(app, monkeypatch, caplog):
     from bellows.zigbee import application
 
@@ -786,15 +732,14 @@ async def test_watchdog_counters(app, monkeypatch, caplog):
                 return ([0, 1, 2, 3],)
         raise asyncio.TimeoutError
 
-    app._ezsp.readCounters = mock.MagicMock(side_effect=counters_mock)
-    app._handle_reset_request = mock.MagicMock()
+    app._ezsp.readCounters = AsyncMock(side_effect=counters_mock)
+    app._handle_reset_request = MagicMock()
     app._ctrl_event.set()
 
     caplog.set_level(logging.DEBUG, "bellows.zigbee.application")
     await app._watchdog()
 
 
-@pytest.mark.asyncio
 async def test_shutdown(app):
     reset_f = asyncio.Future()
     watchdog_f = asyncio.Future()
@@ -820,13 +765,10 @@ def coordinator(app, ieee):
     return bellows.zigbee.application.EZSPCoordinator(app, ieee, 0x0000, dev)
 
 
-@pytest.mark.asyncio
 async def test_ezsp_add_to_group(coordinator):
-    coordinator.application._multicast = mock.MagicMock()
+    coordinator.application._multicast = MagicMock()
     mc = coordinator.application._multicast
-    mc.subscribe.side_effect = asyncio.coroutine(
-        mock.MagicMock(return_value=t.EmberStatus.SUCCESS)
-    )
+    mc.subscribe = AsyncMock(return_value=t.EmberStatus.SUCCESS)
 
     grp_id = 0x2345
     assert grp_id not in coordinator.endpoints[1].member_of
@@ -837,13 +779,10 @@ async def test_ezsp_add_to_group(coordinator):
     assert grp_id in coordinator.endpoints[1].member_of
 
 
-@pytest.mark.asyncio
 async def test_ezsp_add_to_group_ep(coordinator):
-    coordinator.application._multicast = mock.MagicMock()
+    coordinator.application._multicast = MagicMock()
     mc = coordinator.application._multicast
-    mc.subscribe.side_effect = asyncio.coroutine(
-        mock.MagicMock(return_value=t.EmberStatus.SUCCESS)
-    )
+    mc.subscribe = AsyncMock(return_value=t.EmberStatus.SUCCESS)
 
     grp_id = 0x2345
     assert grp_id not in coordinator.endpoints[1].member_of
@@ -859,13 +798,10 @@ async def test_ezsp_add_to_group_ep(coordinator):
     assert mc.subscribe.call_count == 0
 
 
-@pytest.mark.asyncio
 async def test_ezsp_add_to_group_fail(coordinator):
-    coordinator.application._multicast = mock.MagicMock()
+    coordinator.application._multicast = MagicMock()
     mc = coordinator.application._multicast
-    mc.subscribe.side_effect = asyncio.coroutine(
-        mock.MagicMock(return_value=t.EmberStatus.ERR_FATAL)
-    )
+    mc.subscribe = AsyncMock(return_value=t.EmberStatus.ERR_FATAL)
 
     grp_id = 0x2345
     assert grp_id not in coordinator.endpoints[1].member_of
@@ -876,13 +812,10 @@ async def test_ezsp_add_to_group_fail(coordinator):
     assert grp_id not in coordinator.endpoints[1].member_of
 
 
-@pytest.mark.asyncio
 async def test_ezsp_add_to_group_ep_fail(coordinator):
-    coordinator.application._multicast = mock.MagicMock()
+    coordinator.application._multicast = MagicMock()
     mc = coordinator.application._multicast
-    mc.subscribe.side_effect = asyncio.coroutine(
-        mock.MagicMock(return_value=t.EmberStatus.ERR_FATAL)
-    )
+    mc.subscribe = AsyncMock(return_value=t.EmberStatus.ERR_FATAL)
 
     grp_id = 0x2345
     assert grp_id not in coordinator.endpoints[1].member_of
@@ -894,13 +827,10 @@ async def test_ezsp_add_to_group_ep_fail(coordinator):
     assert grp_id not in coordinator.endpoints[1].member_of
 
 
-@pytest.mark.asyncio
 async def test_ezsp_remove_from_group(coordinator):
-    coordinator.application._multicast = mock.MagicMock()
+    coordinator.application._multicast = MagicMock()
     mc = coordinator.application._multicast
-    mc.unsubscribe.side_effect = asyncio.coroutine(
-        mock.MagicMock(return_value=t.EmberStatus.SUCCESS)
-    )
+    mc.unsubscribe = AsyncMock(return_value=t.EmberStatus.SUCCESS)
 
     grp_id = 0x2345
     grp = coordinator.application.groups.add_group(grp_id)
@@ -914,13 +844,10 @@ async def test_ezsp_remove_from_group(coordinator):
     assert grp_id not in coordinator.endpoints[1].member_of
 
 
-@pytest.mark.asyncio
 async def test_ezsp_remove_from_group_ep(coordinator):
-    coordinator.application._multicast = mock.MagicMock()
+    coordinator.application._multicast = MagicMock()
     mc = coordinator.application._multicast
-    mc.unsubscribe.side_effect = asyncio.coroutine(
-        mock.MagicMock(return_value=t.EmberStatus.SUCCESS)
-    )
+    mc.unsubscribe = AsyncMock(return_value=t.EmberStatus.SUCCESS)
 
     grp_id = 0x2345
     grp = coordinator.application.groups.add_group(grp_id)
@@ -939,13 +866,10 @@ async def test_ezsp_remove_from_group_ep(coordinator):
     assert mc.subscribe.call_count == 0
 
 
-@pytest.mark.asyncio
 async def test_ezsp_remove_from_group_fail(coordinator):
-    coordinator.application._multicast = mock.MagicMock()
+    coordinator.application._multicast = MagicMock()
     mc = coordinator.application._multicast
-    mc.unsubscribe.side_effect = asyncio.coroutine(
-        mock.MagicMock(return_value=t.EmberStatus.ERR_FATAL)
-    )
+    mc.unsubscribe = AsyncMock(return_value=t.EmberStatus.ERR_FATAL)
 
     grp_id = 0x2345
     grp = coordinator.application.groups.add_group(grp_id)
@@ -958,13 +882,10 @@ async def test_ezsp_remove_from_group_fail(coordinator):
     assert mc.unsubscribe.call_args[0][0] == grp_id
 
 
-@pytest.mark.asyncio
 async def test_ezsp_remove_from_group_fail_ep(coordinator):
-    coordinator.application._multicast = mock.MagicMock()
+    coordinator.application._multicast = MagicMock()
     mc = coordinator.application._multicast
-    mc.unsubscribe.side_effect = asyncio.coroutine(
-        mock.MagicMock(return_value=t.EmberStatus.ERR_FATAL)
-    )
+    mc.unsubscribe = AsyncMock(return_value=t.EmberStatus.ERR_FATAL)
 
     grp_id = 0x2345
     grp = coordinator.application.groups.add_group(grp_id)
@@ -984,7 +905,6 @@ def test_coordinator_model_manuf(coordinator):
     assert coordinator.endpoints[1].model
 
 
-@pytest.mark.asyncio
 async def _mrequest(
     app,
     send_success=True,
@@ -1012,39 +932,33 @@ async def _mrequest(
     return res
 
 
-@pytest.mark.asyncio
 async def test_mrequest(app):
     res = await _mrequest(app)
     assert res[0] == 0
 
 
-@pytest.mark.asyncio
 async def test_mrequest_ack_timeout(app, aps):
     with pytest.raises(asyncio.TimeoutError):
         await _mrequest(app, send_ack_received=False)
 
 
-@pytest.mark.asyncio
 async def test_mrequest_send_unicast_fail(app):
     res = await _mrequest(app, send_success=False)
     assert res[0] != 0
 
 
-@pytest.mark.asyncio
 async def test_mrequest_ezsp_failed(app):
     with pytest.raises(EzspError):
         await _mrequest(app, ezsp_operational=False)
     assert len(app._pending) == 0
 
 
-@pytest.mark.asyncio
 async def test_mrequest_send_timeout(app):
     with pytest.raises(asyncio.TimeoutError):
         await _mrequest(app, send_ack_received=False)
     assert app._pending == {}
 
 
-@pytest.mark.asyncio
 async def test_mrequest_ctrl_not_running(app):
     app._ctrl_event.clear()
     with pytest.raises(ControllerError):
@@ -1053,44 +967,44 @@ async def test_mrequest_ctrl_not_running(app):
 
 def test_handle_route_record(app):
     """Test route record handling for an existing device."""
-    s = mock.sentinel
-    dev = mock.MagicMock()
-    app.handle_join = mock.MagicMock()
-    app.get_device = mock.MagicMock(return_value=dev)
+    dev = MagicMock()
+    app.handle_join = MagicMock()
+    app.get_device = MagicMock(return_value=dev)
     app.ezsp_callback_handler(
-        "incomingRouteRecordHandler", [s.nwk, s.ieee, s.lqi, s.rssi, s.relays]
+        "incomingRouteRecordHandler",
+        [sentinel.nwk, sentinel.ieee, sentinel.lqi, sentinel.rssi, sentinel.relays],
     )
-    assert dev.relays is s.relays
+    assert dev.relays is sentinel.relays
     assert app.handle_join.call_count == 0
 
 
 def test_handle_route_record_unkn(app):
     """Test route record handling for an unknown device."""
-    s = mock.sentinel
-    app.handle_join = mock.MagicMock()
-    app.get_device = mock.MagicMock(side_effect=KeyError)
+    app.handle_join = MagicMock()
+    app.get_device = MagicMock(side_effect=KeyError)
     app.ezsp_callback_handler(
-        "incomingRouteRecordHandler", [s.nwk, s.ieee, s.lqi, s.rssi, s.relays]
+        "incomingRouteRecordHandler",
+        [sentinel.nwk, sentinel.ieee, sentinel.lqi, sentinel.rssi, sentinel.relays],
     )
     assert app.handle_join.call_count == 1
-    assert app.handle_join.call_args[0][0] is s.nwk
-    assert app.handle_join.call_args[0][1] is s.ieee
+    assert app.handle_join.call_args[0][0] is sentinel.nwk
+    assert app.handle_join.call_args[0][1] is sentinel.ieee
 
 
 def test_handle_route_error(app):
     """Test route error handler."""
-    dev = mock.MagicMock()
-    dev.relays = mock.sentinel.old_relays
-    app.get_device = mock.MagicMock(return_value=dev)
+    dev = MagicMock()
+    dev.relays = sentinel.old_relays
+    app.get_device = MagicMock(return_value=dev)
 
     app.ezsp_callback_handler(
-        "incomingRouteErrorHandler", [mock.sentinel.status, mock.sentinel.nwk]
+        "incomingRouteErrorHandler", [sentinel.status, sentinel.nwk]
     )
     assert dev.relays is None
 
-    app.get_device = mock.MagicMock(side_effect=KeyError)
+    app.get_device = MagicMock(side_effect=KeyError)
     app.ezsp_callback_handler(
-        "incomingRouteErrorHandler", [mock.sentinel.status, mock.sentinel.nwk]
+        "incomingRouteErrorHandler", [sentinel.status, sentinel.nwk]
     )
 
 
@@ -1117,9 +1031,8 @@ def test_src_rtg_config(config, result):
     assert ctrl.use_source_routing is result
 
 
-@pytest.mark.asyncio
-@mock.patch.object(ezsp.EZSP, "reset", new_callable=CoroutineMock)
-@mock.patch.object(uart, "connect")
+@patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
+@patch.object(uart, "connect")
 async def test_probe_success(mock_connect, mock_reset):
     """Test device probing."""
 
@@ -1145,7 +1058,7 @@ def test_handle_id_conflict(app, ieee):
     """Test handling of an ID confict report."""
     nwk = t.EmberNodeId(0x1234)
     app.add_device(ieee, nwk)
-    app.handle_leave = mock.MagicMock()
+    app.handle_leave = MagicMock()
 
     app.ezsp_callback_handler("idConflictHandler", [nwk + 1])
     assert app.handle_leave.call_count == 0
@@ -1155,66 +1068,61 @@ def test_handle_id_conflict(app, ieee):
     assert app.handle_leave.call_args[0][0] == nwk
 
 
-@pytest.mark.asyncio
 async def test_handle_no_such_device(app, ieee):
     """Test handling of an unknown device IEEE lookup."""
 
-    p1 = mock.patch.object(
+    p1 = patch.object(
         app._ezsp,
         "lookupEui64ByNodeId",
-        CoroutineMock(return_value=(t.EmberStatus.ERR_FATAL, ieee)),
+        AsyncMock(return_value=(t.EmberStatus.ERR_FATAL, ieee)),
     )
-    p2 = mock.patch.object(app, "handle_join")
+    p2 = patch.object(app, "handle_join")
     with p1 as lookup_mock, p2 as handle_join_mock:
-        await app._handle_no_such_device(mock.sentinel.nwk)
+        await app._handle_no_such_device(sentinel.nwk)
         assert lookup_mock.await_count == 1
-        assert lookup_mock.await_args[0][0] is mock.sentinel.nwk
+        assert lookup_mock.await_args[0][0] is sentinel.nwk
         assert handle_join_mock.call_count == 0
 
-    p1 = mock.patch.object(
+    p1 = patch.object(
         app._ezsp,
         "lookupEui64ByNodeId",
-        CoroutineMock(return_value=(t.EmberStatus.SUCCESS, mock.sentinel.ieee)),
+        AsyncMock(return_value=(t.EmberStatus.SUCCESS, sentinel.ieee)),
     )
     with p1 as lookup_mock, p2 as handle_join_mock:
-        await app._handle_no_such_device(mock.sentinel.nwk)
+        await app._handle_no_such_device(sentinel.nwk)
         assert lookup_mock.await_count == 1
-        assert lookup_mock.await_args[0][0] is mock.sentinel.nwk
+        assert lookup_mock.await_args[0][0] is sentinel.nwk
         assert handle_join_mock.call_count == 1
-        assert handle_join_mock.call_args[0][0] == mock.sentinel.nwk
-        assert handle_join_mock.call_args[0][1] == mock.sentinel.ieee
+        assert handle_join_mock.call_args[0][0] == sentinel.nwk
+        assert handle_join_mock.call_args[0][1] == sentinel.ieee
 
 
-@pytest.mark.asyncio
 async def test_cleanup_tc_link_key(app):
     """Test cleaning up tc link key."""
     ezsp = app._ezsp
-    ezsp.findKeyTableEntry = CoroutineMock(
-        side_effect=((0xFF,), (mock.sentinel.index,))
-    )
-    ezsp.eraseKeyTableEntry = CoroutineMock(return_value=(0x00,))
+    ezsp.findKeyTableEntry = AsyncMock(side_effect=((0xFF,), (sentinel.index,)))
+    ezsp.eraseKeyTableEntry = AsyncMock(return_value=(0x00,))
 
-    await app.cleanup_tc_link_key(mock.sentinel.ieee)
+    await app.cleanup_tc_link_key(sentinel.ieee)
     assert ezsp.findKeyTableEntry.await_count == 1
-    assert ezsp.findKeyTableEntry.await_args[0][0] is mock.sentinel.ieee
+    assert ezsp.findKeyTableEntry.await_args[0][0] is sentinel.ieee
     assert ezsp.eraseKeyTableEntry.await_count == 0
     assert ezsp.eraseKeyTableEntry.call_count == 0
 
     ezsp.findKeyTableEntry.reset_mock()
-    await app.cleanup_tc_link_key(mock.sentinel.ieee2)
+    await app.cleanup_tc_link_key(sentinel.ieee2)
     assert ezsp.findKeyTableEntry.await_count == 1
-    assert ezsp.findKeyTableEntry.await_args[0][0] is mock.sentinel.ieee2
+    assert ezsp.findKeyTableEntry.await_args[0][0] is sentinel.ieee2
     assert ezsp.eraseKeyTableEntry.await_count == 1
-    assert ezsp.eraseKeyTableEntry.await_args[0][0] is mock.sentinel.index
+    assert ezsp.eraseKeyTableEntry.await_args[0][0] is sentinel.index
 
 
-@pytest.mark.asyncio
-@mock.patch("zigpy.application.ControllerApplication.permit", new=CoroutineMock())
+@patch("zigpy.application.ControllerApplication.permit", new=AsyncMock())
 async def test_permit(app):
     """Test permit method."""
     ezsp = app._ezsp
-    ezsp.addTransientLinkKey = CoroutineMock(return_value=(t.EmberStatus.SUCCESS,))
-    ezsp.pre_permit = CoroutineMock()
+    ezsp.addTransientLinkKey = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    ezsp.pre_permit = AsyncMock()
     await app.permit(10, None)
     await asyncio.sleep(0)
     assert ezsp.addTransientLinkKey.await_count == 0
