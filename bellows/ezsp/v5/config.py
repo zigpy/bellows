@@ -1,5 +1,6 @@
-from bellows.config import cv_uint16
 import voluptuous as vol
+
+from bellows.config import cv_uint16
 
 from ..v4 import config as v4_config, types
 

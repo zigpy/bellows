@@ -1,8 +1,9 @@
 import os
 from typing import Any, Dict
 
-import bellows.types as t
 import zigpy.config
+
+import bellows.types as t
 
 
 def zha_security(

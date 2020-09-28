@@ -1,6 +1,7 @@
+import voluptuous as vol
+
 from bellows.config import cv_uint16
 import bellows.multicast
-import voluptuous as vol
 
 from ..v4.config import EZSP_POLICIES_SHARED
 from .types import (

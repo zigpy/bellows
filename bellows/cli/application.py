@@ -3,14 +3,15 @@
 import asyncio
 import binascii
 
-import bellows.config
-import bellows.ezsp
-import bellows.types as t
-import bellows.zigbee.application
 import click
 import zigpy.config
 import zigpy.endpoint
 import zigpy.exceptions
+
+import bellows.config
+import bellows.ezsp
+import bellows.types as t
+import bellows.zigbee.application
 
 from . import opts, util
 from .main import main

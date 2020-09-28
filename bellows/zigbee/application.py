@@ -3,6 +3,15 @@ import logging
 import os
 from typing import Dict
 
+from serial import SerialException
+import zigpy.application
+import zigpy.config
+import zigpy.device
+from zigpy.quirks import CustomDevice, CustomEndpoint
+from zigpy.types import BroadcastAddress
+import zigpy.util
+import zigpy.zdo.types as zdo_t
+
 from bellows.config import (
     CONF_PARAM_SRC_RTG,
     CONF_PARAM_UNK_DEV,
@@ -15,14 +24,6 @@ from bellows.ezsp.v8.types.named import EmberDeviceUpdate
 import bellows.multicast
 import bellows.types as t
 import bellows.zigbee.util
-from serial import SerialException
-import zigpy.application
-import zigpy.config
-import zigpy.device
-from zigpy.quirks import CustomDevice, CustomEndpoint
-from zigpy.types import BroadcastAddress
-import zigpy.util
-import zigpy.zdo.types as zdo_t
 
 APS_ACK_TIMEOUT = 120
 EZSP_DEFAULT_RADIUS = 0
@@ -539,16 +540,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if v[0] != t.EmberStatus.SUCCESS:
             raise Exception("Failed to set link key")
 
-        v = await self._ezsp.setPolicy(
-            self._ezsp.types.EzspPolicyId.TC_KEY_REQUEST_POLICY,
-            self._ezsp.types.EzspDecisionId.GENERATE_NEW_TC_LINK_KEY,
-        )
-        if v[0] != t.EmberStatus.SUCCESS:
-            raise Exception(
-                "Failed to change policy to allow generation of new trust center keys"
+        if self._ezsp.ezsp_version >= 8:
+            mask_type = self._ezsp.types.EzspDecisionBitmask.ALLOW_JOINS
+            bitmask = mask_type.ALLOW_JOINS | mask_type.JOINS_USE_INSTALL_CODE_KEY
+            await self._ezsp.setPolicy(
+                self._ezsp.types.EzspPolicyId.TRUST_CENTER_POLICY, bitmask
             )
 
-        return await self.permit(time_s)
+        return await super().permit(time_s)
 
     def _handle_id_conflict(self, nwk: t.EmberNodeId) -> None:
         LOGGER.warning("NWK conflict is reported for 0x%04x", nwk)

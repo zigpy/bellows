@@ -1,12 +1,16 @@
-from asynctest import CoroutineMock, mock
-import bellows.ezsp.v5
 import pytest
+
+import bellows.ezsp.v5
+
+from .async_mock import AsyncMock, MagicMock, patch
+
+pytestmark = pytest.mark.asyncio
 
 
 @pytest.fixture
 def ezsp_f():
     """EZSP v5 protocol handler."""
-    return bellows.ezsp.v5.EZSPv5(mock.MagicMock(), mock.MagicMock())
+    return bellows.ezsp.v5.EZSPv5(MagicMock(), MagicMock())
 
 
 def test_ezsp_frame(ezsp_f):
@@ -23,10 +27,9 @@ def test_ezsp_frame_rx(ezsp_f):
     assert ezsp_f._handle_callback.call_args[0][1] == [0x01, 0x02, 0x1234]
 
 
-@pytest.mark.asyncio
 async def test_pre_permit(ezsp_f):
     """Test pre permit."""
-    p2 = mock.patch.object(ezsp_f, "addTransientLinkKey", new=CoroutineMock())
+    p2 = patch.object(ezsp_f, "addTransientLinkKey", new=AsyncMock())
     with p2 as tclk_mock:
         await ezsp_f.pre_permit(1)
     assert tclk_mock.await_count == 1

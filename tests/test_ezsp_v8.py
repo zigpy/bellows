@@ -1,12 +1,16 @@
-from asynctest import CoroutineMock, mock
-import bellows.ezsp.v8
 import pytest
+
+import bellows.ezsp.v8
+
+from .async_mock import AsyncMock, MagicMock, patch
+
+pytestmark = pytest.mark.asyncio
 
 
 @pytest.fixture
 def ezsp_f():
     """EZSP v8 protocol handler."""
-    return bellows.ezsp.v8.EZSPv8(mock.MagicMock(), mock.MagicMock())
+    return bellows.ezsp.v8.EZSPv8(MagicMock(), MagicMock())
 
 
 def test_ezsp_frame(ezsp_f):
@@ -26,8 +30,8 @@ def test_ezsp_frame_rx(ezsp_f):
 @pytest.mark.asyncio
 async def test_set_source_routing(ezsp_f):
     """Test setting source routing."""
-    with mock.patch.object(
-        ezsp_f, "setSourceRouteDiscoveryMode", new=CoroutineMock()
+    with patch.object(
+        ezsp_f, "setSourceRouteDiscoveryMode", new=AsyncMock()
     ) as src_mock:
         await ezsp_f.set_source_routing()
         assert src_mock.await_count == 1
@@ -36,8 +40,8 @@ async def test_set_source_routing(ezsp_f):
 @pytest.mark.asyncio
 async def test_pre_permit(ezsp_f):
     """Test pre permit."""
-    p1 = mock.patch.object(ezsp_f, "setPolicy", new=CoroutineMock())
-    p2 = mock.patch.object(ezsp_f, "addTransientLinkKey", new=CoroutineMock())
+    p1 = patch.object(ezsp_f, "setPolicy", new=AsyncMock())
+    p2 = patch.object(ezsp_f, "addTransientLinkKey", new=AsyncMock())
     with p1 as pre_permit_mock, p2 as tclk_mock:
         await ezsp_f.pre_permit(-1.9)
     assert pre_permit_mock.await_count == 2

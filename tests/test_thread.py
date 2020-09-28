@@ -3,11 +3,13 @@ import sys
 import threading
 from unittest import mock
 
-from bellows.thread import EventLoopThread, ThreadsafeProxy
 import pytest
 
+from bellows.thread import EventLoopThread, ThreadsafeProxy
 
-@pytest.mark.asyncio
+pytestmark = pytest.mark.asyncio
+
+
 async def test_thread_start(monkeypatch):
     current_loop = asyncio.get_event_loop()
     loopmock = mock.MagicMock()
@@ -62,7 +64,6 @@ async def yield_other_thread(thread):
         raise exception_collector.exceptions[0]
 
 
-@pytest.mark.asyncio
 async def test_thread_loop(thread):
     async def test_coroutine():
         return mock.sentinel.result
@@ -72,7 +73,6 @@ async def test_thread_loop(thread):
     assert result is mock.sentinel.result
 
 
-@pytest.mark.asyncio
 async def test_thread_double_start(thread):
     previous_loop = thread.loop
     await thread.start()
@@ -82,13 +82,11 @@ async def test_thread_double_start(thread):
     assert thread.loop is previous_loop
 
 
-@pytest.mark.asyncio
 async def test_thread_already_stopped(thread):
     thread.force_stop()
     thread.force_stop()
 
 
-@pytest.mark.asyncio
 async def test_thread_run_coroutine_threadsafe(thread):
     inner_loop = None
 
@@ -102,7 +100,6 @@ async def test_thread_run_coroutine_threadsafe(thread):
     assert inner_loop is thread.loop
 
 
-@pytest.mark.asyncio
 async def test_proxy_callback(thread):
     obj = mock.MagicMock()
     proxy = ThreadsafeProxy(obj, thread.loop)
@@ -112,7 +109,6 @@ async def test_proxy_callback(thread):
     assert obj.test.call_count == 1
 
 
-@pytest.mark.asyncio
 async def test_proxy_async(thread):
     obj = mock.MagicMock()
     proxy = ThreadsafeProxy(obj, thread.loop)
@@ -131,7 +127,6 @@ async def test_proxy_async(thread):
     assert result == mock.sentinel.result
 
 
-@pytest.mark.asyncio
 async def test_proxy_bad_function(thread):
     obj = mock.MagicMock()
     proxy = ThreadsafeProxy(obj, thread.loop)
@@ -142,7 +137,6 @@ async def test_proxy_bad_function(thread):
         await yield_other_thread(thread)
 
 
-@pytest.mark.asyncio
 async def test_proxy_not_function():
     loop = asyncio.get_event_loop()
     obj = mock.MagicMock()
@@ -152,7 +146,6 @@ async def test_proxy_not_function():
         proxy.test
 
 
-@pytest.mark.asyncio
 async def test_proxy_no_thread():
     loop = asyncio.get_event_loop()
     obj = mock.MagicMock()

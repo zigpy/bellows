@@ -1,17 +1,21 @@
-from asynctest import CoroutineMock, mock
+import pytest
+from zigpy.endpoint import Endpoint
+
 import bellows.ezsp
 import bellows.multicast
 import bellows.types as t
-import pytest
-from zigpy.endpoint import Endpoint
+
+from .async_mock import AsyncMock, MagicMock, sentinel
+
+pytestmark = pytest.mark.asyncio
 
 CUSTOM_SIZE = 12
 
 
 @pytest.fixture
 def ezsp_f():
-    e = mock.MagicMock()
-    e.getConfigurationValue = CoroutineMock(return_value=[0, CUSTOM_SIZE])
+    e = MagicMock()
+    e.getConfigurationValue = AsyncMock(return_value=[0, CUSTOM_SIZE])
     return e
 
 
@@ -78,18 +82,18 @@ async def test_initialize_fail(multicast):
 @pytest.mark.asyncio
 async def test_startup(multicast):
 
-    coordinator = mock.MagicMock()
-    ep1 = mock.MagicMock(spec_set=Endpoint)
-    ep1.member_of = [mock.sentinel.grp, mock.sentinel.grp, mock.sentinel.grp]
-    coordinator.endpoints = {0: mock.sentinel.ZDO, 1: ep1}
-    multicast._initialize = CoroutineMock()
-    multicast.subscribe = mock.MagicMock()
-    multicast.subscribe.side_effect = CoroutineMock()
+    coordinator = MagicMock()
+    ep1 = MagicMock(spec_set=Endpoint)
+    ep1.member_of = [sentinel.grp, sentinel.grp, sentinel.grp]
+    coordinator.endpoints = {0: sentinel.ZDO, 1: ep1}
+    multicast._initialize = AsyncMock()
+    multicast.subscribe = MagicMock()
+    multicast.subscribe.side_effect = AsyncMock()
     await multicast.startup(coordinator)
 
     assert multicast._initialize.await_count == 1
     assert multicast.subscribe.call_count == len(ep1.member_of)
-    assert multicast.subscribe.call_args[0][0] == mock.sentinel.grp
+    assert multicast.subscribe.call_args[0][0] == sentinel.grp
 
 
 def _subscribe(multicast, group_id, success=True):
@@ -98,7 +102,7 @@ def _subscribe(multicast, group_id, success=True):
             return [t.EmberStatus.SUCCESS]
         return [t.EmberStatus.ERR_FATAL]
 
-    multicast._ezsp.setMulticastTableEntry = mock.MagicMock()
+    multicast._ezsp.setMulticastTableEntry = MagicMock()
     multicast._ezsp.setMulticastTableEntry.side_effect = mock_set
     return multicast.subscribe(group_id)
 
@@ -152,7 +156,7 @@ def _unsubscribe(multicast, group_id, success=True):
             return [t.EmberStatus.SUCCESS]
         return [t.EmberStatus.ERR_FATAL]
 
-    multicast._ezsp.setMulticastTableEntry = mock.MagicMock()
+    multicast._ezsp.setMulticastTableEntry = MagicMock()
     multicast._ezsp.setMulticastTableEntry.side_effect = mock_set
     return multicast.unsubscribe(group_id)
 

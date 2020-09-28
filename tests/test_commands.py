@@ -1,11 +1,12 @@
 import string
 
+import pytest
+
 import bellows.ezsp.v4.commands
 import bellows.ezsp.v5.commands
 import bellows.ezsp.v6.commands
 import bellows.ezsp.v7.commands
 import bellows.ezsp.v8.commands
-import pytest
 
 
 @pytest.fixture(
