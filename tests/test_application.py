@@ -301,34 +301,46 @@ def test_permit_ncp(app):
     assert app._ezsp.permitJoining.call_count == 1
 
 
-async def test_permit_with_key(app):
+@pytest.mark.parametrize(
+    "version, tc_policy_count", ((4, 0), (5, 0), (6, 0), (7, 0), (8, 1))
+)
+@patch("zigpy.application.ControllerApplication.permit")
+async def test_permit_with_key(permit_mock, app, version, tc_policy_count):
     app._ezsp.addTransientLinkKey = AsyncMock(return_value=[0])
     app._ezsp.setPolicy = AsyncMock(return_value=[0])
-    app.permit = AsyncMock(return_value=[0])
 
-    await app.permit_with_key(
-        bytes([1, 2, 3, 4, 5, 6, 7, 8]),
-        bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
-        60,
-    )
+    permit_mock.reset_mock()
+    with patch.object(app._ezsp, "ezsp_version", version):
+        await app.permit_with_key(
+            bytes([1, 2, 3, 4, 5, 6, 7, 8]),
+            bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
+            60,
+        )
 
     assert app._ezsp.addTransientLinkKey.await_count == 1
-    assert app.permit.await_count == 1
+    assert permit_mock.await_count == 1
+    assert app._ezsp.setPolicy.await_count == tc_policy_count
 
 
-async def test_permit_with_key_ieee(app, ieee):
+@pytest.mark.parametrize(
+    "version, tc_policy_count", ((4, 0), (5, 0), (6, 0), (7, 0), (8, 1))
+)
+@patch("zigpy.application.ControllerApplication.permit")
+async def test_permit_with_key_ieee(permit_mock, app, ieee, version, tc_policy_count):
     app._ezsp.addTransientLinkKey = AsyncMock(return_value=[0])
     app._ezsp.setPolicy = AsyncMock(return_value=[0])
-    app.permit = AsyncMock(return_value=[0])
 
-    await app.permit_with_key(
-        ieee,
-        bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
-        60,
-    )
+    permit_mock.reset_mock()
+    with patch.object(app._ezsp, "ezsp_version", version):
+        await app.permit_with_key(
+            ieee,
+            bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
+            60,
+        )
 
     assert app._ezsp.addTransientLinkKey.await_count == 1
-    assert app.permit.await_count == 1
+    assert permit_mock.await_count == 1
+    assert app._ezsp.setPolicy.await_count == tc_policy_count
 
 
 async def test_permit_with_key_invalid_install_code(app, ieee):

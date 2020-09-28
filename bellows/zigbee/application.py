@@ -540,16 +540,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if v[0] != t.EmberStatus.SUCCESS:
             raise Exception("Failed to set link key")
 
-        v = await self._ezsp.setPolicy(
-            self._ezsp.types.EzspPolicyId.TC_KEY_REQUEST_POLICY,
-            self._ezsp.types.EzspDecisionId.GENERATE_NEW_TC_LINK_KEY,
-        )
-        if v[0] != t.EmberStatus.SUCCESS:
-            raise Exception(
-                "Failed to change policy to allow generation of new trust center keys"
+        if self._ezsp.ezsp_version >= 8:
+            mask_type = self._ezsp.types.EzspDecisionBitmask.ALLOW_JOINS
+            bitmask = mask_type.ALLOW_JOINS | mask_type.JOINS_USE_INSTALL_CODE_KEY
+            await self._ezsp.setPolicy(
+                self._ezsp.types.EzspPolicyId.TRUST_CENTER_POLICY, bitmask
             )
 
-        return await self.permit(time_s)
+        return await super().permit(time_s)
 
     def _handle_id_conflict(self, nwk: t.EmberNodeId) -> None:
         LOGGER.warning("NWK conflict is reported for 0x%04x", nwk)
