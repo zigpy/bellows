@@ -74,11 +74,30 @@ $ bellows zdo 00:0d:6f:00:05:7d:2d:34 get_endpoint 1
 $ bellows zcl 00:0d:6f:00:05:7d:2d:34 1 1026 read_attribute 0
 0=1806
 ```
+## Configuration
 
-## Port configuration
+### Port configuration
 - To configure USB port path for your EZSP serial device, just specify the TTY (serial com) port, example : `/dev/ttyUSB1`
 - To configure a networked-adapter like Sonoff ZBBridge enter `socket://adapter-IP>:8888` and use 115200 for the port speed.
 - It is worth noting that EM3588 devices that have an embedded USB core will likely work with any baud rate, where dongles using external USB interface (eg CP2102 used with an EM3581) will likely require a specific baud rate. Currently there are two main NCP images - one that supports hardware flow control with a baud rate of 115200, and one that supports software flow control with a rate of 57600.
+
+### NVRAM Backup and restore
+
+Warning! Please note that this is a highly experimental feature! Theoretically this allows backing up and restoring NCP state between the hardware version.
+
+NVRAM backup can be performed to migrate between different radio hardware as long as they **based on the same chip**. Anything else will not work. If this is done between different hardwares, the EUI64 is going to be different on the new hardware meaning the binding tables on all the devices are going to be wrong.
+
+```console
+To export TC config, see bellows backup --help usually it is just bellows backup > your-backup-file.txt. 
+The backup contains your network key, so you probably should keep that file secure.
+To import, see bellows restore --backup-file your-backup-file.txt
+```
+
+Note! The restoration does not restore NCP children and relies on children just to find a new parent. You either have to reconfigure all the devices (recommended so the bindings are updated) or alternatively you could override the EUI64 on the new hardware, essentially producing a clone. Be very careful if you decide to go with the latter route. You can change the EUI64 only once and once you set it it is impossible to change it without a specialized hardware (SWD programmer).
+
+Tested migrations:
+
+ - To-Do
 
 ## Testing new releases
 
