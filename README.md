@@ -26,7 +26,7 @@ EmberZNet based Zigbee radios using the EZSP protocol (via the [bellows](https:/
 
 bellows requires that the Zigbee adapter/board/module is pre-flashed/flashed with compatible firmware with EmberZNet PRO Zigbee Stack that uses the standard Silicon Labs EZSP (EmberZNet Serial Protocol) APIs for ASH or SPI protocols over a serial interface.
 
-Silabs did used to provide two main NCP images pre-build with firmware for EM35x, one image supported hardware flow control with a baud rate of 115200 and the other image supported software flow control with a rate of 57600.
+Silabs used to provide two main NCP images pre-build with firmware for EM35x, one image supported hardware flow control with a baud rate of 115200 and the other image supported software flow control with a rate of 57600.
 
 Silicon Labs no longer provide pre-build firmware images, so now you have to build and compile firmware with their Simplicity Studio SDK for EmberZNet PRO Zigbee Protocol Stack Software. Simplicity Studio is a free download but building and compiling EmberZNet PRO Zigbee firmware images required that you have the serialnumber of an official Zigbee devkit registered to your Silicon Labs user account.
 
