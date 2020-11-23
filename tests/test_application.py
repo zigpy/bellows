@@ -1067,7 +1067,7 @@ async def test_probe_success(mock_connect, mock_reset):
 
 
 def test_handle_id_conflict(app, ieee):
-    """Test handling of an ID confict report."""
+    """Test handling of an ID conflict report."""
     nwk = t.EmberNodeId(0x1234)
     app.add_device(ieee, nwk)
     app.handle_leave = MagicMock()
