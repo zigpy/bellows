@@ -1,0 +1,8 @@
+# Test depdencies.
+
+asynctest
+coveralls==2.2.0
+pre-commit
+pytest
+pytest-aiohttp
+pytest-cov
