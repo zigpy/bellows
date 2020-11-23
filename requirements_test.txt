@@ -6,3 +6,4 @@ pre-commit
 pytest
 pytest-aiohttp
 pytest-cov
+pytest-timeout
