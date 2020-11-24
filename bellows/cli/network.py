@@ -121,7 +121,11 @@ async def leave(ctx):
         click.echo("Not joined, not leaving")
     else:
         v = await s.leaveNetwork()
-        util.check(v[0], "Failure leaving network: %s" % (v[0],))
+        util.check(
+            v[0],
+            "Failure leaving network: %s" % (v[0],),
+            expected=t.EmberStatus.NETWORK_DOWN,
+        )
 
     s.close()
 

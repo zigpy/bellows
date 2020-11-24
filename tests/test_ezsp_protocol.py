@@ -62,6 +62,17 @@ def test_receive_reply_after_timeout(prot_hndl):
     assert prot_hndl.cb_mock.call_count == 0
 
 
+def test_receive_reply_invalid_command(prot_hndl):
+    callback_mock = MagicMock(spec_set=asyncio.Future)
+    prot_hndl._awaiting[0] = (0, prot_hndl.COMMANDS["invalidCommand"][2], callback_mock)
+    prot_hndl(b"\x00\xff\x58\x31")
+
+    assert 0 not in prot_hndl._awaiting
+    assert callback_mock.set_exception.call_count == 1
+    assert callback_mock.set_result.call_count == 0
+    assert prot_hndl.cb_mock.call_count == 0
+
+
 @pytest.mark.asyncio
 async def test_cfg_initialize(prot_hndl, caplog):
     """Test initialization."""

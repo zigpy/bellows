@@ -3,7 +3,7 @@
 import asyncio
 import functools
 import logging
-from typing import Any, Awaitable, Callable, Dict, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Tuple, Union
 
 import serial
 from zigpy.typing import DeviceType
@@ -22,6 +22,7 @@ from . import v4, v5, v6, v7, v8
 
 EZSP_LATEST = v8.EZSP_VERSION
 PROBE_TIMEOUT = 3
+NETWORK_OPS_TIMEOUT = 10
 LOGGER = logging.getLogger(__name__)
 MTOR_MIN_INTERVAL = 10
 MTOR_MAX_INTERVAL = 90
@@ -181,6 +182,29 @@ class EZSP:
         "rf4ceDiscoveryCompleteHandler",
         0,
     )
+
+    async def leaveNetwork(
+        self, timeout: Union[float, int] = NETWORK_OPS_TIMEOUT
+    ) -> List:
+        """Send leaveNetwork command and wait for stackStatusHandler frame."""
+        stack_status = asyncio.Future()
+
+        def cb(frame_name: str, response: List) -> None:
+            if (
+                frame_name == "stackStatusHandler"
+                and response[0] == t.EmberStatus.NETWORK_DOWN
+            ):
+                stack_status.set_result(response)
+
+        cb_id = self.add_callback(cb)
+        try:
+            (status,) = await self._command("leaveNetwork")
+            if status != t.EmberStatus.SUCCESS:
+                raise EzspError(f"failed to leave network: {status.name}")
+            result = await asyncio.wait_for(stack_status, timeout=timeout)
+            return result
+        finally:
+            self.remove_callback(cb_id)
 
     def connection_lost(self, exc):
         """Lost serial connection."""

@@ -1,15 +1,15 @@
 # bellows
 
-[![Build Status](https://travis-ci.org/zigpy/bellows.svg?branch=master)](https://travis-ci.org/zigpy/bellows)
-[![Coverage](https://coveralls.io/repos/github/zigpy/bellows/badge.svg?branch=master)](https://coveralls.io/github/zigpy/bellows?branch=master)
+[![Build](https://github.com/zigpy/bellows/workflows/CI/badge.svg?branch=dev)](https://github.com/zigpy/bellows/workflows/CI/badge.svg?branch=dev)
+[![Coverage](https://coveralls.io/repos/github/zigpy/bellows/badge.svg?branch=dev)](https://coveralls.io/github/zigpy/bellows?branch=dev)
 
-`bellows` is a Python 3 library implemention for the [zigpy](https://github.com/zigpy/zigpy) project to add Zigbee radio support for Silicon Labs EM35x ("Ember") and EFR32 ("Mighty Gecko") based Zigbee coordinator devices using the EZSP (EmberZNet Serial Protocol) interface.
+`bellows` is a Python 3 library implementation for the [zigpy](https://github.com/zigpy/zigpy) project to add Zigbee radio support for Silicon Labs EM35x ("Ember") and EFR32 ("Mighty Gecko") based Zigbee coordinator devices using the EZSP (EmberZNet Serial Protocol) interface.
 
 The project can be used as a stand-alone library, however, the main goal of this project is to add native support for EmberZNet Zigbee radio based USB stick devices (a.k.a. "Ember" and "Mighty Gecko" based adapters/dongles/modules) to Home Assistant's built-in ZHA (Zigbee Home Automation) integration component, allowing Home Assistant with such hardware to nativly support direct control of compatible Zigbee devices, such as; Philips HUE, GE, Ledvance, Osram Lightify, Xiaomi/Aqara, IKEA Tradfri, Samsung SmartThings, and many more.
 
 - https://www.home-assistant.io/integrations/zha/
 
-bellows interacts with the Zigbee Network Coprocessor (NCP) with EmberZNet PRO Zigbee coordinator firmware using the EZSP protocol serial interface APIs via via UART for Silicon Labs EM35x and EFR32 Zigbee radio module/chips hardware. The library currectly supports the Silicon Labs EZSP (EmberZNet Serial Protocol) API versions v4/v5/v6/v7/v8 for Silabs older EM35x "Ember" and their newer EFR32 "Mighty Gecko" SoCs using ASH or SPI protocols over a serial interface. The implementation of the SPI protocol assumes that the SPI provides a TTY-like software interface to the application, or is otherwise abstracted via the ZigBeePort interface.
+bellows interacts with the Zigbee Network Coprocessor (NCP) with EmberZNet PRO Zigbee coordinator firmware using the EZSP protocol serial interface APIs via via UART for Silicon Labs EM35x and EFR32 Zigbee radio module/chips hardware. The library currenetly supports the Silicon Labs EZSP (EmberZNet Serial Protocol) API versions v4/v5/v6/v7/v8 for Silabs older EM35x "Ember" and their newer EFR32 "Mighty Gecko" SoCs using ASH or SPI protocols over a serial interface. The implementation of the SPI protocol assumes that the SPI provides a TTY-like software interface to the application, or is otherwise abstracted via the ZigBeePort interface.
 
 ## Hardware requirement
 
@@ -26,17 +26,17 @@ EmberZNet based Zigbee radios using the EZSP protocol (via the [bellows](https:/
 
 bellows requires that the Zigbee adapter/board/module is pre-flashed/flashed with compatible firmware with EmberZNet PRO Zigbee Stack that uses the standard Silicon Labs EZSP (EmberZNet Serial Protocol) APIs for ASH or SPI protocols over a serial interface.
 
-Silabs did use to provide two main NCP images pre-build with firmware for EM35x, one image supported hardware flow control with a baud rate of 115200 and the other image supported software flow control with a rate of 57600.
+Silabs used to provide two main NCP images pre-build with firmware for EM35x, one image supported hardware flow control with a baud rate of 115200 and the other image supported software flow control with a rate of 57600.
 
 Silicon Labs no longer provide pre-build firmware images, so now you have to build and compile firmware with their Simplicity Studio SDK for EmberZNet PRO Zigbee Protocol Stack Software. Simplicity Studio is a free download but building and compiling EmberZNet PRO Zigbee firmware images required that you have the serialnumber of an official Zigbee devkit registered to your Silicon Labs user account.
 
 ### EmberZNet and EZSP Protocol Version
 
-Silicon Labs do not currently have a consolidated list of changes by EmberZNet SDK or EZSP protocol version. The EZSP additions, changes and deletions have only ever been listed in the "Zigbee EmberZNet Release Notes" (EmberZNet SDK) under the "New items" section as well as the matching UG100 EZSP Reference Guide included with each EmberZNet SDK release.
+Silicon Labs does not currently have a consolidated list of changes by EmberZNet SDK or EZSP protocol version. The EZSP additions, changes and deletions have only ever been listed in the "Zigbee EmberZNet Release Notes" (EmberZNet SDK) under the "New items" section as well as the matching UG100 EZSP Reference Guide included with each EmberZNet SDK release.
 
 The largest change was between EZSP v4 (first added in EmberZNet 4.7.2 SDK) and EZSP v5 that was added in EmberZNet 5.9.0 SDK which requires the Legacy Frame ID 0xFF. The change from EZSP v5 to EZSP v6 was done in EmberZNet 6.0.0 SDK. The change from EZSP v6 to EZSP v7 was in EmberZNet 6.4.0 SDK. EmberZNet 6.7.0 SDK added EZSP v8 (and Secure EZSP Protocol Version 2).
 
-Perhaps more important to know today is that  EZSP v5, v6 and v7 (EmberZNet 6.6.x.x) use the same framing format, but EmberZNet 6.7.x.x/EZSP v8 introduced new framing format and expanded command id field from 8 bits to 16 bits.
+Perhaps more important to know today is that EZSP v5, v6 and v7 (EmberZNet 6.6.x.x) use the same framing format, but EmberZNet 6.7.x.x/EZSP v8 introduced new framing format and expanded command id field from 8 bits to 16 bits.
 
 ## Project status
 
@@ -74,11 +74,30 @@ $ bellows zdo 00:0d:6f:00:05:7d:2d:34 get_endpoint 1
 $ bellows zcl 00:0d:6f:00:05:7d:2d:34 1 1026 read_attribute 0
 0=1806
 ```
+## Configuration
 
-## Port configuration
+### Port configuration
 - To configure USB port path for your EZSP serial device, just specify the TTY (serial com) port, example : `/dev/ttyUSB1`
 - To configure a networked-adapter like Sonoff ZBBridge enter `socket://adapter-IP>:8888` and use 115200 for the port speed.
 - It is worth noting that EM3588 devices that have an embedded USB core will likely work with any baud rate, where dongles using external USB interface (eg CP2102 used with an EM3581) will likely require a specific baud rate. Currently there are two main NCP images - one that supports hardware flow control with a baud rate of 115200, and one that supports software flow control with a rate of 57600.
+
+### NVRAM Backup and restore
+
+Warning! Please note that this is a highly experimental feature! Theoretically this allows backing up and restoring NCP state between the hardware version.
+
+NVRAM backup can be performed to migrate between different radio hardware as long as they **based on the same chip**. Anything else will not work. If this is done between different hardwares, the EUI64 is going to be different on the new hardware meaning the binding tables on all the devices are going to be wrong.
+
+```console
+To export TC config, see bellows backup --help usually it is just bellows backup > your-backup-file.txt. 
+The backup contains your network key, so you probably should keep that file secure.
+To import, see bellows restore --backup-file your-backup-file.txt
+```
+
+Note! The restoration does not restore NCP children and relies on children just to find a new parent. You either have to reconfigure all the devices (recommended so the bindings are updated) or alternatively you could override the EUI64 on the new hardware, essentially producing a clone. Be very careful if you decide to go with the latter route. You can change the EUI64 only once and once you set it it is impossible to change it without a specialized hardware (SWD programmer).
+
+Tested migrations:
+
+ - To-Do
 
 ## Testing new releases
 
