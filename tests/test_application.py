@@ -701,7 +701,7 @@ async def test_reset_controller_routine(app):
 async def test_watchdog(app, monkeypatch):
     from bellows.zigbee import application
 
-    monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.1)
+    monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.01)
     nop_success = 3
 
     async def nop_mock():
@@ -727,7 +727,7 @@ async def test_watchdog(app, monkeypatch):
 async def test_watchdog_counters(app, monkeypatch, caplog):
     from bellows.zigbee import application
 
-    monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.1)
+    monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.01)
     nop_success = 3
 
     async def counters_mock():
@@ -741,11 +741,21 @@ async def test_watchdog_counters(app, monkeypatch, caplog):
         raise asyncio.TimeoutError
 
     app._ezsp.readCounters = AsyncMock(side_effect=counters_mock)
+    app._ezsp.nop = AsyncMock(side_effect=EzspError)
     app._handle_reset_request = MagicMock()
     app._ctrl_event.set()
 
     caplog.set_level(logging.DEBUG, "bellows.zigbee.application")
     await app._watchdog()
+    assert app._ezsp.readCounters.await_count != 0
+    assert app._ezsp.nop.await_count == 0
+
+    # don't do counters on older firmwares
+    app._ezsp.ezsp_version = 4
+    app._ezsp.readCounters.reset_mock()
+    await app._watchdog()
+    assert app._ezsp.readCounters.await_count == 0
+    assert app._ezsp.nop.await_count != 0
 
 
 async def test_shutdown(app):
