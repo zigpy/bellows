@@ -32,6 +32,8 @@ def app(monkeypatch, event_loop):
     ezsp = MagicMock()
     ezsp.ezsp_version = 7
     ezsp.set_source_route = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    ezsp.addTransientLinkKey = AsyncMock(return_value=[0])
+    ezsp.setPolicy = AsyncMock(return_value=[0])
     ezsp.get_board_info = AsyncMock(
         return_value=("Mock Manufacturer", "Mock board", "Mock version")
     )
@@ -304,13 +306,10 @@ def test_permit_ncp(app):
 @pytest.mark.parametrize(
     "version, tc_policy_count", ((4, 0), (5, 0), (6, 0), (7, 0), (8, 1))
 )
-@patch("zigpy.application.ControllerApplication.permit")
-async def test_permit_with_key(permit_mock, app, version, tc_policy_count):
-    app._ezsp.addTransientLinkKey = AsyncMock(return_value=[0])
-    app._ezsp.setPolicy = AsyncMock(return_value=[0])
+async def test_permit_with_key(app, version, tc_policy_count):
+    p1 = patch("zigpy.application.ControllerApplication.permit")
 
-    permit_mock.reset_mock()
-    with patch.object(app._ezsp, "ezsp_version", version):
+    with patch.object(app._ezsp, "ezsp_version", version), p1 as permit_mock:
         await app.permit_with_key(
             bytes([1, 2, 3, 4, 5, 6, 7, 8]),
             bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
@@ -325,13 +324,10 @@ async def test_permit_with_key(permit_mock, app, version, tc_policy_count):
 @pytest.mark.parametrize(
     "version, tc_policy_count", ((4, 0), (5, 0), (6, 0), (7, 0), (8, 1))
 )
-@patch("zigpy.application.ControllerApplication.permit")
-async def test_permit_with_key_ieee(permit_mock, app, ieee, version, tc_policy_count):
-    app._ezsp.addTransientLinkKey = AsyncMock(return_value=[0])
-    app._ezsp.setPolicy = AsyncMock(return_value=[0])
+async def test_permit_with_key_ieee(app, ieee, version, tc_policy_count):
+    p1 = patch("zigpy.application.ControllerApplication.permit")
 
-    permit_mock.reset_mock()
-    with patch.object(app._ezsp, "ezsp_version", version):
+    with patch.object(app._ezsp, "ezsp_version", version), p1 as permit_mock:
         await app.permit_with_key(
             ieee,
             bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
@@ -1067,7 +1063,7 @@ async def test_probe_success(mock_connect, mock_reset):
 
 
 def test_handle_id_conflict(app, ieee):
-    """Test handling of an ID confict report."""
+    """Test handling of an ID conflict report."""
     nwk = t.EmberNodeId(0x1234)
     app.add_device(ieee, nwk)
     app.handle_leave = MagicMock()

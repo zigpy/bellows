@@ -565,7 +565,7 @@ class EmberCounterType(basic.enum8):
     COUNTER_PTA_LO_PRI_TX_ABORTED = 38
     # The number of aborted high priority packet traffic arbitration transmissions.
     COUNTER_PTA_HI_PRI_TX_ABORTED = 39
-    # The number of times an address conflict has cuased node_id change, and an addresss
+    # The number of times an address conflict has caused node_id change, and an address
     # conflict error is sent
     COUNTER_ADDRESS_CONFLICT_SENT = 40
 

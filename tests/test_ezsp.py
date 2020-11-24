@@ -272,18 +272,19 @@ async def test_probe_success(mock_connect, mock_reset):
     assert mock_connect.return_value.close.call_count == 1
 
 
-@patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
-@patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
 @pytest.mark.parametrize(
     "exception", (asyncio.TimeoutError, serial.SerialException, EzspError)
 )
-async def test_probe_fail(mock_connect, mock_reset, exception):
+async def test_probe_fail(exception):
     """Test device probing fails."""
 
-    mock_reset.side_effect = exception
-    mock_reset.reset_mock()
-    mock_connect.reset_mock()
-    res = await ezsp.EZSP.probe(DEVICE_CONFIG)
+    p1 = patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
+    p2 = patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
+
+    with p1 as mock_reset, p2 as mock_connect:
+        mock_reset.side_effect = exception
+        res = await ezsp.EZSP.probe(DEVICE_CONFIG)
+
     assert res is False
     assert mock_connect.call_count == 1
     assert mock_connect.await_count == 1

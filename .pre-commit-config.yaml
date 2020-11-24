@@ -7,10 +7,18 @@ repos:
           - --safe
           - --quiet
   - repo: https://gitlab.com/pycqa/flake8
-    rev: 3.8.3
+    rev: 3.8.4
     hooks:
       - id: flake8
   - repo: https://github.com/PyCQA/isort
     rev: 5.5.2
     hooks:
       - id: isort
+  - repo: https://github.com/codespell-project/codespell
+    rev: v1.17.1
+    hooks:
+      - id: codespell
+        args:
+          - --ignore-words-list=zigpy,hass
+          - --skip="./.*"
+          - --quiet-level=2

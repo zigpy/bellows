@@ -1,0 +1,9 @@
+# Test dependencies.
+
+asynctest
+coveralls==2.1.2
+pre-commit
+pytest
+pytest-asyncio
+pytest-cov
+pytest-timeout
