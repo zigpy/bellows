@@ -129,18 +129,20 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         v = await ezsp.networkInit()
         if v[0] != t.EmberStatus.SUCCESS:
             if not auto_form:
-                raise Exception("Could not initialize network")
+                raise ControllerError("Could not initialize network")
             await self.form_network()
 
         status, node_type, nwk_params = await ezsp.getNetworkParameters()
         assert status == t.EmberStatus.SUCCESS  # TODO: Better check
         if node_type != t.EmberNodeType.COORDINATOR:
             if not auto_form:
-                raise Exception("Network not configured as coordinator")
+                raise ControllerError("Network not configured as coordinator")
 
-            LOGGER.info("Forming network")
-            await self._ezsp.leaveNetwork()
-            await asyncio.sleep(1)  # TODO
+            LOGGER.info(
+                "Leaving current network as %s and forming new network", node_type.name
+            )
+            (status,) = await self._ezsp.leaveNetwork()
+            assert status == t.EmberStatus.NETWORK_DOWN
             await self.form_network()
             status, node_type, nwk_params = await ezsp.getNetworkParameters()
             assert status == t.EmberStatus.SUCCESS

@@ -395,3 +395,36 @@ async def test_set_concentrator(ezsp_f):
         cnc_mock.return_value = (ezsp_f.types.EmberStatus.ERR_FATAL,)
         await ezsp_f.set_source_routing()
         assert cnc_mock.await_count == 2
+
+
+async def test_leave_network_error(ezsp_f):
+    """Test EZSP leaveNetwork command failure."""
+
+    with patch.object(ezsp_f, "_command", new_callable=AsyncMock) as cmd_mock:
+        cmd_mock.return_value = [t.EmberStatus.ERR_FATAL]
+        with pytest.raises(EzspError):
+            await ezsp_f.leaveNetwork(timeout=0.01)
+
+
+async def test_leave_network_no_stack_status(ezsp_f):
+    """Test EZSP leaveNetwork command, no stackStatusHandler callback."""
+
+    with patch.object(ezsp_f, "_command", new_callable=AsyncMock) as cmd_mock:
+        cmd_mock.return_value = [t.EmberStatus.SUCCESS]
+        with pytest.raises(asyncio.TimeoutError):
+            await ezsp_f.leaveNetwork(timeout=0.01)
+
+
+async def test_leave_network(ezsp_f):
+    """Test EZSP leaveNetwork command."""
+
+    async def _mock_cmd(*args, **kwargs):
+        ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_UP])
+        ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_UP])
+        ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_DOWN])
+        return [t.EmberStatus.SUCCESS]
+
+    with patch.object(ezsp_f, "_command", new_callable=AsyncMock) as cmd_mock:
+        cmd_mock.side_effect = _mock_cmd
+        (status,) = await ezsp_f.leaveNetwork(timeout=0.01)
+        assert status == t.EmberStatus.NETWORK_DOWN
