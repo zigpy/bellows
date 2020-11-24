@@ -199,19 +199,6 @@ async def _restore(
 ):
     """Restore backup."""
 
-    stack_up = asyncio.Future()
-    stack_dwn = asyncio.Future()
-
-    def _stack_handler(frame, args):
-        if frame != "stackStatusHandler":
-            return
-        if args[0] == t.EmberStatus.NETWORK_UP:
-            stack_up.set_result(True)
-        else:
-            stack_dwn.set_result(True)
-
-    cb_id = ezsp.add_callback(_stack_handler)
-
     (status,) = await ezsp.networkInit()
     LOGGER.debug("Network init status: %s", status)
     assert status in (t.EmberStatus.SUCCESS, t.EmberStatus.NOT_JOINED)
@@ -221,14 +208,13 @@ async def _restore(
             click.echo("Network is up, not forcing restore")
             return
         try:
-            await asyncio.wait_for(stack_up, timeout=5)
-            await ezsp.leaveNetwork()
-            await asyncio.wait_for(stack_dwn, timeout=15)
+            (status,) = await ezsp.leaveNetwork()
+            if status != t.EmberStatus.NETWORK_DOWN:
+                LOGGER.error("Couldn't leave network")
+                return
         except asyncio.TimeoutError:
             LOGGER.error("Didn't not receive stack changed status callback")
             return
-
-    ezsp.remove_callback(cb_id)
 
     if update_eui64_token:
         ncp_eui64 = t.EmberEUI64(backup_data[ATTR_NODE_EUI64]).serialize()
