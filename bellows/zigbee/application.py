@@ -626,7 +626,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 await asyncio.wait_for(
                     self.controller_event.wait(), timeout=WATCHDOG_WAKE_PERIOD * 2
                 )
-                if LOGGER.level < logging.DEBUG:
+                if LOGGER.level < logging.DEBUG or self._ezsp.ezsp_version == 4:
                     await self._ezsp.nop()
                 else:
                     (res,) = await self._ezsp.readCounters()
