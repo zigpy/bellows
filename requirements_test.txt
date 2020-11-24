@@ -1,7 +1,7 @@
 # Test dependencies.
 
 asynctest
-coveralls==2.2.0
+coveralls==2.1.2
 pre-commit
 pytest
 pytest-asyncio
