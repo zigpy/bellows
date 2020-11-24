@@ -70,8 +70,9 @@ async def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_versi
     async def mockezsp(*args, **kwargs):
         return [0, nwk_type, sentinel.nework_parameters]
 
-    async def mockinit(*args, **kwargs):
-        return [init]
+    async def mock_leave(*args, **kwargs):
+        app._ezsp.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_DOWN])
+        return [t.EmberStatus.NETWORK_DOWN]
 
     app._in_flight_msg = None
     ezsp_mock = MagicMock()
@@ -79,20 +80,22 @@ async def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_versi
     ezsp_mock.initialize = AsyncMock(return_value=ezsp_mock)
     ezsp_mock.connect = AsyncMock()
     ezsp_mock.setConcentrator = AsyncMock()
-    ezsp_mock._command = mockezsp
-    ezsp_mock.addEndpoint = mockezsp
-    ezsp_mock.setConfigurationValue = mockezsp
-    ezsp_mock.networkInit = mockinit
-    ezsp_mock.getNetworkParameters = mockezsp
+    ezsp_mock._command = AsyncMock(return_value=t.EmberStatus.SUCCESS)
+    ezsp_mock.addEndpoint = AsyncMock(return_value=t.EmberStatus.SUCCESS)
+    ezsp_mock.setConfigurationValue = AsyncMock(return_value=t.EmberStatus.SUCCESS)
+    ezsp_mock.networkInit = AsyncMock(return_value=[init])
+    ezsp_mock.getNetworkParameters = AsyncMock(
+        return_value=[0, nwk_type, sentinel.nework_parameters]
+    )
     ezsp_mock.get_board_info = AsyncMock(
         return_value=("Mock Manufacturer", "Mock board", "Mock version")
     )
-    ezsp_mock.setPolicy = mockezsp
+    ezsp_mock.setPolicy = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp_mock.getMfgToken = AsyncMock(return_value=(b"Some token\xff",))
-    ezsp_mock.getNodeId = mockezsp
+    ezsp_mock.getNodeId = AsyncMock(return_value=[0x0000])
     ezsp_mock.getEui64 = AsyncMock(return_value=[ieee])
     ezsp_mock.getValue = AsyncMock(return_value=(0, b"\x01" * 6))
-    ezsp_mock.leaveNetwork = mockezsp
+    ezsp_mock.leaveNetwork = AsyncMock(side_effect=mock_leave)
     app.form_network = AsyncMock()
     ezsp_mock.reset = AsyncMock()
     ezsp_mock.version = AsyncMock()
@@ -116,21 +119,31 @@ async def test_startup_ezsp_ver7(app, ieee):
 
 
 async def test_startup_no_status(app, ieee):
-    with pytest.raises(Exception):
-        await _test_startup(app, None, ieee, init=1)
+    """Test when NCP is not a coordinator and not auto forming."""
+    with pytest.raises(ControllerError):
+        await _test_startup(
+            app, t.EmberNodeType.UNKNOWN_DEVICE, ieee, auto_form=False, init=1
+        )
 
 
 async def test_startup_no_status_form(app, ieee):
-    await _test_startup(app, None, ieee, auto_form=True, init=1)
+    """Test when NCP is not a coordinator but allow auto forming."""
+    await _test_startup(
+        app, t.EmberNodeType.UNKNOWN_NODE_TYPE, ieee, auto_form=True, init=1
+    )
 
 
 async def test_startup_end(app, ieee):
-    with pytest.raises(Exception):
-        await _test_startup(app, t.EmberNodeType.SLEEPY_END_DEVICE, ieee)
+    """Test when NCP is a End Device and not auto forming."""
+    with pytest.raises(ControllerError):
+        await _test_startup(
+            app, t.EmberNodeType.SLEEPY_END_DEVICE, ieee, auto_form=False
+        )
 
 
 async def test_startup_end_form(app, ieee):
-    await _test_startup(app, t.EmberNodeType.SLEEPY_END_DEVICE, ieee, True)
+    """Test when NCP is a End Device but allow auto forming."""
+    await _test_startup(app, t.EmberNodeType.SLEEPY_END_DEVICE, ieee, auto_form=True)
 
 
 async def test_form_network(app):
