@@ -11,7 +11,7 @@ from bellows.typing import GatewayType
 
 LOGGER = logging.getLogger(__name__)
 
-EZSP_CMD_TIMEOUT = 100
+EZSP_CMD_TIMEOUT = 5
 
 
 class ProtocolHandler(abc.ABC):
