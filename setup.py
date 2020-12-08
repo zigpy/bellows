@@ -20,6 +20,7 @@ setup(
         "dataclasses;python_version<'3.7'",
         "pure_pcapy3==1.0.1",
         "pyserial-asyncio",
+        "pyusb>=1.1.0",
         "voluptuous",
         "zigpy>=0.21.0",
     ],
