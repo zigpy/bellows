@@ -248,7 +248,7 @@ async def leave(ctx):
 @click.argument("endpoint", type=click.IntRange(1, 255))
 @click.argument("cluster", type=click.IntRange(0, 65535))
 def zcl(ctx, database, node, cluster, endpoint):
-    """Peform ZCL operations against a device"""
+    """Perform ZCL operations against a device"""
     ctx.obj["database_file"] = database
     ctx.obj["node"] = node
     ctx.obj["endpoint"] = endpoint

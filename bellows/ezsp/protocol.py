@@ -6,11 +6,12 @@ import logging
 from typing import Any, Callable, Dict, Tuple
 
 from bellows.config import CONF_EZSP_CONFIG, CONF_EZSP_POLICIES
+from bellows.exception import EzspError
 from bellows.typing import GatewayType
 
 LOGGER = logging.getLogger(__name__)
 
-EZSP_CMD_TIMEOUT = 100
+EZSP_CMD_TIMEOUT = 5
 
 
 class ProtocolHandler(abc.ABC):
@@ -105,12 +106,23 @@ class ProtocolHandler(abc.ABC):
             frame_name,
             binascii.hexlify(data),
         )
+        schema = self.COMMANDS_BY_ID[frame_id][2]
+        result, data = self.types.deserialize(data, schema)
 
         if sequence in self._awaiting:
             expected_id, schema, future = self._awaiting.pop(sequence)
-            assert expected_id == frame_id
-            result, data = self.types.deserialize(data, schema)
             try:
+                if frame_name == "invalidCommand":
+                    sent_cmd_name = self.COMMANDS_BY_ID[expected_id][0]
+                    future.set_exception(
+                        EzspError(
+                            f"{sent_cmd_name} command is an {frame_name}, was sent "
+                            f"under {sequence} sequence number: {result[0].name}"
+                        )
+                    )
+                    return
+
+                assert expected_id == frame_id
                 future.set_result(result)
             except asyncio.InvalidStateError:
                 LOGGER.debug(
@@ -119,9 +131,6 @@ class ProtocolHandler(abc.ABC):
                     self.COMMANDS_BY_ID.get(expected_id, [expected_id])[0],
                 )
         else:
-            schema = self.COMMANDS_BY_ID[frame_id][2]
-            frame_name = self.COMMANDS_BY_ID[frame_id][0]
-            result, data = self.types.deserialize(data, schema)
             self._handle_callback(frame_name, result)
 
     def __getattr__(self, name: str) -> Callable:
