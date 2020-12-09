@@ -9,7 +9,7 @@ The project can be used as a stand-alone library, however, the main goal of this
 
 - https://www.home-assistant.io/integrations/zha/
 
-bellows interacts with the Zigbee Network Coprocessor (NCP) with EmberZNet PRO Zigbee coordinator firmware using the EZSP protocol serial interface APIs via via UART for Silicon Labs EM35x and EFR32 Zigbee radio module/chips hardware. The library currenetly supports the Silicon Labs EZSP (EmberZNet Serial Protocol) API versions v4/v5/v6/v7/v8 for Silabs older EM35x "Ember" and their newer EFR32 "Mighty Gecko" SoCs using ASH or SPI protocols over a serial interface. The implementation of the SPI protocol assumes that the SPI provides a TTY-like software interface to the application, or is otherwise abstracted via the ZigBeePort interface.
+bellows interacts with the Zigbee Network Coprocessor (NCP) with EmberZNet PRO Zigbee coordinator firmware using the EZSP protocol serial interface APIs via via UART for Silicon Labs EM35x and EFR32 Zigbee radio module/chips hardware. The library currently supports the Silicon Labs EZSP (EmberZNet Serial Protocol) API versions v4/v5/v6/v7/v8 for Silabs older EM35x "Ember" and their newer EFR32 "Mighty Gecko" SoCs using ASH protocols over a serial interface.
 
 ## Hardware requirement
 
@@ -19,9 +19,9 @@ EmberZNet based Zigbee radios using the EZSP protocol (via the [bellows](https:/
  - [Elelabs Zigbee USB Adapter](https://elelabs.com/products/elelabs_usb_adapter.html) (Note! Not a must but recommend [upgrade the EmberZNet NCP application firmware](https://github.com/Elelabs/elelabs-zigbee-ezsp-utility))
  - [Elelabs Zigbee Raspberry Pi Shield](https://elelabs.com/products/elelabs_zigbee_shield.html) (Note! Not a must but recommend [upgrade the EmberZNet NCP application firmware](https://github.com/Elelabs/elelabs-zigbee-ezsp-utility))
  - [DEFARO SprutStick Pro (also known as Defaro SprutStick ZigBee 2 Pro)](https://defaro.ru/index.php/product/89-controllers/257-sprutstick-pro)
- - Telegesis ETRX357USB (Note! This first have to be flashed with other EmberZNet firmware)
- - Telegesis ETRX357USB-LRS (Note! This first have to be flashed with other EmberZNet firmware)
- - Telegesis ETRX357USB-LRS+8M (Note! This first have to be flashed with other EmberZNet firmware)
+ - Telegesis ETRX357USB (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
+ - Telegesis ETRX357USB-LRS (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
+ - Telegesis ETRX357USB-LRS+8M (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
  
 ## Firmware requirement
 
@@ -30,6 +30,11 @@ bellows requires that the Zigbee adapter/board/module is pre-flashed/flashed wit
 Silabs used to provide two main NCP images pre-build with firmware for EM35x, one image supported hardware flow control with a baud rate of 115200 and the other image supported software flow control with a rate of 57600.
 
 Silicon Labs no longer provide pre-build firmware images, so now you have to build and compile firmware with their Simplicity Studio SDK for EmberZNet PRO Zigbee Protocol Stack Software. Simplicity Studio is a free download but building and compiling EmberZNet PRO Zigbee firmware images required that you have the serialnumber of an official Zigbee devkit registered to your Silicon Labs user account.
+
+#### Firmware upgrade resources
+
+-  [Elelabs EZSP Firmware Update Utility (should work with most EFR32 based Zigbee coordinators with Silicon Labs standard bootloader)](https://github.com/Elelabs/elelabs-zigbee-ezsp-utility)
+-  [Docker firmware updater image by walthowd upgrading Nortek/GoControl/Linear HUSBZB-1 and Telegesis ETRX357 Zigbee coordinator adapters](https://github.com/walthowd/husbzb-firmware)
 
 ### EmberZNet and EZSP Protocol Version
 
