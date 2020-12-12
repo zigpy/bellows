@@ -23,6 +23,7 @@ import bellows.ezsp
 from bellows.ezsp.v8.types.named import EmberDeviceUpdate
 import bellows.multicast
 import bellows.types as t
+import bellows.zigbee.state as app_state
 import bellows.zigbee.util
 
 APS_ACK_TIMEOUT = 120
@@ -58,6 +59,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         self.use_source_routing = self.config[CONF_PARAM_SRC_RTG]
         self._req_lock = asyncio.Lock()
+        node_info = app_state.NodeInfo()
+        network_info = app_state.NetworkInformation()
+        self.state = app_state.State(node_info, network_info)
 
     @property
     def controller_event(self):
@@ -160,6 +164,16 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._nwk = nwk[0]
         ieee = await ezsp.getEui64()
         self._ieee = ieee[0]
+
+        node_info = app_state.NodeInfo(nwk, ieee, node_type.zdo_logical_type)
+        ezsp_counters = app_state.Counters(
+            "ezsp_counters", (a.name[8:] for a in ezsp.types.EmberCounterType)
+        )
+        self.state = app_state.State(
+            node_info,
+            nwk_params.zigpy_network_information,
+            {ezsp_counters.name: ezsp_counters},
+        )
 
         ezsp.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
