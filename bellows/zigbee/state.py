@@ -23,6 +23,18 @@ class NodeInfo:
         if self.logical_type is None:
             self.logical_type = zdo_t.LogicalType.Reserved7
 
+    def __repr__(self) -> str:
+        """Representation magic method."""
+
+        repr = (
+            f"{self.__class__.__name__}("
+            f"{t.NWK.__name__}({str(self.nwk)}), "
+            f"{t.EUI64.__name__}({str(self.ieee)}), "
+            f"{zdo_t.LogicalType.__name__}({self.logical_type})"
+            f")"
+        )
+        return repr
+
 
 @dataclass
 class NetworkInformation:
