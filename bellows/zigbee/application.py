@@ -27,6 +27,7 @@ import bellows.zigbee.state as app_state
 import bellows.zigbee.util
 
 APS_ACK_TIMEOUT = 120
+EZSP_COUNTERS_CLEAR_IN_WATCHDOG_PERIODS = 180
 EZSP_DEFAULT_RADIUS = 0
 EZSP_MULTICAST_NON_MEMBER_RADIUS = 3
 EZSP_COUNTER_CLEAR_INTERVAL = 180  # Clear counters every n * WATCHDOG_WAKE_PERIOD
@@ -615,29 +616,29 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         LOGGER.debug("Starting EZSP watchdog")
         failures = 0
         read_counter = 0
-
         await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
         while True:
             try:
                 await asyncio.wait_for(
                     self.controller_event.wait(), timeout=WATCHDOG_WAKE_PERIOD * 2
                 )
-                if LOGGER.level < logging.DEBUG or self._ezsp.ezsp_version == 4:
+                if self._ezsp.ezsp_version == 4:
                     await self._ezsp.nop()
                 else:
-                    read_counter = (read_counter + 1) % EZSP_COUNTER_CLEAR_INTERVAL
+                    counters = self.state.counters["ezsp_counters"]
+                    read_counter = (
+                        read_counter + 1
+                    ) % EZSP_COUNTERS_CLEAR_IN_WATCHDOG_PERIODS
                     if read_counter:
-                        operation = self._ezsp.readCounters
+                        (res,) = await self._ezsp.readCounters()
                     else:
-                        operation = self._ezsp.readAndClearCounters
-                    (res,) = await operation()
-                    counters = (
-                        f"{counter.name}: {value}"
-                        for counter, value in zip(
-                            self._ezsp.types.EmberCounterType, res
-                        )
-                    )
-                    LOGGER.debug("EZSP Counters: %s", ",".join(counters))
+                        (res,) = await self._ezsp.readAndClearCounters()
+                        counters.reset()
+
+                    for counter, value in zip(counters, res):
+                        counter.update(value)
+                    LOGGER.debug("%s", counters)
+
                 failures = 0
             except (asyncio.TimeoutError, EzspError) as exc:
                 LOGGER.warning("Watchdog heartbeat timeout: %s", str(exc))
