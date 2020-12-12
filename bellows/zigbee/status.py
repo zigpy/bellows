@@ -25,7 +25,7 @@ class NetworkInformation:
     pan_id: Optional[t.PanId] = None
     nwk_update_id: Optional[t.uint8_t] = None
     nwk_manager_id: Optional[t.NWK] = None
-    channel: t.Optional[t.uint8_t] = None
+    channel: Optional[t.uint8_t] = None
 
 
 @dataclass
@@ -33,15 +33,20 @@ class Counter:
     """Ever increasing Counter representation."""
 
     name: str
-    raw_value: int = field(default=0)
-    clear_count: int = field(init=False, default=0)
-    _last_reset: int = field(init=False, default=0)
+    initial_value: int = field(default=0)
+    _raw_value: int = field(init=False, default=0)
+    clears: int = field(init=False, default=0)
+    _last_clear_value: int = field(init=False, default=0)
+
+    def __post_init__(self) -> None:
+        """Initialize instance."""
+        self._raw_value = self.initial_value
 
     @property
     def value(self) -> int:
         """Current value of the counter."""
 
-        return self._last_reset + self.raw_value
+        return self._last_clear_value + self._raw_value
 
     def __str__(self) -> str:
         """String representation."""
@@ -50,19 +55,22 @@ class Counter:
     def update(self, new_value: int) -> None:
         """Update counter value."""
 
-        diff = new_value - self.raw_value
+        if new_value == self._raw_value:
+            return
+
+        diff = new_value - self._raw_value
         if diff < 0:  # Roll over or reset
             self.clear_and_update(new_value)
             return
 
-        self.raw_value = new_value
+        self._raw_value = new_value
 
     def clear_and_update(self, value: int) -> None:
         """Clear (rollover event) and optionally update."""
 
-        self._last_reset = self.value
-        self.raw_value = value
-        self.clear_count += 1
+        self._last_clear_value = self.value
+        self._raw_value = value
+        self.clears += 1
 
     clear = functools.partialmethod(clear_and_update, 0)
 
