@@ -4,6 +4,14 @@ import pytest
 
 import bellows.zigbee.status as app_state
 
+COUNTER_NAMES = ["counter_1", "counter_2", "some random name"]
+
+
+@pytest.fixture
+def counters():
+    """Counters fixture."""
+    return app_state.Counters("ezsp_counters", COUNTER_NAMES)
+
 
 def test_counter():
     """Test basic counter."""
@@ -59,12 +67,10 @@ def test_counter_str():
     assert str(counter) == "some_counter = 8"
 
 
-def test_counters_init():
+def test_counters_init(counters):
     """Test counters initialization."""
 
-    counter_names = ["counter_1", "counter_2", "some random name"]
-    counters = app_state.Counters(counter_names)
-
+    assert counters.name == "ezsp_counters"
     assert counters.list
     assert len(counters.list) == 3
 
@@ -88,7 +94,7 @@ def test_counters_init():
     assert int(cnt_3) == 2
 
     assert "counter_2" in counters
-    assert [counter.name for counter in counters] == counter_names
+    assert [counter.name for counter in counters] == COUNTER_NAMES
 
     with pytest.raises(KeyError):
         counters["no such counter"] = 2
@@ -96,3 +102,20 @@ def test_counters_init():
     counters.reset()
     for counter in counters:
         assert counter.reset_count == 1
+
+
+def test_counters_str_and_repr(counters):
+    """Test counters str and repr."""
+
+    counters["counter_1"] = 22
+    counters["counter_2"] = 33
+
+    assert (
+        str(counters)
+        == "ezsp_counters: [counter_1 = 22, counter_2 = 33, some random name = 0]"
+    )
+
+    assert (
+        repr(counters) == """Counters('ezsp_counters', {Counter('counter_1', 22), """
+        """Counter('counter_2', 33), Counter('some random name', 0)})"""
+    )

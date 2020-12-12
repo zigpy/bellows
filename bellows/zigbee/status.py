@@ -89,9 +89,10 @@ class Counter:
 class Counters:
     """Named collection of counters."""
 
-    def __init__(self, names: Optional[Iterable[str]]) -> None:
+    def __init__(self, collection_name: str, names: Optional[Iterable[str]]) -> None:
         """Initialize instance."""
 
+        self._name = collection_name
         self._counters: Dict[Any, Counter] = {name: Counter(name) for name in names}
 
     def __contains__(self, item: Any) -> bool:
@@ -101,6 +102,25 @@ class Counters:
     def __iter__(self) -> Iterable[Counter]:
         """Return an iterable of the counters"""
         return (counter for counter in self._counters.values())
+
+    def __str__(self) -> str:
+        """String magic method."""
+        counters = [str(counter) for counter in self]
+        return f"{self.name}: [{', '.join(counters)}]"
+
+    def __repr__(self) -> str:
+        """Representation magic method."""
+        counters = (
+            f"{counter.__class__.__name__}('{counter.name}', {int(counter)})"
+            for counter in self
+        )
+        counters = ", ".join(counters)
+        return f"{self.__class__.__name__}('{self.name}', {{{counters}}})"
+
+    @property
+    def name(self) -> str:
+        """Return counter collection name."""
+        return self._name
 
     @property
     def list(self) -> List[Counter]:
@@ -127,6 +147,6 @@ class Counters:
 
 @dataclass
 class State:
-    node_information: field(default_factory=NodeInfo)
+    node_information: NodeInfo
     network_information: NetworkInformation
-    counters: Counters
+    counters: Dict[str, Counters]
