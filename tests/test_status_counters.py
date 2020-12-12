@@ -2,7 +2,7 @@
 
 import pytest
 
-import bellows.zigbee.status as app_state
+import bellows.zigbee.state as app_state
 
 COUNTER_NAMES = ["counter_1", "counter_2", "some random name"]
 
