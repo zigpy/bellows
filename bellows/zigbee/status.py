@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 import functools
-from typing import Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 import zigpy.types as t
 import zigpy.zdo.types as zdo_t
@@ -81,7 +81,7 @@ class Counters:
     def __init__(self, names: Optional[Iterable[str]]) -> None:
         """Initialize instance."""
 
-        self._counters = {name: Counter for name in names}
+        self._counters: Dict[Any, Counter] = {name: Counter(name) for name in names}
 
     @property
     def list(self) -> List[Counter]:
@@ -94,6 +94,16 @@ class Counters:
 
         for counter in self._counters.values():
             counter.reset()
+
+    def __getitem__(self, counter_id: Any) -> Counter:
+        """Get a counter."""
+
+        return self._counters[counter_id]
+
+    def __setitem__(self, counter_id: Any, value: int) -> None:
+        """Update specific counter to new value."""
+
+        self._counters[counter_id].update(value)
 
 
 @dataclass

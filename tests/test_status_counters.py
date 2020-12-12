@@ -1,5 +1,7 @@
 """Test unit for app status and counters."""
 
+import pytest
+
 import bellows.zigbee.status as app_state
 
 
@@ -55,3 +57,28 @@ def test_counter_str():
 
     counter = app_state.Counter("some_counter", 8)
     assert str(counter) == "some_counter = 8"
+
+
+def test_counters_init():
+    """Test counters initialization."""
+
+    counters = app_state.Counters(("counter_1", "counter_2", "some random name"))
+
+    assert counters.list
+    assert len(counters.list) == 3
+
+    cnt_1, cnt_2, cnt_3 = counters.list
+    assert cnt_1.name == "counter_1"
+    assert cnt_2.name == "counter_2"
+    assert cnt_3.name == "some random name"
+
+    assert cnt_1.value == 0
+    assert cnt_2.value == 0
+    assert cnt_3.value == 0
+
+    with pytest.raises(KeyError):
+        counters["no such counter"]
+
+    counters["some random name"] = 2
+    assert cnt_3.value == 2
+    assert counters["some random name"].value == 2
