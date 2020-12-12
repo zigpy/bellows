@@ -62,7 +62,8 @@ def test_counter_str():
 def test_counters_init():
     """Test counters initialization."""
 
-    counters = app_state.Counters(("counter_1", "counter_2", "some random name"))
+    counter_names = ["counter_1", "counter_2", "some random name"]
+    counters = app_state.Counters(counter_names)
 
     assert counters.list
     assert len(counters.list) == 3
@@ -82,3 +83,16 @@ def test_counters_init():
     counters["some random name"] = 2
     assert cnt_3.value == 2
     assert counters["some random name"].value == 2
+    assert counters["some random name"] == 2
+    assert counters["some random name"] == cnt_3
+    assert int(cnt_3) == 2
+
+    assert "counter_2" in counters
+    assert [counter.name for counter in counters] == counter_names
+
+    with pytest.raises(KeyError):
+        counters["no such counter"] = 2
+
+    counters.reset()
+    for counter in counters:
+        assert counter.reset_count == 1
