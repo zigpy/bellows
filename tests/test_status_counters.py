@@ -103,6 +103,14 @@ def test_counters_init(counters):
     for counter in counters:
         assert counter.reset_count == 1
 
+    existing = counters.add_counter("some random name")
+    assert existing.value == 2
+    assert len(counters.list) == 3
+
+    new = counters.add_counter("new_counter", 42)
+    assert new.value == 42
+    len(counters.list) == 4
+
 
 def test_counters_str_and_repr(counters):
     """Test counters str and repr."""
@@ -119,3 +127,10 @@ def test_counters_str_and_repr(counters):
         repr(counters) == """Counters('ezsp_counters', {Counter('counter_1', 22), """
         """Counter('counter_2', 33), Counter('some random name', 0)})"""
     )
+
+
+def test_state():
+    """Test state structure."""
+    state = app_state.State(app_state.NodeInfo(), app_state.NetworkInformation())
+    assert state
+    assert state.counters == {}

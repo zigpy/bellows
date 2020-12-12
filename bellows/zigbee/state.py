@@ -12,19 +12,26 @@ import zigpy.zdo.types as zdo_t
 class NodeInfo:
     """Controller Application network Node information."""
 
-    nwk: t.NWK = field(default_factory=t.NWK)
-    ieee: t.EUI64 = field(default_factory=t.EUI64)
-    logical_type: zdo_t.LogicalType = field(default_factory=zdo_t.LogicalType)
+    nwk: t.NWK = t.NWK(0xFFFE)
+    ieee: Optional[t.EUI64] = None
+    logical_type: Optional[zdo_t.LogicalType] = None
+
+    def __post_init__(self) -> None:
+        """Initialize instance."""
+        if self.ieee is None:
+            self.ieee = t.EUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff")
+        if self.logical_type is None:
+            self.logical_type = zdo_t.LogicalType.Reserved7
 
 
 @dataclass
 class NetworkInformation:
     """Network information."""
 
-    extended_pan_id: Optional[t.ExtendedPanId] = None
-    pan_id: Optional[t.PanId] = None
-    nwk_update_id: Optional[t.uint8_t] = None
-    nwk_manager_id: Optional[t.NWK] = None
+    extended_pan_id: Optional[t.ExtendedPanId] = field(default_factory=t.ExtendedPanId)
+    pan_id: Optional[t.PanId] = 0xFFFE
+    nwk_update_id: Optional[t.uint8_t] = 0x00
+    nwk_manager_id: Optional[t.NWK] = t.NWK(0xFFFE)
     channel: Optional[t.uint8_t] = None
 
 
@@ -144,9 +151,24 @@ class Counters:
 
         self._counters[counter_id].update(value)
 
+    def add_counter(self, name: str, value: int = 0) -> Counter:
+        """Add a new counter."""
+
+        if name in self._counters:
+            return self[name]
+
+        counter = Counter(name, initial_value=value)
+        self._counters[counter.name] = counter
+        return counter
+
 
 @dataclass
 class State:
     node_information: NodeInfo
     network_information: NetworkInformation
-    counters: Dict[str, Counters]
+    counters: Optional[Dict[str, Counters]] = None
+
+    def __post_init__(self) -> None:
+        """Initialize default counters."""
+        if self.counters is None:
+            self.counters = {}
