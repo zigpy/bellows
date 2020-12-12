@@ -1,6 +1,6 @@
 """Classes to implement status of the application controller."""
 
-from dataclasses import dataclass, field
+from dataclasses import InitVar, dataclass, field
 import functools
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -40,7 +40,7 @@ class Counter:
     """Ever increasing Counter representation."""
 
     name: str
-    initial_value: int = field(default_factory=int)
+    initial_value: InitVar[int] = 0
     _raw_value: int = field(init=False, default=0)
     reset_count: int = field(init=False, default=0)
     _last_reset_value: int = field(init=False, default=0)
@@ -52,13 +52,13 @@ class Counter:
 
         return self.value == other
 
-    def __post_init__(self) -> None:
-        """Initialize instance."""
-        self._raw_value = self.initial_value
-
     def __int__(self) -> int:
         """Return int of the current value."""
         return self.value
+
+    def __post_init__(self, initial_value) -> None:
+        """Initialize instance."""
+        self._raw_value = initial_value
 
     def __str__(self) -> str:
         """String representation."""
