@@ -35,8 +35,8 @@ class Counter:
     name: str
     initial_value: int = field(default=0)
     _raw_value: int = field(init=False, default=0)
-    clears: int = field(init=False, default=0)
-    _last_clear_value: int = field(init=False, default=0)
+    reset_count: int = field(init=False, default=0)
+    _last_reset_value: int = field(init=False, default=0)
 
     def __post_init__(self) -> None:
         """Initialize instance."""
@@ -46,7 +46,7 @@ class Counter:
     def value(self) -> int:
         """Current value of the counter."""
 
-        return self._last_clear_value + self._raw_value
+        return self._last_reset_value + self._raw_value
 
     def __str__(self) -> str:
         """String representation."""
@@ -60,19 +60,19 @@ class Counter:
 
         diff = new_value - self._raw_value
         if diff < 0:  # Roll over or reset
-            self.clear_and_update(new_value)
+            self.reset_and_update(new_value)
             return
 
         self._raw_value = new_value
 
-    def clear_and_update(self, value: int) -> None:
+    def reset_and_update(self, value: int) -> None:
         """Clear (rollover event) and optionally update."""
 
-        self._last_clear_value = self.value
+        self._last_reset_value = self.value
         self._raw_value = value
-        self.clears += 1
+        self.reset_count += 1
 
-    clear = functools.partialmethod(clear_and_update, 0)
+    reset = functools.partialmethod(reset_and_update, 0)
 
 
 class Counters:
@@ -93,7 +93,7 @@ class Counters:
         """Clear and rollover counters."""
 
         for counter in self._counters.values():
-            counter.clear()
+            counter.reset()
 
 
 @dataclass
