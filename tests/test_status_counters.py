@@ -109,7 +109,7 @@ def test_counters_init(counters):
 
     new = counters.add_counter("new_counter", 42)
     assert new.value == 42
-    len(counters.list) == 4
+    assert len(counters.list) == 4
 
 
 def test_counters_str_and_repr(counters):
@@ -134,3 +134,20 @@ def test_state():
     state = app_state.State(app_state.NodeInfo(), app_state.NetworkInformation())
     assert state
     assert state.counters == {}
+
+
+def test_counters_reset(counters):
+    """Test counter resetting."""
+
+    counter = counters["counter_1"]
+
+    assert counter.reset_count == 0
+    counters["counter_1"] = 22
+    assert counter.value == 22
+    assert counter.reset_count == 0
+
+    counters.reset()
+    assert counter.reset_count == 1
+    counter.update(22)
+    assert counter.value == 44
+    assert counter.reset_count == 1

@@ -636,10 +636,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                         (res,) = await self._ezsp.readCounters()
                     else:
                         (res,) = await self._ezsp.readAndClearCounters()
-                        counters.reset()
 
                     for counter, value in zip(counters, res):
                         counter.update(value)
+
+                    if not read_counter:
+                        counters.reset()
+
                     LOGGER.debug("%s", counters)
 
                 failures = 0
