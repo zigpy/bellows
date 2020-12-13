@@ -95,7 +95,7 @@ async def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_versi
     )
     ezsp_mock.setPolicy = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp_mock.getMfgToken = AsyncMock(return_value=(b"Some token\xff",))
-    ezsp_mock.getNodeId = AsyncMock(return_value=[0x0000])
+    ezsp_mock.getNodeId = AsyncMock(return_value=[t.EmberNodeId(0x0000)])
     ezsp_mock.getEui64 = AsyncMock(return_value=[ieee])
     ezsp_mock.getValue = AsyncMock(return_value=(0, b"\x01" * 6))
     ezsp_mock.leaveNetwork = AsyncMock(side_effect=mock_leave)

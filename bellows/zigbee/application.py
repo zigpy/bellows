@@ -167,14 +167,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._ieee = ieee[0]
 
         node_info = app_state.NodeInfo(nwk, ieee, node_type.zdo_logical_type)
+        self.state.node_information = node_info
+        self.state.network_information = nwk_params.zigpy_network_information
         ezsp_counters = app_state.Counters(
             "ezsp_counters", (a.name[8:] for a in ezsp.types.EmberCounterType)
         )
-        self.state = app_state.State(
-            node_info,
-            nwk_params.zigpy_network_information,
-            {ezsp_counters.name: ezsp_counters},
-        )
+        try:
+            counters = self.state.counters[ezsp_counters.name]
+        except KeyError:
+            self.state.counters[ezsp_counters.name] = ezsp_counters
+        else:
+            counters.reset()
 
         ezsp.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
