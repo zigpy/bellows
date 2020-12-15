@@ -83,6 +83,12 @@ class Counter:
 
         self._raw_value = new_value
 
+    def increment(self, increment: int = 1) -> None:
+        """Increment current value by increment."""
+
+        assert increment >= 0
+        self._raw_value += increment
+
     def reset_and_update(self, value: int) -> None:
         """Clear (rollover event) and optionally update."""
 

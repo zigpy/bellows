@@ -151,3 +151,20 @@ def test_counters_reset(counters):
     counter.update(22)
     assert counter.value == 44
     assert counter.reset_count == 1
+
+
+def test_counter_incr():
+    """Test counter incement."""
+
+    counter = app_state.Counter("counter_name", 42)
+    assert counter == 42
+
+    counter.increment()
+    assert counter == 43
+
+    counter.increment(5)
+    assert counter == 48
+    assert counter.value == 48
+
+    with pytest.raises(AssertionError):
+        counter.increment(-1)
