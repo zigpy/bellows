@@ -168,3 +168,15 @@ def test_counter_incr():
 
     with pytest.raises(AssertionError):
         counter.increment(-1)
+
+
+def test_counters_by_name(counters):
+    """Test accessing individual counters by name."""
+    counters["counter_2"] = 22
+    counter = counters["counter_2"]
+    assert counters.counter_2 is counter
+    assert counter == 22
+    assert counters.counter_2 == 22
+
+    with pytest.raises(AttributeError):
+        counters.no_such_counter

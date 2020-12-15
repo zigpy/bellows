@@ -112,6 +112,13 @@ class Counters:
         """Is the "counter id/name" in the list."""
         return item in self._counters
 
+    def __getattr__(self, counter_id: str) -> Counter:
+        """Get specific counter."""
+        try:
+            return self._counters[counter_id]
+        except KeyError as exc:
+            raise AttributeError(f"{counter_id} counter does not exist") from exc
+
     def __iter__(self) -> Iterable[Counter]:
         """Return an iterable of the counters"""
         return (counter for counter in self._counters.values())
