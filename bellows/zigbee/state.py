@@ -102,11 +102,19 @@ class Counter:
 class Counters:
     """Named collection of counters."""
 
-    def __init__(self, collection_name: str, names: Optional[Iterable[str]]) -> None:
+    def __init__(
+        self,
+        collection_name: str,
+        names: Optional[Iterable[str]],
+        *,
+        counter_class: Counter = Counter,
+    ) -> None:
         """Initialize instance."""
 
         self._name = collection_name
-        self._counters: Dict[Any, Counter] = {name: Counter(name) for name in names}
+        self._counters: Dict[Any, Counter] = {
+            name: counter_class(name) for name in names
+        }
 
     def __contains__(self, item: Any) -> bool:
         """Is the "counter id/name" in the list."""
