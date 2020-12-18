@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from typing import Dict
+from typing import Dict, Tuple
 
 from serial import SerialException
 import zigpy.application
@@ -27,13 +27,33 @@ import bellows.zigbee.state as app_state
 import bellows.zigbee.util
 
 APS_ACK_TIMEOUT = 120
+COUNTER_NWK_CONFLICTS = "nwk_conflicts"
+COUNTER_RESET_REQ = "reset_requests"
+COUNTER_RESET_SUCCESS = "reset_success"
+COUNTER_WATCHDOG = "watchdog_reset_requests"
+COUNTERS_EZSP = "ezsp_counters"
+COUNTERS_CTRL = "controller_app_counters"
 EZSP_COUNTERS_CLEAR_IN_WATCHDOG_PERIODS = 180
 EZSP_DEFAULT_RADIUS = 0
 EZSP_MULTICAST_NON_MEMBER_RADIUS = 3
-EZSP_COUNTER_CLEAR_INTERVAL = 180  # Clear counters every n * WATCHDOG_WAKE_PERIOD
 MAX_WATCHDOG_FAILURES = 4
 RESET_ATTEMPT_BACKOFF_TIME = 5
 WATCHDOG_WAKE_PERIOD = 10
+
+
+def _req_name(x: str) -> Tuple[str, str, str]:
+    return f"{x}_tx_success", f"{x}_tx_failure", f"{x}_rx"
+
+
+CONTROLLER_COUNTERS_NAMES = (
+    COUNTER_WATCHDOG,
+    COUNTER_RESET_REQ,
+    COUNTER_RESET_SUCCESS,
+    COUNTER_NWK_CONFLICTS,
+    *_req_name("broadcast"),
+    *_req_name("multicast"),
+    *_req_name("unicast"),
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -169,15 +189,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         node_info = app_state.NodeInfo(nwk, ieee, node_type.zdo_logical_type)
         self.state.node_information = node_info
         self.state.network_information = nwk_params.zigpy_network_information
-        ezsp_counters = app_state.Counters(
-            "ezsp_counters", (a.name[8:] for a in ezsp.types.EmberCounterType)
+        self.state.initialize_counters(
+            COUNTERS_EZSP, (a.name[8:] for a in ezsp.types.EmberCounterType)
         )
-        try:
-            counters = self.state.counters[ezsp_counters.name]
-        except KeyError:
-            self.state.counters[ezsp_counters.name] = ezsp_counters
-        else:
-            counters.reset()
+        self.state.initialize_counters(COUNTERS_CTRL, CONTROLLER_COUNTERS_NAMES)
 
         ezsp.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
@@ -265,6 +280,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         address_index,
         message,
     ):
+        if message_type == t.EmberIncomingMessageType.INCOMING_BROADCAST:
+            self.state.counters[COUNTERS_CTRL]["broadcast_rx"].increment()
+        elif message_type == t.EmberIncomingMessageType.INCOMING_MULTICAST:
+            self.state.counters[COUNTERS_CTRL]["multicast_rx"].increment()
+        elif message_type == t.EmberIncomingMessageType.INCOMING_UNICAST:
+            self.state.counters[COUNTERS_CTRL]["unicast_rx"].increment()
+
         if (
             aps_frame.clusterId == zdo_t.ZDOCmd.Device_annce
             and aps_frame.destinationEndpoint == 0
@@ -292,15 +314,29 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         )
 
     def _handle_frame_sent(
-        self, message_type, destination, aps_frame, message_tag, status, message
+        self,
+        message_type: t.EmberIncomingMessageType,
+        destination: t.EmberNodeId,
+        aps_frame: t.EmberApsFrame,
+        message_tag: int,
+        status: t.EmberStatus,
+        message: bytes,
     ):
+        if status == t.EmberStatus.SUCCESS:
+            msg = "success"
+        else:
+            msg = "failure"
+
+        if message_type == t.EmberIncomingMessageType.INCOMING_BROADCAST:
+            self.state.counters[COUNTERS_CTRL][f"broadcast_tx_{msg}"].increment()
+        elif message_type == t.EmberIncomingMessageType.INCOMING_MULTICAST:
+            self.state.counters[COUNTERS_CTRL][f"multicast_tx_{msg}"].increment()
+        elif message_type == t.EmberIncomingMessageType.INCOMING_UNICAST:
+            self.state.counters[COUNTERS_CTRL][f"unicast_tx_{msg}"].increment()
+
         try:
             request = self._pending[message_tag]
-            if status == t.EmberStatus.SUCCESS:
-                msg = "message sent successfully"
-            else:
-                msg = "message send failure"
-            request.result.set_result((status, msg))
+            request.result.set_result((status, f"message send {msg}"))
         except KeyError:
             LOGGER.debug("Unexpected message send notification tag: %s", message_tag)
         except asyncio.InvalidStateError as exc:
@@ -366,6 +402,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             await asyncio.sleep(RESET_ATTEMPT_BACKOFF_TIME)
 
         self._reset_task = None
+        self.state.counters[COUNTERS_CTRL][COUNTER_RESET_SUCCESS].increment()
         LOGGER.debug("ControllerApplication successfully reset")
 
     async def _reset_controller(self):
@@ -549,6 +586,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def _handle_id_conflict(self, nwk: t.EmberNodeId) -> None:
         LOGGER.warning("NWK conflict is reported for 0x%04x", nwk)
+        self.state.counters[COUNTERS_CTRL][COUNTER_NWK_CONFLICTS].increment()
         for device in self.devices.values():
             if device.nwk != nwk:
                 continue
@@ -628,7 +666,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 if self._ezsp.ezsp_version == 4:
                     await self._ezsp.nop()
                 else:
-                    counters = self.state.counters["ezsp_counters"]
+                    counters = self.state.counters[COUNTERS_EZSP]
                     read_counter = (
                         read_counter + 1
                     ) % EZSP_COUNTERS_CLEAR_IN_WATCHDOG_PERIODS
@@ -653,6 +691,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     break
             await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
 
+        self.state.counters[COUNTERS_CTRL][COUNTER_WATCHDOG].increment()
         self._handle_reset_request(
             "Watchdog timeout. Heartbeat timeouts: {}".format(failures)
         )

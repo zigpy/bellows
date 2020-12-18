@@ -51,6 +51,14 @@ def app(monkeypatch, event_loop):
     ctrl._ctrl_event.set()
     ctrl._in_flight_msg = asyncio.Semaphore()
     ctrl.handle_message = MagicMock()
+    ctrl.state.initialize_counters(
+        bellows.zigbee.application.COUNTERS_EZSP,
+        (a.name[8:] for a in ezsp.types.EmberCounterType),
+    )
+    ctrl.state.initialize_counters(
+        bellows.zigbee.application.COUNTERS_CTRL,
+        bellows.zigbee.application.CONTROLLER_COUNTERS_NAMES,
+    )
     return ctrl
 
 
@@ -181,13 +189,21 @@ async def test_form_network(app):
     await app.form_network()
 
 
-def _frame_handler(app, aps, ieee, src_ep, cluster=0, data=b"\x01\x00\x00"):
+def _frame_handler(
+    app,
+    aps,
+    ieee,
+    src_ep,
+    cluster=0,
+    data=b"\x01\x00\x00",
+    message_type=t.EmberIncomingMessageType.INCOMING_UNICAST,
+):
     if ieee not in app.devices:
         app.add_device(ieee, 3)
     aps.sourceEndpoint = src_ep
     aps.clusterId = cluster
     app.ezsp_callback_handler(
-        "incomingMessageHandler", [None, aps, 1, 2, 3, 4, 5, data]
+        "incomingMessageHandler", [message_type, aps, 1, 2, 3, 4, 5, data]
     )
 
 
@@ -203,10 +219,18 @@ async def test_frame_handler_unknown_device(app, aps, ieee):
     assert app.handle_join.call_count == 0
 
 
-def test_frame_handler(app, aps, ieee):
+@pytest.mark.parametrize(
+    "msg_type",
+    (
+        t.EmberIncomingMessageType.INCOMING_BROADCAST,
+        t.EmberIncomingMessageType.INCOMING_MULTICAST,
+        t.EmberIncomingMessageType.INCOMING_UNICAST,
+    ),
+)
+def test_frame_handler(app, aps, ieee, msg_type):
     app.handle_join = MagicMock()
     data = b"\x18\x19\x22\xaa\x55"
-    _frame_handler(app, aps, ieee, 0, data=data)
+    _frame_handler(app, aps, ieee, 0, data=data, message_type=msg_type)
     assert app.handle_message.call_count == 1
     assert app.handle_message.call_args[0][5] is data
     assert app.handle_join.call_count == 0
@@ -225,10 +249,18 @@ def test_frame_handler_zdo_annce(app, aps, ieee):
     assert app.handle_join.call_args[0][1] == ieee
 
 
-def test_send_failure(app, aps, ieee):
+@pytest.mark.parametrize(
+    "msg_type",
+    (
+        t.EmberIncomingMessageType.INCOMING_BROADCAST,
+        t.EmberIncomingMessageType.INCOMING_MULTICAST,
+        t.EmberIncomingMessageType.INCOMING_UNICAST,
+    ),
+)
+def test_send_failure(app, aps, ieee, msg_type):
     req = app._pending[254] = MagicMock()
     app.ezsp_callback_handler(
-        "messageSentHandler", [None, 0xBEED, aps, 254, sentinel.status, b""]
+        "messageSentHandler", [msg_type, 0xBEED, aps, 254, sentinel.status, b""]
     )
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
