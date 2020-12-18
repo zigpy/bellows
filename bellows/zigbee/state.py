@@ -193,3 +193,22 @@ class State:
         """Initialize default counters."""
         if self.counters is None:
             self.counters = {}
+
+    def initialize_counters(
+        self,
+        collection_name: str,
+        names: Iterable[str],
+        *,
+        counter_class: Counter = Counter,
+    ) -> Counters:
+        """Create or Reset counters."""
+
+        try:
+            counters = self.counters[collection_name]
+        except KeyError:
+            counters = Counters(collection_name, names, counter_class=counter_class)
+            self.counters[counters.name] = counters
+        else:
+            counters.reset()
+
+        return counters
