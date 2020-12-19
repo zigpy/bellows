@@ -2,7 +2,7 @@ import dataclasses
 import inspect
 import typing
 
-import bellows.zigbee.state as app_state
+import zigpy.application.state as app_state
 
 from . import basic, named
 

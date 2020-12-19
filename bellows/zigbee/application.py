@@ -5,6 +5,7 @@ from typing import Dict, Tuple
 
 from serial import SerialException
 import zigpy.application
+import zigpy.application.state as app_state
 import zigpy.config
 import zigpy.device
 from zigpy.quirks import CustomDevice, CustomEndpoint
@@ -23,7 +24,6 @@ import bellows.ezsp
 from bellows.ezsp.v8.types.named import EmberDeviceUpdate
 import bellows.multicast
 import bellows.types as t
-import bellows.zigbee.state as app_state
 import bellows.zigbee.util
 
 APS_ACK_TIMEOUT = 120
@@ -80,9 +80,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         self.use_source_routing = self.config[CONF_PARAM_SRC_RTG]
         self._req_lock = asyncio.Lock()
-        node_info = app_state.NodeInfo()
-        network_info = app_state.NetworkInformation()
-        self.state = app_state.State(node_info, network_info)
 
     @property
     def controller_event(self):
@@ -181,10 +178,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._nwk_update_id = nwk_params.nwkUpdateId
 
         await ezsp.update_policies(self.config)
-        nwk = await ezsp.getNodeId()
-        self._nwk = nwk[0]
-        ieee = await ezsp.getEui64()
-        self._ieee = ieee[0]
+        (nwk,) = await ezsp.getNodeId()
+        (ieee,) = await ezsp.getEui64()
 
         node_info = app_state.NodeInfo(nwk, ieee, node_type.zdo_logical_type)
         self.state.node_information = node_info
