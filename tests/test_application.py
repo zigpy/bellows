@@ -2,9 +2,9 @@ import asyncio
 import logging
 
 import pytest
-import zigpy.application.state as app_state
 import zigpy.config
 from zigpy.device import Device
+import zigpy.state as app_state
 from zigpy.zcl.clusters import security
 import zigpy.zdo.types as zdo_t
 

@@ -5,10 +5,10 @@ from typing import Dict, Tuple
 
 from serial import SerialException
 import zigpy.application
-import zigpy.application.state as app_state
 import zigpy.config
 import zigpy.device
 from zigpy.quirks import CustomDevice, CustomEndpoint
+import zigpy.state as app_state
 from zigpy.types import BroadcastAddress
 import zigpy.util
 import zigpy.zdo.types as zdo_t

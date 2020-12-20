@@ -2,7 +2,7 @@ import dataclasses
 import inspect
 import typing
 
-import zigpy.application.state as app_state
+import zigpy.state as app_state
 
 from . import basic, named
 
