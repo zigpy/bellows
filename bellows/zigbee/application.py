@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from typing import Dict, Tuple
+from typing import Dict
 
 from serial import SerialException
 import zigpy.application
@@ -30,6 +30,7 @@ APS_ACK_TIMEOUT = 120
 COUNTER_NWK_CONFLICTS = "nwk_conflicts"
 COUNTER_RESET_REQ = "reset_requests"
 COUNTER_RESET_SUCCESS = "reset_success"
+COUNTER_UNKNOWN_DEVICE = "unknown_device_rx"
 COUNTER_WATCHDOG = "watchdog_reset_requests"
 COUNTERS_EZSP = "ezsp_counters"
 COUNTERS_CTRL = "controller_app_counters"
@@ -40,20 +41,6 @@ MAX_WATCHDOG_FAILURES = 4
 RESET_ATTEMPT_BACKOFF_TIME = 5
 WATCHDOG_WAKE_PERIOD = 10
 
-
-def _req_name(x: str) -> Tuple[str, str, str]:
-    return f"{x}_tx_success", f"{x}_tx_failure", f"{x}_rx"
-
-
-CONTROLLER_COUNTERS_NAMES = (
-    COUNTER_WATCHDOG,
-    COUNTER_RESET_REQ,
-    COUNTER_RESET_SUCCESS,
-    COUNTER_NWK_CONFLICTS,
-    *_req_name("broadcast"),
-    *_req_name("multicast"),
-    *_req_name("unicast"),
-)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -184,10 +171,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         node_info = app_state.NodeInfo(nwk, ieee, node_type.zdo_logical_type)
         self.state.node_information = node_info
         self.state.network_information = nwk_params.zigpy_network_information
-        self.state.initialize_counters(
-            COUNTERS_EZSP, (a.name[8:] for a in ezsp.types.EmberCounterType)
-        )
-        self.state.initialize_counters(COUNTERS_CTRL, CONTROLLER_COUNTERS_NAMES)
+        for cnt_group in self.state.counters:
+            cnt_group.reset()
 
         ezsp.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
@@ -294,6 +279,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             device = self.get_device(nwk=sender)
         except KeyError:
             LOGGER.debug("No such device %s", sender)
+            self.state.counters[COUNTERS_CTRL][COUNTER_UNKNOWN_DEVICE].increment()
             if self.config[CONF_PARAM_UNK_DEV]:
                 asyncio.create_task(self._handle_no_such_device(sender))
             return
@@ -322,19 +308,30 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         else:
             msg = "failure"
 
-        if message_type == t.EmberIncomingMessageType.INCOMING_BROADCAST:
-            self.state.counters[COUNTERS_CTRL][f"broadcast_tx_{msg}"].increment()
-        elif message_type == t.EmberIncomingMessageType.INCOMING_MULTICAST:
-            self.state.counters[COUNTERS_CTRL][f"multicast_tx_{msg}"].increment()
+        if message_type in (
+            t.EmberIncomingMessageType.INCOMING_BROADCAST,
+            t.EmberIncomingMessageType.INCOMING_BROADCAST_LOOPBACK,
+        ):
+            cnt_name = f"broadcast_tx_{msg}"
+        elif message_type in (
+            t.EmberIncomingMessageType.INCOMING_MULTICAST,
+            t.EmberIncomingMessageType.INCOMING_MULTICAST_LOOPBACK,
+        ):
+            cnt_name = f"multicast_tx_{msg}"
         elif message_type == t.EmberIncomingMessageType.INCOMING_UNICAST:
-            self.state.counters[COUNTERS_CTRL][f"unicast_tx_{msg}"].increment()
+            cnt_name = f"unicast_tx_{msg}"
+        else:
+            cnt_name = f"unknown_msgt_type_{msg}"
 
         try:
             request = self._pending[message_tag]
             request.result.set_result((status, f"message send {msg}"))
+            self.state.counters[COUNTERS_CTRL][cnt_name].increment()
         except KeyError:
+            self.state.counters[COUNTERS_CTRL][f"{cnt_name}_unexpected"].increment()
             LOGGER.debug("Unexpected message send notification tag: %s", message_tag)
         except asyncio.InvalidStateError as exc:
+            self.state.counters[COUNTERS_CTRL][f"{cnt_name}_duplicate"].increment()
             LOGGER.debug(
                 (
                     "Invalid state on future for message tag %s "
@@ -670,8 +667,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     else:
                         (res,) = await self._ezsp.readAndClearCounters()
 
-                    for counter, value in zip(counters, res):
-                        counter.update(value)
+                    for cnt_type, value in zip(self._ezsp.types.EmberCounterType, res):
+                        counters[cnt_type.name[8:]].update(value)
 
                     if not read_counter:
                         counters.reset()

@@ -4,7 +4,6 @@ import logging
 import pytest
 import zigpy.config
 from zigpy.device import Device
-import zigpy.state as app_state
 from zigpy.zcl.clusters import security
 import zigpy.zdo.types as zdo_t
 
@@ -51,14 +50,6 @@ def app(monkeypatch, event_loop):
     ctrl._ctrl_event.set()
     ctrl._in_flight_msg = asyncio.Semaphore()
     ctrl.handle_message = MagicMock()
-    ctrl.state.initialize_counters(
-        bellows.zigbee.application.COUNTERS_EZSP,
-        (a.name[8:] for a in ezsp.types.EmberCounterType),
-    )
-    ctrl.state.initialize_counters(
-        bellows.zigbee.application.COUNTERS_CTRL,
-        bellows.zigbee.application.CONTROLLER_COUNTERS_NAMES,
-    )
     return ctrl
 
 
@@ -271,20 +262,46 @@ def test_dup_send_failure(app, aps, ieee):
     req = app._pending[254] = MagicMock()
     req.result.set_result.side_effect = asyncio.InvalidStateError()
     app.ezsp_callback_handler(
-        "messageSentHandler", [None, 0xBEED, aps, 254, sentinel.status, b""]
+        "messageSentHandler",
+        [
+            t.EmberIncomingMessageType.INCOMING_UNICAST,
+            0xBEED,
+            aps,
+            254,
+            sentinel.status,
+            b"",
+        ],
     )
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
 
 
 def test_send_failure_unexpected(app, aps, ieee):
-    app.ezsp_callback_handler("messageSentHandler", [None, 0xBEED, aps, 257, 1, b""])
+    app.ezsp_callback_handler(
+        "messageSentHandler",
+        [
+            t.EmberIncomingMessageType.INCOMING_BROADCAST_LOOPBACK,
+            0xBEED,
+            aps,
+            257,
+            1,
+            b"",
+        ],
+    )
 
 
 def test_send_success(app, aps, ieee):
     req = app._pending[253] = MagicMock()
     app.ezsp_callback_handler(
-        "messageSentHandler", [None, 0xBEED, aps, 253, sentinel.success, b""]
+        "messageSentHandler",
+        [
+            t.EmberIncomingMessageType.INCOMING_MULTICAST_LOOPBACK,
+            0xBEED,
+            aps,
+            253,
+            sentinel.success,
+            b"",
+        ],
     )
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
@@ -292,13 +309,19 @@ def test_send_success(app, aps, ieee):
 
 
 def test_unexpected_send_success(app, aps, ieee):
-    app.ezsp_callback_handler("messageSentHandler", [None, 0xBEED, aps, 253, 0, b""])
+    app.ezsp_callback_handler(
+        "messageSentHandler",
+        [t.EmberIncomingMessageType.INCOMING_MULTICAST, 0xBEED, aps, 253, 0, b""],
+    )
 
 
 def test_dup_send_success(app, aps, ieee):
     req = app._pending[253] = MagicMock()
     req.result.set_result.side_effect = asyncio.InvalidStateError()
-    app.ezsp_callback_handler("messageSentHandler", [None, 0xBEED, aps, 253, 0, b""])
+    app.ezsp_callback_handler(
+        "messageSentHandler",
+        [t.EmberIncomingMessageType.INCOMING_MULTICAST, 0xBEED, aps, 253, 0, b""],
+    )
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
 
@@ -781,11 +804,6 @@ async def test_reset_controller_routine(app):
 async def test_watchdog(app, monkeypatch, ezsp_version):
     from bellows.zigbee import application
 
-    ezsp_counters = app_state.Counters(
-        "ezsp_counters", (a.name[8:] for a in t.EmberCounterType)
-    )
-    app.state.counters[ezsp_counters.name] = ezsp_counters
-
     monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.01)
     monkeypatch.setattr(application, "EZSP_COUNTERS_CLEAR_IN_WATCHDOG_PERIODS", 2)
     nop_success = 7
@@ -819,11 +837,6 @@ async def test_watchdog(app, monkeypatch, ezsp_version):
 
 async def test_watchdog_counters(app, monkeypatch, caplog):
     from bellows.zigbee import application
-
-    ezsp_counters = app_state.Counters(
-        "ezsp_counters", (a.name[8:] for a in app._ezsp.types.EmberCounterType)
-    )
-    app.state.counters[ezsp_counters.name] = ezsp_counters
 
     monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.01)
     nop_success = 3
