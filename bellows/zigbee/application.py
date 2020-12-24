@@ -9,7 +9,7 @@ import zigpy.config
 import zigpy.device
 from zigpy.quirks import CustomDevice, CustomEndpoint
 import zigpy.state as app_state
-from zigpy.types import BroadcastAddress
+from zigpy.types import Addressing, BroadcastAddress
 import zigpy.util
 import zigpy.zdo.types as zdo_t
 
@@ -251,21 +251,24 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def _handle_frame(
         self,
-        message_type,
-        aps_frame,
-        lqi,
-        rssi,
-        sender,
-        binding_index,
-        address_index,
-        message,
-    ):
+        message_type: t.EmberIncomingMessageType,
+        aps_frame: t.EmberApsFrame,
+        lqi: t.uint8_t,
+        rssi: t.int8s,
+        sender: t.EmberNodeId,
+        binding_index: t.uint8_t,
+        address_index: t.uint8_t,
+        message: bytes,
+    ) -> None:
         if message_type == t.EmberIncomingMessageType.INCOMING_BROADCAST:
             self.state.counters[COUNTERS_CTRL]["broadcast_rx"].increment()
+            dst_addressing = Addressing.nwk(0xFFFE, aps_frame.destinationEndpoint)
         elif message_type == t.EmberIncomingMessageType.INCOMING_MULTICAST:
             self.state.counters[COUNTERS_CTRL]["multicast_rx"].increment()
+            dst_addressing = Addressing.group(aps_frame.groupId)
         elif message_type == t.EmberIncomingMessageType.INCOMING_UNICAST:
             self.state.counters[COUNTERS_CTRL]["unicast_rx"].increment()
+            dst_addressing = Addressing.nwk(self.nwk, aps_frame.destinationEndpoint)
 
         if (
             aps_frame.clusterId == zdo_t.ZDOCmd.Device_annce
@@ -292,6 +295,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             aps_frame.sourceEndpoint,
             aps_frame.destinationEndpoint,
             message,
+            dst_addressing=dst_addressing,
         )
 
     def _handle_frame_sent(
