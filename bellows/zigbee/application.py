@@ -309,19 +309,24 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             msg = "failure"
 
         if message_type in (
-            t.EmberIncomingMessageType.INCOMING_BROADCAST,
-            t.EmberIncomingMessageType.INCOMING_BROADCAST_LOOPBACK,
+            t.EmberOutgoingMessageType.OUTGOING_BROADCAST,
+            t.EmberOutgoingMessageType.OUTGOING_BROADCAST_WITH_ALIAS,
         ):
             cnt_name = f"broadcast_tx_{msg}"
         elif message_type in (
-            t.EmberIncomingMessageType.INCOMING_MULTICAST,
-            t.EmberIncomingMessageType.INCOMING_MULTICAST_LOOPBACK,
+            t.EmberOutgoingMessageType.OUTGOING_MULTICAST,
+            t.EmberOutgoingMessageType.OUTGOING_MULTICAST_WITH_ALIAS,
         ):
             cnt_name = f"multicast_tx_{msg}"
-        elif message_type == t.EmberIncomingMessageType.INCOMING_UNICAST:
+        elif message_type in (
+            t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+            t.EmberOutgoingMessageType.OUTGOING_VIA_ADDRESS_TABLE,
+        ):
             cnt_name = f"unicast_tx_{msg}"
+        elif message_type == t.EmberOutgoingMessageType.OUTGOING_VIA_BINDING:
+            cnt_name = f"via_binding_tx_{msg}"
         else:
-            cnt_name = f"unknown_msgt_type_{msg}"
+            cnt_name = f"unknown_msg_type_{msg}"
 
         try:
             request = self._pending[message_tag]
