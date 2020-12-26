@@ -269,6 +269,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         elif message_type == t.EmberIncomingMessageType.INCOMING_UNICAST:
             self.state.counters[COUNTERS_CTRL]["unicast_rx"].increment()
             dst_addressing = Addressing.nwk(self.nwk, aps_frame.destinationEndpoint)
+        else:
+            dst_addressing = None
 
         if (
             aps_frame.clusterId == zdo_t.ZDOCmd.Device_annce
