@@ -22,7 +22,7 @@ EmberZNet based Zigbee radios using the EZSP protocol (via the [bellows](https:/
  - Telegesis ETRX357USB (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
  - Telegesis ETRX357USB-LRS (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
  - Telegesis ETRX357USB-LRS+8M (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
- - Bitron Video/Smabit BV AV2010/10 USB-Stick with Silicon Labs Ember 3587
+ - Bitron Video/Smabit BV AV2010/10 USB-Stick (a.k.a. Telekom Magenta Stick) based on Silicon Labs Ember 3587 
  
 ### Warning about Zigbee to WiFi bridges
 
