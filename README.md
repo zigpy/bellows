@@ -22,6 +22,7 @@ EmberZNet based Zigbee radios using the EZSP protocol (via the [bellows](https:/
  - Telegesis ETRX357USB (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
  - Telegesis ETRX357USB-LRS (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
  - Telegesis ETRX357USB-LRS+8M (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
+ - Bitron Video/Smabit BV AV2010/10 USB-Stick with Silicon Labs Ember 3587
  
 ### Warning about Zigbee to WiFi bridges
 
@@ -87,6 +88,16 @@ $ bellows zcl 00:0d:6f:00:05:7d:2d:34 1 1026 read_attribute 0
 ## Configuration
 
 ### Port configuration
+- If the USB radio is not recognized, it might be necessary to make the serial adapters device id known to the [CP210x driver by Silicon Labs](https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers).
+  - Find the device id (as listed by the command `lsusb`). For the Bitron Video/Smabit BV AV2010/10 that might for example be *10c4 8b34*.
+  - Unplug the device.
+  - Enter the following commands (replace the example id *10c4 8b34* with the real one listed by `lsusb` on your system):
+  ```
+  sudo -s
+  modprobe cp210x
+  echo 10c4 8b34 > /sys/bus/usb-serial/drivers/cp210x/new_id
+  ```
+  - Plug in the dongle. It should now be recognized properly as ttyUSBx.
 - To configure USB port path for your EZSP serial device, just specify the TTY (serial com) port, example : `/dev/ttyUSB1`
 - To configure a networked-adapter like Sonoff ZBBridge enter `socket://adapter-IP>:8888` and use 115200 for the port speed.
 - It is worth noting that EM3588 devices that have an embedded USB core will likely work with any baud rate, where dongles using external USB interface (eg CP2102 used with an EM3581) will likely require a specific baud rate. Currently there are two main NCP images - one that supports hardware flow control with a baud rate of 115200, and one that supports software flow control with a rate of 57600.
