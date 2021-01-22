@@ -31,7 +31,7 @@ zigpy requires a robust connection between the zigpy radio library and the seria
 
 bellows requires that the Zigbee adapter/board/module is pre-flashed/flashed with compatible firmware with EmberZNet PRO Zigbee Stack that uses the standard Silicon Labs EZSP (EmberZNet Serial Protocol) APIs for ASH or SPI protocols over a serial interface.
 
-Silabs used to provide two main NCP images pre-build with firmware for EM35x, one image supported hardware flow control with a baud rate of 115200 and the other image supported software flow control with a rate of 57600.
+Note that there are generally two image versions of the Silabs EmberZNet NCP firmware in use. One version operates at a baud rate of 115200 with RTS/CTS flow control (i.e. hardware flow control), the other operates at a lower baud rate of 57600 with XON/XOFF flow control (i.e. software flow control). If you are flashing firmware image to your own EM35x or EFR32 adapter then it is advisable to use a version with hardware flow control, Many available commercial dongles (e.g. Nortek HUSBZB-1) seem to ship pre-flashed with a firmware that uses the lower speed and software flow control.
 
 Silicon Labs no longer provide pre-build firmware images, so now you have to build and compile firmware with their Simplicity Studio SDK for EmberZNet PRO Zigbee Protocol Stack Software. Simplicity Studio is a free download but building and compiling EmberZNet PRO Zigbee firmware images required that you have the serialnumber of an official Zigbee devkit registered to your Silicon Labs user account.
 
