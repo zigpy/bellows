@@ -31,7 +31,7 @@ zigpy requires a robust connection between the zigpy radio library and the seria
 
 ## Firmware requirement
 
-bellows requires that the Zigbee adapter/board/module is pre-flashed/flashed with compatible firmware with EmberZNet PRO Zigbee Stack that uses the standard Silicon Labs EZSP (EmberZNet Serial Protocol) APIs for ASH or SPI protocols over a serial interface.
+bellows requires that the Zigbee adapter/board/module is pre-flashed/flashed with compatible firmware with EmberZNet PRO Zigbee Stack that uses the standard Silicon Labs EZSP (EmberZNet Serial Protocol) APIs for ASH protocol over a serial interface.
 
 Silabs used to provide two main NCP images pre-build with firmware for EM35x, one image supported hardware flow control with a baud rate of 115200 and the other image supported software flow control with a rate of 57600.
 
@@ -48,7 +48,7 @@ Silicon Labs does not currently have a consolidated list of changes by EmberZNet
 
 The largest change was between EZSP v4 (first added in EmberZNet 4.7.2 SDK) and EZSP v5 that was added in EmberZNet 5.9.0 SDK which requires the Legacy Frame ID 0xFF. The change from EZSP v5 to EZSP v6 was done in EmberZNet 6.0.0 SDK. The change from EZSP v6 to EZSP v7 was in EmberZNet 6.4.0 SDK. EmberZNet 6.7.0 SDK added EZSP v8 (and Secure EZSP Protocol Version 2).
 
-Perhaps more important to know today is that EZSP v5, v6 and v7 (EmberZNet 6.6.x.x) use the same framing format, but EmberZNet 6.7.x.x/EZSP v8 introduced new framing format and expanded command id field from 8 bits to 16 bits.
+Perhaps more important to know today is that EZSP v5, v6 and v7 (EmberZNet 6.6.x.x) use the same framing format, but EmberZNet 6.7.x.x/EZSP v8 introduced new framing format and expanded command id field from 8 bits to 16 bits and is and is not backward compatible.
 
 ## Project status
 
@@ -89,9 +89,11 @@ $ bellows zcl 00:0d:6f:00:05:7d:2d:34 1 1026 read_attribute 0
 ## Configuration
 
 ### Port configuration
-- To configure USB port path for your EZSP serial device, just specify the TTY (serial com) port, example : `/dev/ttyUSB1`
-- To configure a networked-adapter like Sonoff ZBBridge enter `socket://adapter-IP>:8888` and use 115200 for the port speed.
+- To configure USB / serial port path for your EZSP serial device, just specify the TTY (serial com) port, example : `/dev/ttyUSB1`
+- To configure a networked-adapter like Sonoff ZBBridge and Tuya ZBGW  enter `socket://adapter-IP>:8888` and use 115200 for the port speed.
 - It is worth noting that EM3588 devices that have an embedded USB core will likely work with any baud rate, where dongles using external USB interface (eg CP2102 used with an EM3581) will likely require a specific baud rate. Currently there are two main NCP images - one that supports hardware flow control with a baud rate of 115200, and one that supports software flow control with a rate of 57600.
+- ZHA is only supporting software flow control so dont using firmware with hardware flow control.
+- ZHA can for the moment only auto discover modules with 57600 baud.
 
 ### NVRAM Backup and restore
 
