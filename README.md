@@ -22,7 +22,9 @@ EmberZNet based Zigbee radios using the EZSP protocol (via the [bellows](https:/
  - Telegesis ETRX357USB (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
  - Telegesis ETRX357USB-LRS (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
  - Telegesis ETRX357USB-LRS+8M (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
- 
+ - [IKEA Billy EZSP](https://github.com/MattWestb/IKEA-TRADFRI-ICC-A-1-Module).
+ - [Tuya TYGWZ01 and with labeled (Silvercrest / Lidl) Smart Home Gateway](https://paulbanks.org/projects/lidl-zigbee/).  
+
 ### Warning about Zigbee to WiFi bridges
 
 zigpy requires a robust connection between the zigpy radio library and the serial port of the Zigbee radio. With solutions such as _ITEAD Sonoff ZBBridge_ or a Ser2Net serial proxy connection over a WiFi network it is expected to see `NCP entered failed state. Requesting APP controller restart` in the logs. This is a normal part of the operation and indicates there was a drop in communication which caused packet loss to occurred between the zigpy radio library and the Zigbee radio. The use of serial network proxies/bridges/servers over WiFi is therefore not recommended when wanting a stable Zigbee environment with zigpy.
@@ -36,9 +38,9 @@ Silabs used to provide two main NCP images pre-build with firmware for EM35x, on
 Silicon Labs no longer provide pre-build firmware images, so now you have to build and compile firmware with their Simplicity Studio SDK for EmberZNet PRO Zigbee Protocol Stack Software. Simplicity Studio is a free download but building and compiling EmberZNet PRO Zigbee firmware images required that you have the serialnumber of an official Zigbee devkit registered to your Silicon Labs user account.
 
 #### Firmware upgrade resources
-
--  [Elelabs EZSP Firmware Update Utility (should work with most EFR32 based Zigbee coordinators with Silicon Labs standard bootloader)](https://github.com/Elelabs/elelabs-zigbee-ezsp-utility)
--  [Docker firmware updater image by walthowd upgrading Nortek/GoControl/Linear HUSBZB-1 and Telegesis ETRX357 Zigbee coordinator adapters](https://github.com/walthowd/husbzb-firmware)
+-  For firmware requirements and recommended firmware see the [Zigpy Wiki](https://github.com/zigpy/zigpy/wiki/Coordinator-Firmware-Updates).
+-  [Elelabs EZSP Firmware Update Utility (should work with most EFR32 based Zigbee coordinators with Silicon Labs standard bootloader)](https://github.com/Elelabs/elelabs-zigbee-ezsp-utility).
+-  [Docker firmware updater image by walthowd upgrading Nortek/GoControl/Linear HUSBZB-1 and Telegesis ETRX357 Zigbee coordinator adapters](https://github.com/walthowd/husbzb-firmware).
 
 ### EmberZNet and EZSP Protocol Version
 
