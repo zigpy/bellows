@@ -90,7 +90,7 @@ $ bellows zcl 00:0d:6f:00:05:7d:2d:34 1 1026 read_attribute 0
 
 ### Port configuration
 - To configure USB / serial port path for your EZSP serial device, just specify the TTY (serial com) port, example : `/dev/ttyUSB1`
-- To configure a networked-adapter like Sonoff ZBBridge and Tuya ZBGW  enter `socket://adapter-IP>:8888` and use 115200 for the port speed.
+- To configure a networked-adapter (WiFi or Ethernet connected radio modules) enter `socket://adapter-IP>:<Port>`  as com port and enter the default speed of your module as port speed. Example `socket://127.127.0.1:1234` and `115200`.
 - It is worth noting that EM3588 devices that have an embedded USB core will likely work with any baud rate, where dongles using external USB interface (eg CP2102 used with an EM3581) will likely require a specific baud rate. Currently there are two main NCP images - one that supports hardware flow control with a baud rate of 115200, and one that supports software flow control with a rate of 57600.
 - ZHA is only supporting software flow control so dont using firmware with hardware flow control.
 - ZHA can for the moment only auto discover modules with 57600 baud.
