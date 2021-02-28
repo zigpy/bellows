@@ -22,7 +22,7 @@ EZSP_SCHEMA = {
     # The maximum number of router neighbors the stack can keep track of. A neighbor
     # is a node within radio range
     vol.Optional(EzspConfigId.CONFIG_NEIGHBOR_TABLE_SIZE.name): vol.All(
-        int, vol.Range(min=8, max=16)
+        int, vol.Range(min=8, max=26)
     ),
     #
     # The maximum number of APS retried messages the stack can be transmitting at
@@ -80,7 +80,7 @@ EZSP_SCHEMA = {
     #
     # The maximum number of end device children that a router will support
     vol.Optional(EzspConfigId.CONFIG_MAX_END_DEVICE_CHILDREN.name, default=32): vol.All(
-        int, vol.Range(min=0, max=32)
+        int, vol.Range(min=0, max=64)
     ),
     #
     # The maximum amount of time that the MAC will hold a message for indirect
