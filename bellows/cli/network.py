@@ -59,7 +59,7 @@ async def join(ctx, channels, pan_id, extended_pan_id):
         network = networks[0]
 
         pan_id = network.panId
-        extended_pan_id = network.ExtendedPanId
+        extended_pan_id = network.extendedPanId
         channel = network.channel
 
         click.echo(

@@ -28,6 +28,7 @@ import bellows.zigbee.util
 APS_ACK_TIMEOUT = 120
 EZSP_DEFAULT_RADIUS = 0
 EZSP_MULTICAST_NON_MEMBER_RADIUS = 3
+EZSP_COUNTER_CLEAR_INTERVAL = 180  # Clear counters every n * WATCHDOG_WAKE_PERIOD
 MAX_WATCHDOG_FAILURES = 4
 RESET_ATTEMPT_BACKOFF_TIME = 5
 WATCHDOG_WAKE_PERIOD = 10
@@ -218,10 +219,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if frame_name == "incomingMessageHandler":
             self._handle_frame(*args)
         elif frame_name == "messageSentHandler":
-            if args[4] != t.EmberStatus.SUCCESS:
-                self._handle_frame_failure(*args)
-            else:
-                self._handle_frame_sent(*args)
+            self._handle_frame_sent(*args)
         elif frame_name == "trustCenterJoinHandler":
             self._handle_tc_join_handler(*args)
         elif frame_name == "incomingRouteRecordHandler":
@@ -270,34 +268,16 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             message,
         )
 
-    def _handle_frame_failure(
-        self, message_type, destination, aps_frame, message_tag, status, message
-    ):
-        try:
-            request = self._pending[message_tag]
-            request.result.set_result((status, "message send failure"))
-        except KeyError:
-            LOGGER.debug(
-                "Unexpected message send failure for message tag %s", message_tag
-            )
-        except asyncio.InvalidStateError as exc:
-            LOGGER.debug(
-                (
-                    "Invalid state on future for message tag %s "
-                    "- probably duplicate response: %s"
-                ),
-                message_tag,
-                exc,
-            )
-
     def _handle_frame_sent(
         self, message_type, destination, aps_frame, message_tag, status, message
     ):
         try:
             request = self._pending[message_tag]
-            request.result.set_result(
-                (t.EmberStatus.SUCCESS, "message sent successfully")
-            )
+            if status == t.EmberStatus.SUCCESS:
+                msg = "message sent successfully"
+            else:
+                msg = "message send failure"
+            request.result.set_result((status, msg))
         except KeyError:
             LOGGER.debug("Unexpected message send notification tag: %s", message_tag)
         except asyncio.InvalidStateError as exc:
@@ -622,6 +602,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         """Watchdog handler."""
         LOGGER.debug("Starting EZSP watchdog")
         failures = 0
+        read_counter = 0
+
         await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
         while True:
             try:
@@ -631,7 +613,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 if LOGGER.level < logging.DEBUG or self._ezsp.ezsp_version == 4:
                     await self._ezsp.nop()
                 else:
-                    (res,) = await self._ezsp.readCounters()
+                    read_counter = (read_counter + 1) % EZSP_COUNTER_CLEAR_INTERVAL
+                    if read_counter:
+                        operation = self._ezsp.readCounters
+                    else:
+                        operation = self._ezsp.readAndClearCounters
+                    (res,) = await operation()
                     counters = (
                         f"{counter.name}: {value}"
                         for counter, value in zip(
