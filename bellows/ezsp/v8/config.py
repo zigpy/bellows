@@ -79,7 +79,7 @@ EZSP_SCHEMA = {
     ),
     #
     # The maximum number of end device children that a router will support
-    vol.Optional(EzspConfigId.CONFIG_MAX_END_DEVICE_CHILDREN.name, default=32): vol.All(
+    vol.Optional(EzspConfigId.CONFIG_MAX_END_DEVICE_CHILDREN.name): vol.All(
         int, vol.Range(min=0, max=64)
     ),
     #
