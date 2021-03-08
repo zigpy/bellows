@@ -135,6 +135,13 @@ If you are instead using some custom python installation of Home Assistant then 
   ```
   pip install bellows==0.16.0
 
+After installing components with the methods above you need deleting the installed component by hand then  you is updating your HA installation or its override the new HA files and you can getting lib miss matching.  
+Execute in your HA docker container CLI:
+```bash
+rm -r  /config/deps/
+```
+And then restarting AH.
+
 ## Release packages available via PyPI
 
 New packages of tagged versions are also released via the "bellows" project on PyPI
