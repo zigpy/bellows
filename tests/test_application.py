@@ -968,11 +968,6 @@ async def test_mrequest(app):
     assert res[0] == 0
 
 
-async def test_mrequest_ack_timeout(app, aps):
-    with pytest.raises(asyncio.TimeoutError):
-        await _mrequest(app, send_ack_received=False)
-
-
 async def test_mrequest_send_unicast_fail(app):
     res = await _mrequest(app, send_success=False)
     assert res[0] != 0
@@ -982,12 +977,6 @@ async def test_mrequest_ezsp_failed(app):
     with pytest.raises(EzspError):
         await _mrequest(app, ezsp_operational=False)
     assert len(app._pending) == 0
-
-
-async def test_mrequest_send_timeout(app):
-    with pytest.raises(asyncio.TimeoutError):
-        await _mrequest(app, send_ack_received=False)
-    assert app._pending == {}
 
 
 async def test_mrequest_ctrl_not_running(app):
