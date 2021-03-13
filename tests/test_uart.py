@@ -13,7 +13,6 @@ pytestmark = pytest.mark.asyncio
 
 
 async def test_connect(monkeypatch):
-    portmock = MagicMock()
     appmock = MagicMock()
     transport = MagicMock()
 
@@ -24,7 +23,9 @@ async def test_connect(monkeypatch):
 
     monkeypatch.setattr(serial_asyncio, "create_serial_connection", mockconnect)
     gw = await uart.connect(
-        {conf.CONF_DEVICE_PATH: portmock, conf.CONF_DEVICE_BAUDRATE: 115200},
+        conf.SCHEMA_DEVICE(
+            {conf.CONF_DEVICE_PATH: "/dev/serial", conf.CONF_DEVICE_BAUDRATE: 115200}
+        ),
         appmock,
         use_thread=False,
     )
@@ -36,7 +37,6 @@ async def test_connect(monkeypatch):
 
 async def test_connect_threaded(monkeypatch):
 
-    portmock = MagicMock()
     appmock = MagicMock()
     transport = MagicMock()
 
@@ -52,7 +52,10 @@ async def test_connect_threaded(monkeypatch):
 
     transport.close.side_effect = on_transport_close
     gw = await uart.connect(
-        {conf.CONF_DEVICE_PATH: portmock, conf.CONF_DEVICE_BAUDRATE: 115200}, appmock
+        conf.SCHEMA_DEVICE(
+            {conf.CONF_DEVICE_PATH: "/dev/serial", conf.CONF_DEVICE_BAUDRATE: 115200}
+        ),
+        appmock,
     )
 
     # Need to close to release thread
@@ -66,7 +69,6 @@ async def test_connect_threaded(monkeypatch):
 
 async def test_connect_threaded_failure(monkeypatch):
 
-    portmock = MagicMock()
     appmock = MagicMock()
     transport = MagicMock()
 
@@ -81,7 +83,12 @@ async def test_connect_threaded_failure(monkeypatch):
     transport.close.side_effect = on_transport_close
     with pytest.raises(OSError):
         gw = await uart.connect(
-            {conf.CONF_DEVICE_PATH: portmock, conf.CONF_DEVICE_BAUDRATE: 115200},
+            conf.SCHEMA_DEVICE(
+                {
+                    conf.CONF_DEVICE_PATH: "/dev/serial",
+                    conf.CONF_DEVICE_BAUDRATE: 115200,
+                }
+            ),
             appmock,
         )
 
