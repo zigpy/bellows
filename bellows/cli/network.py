@@ -4,6 +4,7 @@ import logging
 import math
 
 import click
+from zigpy.config import SCHEMA_NETWORK
 
 import bellows.types as t
 import bellows.zigbee.util as zutil
@@ -34,7 +35,7 @@ async def join(ctx, channels, pan_id, extended_pan_id):
     if len(channels) != 1:
         if pan_id or extended_pan_id:
             raise click.BadOptionUsage(
-                "Specify exactly one channel to join a specific network"
+                "--channels", "Specify exactly one channel to join a specific network"
             )
     else:
         channel = t.uint8_t(channels[0])
@@ -83,7 +84,7 @@ async def join(ctx, channels, pan_id, extended_pan_id):
         util.check(v[0], "Failure leaving network: %s" % (v[0],))
         await asyncio.sleep(1)  # TODO
 
-    initial_security_state = zutil.zha_security()
+    initial_security_state = zutil.zha_security(SCHEMA_NETWORK({}))
     v = await s.setInitialSecurityState(initial_security_state)
     util.check(v[0], "Setting security state failed: %s" % (v[0],))
 
