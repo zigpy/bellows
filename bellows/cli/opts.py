@@ -2,6 +2,8 @@ import os
 
 import click
 
+from bellows.config import CONF_FLOW_CONTROL_DEFAULT
+
 from . import util
 
 CHANNELS = list(range(11, 27))
@@ -56,6 +58,14 @@ duration_s = click.option(
 )
 
 extended_pan = click.option("-E", "--extended-pan-id", type=click.STRING)
+
+flow_control = click.option(
+    "--flow-control",
+    default=CONF_FLOW_CONTROL_DEFAULT,
+    type=click.Choice((CONF_FLOW_CONTROL_DEFAULT, "hardware")),
+    envvar="EZSP_FLOW_CONTROL",
+    help="use hardware flow control",
+)
 
 pan = click.option("-P", "--pan-id", type=click.IntRange(0, 65535))
 
