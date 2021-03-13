@@ -5,7 +5,12 @@ import logging
 import serial
 import serial_asyncio
 
-from bellows.config import CONF_DEVICE_BAUDRATE, CONF_DEVICE_PATH
+from bellows.config import (
+    CONF_DEVICE_BAUDRATE,
+    CONF_DEVICE_PATH,
+    CONF_FLOW_CONTROL,
+    CONF_FLOW_CONTROL_DEFAULT,
+)
 from bellows.thread import EventLoopThread, ThreadsafeProxy
 import bellows.types as t
 
@@ -327,6 +332,11 @@ async def _connect(config, application):
     connection_done_future = loop.create_future()
     protocol = Gateway(application, connection_future, connection_done_future)
 
+    if config[CONF_FLOW_CONTROL] == CONF_FLOW_CONTROL_DEFAULT:
+        xon_xoff, rtscts = False, True
+    else:
+        xon_xoff, rtscts = True, False
+
     transport, protocol = await serial_asyncio.create_serial_connection(
         loop,
         lambda: protocol,
@@ -334,7 +344,8 @@ async def _connect(config, application):
         baudrate=config[CONF_DEVICE_BAUDRATE],
         parity=serial.PARITY_NONE,
         stopbits=serial.STOPBITS_ONE,
-        xonxoff=True,
+        xonxoff=xon_xoff,
+        rtscts=rtscts,
     )
 
     await connection_future

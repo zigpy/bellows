@@ -12,9 +12,16 @@ CONF_EZSP_CONFIG = "ezsp_config"
 CONF_EZSP_POLICIES = "ezsp_policies"
 CONF_PARAM_SRC_RTG = "source_routing"
 CONF_PARAM_UNK_DEV = "handle_unknown_devices"
+CONF_FLOW_CONTROL = "flow_control"
+CONF_FLOW_CONTROL_DEFAULT = "software"
 
 SCHEMA_DEVICE = SCHEMA_DEVICE.extend(
-    {vol.Optional(CONF_DEVICE_BAUDRATE, default=57600): int}
+    {
+        vol.Optional(CONF_DEVICE_BAUDRATE, default=57600): int,
+        vol.Optional(CONF_FLOW_CONTROL, default=CONF_FLOW_CONTROL_DEFAULT): vol.In(
+            ("hardware", "software")
+        ),
+    },
 )
 
 CONFIG_SCHEMA = CONFIG_SCHEMA.extend(

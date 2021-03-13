@@ -50,8 +50,9 @@ def app(f, app_startup=True, extra_config=None):
         nonlocal application
         app_config = {
             config.CONF_DEVICE: {
-                config.CONF_DEVICE_PATH: ctx.obj["device"],
-                config.CONF_DEVICE_BAUDRATE: ctx.obj["baudrate"],
+                config.CONF_DEVICE_PATH: ctx.obj[config.CONF_DEVICE],
+                config.CONF_DEVICE_BAUDRATE: ctx.obj[config.CONF_DEVICE_BAUDRATE],
+                config.CONF_FLOW_CONTROL: ctx.obj[config.CONF_FLOW_CONTROL],
             },
             zigpy_conf.CONF_DATABASE: ctx.obj["database_file"],
         }
@@ -103,6 +104,7 @@ async def setup(dev, baudrate, cbh=None, configure=True):
     device_config = {
         config.CONF_DEVICE_PATH: dev,
         config.CONF_DEVICE_BAUDRATE: baudrate,
+        config.CONF_FLOW_CONTROL: config.CONF_FLOW_CONTROL_DEFAULT,
     }
     s = bellows.ezsp.EZSP(device_config)
     if cbh:
