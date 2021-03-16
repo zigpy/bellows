@@ -333,9 +333,9 @@ async def _connect(config, application):
     protocol = Gateway(application, connection_future, connection_done_future)
 
     if config[CONF_FLOW_CONTROL] == CONF_FLOW_CONTROL_DEFAULT:
-        xon_xoff, rtscts = False, True
-    else:
         xon_xoff, rtscts = True, False
+    else:
+        xon_xoff, rtscts = False, True
 
     transport, protocol = await serial_asyncio.create_serial_connection(
         loop,
