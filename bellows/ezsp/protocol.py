@@ -106,12 +106,7 @@ class ProtocolHandler(abc.ABC):
             LOGGER.debug("Couldn't get free buffers: %s", status)
             return None
 
-        try:
-            buffers = int.from_bytes(value, byteorder="little")
-        except ValueError:
-            return None
-
-        return buffers
+        return int.from_bytes(value, byteorder="little")
 
     def command(self, name, *args) -> asyncio.Future:
         """Serialize command and send it."""
