@@ -3,7 +3,7 @@ import asyncio
 import binascii
 import functools
 import logging
-from typing import Any, Callable, Dict, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from bellows.config import CONF_EZSP_CONFIG, CONF_EZSP_POLICIES
 from bellows.exception import EzspError
@@ -59,6 +59,15 @@ class ProtocolHandler(abc.ABC):
     async def initialize(self, zigpy_config: Dict) -> None:
         """Initialize EmberZNet Stack."""
 
+        buffers = await self.get_free_buffers()
+        _, conf_buffers = await self.getConfigurationValue(
+            self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT
+        )
+        LOGGER.debug(
+            "Free/configured buffers before any configurations: %s/%s",
+            buffers,
+            conf_buffers,
+        )
         ezsp_config = self.SCHEMAS[CONF_EZSP_CONFIG](zigpy_config[CONF_EZSP_CONFIG])
         for config, value in ezsp_config.items():
             if config in (self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name,):
@@ -66,11 +75,43 @@ class ProtocolHandler(abc.ABC):
                 continue
             await self._cfg(self.types.EzspConfigId[config], value)
 
+        buffers = await self.get_free_buffers()
+        _, conf_buffers = await self.getConfigurationValue(
+            self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT
+        )
+        LOGGER.debug(
+            "Free/configured buffers before all memory allocation: %s/%s",
+            buffers,
+            conf_buffers,
+        )
         c = self.types.EzspConfigId
         await self._cfg(
             self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT,
             ezsp_config[c.CONFIG_PACKET_BUFFER_COUNT.name],
         )
+        buffers = await self.get_free_buffers()
+        _, conf_buffers = await self.getConfigurationValue(
+            self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT
+        )
+        LOGGER.debug(
+            "Free/configured buffers after all memory allocation: %s/%s",
+            buffers,
+            conf_buffers,
+        )
+
+    async def get_free_buffers(self) -> Optional[int]:
+        status, value = await self.getValue(self.types.EzspValueId.VALUE_FREE_BUFFERS)
+
+        if status != self.types.EzspStatus.SUCCESS:
+            LOGGER.debug("Couldn't get free buffers: %s", status)
+            return None
+
+        try:
+            buffers = int.from_bytes(value, byteorder="little")
+        except ValueError:
+            return None
+
+        return buffers
 
     def command(self, name, *args) -> asyncio.Future:
         """Serialize command and send it."""
