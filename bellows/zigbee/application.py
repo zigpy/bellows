@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from typing import Dict
+from typing import Dict, Optional
 
 from serial import SerialException
 import zigpy.application
@@ -684,6 +684,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     if not read_counter:
                         counters.reset()
 
+                    free_buffers = await self._get_free_buffers()
+                    if free_buffers is not None:
+                        cnt = counters["EZSP_FREE_BUFFERS"]
+                        cnt._raw_value = free_buffers
+                        cnt._last_reset_value = 0
+
                     LOGGER.debug("%s", counters)
 
                 failures = 0
@@ -692,12 +698,36 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 failures += 1
                 if failures > MAX_WATCHDOG_FAILURES:
                     break
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                LOGGER.error(
+                    "Watchdog got an unexpected exception. Please report this issue: %s",
+                    exc,
+                )
+
             await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
 
         self.state.counters[COUNTERS_CTRL][COUNTER_WATCHDOG].increment()
         self._handle_reset_request(
             "Watchdog timeout. Heartbeat timeouts: {}".format(failures)
         )
+
+    async def _get_free_buffers(self) -> Optional[int]:
+        status, value = await self._ezsp.getValue(
+            self._ezsp.types.EzspValueId.VALUE_FREE_BUFFERS
+        )
+
+        if status != t.EzspStatus.SUCCESS:
+            return None
+
+        try:
+            buffers = int.from_bytes(value, byteorder="little")
+        except ValueError:
+            return None
+
+        LOGGER.debug("Free buffers status %s, value: %s", status, buffers)
+        return buffers
 
     def handle_route_record(
         self,
