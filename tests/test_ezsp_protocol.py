@@ -78,7 +78,13 @@ async def test_cfg_initialize(prot_hndl, caplog):
     """Test initialization."""
 
     p1 = patch.object(prot_hndl, "setConfigurationValue", new=AsyncMock())
-    with p1 as cfg_mock:
+    p2 = patch.object(
+        prot_hndl,
+        "getConfigurationValue",
+        new=AsyncMock(return_value=(t.EzspStatus.SUCCESS, 22)),
+    )
+    p3 = patch.object(prot_hndl, "get_free_buffers", new=AsyncMock(22))
+    with p1 as cfg_mock, p2, p3:
         cfg_mock.return_value = (t.EzspStatus.SUCCESS,)
         await prot_hndl.initialize({"ezsp_config": {}, "source_routing": True})
 
@@ -99,3 +105,25 @@ async def test_update_policies(prot_hndl):
         pol_mock.return_value = (t.EzspStatus.ERROR_OUT_OF_MEMORY,)
         with pytest.raises(AssertionError):
             await prot_hndl.update_policies({"ezsp_policies": {}})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "status, raw, expected_value",
+    (
+        (t.EzspStatus.ERROR_OUT_OF_MEMORY, b"", None),
+        (t.EzspStatus.ERROR_OUT_OF_MEMORY, b"\x02\x02", None),
+        (t.EzspStatus.SUCCESS, b"\x02\x02", 514),
+    ),
+)
+async def test_get_free_buffers(prot_hndl, status, raw, expected_value):
+    """Test getting free buffers."""
+
+    p1 = patch.object(prot_hndl, "getValue", new=AsyncMock())
+    with p1 as value_mock:
+        value_mock.return_value = (status, raw)
+        free_buffers = await prot_hndl.get_free_buffers()
+        if expected_value is None:
+            assert free_buffers is expected_value
+        else:
+            assert free_buffers == expected_value
