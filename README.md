@@ -87,9 +87,9 @@ $ bellows zcl 00:0d:6f:00:05:7d:2d:34 1 1026 read_attribute 0
 ```
 ## Configuration
 
-### Port configuration
+#### Port configuration for USB, UART/Serial and GPIO adapters
 - To configure use of a locally connected USB adapter device path its serial interface by specifying the TTY (serial com) port, example : `/dev/ttyUSB1`
-  - It is worth noting that while a few adapters have an embedded USB core (like EM3588 based devices) which will likely work with any baud rate speed, most USB sticks/dongles have an external USB to serial converter/bridge chip (eg Silabs CP210x, FTDI FT23x, or WCH CH340) which require you to set a specific baud rate. It should as such be noted that some NCP firmware images require the use of 115200 baud rate speed while others use 57600 baud rate speed, also, some require use of software (SW) flow control while others require use of hardware (HW) flow control.
+  - It is worth noting that while a few adapters have an embedded USB core (like EM3588 based devices) which will likely work with any baud rate speed, most USB sticks/dongles have an external USB to serial converter/bridge chip (eg Silabs CP210x, FTDI FT23x, or WCH CH340) which require you to set a specific baud rate. It should as such be noted that some NCP firmware images require the use of 115200 baud rate speed while others use 57600 baud rate speed, also, some require use of software flow control (SW or XON/XOFF flow control) while others require use of hardware flow control (HW or RTS/CTS flow control).
   - If a USB radio is not recognized, it might be necessary to make the serial adapters device id known to driver, e.g. [CP210x driver by Silicon Labs](https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers).
   - Find the device id (as listed by the command `lsusb`). For the Bitron Video/Smabit BV AV2010/10 that might for example be *10c4 8b34*.
   - Unplug the device.
@@ -100,6 +100,8 @@ $ bellows zcl 00:0d:6f:00:05:7d:2d:34 1 1026 read_attribute 0
   echo 10c4 8b34 > /sys/bus/usb-serial/drivers/cp210x/new_id
   ```
   - Plug in the dongle. It should now be recognized properly as ttyUSBx.
+
+#### Port configuration for network adapters via socket
 - To configure the use of a remote Ethernet or WiFi based network connected bridge/proxy Zigbee adapter, like exammple Sonoff ZBBridge or ZiGate WiFi Gateway, enter `socket://adapter-IP>:8888` and use 115200 baud rate as the port speed.
 
 ### NVRAM Backup and restore
