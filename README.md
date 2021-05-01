@@ -23,7 +23,8 @@ EmberZNet based Zigbee radios using the EZSP protocol (via the [bellows](https:/
  - Telegesis ETRX357USB-LRS (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
  - Telegesis ETRX357USB-LRS+8M (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
  - [IKEA Billy EZSP](https://github.com/MattWestb/IKEA-TRADFRI-ICC-A-1-Module).
- - [Tuya TYGWZ01 and with labeled (Silvercrest / Lidl) Smart Home Gateway](https://paulbanks.org/projects/lidl-zigbee/).  
+ - [Tuya TYGWZ01 and with labeled (Silvercrest / Lidl) Smart Home Gateway](https://paulbanks.org/projects/lidl-zigbee/).
+ - Bitron Video/Smabit BV AV2010/10 USB-Stick (a.k.a. Telekom Magenta Stick) based on Silicon Labs Ember 3587 
 
 ### Warning about Zigbee to WiFi bridges
 
