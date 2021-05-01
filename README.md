@@ -14,7 +14,7 @@ bellows interacts with the Zigbee Network Coprocessor (NCP) with EmberZNet PRO Z
 ## Hardware requirement
 
 EmberZNet based Zigbee radios using the EZSP protocol (via the [bellows](https://github.com/zigpy/bellows) library for zigpy)
- - [ITEAD Sonoff ZBBridge](https://www.itead.cc/smart-home/sonoff-zbbridge.html) (Note! This first have to be flashed with [Tasmota firmware and EmberZNet firmware](https://www.digiblur.com/2020/07/how-to-use-sonoff-zigbee-bridge-with.html))
+ - [ITEAD Sonoff ZBBridge](https://www.itead.cc/smart-home/sonoff-zbbridge.html) (**Note! WiFi-based bridges are not recommended for ZHA with EZSP radios.** Also, this first have to be flashed with [Tasmota firmware and EmberZNet firmware](https://www.digiblur.com/2020/07/how-to-use-sonoff-zigbee-bridge-with.html))
  - [Nortek GoControl QuickStick Combo Model HUSBZB-1 (Z-Wave & Zigbee Ember 3581 USB Adapter)](https://www.nortekcontrol.com/products/2gig/husbzb-1-gocontrol-quickstick-combo/) (Note! Not a must but recommend [upgrade the EmberZNet NCP application firmware](https://github.com/walthowd/husbzb-firmware))
  - [Elelabs Zigbee USB Adapter](https://elelabs.com/products/elelabs_usb_adapter.html) (Note! Not a must but recommend [upgrade the EmberZNet NCP application firmware](https://github.com/Elelabs/elelabs-zigbee-ezsp-utility))
  - [Elelabs Zigbee Raspberry Pi Shield](https://elelabs.com/products/elelabs_zigbee_shield.html) (Note! Not a must but recommend [upgrade the EmberZNet NCP application firmware](https://github.com/Elelabs/elelabs-zigbee-ezsp-utility))
@@ -23,7 +23,8 @@ EmberZNet based Zigbee radios using the EZSP protocol (via the [bellows](https:/
  - Telegesis ETRX357USB-LRS (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
  - Telegesis ETRX357USB-LRS+8M (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
  - [IKEA Billy EZSP](https://github.com/MattWestb/IKEA-TRADFRI-ICC-A-1-Module).
- - [Tuya TYGWZ01 and with labeled (Silvercrest / Lidl) Smart Home Gateway](https://paulbanks.org/projects/lidl-zigbee/).  
+ - [Tuya TYGWZ01 and with labeled (Silvercrest / Lidl) Smart Home Gateway](https://paulbanks.org/projects/lidl-zigbee/).
+ - Bitron Video/Smabit BV AV2010/10 USB-Stick (a.k.a. Telekom Magenta Stick) based on Silicon Labs Ember 3587 
 
 ### Warning about Zigbee to WiFi bridges
 
@@ -88,12 +89,22 @@ $ bellows zcl 00:0d:6f:00:05:7d:2d:34 1 1026 read_attribute 0
 ```
 ## Configuration
 
-### Port configuration
-- To configure USB / serial port path for your EZSP serial device, just specify the TTY (serial com) port, example : `/dev/ttyUSB1`
-- To configure a networked-adapter (WiFi or Ethernet connected radio modules) enter `socket://adapter-IP>:<Port>`  as com port and enter the default speed of your module as port speed. Example `socket://127.127.0.1:1234` and `115200`.
-- It is worth noting that EM3588 devices that have an embedded USB core will likely work with any baud rate, where dongles using external USB interface (eg CP2102 used with an EM3581) will likely require a specific baud rate. Currently there are two main NCP images - one that supports hardware flow control with a baud rate of 115200, and one that supports software flow control with a rate of 57600.
-- ZHA is only supporting software flow control so dont using firmware with hardware flow control.
-- ZHA can for the moment only auto discover modules with 57600 baud.
+#### Port configuration for USB, UART/Serial and GPIO adapters
+- To configure use of a locally connected USB adapter device path its serial interface by specifying the TTY (serial com) port, example : `/dev/ttyUSB1`
+  - It is worth noting that while a few adapters have an embedded USB core (like EM3588 based devices) which will likely work with any baud rate speed, most USB sticks/dongles have an external USB to serial converter/bridge chip (eg Silabs CP210x, FTDI FT23x, or WCH CH340) which require you to set a specific baud rate. It should as such be noted that some NCP firmware images require the use of 115200 baud rate speed while others use 57600 baud rate speed, also, some use no flow control (NSW flow control) while others require use of either software flow control (SW or XON/XOFF flow control) or hardware flow control (HW or RTS/CTS flow control).
+  - If a USB radio is not recognized, it might be necessary to make the serial adapters device id known to driver, e.g. [CP210x driver by Silicon Labs](https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers).
+  - Find the device id (as listed by the command `lsusb`). For the Bitron Video/Smabit BV AV2010/10 that might for example be *10c4 8b34*.
+  - Unplug the device.
+  - Enter the following commands (replace the example id *10c4 8b34* with the real one listed by `lsusb` on your system):
+  ```
+  sudo -s
+  modprobe cp210x
+  echo 10c4 8b34 > /sys/bus/usb-serial/drivers/cp210x/new_id
+  ```
+  - Plug in the dongle. It should now be recognized properly as ttyUSBx.
+
+#### Port configuration for network adapters via socket
+- To configure the use of a remote Ethernet or WiFi based network connected bridge/proxy Zigbee adapter, like exammple Sonoff ZBBridge or ZiGate WiFi Gateway, enter `socket://adapter-IP>:8888` and use 115200 baud rate as the port speed.
 
 ### NVRAM Backup and restore
 
