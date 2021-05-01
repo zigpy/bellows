@@ -229,6 +229,9 @@ async def _restore(
         | t.EmberInitialSecurityBitmask.HAVE_NETWORK_KEY
         | t.EmberInitialSecurityBitmask.NO_FRAME_COUNTER_RESET
     )
+    if not is_well_known_key(backup_data[ATTR_KEY_GLOBAL][ATTR_KEY]):
+        sec_bitmask |= t.EmberInitialSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
+
     init_sec_state = t.EmberInitialSecurityState(
         bitmask=sec_bitmask,
         preconfiguredKey=backup_data[ATTR_KEY_GLOBAL][ATTR_KEY],
@@ -236,7 +239,11 @@ async def _restore(
         networkKeySequenceNumber=backup_data[ATTR_KEY_NWK][ATTR_KEY_SEQ],
         preconfiguredTrustCenterEui64=[0x00] * 8,
     )
-    if upg_tc_link_key:
+    if (
+        upg_tc_link_key
+        and t.EmberInitialSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
+        not in sec_bitmask
+    ):
         init_sec_state.bitmask |= (
             t.EmberInitialSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
         )
@@ -338,3 +345,9 @@ async def _update_nwk_id(ezsp, nwk_update_id):
     )
     assert status == t.EmberStatus.SUCCESS
     await asyncio.sleep(1)
+
+
+def is_well_known_key(tc_link_key):
+    """Return True if this is a well known key."""
+    well_known_key = t.EmberKeyData.deserialize(b"ZigBeeAlliance09")[0]
+    return tc_link_key == well_known_key
