@@ -463,9 +463,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             )
 
                     async with self._req_lock:
-                        if expect_reply and device.node_desc.is_end_device in (
-                            True,
-                            None,
+                        if expect_reply and (
+                            device.node_desc is None or device.node_desc.is_end_device
                         ):
                             LOGGER.debug(
                                 "Extending timeout for %s/0x%04x",
