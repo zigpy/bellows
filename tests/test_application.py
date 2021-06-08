@@ -5,6 +5,7 @@ import pytest
 import zigpy.config
 from zigpy.device import Device
 from zigpy.zcl.clusters import security
+import zigpy.zdo.types as zdo_t
 
 import bellows.config as config
 from bellows.exception import ControllerError, EzspError
@@ -408,7 +409,16 @@ async def _request(
     app._ezsp.setExtendedTimeout = AsyncMock()
     device = MagicMock()
     device.relays = relays
-    device.node_desc.is_end_device = is_end_device
+
+    if is_end_device is not None:
+        device.node_desc = zdo_t.NodeDescriptor(
+            logical_type=(
+                zdo_t.LogicalType.EndDevice
+                if is_end_device
+                else zdo_t.LogicalType.Router
+            )
+        )
+
     res = await app.request(device, 9, 8, 7, 6, 5, b"", **kwargs)
     assert len(app._pending) == 0
     return res
