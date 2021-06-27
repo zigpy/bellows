@@ -104,7 +104,7 @@ $ bellows zcl 00:0d:6f:00:05:7d:2d:34 1 1026 read_attribute 0
   - Plug in the dongle. It should now be recognized properly as ttyUSBx.
 
 #### Port configuration for network adapters via socket
-- To configure the use of a remote Ethernet or WiFi based network connected bridge/proxy Zigbee adapter, like exammple Sonoff ZBBridge or ZiGate WiFi Gateway, enter `socket://adapter-IP>:8888` and use 115200 baud rate as the port speed.
+- To configure the use of a remote Ethernet or WiFi based network connected bridge/proxy Zigbee adapter, like exammple Sonoff ZBBridge or ZiGate WiFi Gateway, enter `socket://<adapter-IP>:<port>` and use 115200 baud rate as the port speed.
 
 ### NVRAM Backup and restore
 
