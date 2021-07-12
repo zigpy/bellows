@@ -118,6 +118,7 @@ async def test_startup_nwk_params(app, ieee):
     assert app.extended_pan_id is None
     assert app.channel is None
     assert app.channels is None
+    assert app.nwk_update_id is None
 
     await _test_startup(app, t.EmberNodeType.COORDINATOR, ieee)
 
@@ -125,6 +126,7 @@ async def test_startup_nwk_params(app, ieee):
     assert app.extended_pan_id is not None
     assert app.channel is not None
     assert app.channels is not None
+    assert app.nwk_update_id is not None
 
 
 async def test_startup_ezsp_ver7(app, ieee):
