@@ -11,6 +11,7 @@ import bellows.config as config
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp as ezsp
 import bellows.ezsp.v4.types as t
+import bellows.types.struct
 import bellows.uart as uart
 import bellows.zigbee.application
 
@@ -68,8 +69,7 @@ def ieee(init=0):
 @patch("zigpy.device.Device._initialize", new=AsyncMock())
 @patch("bellows.zigbee.application.ControllerApplication._watchdog", new=AsyncMock())
 async def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4):
-    async def mockezsp(*args, **kwargs):
-        return [0, nwk_type, sentinel.nework_parameters]
+    nwk_params = MagicMock(spec_set=bellows.types.struct.EmberNetworkParameters())
 
     async def mock_leave(*args, **kwargs):
         app._ezsp.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_DOWN])
@@ -85,9 +85,7 @@ async def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_versi
     ezsp_mock.addEndpoint = AsyncMock(return_value=t.EmberStatus.SUCCESS)
     ezsp_mock.setConfigurationValue = AsyncMock(return_value=t.EmberStatus.SUCCESS)
     ezsp_mock.networkInit = AsyncMock(return_value=[init])
-    ezsp_mock.getNetworkParameters = AsyncMock(
-        return_value=[0, nwk_type, sentinel.nework_parameters]
-    )
+    ezsp_mock.getNetworkParameters = AsyncMock(return_value=[0, nwk_type, nwk_params])
     ezsp_mock.get_board_info = AsyncMock(
         return_value=("Mock Manufacturer", "Mock board", "Mock version")
     )
@@ -113,6 +111,22 @@ async def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_versi
 
 async def test_startup(app, ieee):
     await _test_startup(app, t.EmberNodeType.COORDINATOR, ieee)
+
+
+async def test_startup_nwk_params(app, ieee):
+    assert app.pan_id is None
+    assert app.extended_pan_id is None
+    assert app.channel is None
+    assert app.channels is None
+    assert app.nwk_update_id is None
+
+    await _test_startup(app, t.EmberNodeType.COORDINATOR, ieee)
+
+    assert app.pan_id is not None
+    assert app.extended_pan_id is not None
+    assert app.channel is not None
+    assert app.channels is not None
+    assert app.nwk_update_id is not None
 
 
 async def test_startup_ezsp_ver7(app, ieee):
