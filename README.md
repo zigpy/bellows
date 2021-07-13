@@ -14,17 +14,18 @@ bellows interacts with the Zigbee Network Coprocessor (NCP) with EmberZNet PRO Z
 ## Hardware requirement
 
 EmberZNet based Zigbee radios using the EZSP protocol (via the [bellows](https://github.com/zigpy/bellows) library for zigpy)
+ - [Tube's Zigbee Gateways (Silabs EFR32 variant)](https://github.com/tube0013/tube_gateways) Note! ESP32 based Ethernet bridge available as pre-assembed or as a DIY project.
  - [ITEAD Sonoff ZBBridge](https://www.itead.cc/smart-home/sonoff-zbbridge.html) (**Note! WiFi-based bridges are not recommended for ZHA with EZSP radios.** Also, this first have to be flashed with [Tasmota firmware and EmberZNet firmware](https://www.digiblur.com/2020/07/how-to-use-sonoff-zigbee-bridge-with.html))
+ - ITead Zigbee 3.0 USB Dongle (EFR32MG21) Model 9888010100045 Note! Currently not recommended due to stability issues.
  - [Nortek GoControl QuickStick Combo Model HUSBZB-1 (Z-Wave & Zigbee Ember 3581 USB Adapter)](https://www.nortekcontrol.com/products/2gig/husbzb-1-gocontrol-quickstick-combo/) (Note! Not a must but recommend [upgrade the EmberZNet NCP application firmware](https://github.com/walthowd/husbzb-firmware))
  - [Elelabs Zigbee USB Adapter](https://elelabs.com/products/elelabs_usb_adapter.html) (Note! Not a must but recommend [upgrade the EmberZNet NCP application firmware](https://github.com/Elelabs/elelabs-zigbee-ezsp-utility))
  - [Elelabs Zigbee Raspberry Pi Shield](https://elelabs.com/products/elelabs_zigbee_shield.html) (Note! Not a must but recommend [upgrade the EmberZNet NCP application firmware](https://github.com/Elelabs/elelabs-zigbee-ezsp-utility))
  - [DEFARO SprutStick Pro (also known as Defaro SprutStick ZigBee 2 Pro)](https://defaro.ru/index.php/product/89-controllers/257-sprutstick-pro)
- - Telegesis ETRX357USB (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
- - Telegesis ETRX357USB-LRS (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
- - Telegesis ETRX357USB-LRS+8M (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
- - [IKEA Billy EZSP](https://github.com/MattWestb/IKEA-TRADFRI-ICC-A-1-Module).
- - [Tuya TYGWZ01 and with labeled (Silvercrest / Lidl) Smart Home Gateway](https://paulbanks.org/projects/lidl-zigbee/).
- - Bitron Video/Smabit BV AV2010/10 USB-Stick (a.k.a. Telekom Magenta Stick) based on Silicon Labs Ember 3587 
+ - Telegesis ETRX357USB/ETRX357USB-LRS/TRX357USB-LRS+8M (Note! This first have to be [flashed with other EmberZNet firmware](https://github.com/walthowd/husbzb-firmware))
+ - [IKEA Billy EZSP - DIY ICC-1 / ICC-A-1 module from IKEA TRÅDFRI devices](https://github.com/MattWestb/IKEA-TRADFRI-ICC-A-1-Module). (Note! This first have to be hacked and flashed with other EmberZNet firmware)
+ - [Tuya TYGWZ01 and rebranded Lidl Silvercrest Smart Home Gateway](https://paulbanks.org/projects/lidl-zigbee/) (Note! This first have to be hacked and flashed with other EmberZNet firmware)
+ - Bitron Video/Smabit BV AV2010/10 USB-Stick (a.k.a. Telekom Magenta Stick) based on Silicon Labs Ember 3587
+ - [EByte E180-Z120B SMD Module and EByte E180-Z120B-TB Evaluation Board](https://www.cnx-software.com/2020/04/27/ebyte-e180-zg120b-tb-zigbee-3-0-evaluation-board-features-silicon-labs-efr32mg1b-zigbee-thread-soc/) (Note! This first have to be [hacked and flashed with other EmberZNet firmware](https://github.com/zha-ng/EZSP-Firmware/tree/master/EByte-E180-Z120B))
 
 ### Warning about Zigbee to WiFi bridges
 
