@@ -55,6 +55,8 @@ async def _dump(ctx, channel, outfile):
     ctx.obj["start_time"] = time.time()
     ctx.obj["captured"] = 0
 
+    done_event = asyncio.Event()
+
     def cb(frame_name, response):
         if frame_name == "mfglibRxHandler":
             data = response[2]
@@ -62,10 +64,14 @@ async def _dump(ctx, channel, outfile):
             ts_sec = int(ts)
             ts_usec = int((ts - ts_sec) * 1000000)
             hdr = pure_pcapy.Pkthdr(ts_sec, ts_usec, len(data), len(data))
-            pcap.dump(hdr, data)
+
+            try:
+                pcap.dump(hdr, data)
+            except BrokenPipeError:
+                done_event.set()
+
             ctx.obj["captured"] += 1
 
     s.add_callback(cb)
 
-    while True:
-        await asyncio.sleep(1)
+    await done_event.wait()
