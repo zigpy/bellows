@@ -30,7 +30,9 @@ def dump(ctx, channel, outfile):
         start_time = ctx.obj.get("start_time", None)
         if start_time:
             duration = time.time() - start_time
-            click.echo("\nCaptured %s frames in %0.2fs" % (captured, duration))
+            click.echo(
+                "\nCaptured %s frames in %0.2fs" % (captured, duration), err=True
+            )
     finally:
         if "ezsp" in ctx.obj:
             loop.run_until_complete(ctx.obj["ezsp"].mfglibEnd())
@@ -49,9 +51,11 @@ async def _dump(ctx, channel, outfile):
 
     pcap = pure_pcapy.Dumper(outfile, 128, 195)  # DLT_IEEE_15_4
 
-    click.echo("Capture started")
+    click.echo("Capture started", err=True)
     ctx.obj["start_time"] = time.time()
     ctx.obj["captured"] = 0
+
+    done_event = asyncio.Event()
 
     def cb(frame_name, response):
         if frame_name == "mfglibRxHandler":
@@ -60,10 +64,14 @@ async def _dump(ctx, channel, outfile):
             ts_sec = int(ts)
             ts_usec = int((ts - ts_sec) * 1000000)
             hdr = pure_pcapy.Pkthdr(ts_sec, ts_usec, len(data), len(data))
-            pcap.dump(hdr, data)
+
+            try:
+                pcap.dump(hdr, data)
+            except BrokenPipeError:
+                done_event.set()
+
             ctx.obj["captured"] += 1
 
     s.add_callback(cb)
 
-    while True:
-        await asyncio.sleep(1)
+    await done_event.wait()
