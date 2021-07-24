@@ -77,11 +77,14 @@ async def _dump(ctx, channel, outfile):
     def cb(frame_name, response):
         if frame_name == "mfglibRxHandler":
             data = response[2]
-            fcs = ieee_15_4_fcs(data[0:-2])
 
-            if data[-2:] != fcs:
-                LOGGER.warning("Fixing frame FCS (expected %s, got %s)", fcs, data[-2:])
-                data = data[0:-2] + fcs
+            # Later releases of EmberZNet incorrectly use a static FCS
+            fcs = data[-2:]
+            computed_fcs = ieee_15_4_fcs(data[0:-2])
+
+            if s.ezsp_version == 8 and fcs == b"\x0F\x00" and fcs != computed_fcs:
+                LOGGER.debug("Fixing FCS (expected %s, got %s)", computed_fcs, fcs)
+                data = data[0:-2] + computed_fcs
 
             ts = time.time()
             ts_sec = int(ts)
