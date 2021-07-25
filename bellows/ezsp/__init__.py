@@ -1,5 +1,7 @@
 """EZSP protocol."""
 
+from __future__ import annotations
+
 import asyncio
 import functools
 import logging
@@ -10,6 +12,7 @@ from zigpy.typing import DeviceType
 
 from bellows.config import (
     CONF_DEVICE,
+    CONF_DEVICE_BAUDRATE,
     CONF_DEVICE_PATH,
     CONF_PARAM_SRC_RTG,
     SCHEMA_DEVICE,
@@ -21,7 +24,7 @@ import bellows.uart
 from . import v4, v5, v6, v7, v8
 
 EZSP_LATEST = v8.EZSP_VERSION
-PROBE_TIMEOUT = 3
+PROBE_TIMEOUT = 2
 NETWORK_OPS_TIMEOUT = 10
 LOGGER = logging.getLogger(__name__)
 MTOR_MIN_INTERVAL = 10
@@ -48,20 +51,21 @@ class EZSP:
         self._protocol = None
 
     @classmethod
-    async def probe(cls, device_config: Dict) -> bool:
+    async def probe(cls, device_config: Dict) -> bool | dict[str, int | str | bool]:
         """Probe port for the device presence."""
-        ezsp = cls(SCHEMA_DEVICE(device_config))
-        try:
-            await asyncio.wait_for(ezsp._probe(), timeout=PROBE_TIMEOUT)
-            return True
-        except (asyncio.TimeoutError, serial.SerialException, APIException) as exc:
-            LOGGER.debug(
-                "Unsuccessful radio probe of '%s' port",
-                device_config[CONF_DEVICE_PATH],
-                exc_info=exc,
-            )
-        finally:
-            ezsp.close()
+        for config in (device_config, {**device_config, CONF_DEVICE_BAUDRATE: 115200}):
+            ezsp = cls(SCHEMA_DEVICE(config))
+            try:
+                await asyncio.wait_for(ezsp._probe(), timeout=PROBE_TIMEOUT)
+                return config
+            except (asyncio.TimeoutError, serial.SerialException, APIException) as exc:
+                LOGGER.debug(
+                    "Unsuccessful radio probe of '%s' port",
+                    device_config[CONF_DEVICE_PATH],
+                    exc_info=exc,
+                )
+            finally:
+                ezsp.close()
 
         return False
 

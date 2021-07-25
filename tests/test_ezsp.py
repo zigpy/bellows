@@ -255,7 +255,7 @@ async def test_probe_success(mock_connect, mock_reset):
     """Test device probing."""
 
     res = await ezsp.EZSP.probe(DEVICE_CONFIG)
-    assert res is True
+    assert type(res) is dict
     assert mock_connect.call_count == 1
     assert mock_connect.await_count == 1
     assert mock_reset.call_count == 1
@@ -265,7 +265,7 @@ async def test_probe_success(mock_connect, mock_reset):
     mock_reset.reset_mock()
     mock_connect.reset_mock()
     res = await ezsp.EZSP.probe(DEVICE_CONFIG)
-    assert res is True
+    assert type(res) is dict
     assert mock_connect.call_count == 1
     assert mock_connect.await_count == 1
     assert mock_reset.call_count == 1
@@ -286,10 +286,10 @@ async def test_probe_fail(exception):
         res = await ezsp.EZSP.probe(DEVICE_CONFIG)
 
     assert res is False
-    assert mock_connect.call_count == 1
-    assert mock_connect.await_count == 1
-    assert mock_reset.call_count == 1
-    assert mock_connect.return_value.close.call_count == 1
+    assert mock_connect.call_count == 2
+    assert mock_connect.await_count == 2
+    assert mock_reset.call_count == 2
+    assert mock_connect.return_value.close.call_count == 2
 
 
 @patch.object(ezsp.EZSP, "set_source_routing", new_callable=AsyncMock)
