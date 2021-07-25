@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import time
 
 import click
@@ -6,6 +7,8 @@ import pure_pcapy
 
 from . import util
 from .main import main
+
+LOGGER = logging.getLogger(__name__)
 
 
 @main.command()
@@ -39,6 +42,20 @@ def dump(ctx, channel, outfile):
             ctx.obj["ezsp"].close()
 
 
+def ieee_15_4_fcs(data: bytes) -> bytes:
+    # Modified from the implementation in `scapy.layers.dot15d4:Dot15d4FCS.compute_fcs`
+    crc = 0x0000
+
+    for c in data:
+        q = (crc ^ c) & 15  # Do low-order 4 bits
+        crc = (crc // 16) ^ (q * 0x1081)
+
+        q = (crc ^ (c // 16)) & 15  # And high 4 bits
+        crc = (crc // 16) ^ (q * 0x1081)
+
+    return crc.to_bytes(2, "little")
+
+
 async def _dump(ctx, channel, outfile):
     s = await util.setup(ctx.obj["device"], ctx.obj["baudrate"])
     ctx.obj["ezsp"] = s
@@ -60,6 +77,14 @@ async def _dump(ctx, channel, outfile):
     def cb(frame_name, response):
         if frame_name == "mfglibRxHandler":
             data = response[2]
+
+            # Later releases of EmberZNet incorrectly use a static FCS
+            fcs = data[-2:]
+            if s.ezsp_version == 8 and fcs == b"\x0F\x00":
+                computed_fcs = ieee_15_4_fcs(data[0:-2])
+                LOGGER.debug("Fixing FCS (expected %s, got %s)", computed_fcs, fcs)
+                data = data[0:-2] + computed_fcs
+
             ts = time.time()
             ts_sec = int(ts)
             ts_usec = int((ts - ts_sec) * 1000000)
