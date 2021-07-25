@@ -88,11 +88,7 @@ async def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_versi
     ezsp_mock.addEndpoint = AsyncMock(return_value=t.EmberStatus.SUCCESS)
     ezsp_mock.setConfigurationValue = AsyncMock(return_value=t.EmberStatus.SUCCESS)
     ezsp_mock.networkInit = AsyncMock(return_value=[init])
-<<<<<<< HEAD
     ezsp_mock.getNetworkParameters = AsyncMock(return_value=[0, nwk_type, nwk_params])
-=======
-    ezsp_mock.getNetworkParameters = mockezsp
->>>>>>> 91bad11 (Fix rebase)
     ezsp_mock.get_board_info = AsyncMock(
         return_value=("Mock Manufacturer", "Mock board", "Mock version")
     )
