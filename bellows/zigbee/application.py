@@ -149,6 +149,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             assert status == t.EmberStatus.SUCCESS
 
         LOGGER.info("Node type: %s, Network parameters: %s", node_type, nwk_params)
+        self._ext_pan_id = nwk_params.extendedPanId
+        self._pan_id = nwk_params.panId
+        self._channel = nwk_params.radioChannel
+        self._channels = nwk_params.channels
+        self._nwk_update_id = nwk_params.nwkUpdateId
 
         await ezsp.update_policies(self.config)
         nwk = await ezsp.getNodeId()
