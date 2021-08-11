@@ -70,6 +70,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         )
 
         self.use_source_routing = self.config[CONF_PARAM_SRC_RTG]
+        if self.use_source_routing:
+            self._tx_options ^= t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
         self._req_lock = asyncio.Lock()
 
     @property
@@ -512,10 +514,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 while True:
                     if self.use_source_routing and self._ezsp.ezsp_version < 8:
                         (res,) = await self._ezsp.set_source_route(device)
-                        if res == t.EmberStatus.SUCCESS:
+                        if res != t.EmberStatus.SUCCESS:
                             aps_frame.options ^= (
                                 t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
                             )
+                        else:
                             LOGGER.debug(
                                 "Set source route for %s to %s: %s",
                                 device.nwk,
