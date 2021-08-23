@@ -31,6 +31,9 @@ COUNTER_EZSP_BUFFERS = "EZSP_FREE_BUFFERS"
 COUNTER_NWK_CONFLICTS = "nwk_conflicts"
 COUNTER_RESET_REQ = "reset_requests"
 COUNTER_RESET_SUCCESS = "reset_success"
+COUNTER_RX_BCAST = "broadcast_rx"
+COUNTER_RX_MCAST = "multicast_rx"
+COUNTER_RX_UNICAST = "unicast_rx"
 COUNTER_UNKNOWN_DEVICE = "unknown_device_rx"
 COUNTER_WATCHDOG = "watchdog_reset_requests"
 COUNTERS_EZSP = "ezsp_counters"
@@ -256,13 +259,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         message: bytes,
     ) -> None:
         if message_type == t.EmberIncomingMessageType.INCOMING_BROADCAST:
-            self.state.counters[COUNTERS_CTRL]["broadcast_rx"].increment()
+            self.state.counters[COUNTERS_CTRL][COUNTER_RX_BCAST].increment()
             dst_addressing = Addressing.nwk(0xFFFE, aps_frame.destinationEndpoint)
         elif message_type == t.EmberIncomingMessageType.INCOMING_MULTICAST:
-            self.state.counters[COUNTERS_CTRL]["multicast_rx"].increment()
+            self.state.counters[COUNTERS_CTRL][COUNTER_RX_MCAST].increment()
             dst_addressing = Addressing.group(aps_frame.groupId)
         elif message_type == t.EmberIncomingMessageType.INCOMING_UNICAST:
-            self.state.counters[COUNTERS_CTRL]["unicast_rx"].increment()
+            self.state.counters[COUNTERS_CTRL][COUNTER_RX_UNICAST].increment()
             dst_addressing = Addressing.nwk(self.nwk, aps_frame.destinationEndpoint)
         else:
             dst_addressing = None
@@ -716,10 +719,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if status != t.EzspStatus.SUCCESS:
             return None
 
-        try:
-            buffers = int.from_bytes(value, byteorder="little")
-        except ValueError:
-            return None
+        buffers = int.from_bytes(value, byteorder="little")
 
         LOGGER.debug("Free buffers status %s, value: %s", status, buffers)
         return buffers
