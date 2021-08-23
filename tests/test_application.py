@@ -11,6 +11,10 @@ import bellows.config as config
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp as ezsp
 import bellows.ezsp.v4.types as t
+import bellows.ezsp.v5.types as ezsp_t5
+import bellows.ezsp.v6.types as ezsp_t6
+import bellows.ezsp.v7.types as ezsp_t7
+import bellows.ezsp.v8.types as ezsp_t8
 import bellows.types.struct
 import bellows.uart as uart
 import bellows.zigbee.application
@@ -41,6 +45,7 @@ def app(monkeypatch, event_loop):
     ezsp.get_board_info = AsyncMock(
         return_value=("Mock Manufacturer", "Mock board", "Mock version")
     )
+    type(ezsp).types = ezsp_t7
     type(ezsp).is_ezsp_running = PropertyMock(return_value=True)
     config = bellows.zigbee.application.ControllerApplication.SCHEMA(APP_CONFIG)
     ctrl = bellows.zigbee.application.ControllerApplication(config)
@@ -402,12 +407,14 @@ def test_permit_ncp(app):
 
 
 @pytest.mark.parametrize(
-    "version, tc_policy_count", ((4, 0), (5, 0), (6, 0), (7, 0), (8, 1))
+    "version, tc_policy_count, ezsp_types",
+    ((4, 0, t), (5, 0, ezsp_t5), (6, 0, ezsp_t6), (7, 0, ezsp_t7), (8, 1, ezsp_t8)),
 )
-async def test_permit_with_key(app, version, tc_policy_count):
+async def test_permit_with_key(app, version, tc_policy_count, ezsp_types):
     p1 = patch("zigpy.application.ControllerApplication.permit")
+    p2 = patch.object(app._ezsp, "types", ezsp_types)
 
-    with patch.object(app._ezsp, "ezsp_version", version), p1 as permit_mock:
+    with patch.object(app._ezsp, "ezsp_version", version), p1 as permit_mock, p2:
         await app.permit_with_key(
             bytes([1, 2, 3, 4, 5, 6, 7, 8]),
             bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
@@ -420,12 +427,14 @@ async def test_permit_with_key(app, version, tc_policy_count):
 
 
 @pytest.mark.parametrize(
-    "version, tc_policy_count", ((4, 0), (5, 0), (6, 0), (7, 0), (8, 1))
+    "version, tc_policy_count, ezsp_types",
+    ((4, 0, t), (5, 0, ezsp_t5), (6, 0, ezsp_t6), (7, 0, ezsp_t7), (8, 1, ezsp_t8)),
 )
-async def test_permit_with_key_ieee(app, ieee, version, tc_policy_count):
+async def test_permit_with_key_ieee(app, ieee, version, tc_policy_count, ezsp_types):
     p1 = patch("zigpy.application.ControllerApplication.permit")
+    p2 = patch.object(app._ezsp, "types", ezsp_types)
 
-    with patch.object(app._ezsp, "ezsp_version", version), p1 as permit_mock:
+    with patch.object(app._ezsp, "ezsp_version", version), p1 as permit_mock, p2:
         await app.permit_with_key(
             ieee,
             bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
@@ -872,6 +881,89 @@ async def test_watchdog_counters(app, monkeypatch, caplog):
     await app._watchdog()
     assert app._ezsp.readCounters.await_count == 0
     assert app._ezsp.nop.await_count != 0
+
+
+async def test_ezsp_value_counter(app, monkeypatch):
+    from bellows.zigbee import application
+
+    monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.01)
+    nop_success = 3
+
+    async def counters_mock():
+        nonlocal nop_success
+        if nop_success:
+            nop_success -= 1
+            if nop_success % 2:
+                raise EzspError
+            else:
+                return ([0, 1, 2, 3],)
+        raise asyncio.TimeoutError
+
+    app._ezsp.readCounters = AsyncMock(side_effect=counters_mock)
+    app._ezsp.nop = AsyncMock(side_effect=EzspError)
+    app._ezsp.getValue = AsyncMock(
+        return_value=(t.EzspStatus.ERROR_OUT_OF_MEMORY, b"\x20")
+    )
+    app._handle_reset_request = MagicMock()
+    app._ctrl_event.set()
+
+    await app._watchdog()
+    assert app._ezsp.readCounters.await_count != 0
+    assert app._ezsp.nop.await_count == 0
+
+    cnt = t.EmberCounterType
+    assert (
+        app.state.counters[application.COUNTERS_EZSP][
+            cnt.COUNTER_MAC_RX_BROADCAST.name[8:]
+        ]
+        == 0
+    )
+    assert (
+        app.state.counters[application.COUNTERS_EZSP][
+            cnt.COUNTER_MAC_TX_BROADCAST.name[8:]
+        ]
+        == 1
+    )
+    assert (
+        app.state.counters[application.COUNTERS_EZSP][
+            cnt.COUNTER_MAC_RX_UNICAST.name[8:]
+        ]
+        == 2
+    )
+    assert (
+        app.state.counters[application.COUNTERS_EZSP][
+            cnt.COUNTER_MAC_TX_UNICAST_SUCCESS.name[8:]
+        ]
+        == 3
+    )
+    assert (
+        app.state.counters[application.COUNTERS_EZSP].get(
+            application.COUNTER_EZSP_BUFFERS
+        )
+        is None
+    )
+    assert (
+        app.state.counters[application.COUNTERS_CTRL][application.COUNTER_WATCHDOG] == 1
+    )
+
+    # Ezsp Value error
+    app._ezsp.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b""))
+    await app._watchdog()
+    assert (
+        app.state.counters[application.COUNTERS_EZSP].get(
+            application.COUNTER_EZSP_BUFFERS
+        )
+        is None
+    )
+
+    # Ezsp Value success
+    app._ezsp.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\x20"))
+    nop_success = 3
+    await app._watchdog()
+    assert (
+        app.state.counters[application.COUNTERS_EZSP][application.COUNTER_EZSP_BUFFERS]
+        == 0x20
+    )
 
 
 async def test_shutdown(app):
