@@ -221,20 +221,34 @@ async def test_frame_handler_unknown_device(app, aps, ieee):
 
 
 @pytest.mark.parametrize(
-    "msg_type",
+    "msg_type, counter",
     (
-        t.EmberIncomingMessageType.INCOMING_BROADCAST,
-        t.EmberIncomingMessageType.INCOMING_MULTICAST,
-        t.EmberIncomingMessageType.INCOMING_UNICAST,
+        (
+            t.EmberIncomingMessageType.INCOMING_BROADCAST,
+            bellows.zigbee.application.COUNTER_RX_BCAST,
+        ),
+        (
+            t.EmberIncomingMessageType.INCOMING_MULTICAST,
+            bellows.zigbee.application.COUNTER_RX_MCAST,
+        ),
+        (
+            t.EmberIncomingMessageType.INCOMING_UNICAST,
+            bellows.zigbee.application.COUNTER_RX_UNICAST,
+        ),
+        (0xFF, None),
     ),
 )
-def test_frame_handler(app, aps, ieee, msg_type):
+def test_frame_handler(app, aps, ieee, msg_type, counter):
     app.handle_join = MagicMock()
     data = b"\x18\x19\x22\xaa\x55"
     _frame_handler(app, aps, ieee, 0, data=data, message_type=msg_type)
     assert app.handle_message.call_count == 1
     assert app.handle_message.call_args[0][5] is data
     assert app.handle_join.call_count == 0
+    if counter:
+        assert (
+            app.state.counters[bellows.zigbee.application.COUNTERS_CTRL][counter] == 1
+        )
 
 
 def test_frame_handler_zdo_annce(app, aps, ieee):
@@ -256,6 +270,7 @@ def test_frame_handler_zdo_annce(app, aps, ieee):
         t.EmberIncomingMessageType.INCOMING_BROADCAST,
         t.EmberIncomingMessageType.INCOMING_MULTICAST,
         t.EmberIncomingMessageType.INCOMING_UNICAST,
+        0xFF,
     ),
 )
 def test_send_failure(app, aps, ieee, msg_type):
@@ -946,16 +961,6 @@ async def test_ezsp_value_counter(app, monkeypatch):
         app.state.counters[application.COUNTERS_CTRL][application.COUNTER_WATCHDOG] == 1
     )
 
-    # Ezsp Value error
-    app._ezsp.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b""))
-    await app._watchdog()
-    assert (
-        app.state.counters[application.COUNTERS_EZSP].get(
-            application.COUNTER_EZSP_BUFFERS
-        )
-        is None
-    )
-
     # Ezsp Value success
     app._ezsp.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\x20"))
     nop_success = 3
@@ -964,6 +969,19 @@ async def test_ezsp_value_counter(app, monkeypatch):
         app.state.counters[application.COUNTERS_EZSP][application.COUNTER_EZSP_BUFFERS]
         == 0x20
     )
+
+
+async def test_watchdog_cancel(app, monkeypatch):
+    """Coverage for watchdog cancellation."""
+
+    from bellows.zigbee import application
+
+    monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.01)
+
+    app._ezsp.readCounters = AsyncMock(side_effect=asyncio.CancelledError)
+
+    with pytest.raises(asyncio.CancelledError):
+        await app._watchdog()
 
 
 async def test_shutdown(app):
