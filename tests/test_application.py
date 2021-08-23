@@ -72,7 +72,16 @@ def ieee(init=0):
 @patch("zigpy.device.Device._initialize", new=AsyncMock())
 @patch("bellows.zigbee.application.ControllerApplication._watchdog", new=AsyncMock())
 async def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4):
-    nwk_params = MagicMock(spec_set=bellows.types.struct.EmberNetworkParameters())
+    nwk_params = bellows.types.struct.EmberNetworkParameters(
+        extendedPanId=t.ExtendedPanId.convert("aa:bb:cc:dd:ee:ff:aa:bb"),
+        panId=t.EmberPanId(0x55AA),
+        radioTxPower=0,
+        radioChannel=25,
+        joinMethod=t.EmberJoinMethod.USE_MAC_ASSOCIATION,
+        nwkManagerId=t.EmberNodeId(0x0000),
+        nwkUpdateId=1,
+        channels=t.Channels.ALL_CHANNELS,
+    )
 
     async def mock_leave(*args, **kwargs):
         app._ezsp.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_DOWN])
@@ -117,11 +126,11 @@ async def test_startup(app, ieee):
 
 
 async def test_startup_nwk_params(app, ieee):
-    assert app.pan_id is None
-    assert app.extended_pan_id is None
+    assert app.pan_id == 0xFFFE
+    assert app.extended_pan_id == t.ExtendedPanId.convert("ff:ff:ff:ff:ff:ff:ff:ff")
     assert app.channel is None
     assert app.channels is None
-    assert app.nwk_update_id is None
+    assert app.nwk_update_id == 0
 
     await _test_startup(app, t.EmberNodeType.COORDINATOR, ieee)
 

@@ -291,6 +291,7 @@ class EmberNetworkParameters(EzspStruct):
             self.nwkUpdateId,
             app_state.t.NWK(self.nwkManagerId),
             self.radioChannel,
+            channel_mask=self.channels,
         )
         return r
 
