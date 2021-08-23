@@ -27,6 +27,7 @@ import bellows.types as t
 import bellows.zigbee.util
 
 APS_ACK_TIMEOUT = 120
+COUNTER_EZSP_BUFFERS = "EZSP_FREE_BUFFERS"
 COUNTER_NWK_CONFLICTS = "nwk_conflicts"
 COUNTER_RESET_REQ = "reset_requests"
 COUNTER_RESET_SUCCESS = "reset_success"
@@ -680,7 +681,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
                     free_buffers = await self._get_free_buffers()
                     if free_buffers is not None:
-                        cnt = counters["EZSP_FREE_BUFFERS"]
+                        cnt = counters[COUNTER_EZSP_BUFFERS]
                         cnt._raw_value = free_buffers
                         cnt._last_reset_value = 0
 
