@@ -22,7 +22,7 @@ setup(
         "pyserial",
         "pyserial-asyncio",
         "voluptuous",
-        "zigpy @ git+https://github.com/Adminiuga/zigpy@ac/tagged-counters-init#egg=zigpy-0.35.0.dev0",
+        "zigpy>=0.37.0",
     ],
     dependency_links=[
         "https://codeload.github.com/rcloran/pure-pcapy-3/zip/master",
