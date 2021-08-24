@@ -34,7 +34,8 @@ APP_CONFIG = {
 
 
 @pytest.fixture
-def app(monkeypatch, event_loop):
+def ezsp_mock():
+    """EZSP fixture"""
     ezsp = MagicMock()
     ezsp.ezsp_version = 7
     ezsp.set_source_route = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
@@ -47,11 +48,32 @@ def app(monkeypatch, event_loop):
     )
     type(ezsp).types = ezsp_t7
     type(ezsp).is_ezsp_running = PropertyMock(return_value=True)
-    config = bellows.zigbee.application.ControllerApplication.SCHEMA(APP_CONFIG)
-    ctrl = bellows.zigbee.application.ControllerApplication(config)
 
-    ctrl._ezsp = ezsp
-    monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.1)
+    return ezsp
+
+
+@pytest.fixture
+def app(monkeypatch, event_loop, ezsp_mock):
+    app_cfg = bellows.zigbee.application.ControllerApplication.SCHEMA(APP_CONFIG)
+    ctrl = bellows.zigbee.application.ControllerApplication(app_cfg)
+
+    ctrl._ezsp = ezsp_mock
+    monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.01)
+    ctrl._ctrl_event.set()
+    ctrl._in_flight_msg = asyncio.Semaphore()
+    ctrl.handle_message = MagicMock()
+    return ctrl
+
+
+@pytest.fixture
+def app_src_rtg(monkeypatch, event_loop, ezsp_mock):
+    app_cfg = bellows.zigbee.application.ControllerApplication.SCHEMA(
+        {**APP_CONFIG, config.CONF_PARAM_SRC_RTG: True}
+    )
+    ctrl = bellows.zigbee.application.ControllerApplication(app_cfg)
+
+    ctrl._ezsp = ezsp_mock
+    monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.01)
     ctrl._ctrl_event.set()
     ctrl._in_flight_msg = asyncio.Semaphore()
     ctrl.handle_message = MagicMock()
@@ -587,41 +609,39 @@ async def test_request_extended_timeout(app):
 
 
 @pytest.mark.parametrize("relays", [None, [], [0x1234]])
-async def test_request_src_rtg_not_enabled(relays, app):
-    app.use_source_routing = False
+async def test_request_src_rtg_not_enabled(relays, app, ezsp_mock):
     res = await _request(app, relays=relays)
     assert res[0] == 0
-    assert app._ezsp.set_source_route.await_count == 0
-    assert app._ezsp.sendUnicast.await_count == 1
+    assert ezsp_mock.set_source_route.await_count == 0
+    assert ezsp_mock.sendUnicast.await_count == 1
     assert (
-        app._ezsp.sendUnicast.call_args[0][2].options
+        ezsp_mock.sendUnicast.call_args[0][2].options
         & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
     )
 
 
 @pytest.mark.parametrize("relays", [[], [0x1234]])
-async def test_request_src_rtg_success(relays, app):
-    app.use_source_routing = True
-    res = await _request(app, relays=relays)
+async def test_request_src_rtg_success(relays, app_src_rtg, ezsp_mock):
+    app_src_rtg.use_source_routing = True
+    res = await _request(app_src_rtg, relays=relays)
     assert res[0] == 0
-    assert app._ezsp.set_source_route.await_count == 1
-    assert app._ezsp.sendUnicast.await_count == 1
+    assert ezsp_mock.set_source_route.await_count == 1
+    assert ezsp_mock.sendUnicast.await_count == 1
     assert (
-        not app._ezsp.sendUnicast.call_args[0][2].options
+        not ezsp_mock.sendUnicast.call_args[0][2].options
         & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
     )
 
 
 @pytest.mark.parametrize("relays", [[], [0x1234]])
-async def test_request_src_rtg_fail(relays, app):
-    app.use_source_routing = True
-    app._ezsp.set_source_route.return_value = [1]
-    res = await _request(app, relays=relays)
+async def test_request_src_rtg_fail(relays, app_src_rtg, ezsp_mock):
+    ezsp_mock.set_source_route.return_value = [1]
+    res = await _request(app_src_rtg, relays=relays)
     assert res[0] == 0
-    assert app._ezsp.set_source_route.await_count == 1
-    assert app._ezsp.sendUnicast.await_count == 1
+    assert ezsp_mock.set_source_route.await_count == 1
+    assert ezsp_mock.sendUnicast.await_count == 1
     assert (
-        app._ezsp.sendUnicast.call_args[0][2].options
+        ezsp_mock.sendUnicast.call_args[0][2].options
         & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
     )
 
@@ -630,24 +650,24 @@ async def test_request_src_rtg_fail(relays, app):
     "send_status, sleep_count, send_unicast_count", ((0, 0, 1), (114, 3, 4), (2, 0, 1))
 )
 async def test_request_max_message_limit(
-    send_status, sleep_count, send_unicast_count, app
+    send_status, sleep_count, send_unicast_count, app_src_rtg, ezsp_mock
 ):
     async def mocksend(method, nwk, aps_frame, seq, data):
         if send_status == t.EmberStatus.SUCCESS:
-            req = app._pending[seq]
+            req = app_src_rtg._pending[seq]
             req.result.set_result((0, "success"))
         return [send_status, "send message"]
 
-    app._ezsp.sendUnicast = AsyncMock(side_effect=mocksend)
-    app._ezsp.setExtendedTimeout = AsyncMock()
+    ezsp_mock.sendUnicast = AsyncMock(side_effect=mocksend)
+    ezsp_mock.setExtendedTimeout = AsyncMock()
     device = MagicMock()
     device.relays = []
     device.node_desc.is_end_device = False
 
     with patch("asyncio.sleep") as sleep_mock:
-        await app.request(device, 9, 8, 7, 6, 5, b"", expect_reply=False)
+        await app_src_rtg.request(device, 9, 8, 7, 6, 5, b"", expect_reply=False)
     assert sleep_mock.await_count == sleep_count
-    assert app._ezsp.sendUnicast.await_count == send_unicast_count
+    assert ezsp_mock.sendUnicast.await_count == send_unicast_count
 
 
 async def _test_broadcast(
