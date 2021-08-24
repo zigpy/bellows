@@ -1,4 +1,5 @@
 import zigpy.types as ztypes
+import zigpy.zdo.types as zdo_t
 
 from . import basic
 
@@ -701,6 +702,18 @@ class EmberNodeType(basic.enum8):
     RF4CE_CONTROLLER = 0x07
     # Device is not joined or no network is formed.
     UNKNOWN_NODE_TYPE = 0xFF
+
+    @property
+    def zdo_logical_type(self) -> zdo_t.LogicalType:
+        """Convert EmberNodetype to ZDO Node descriptor logical type."""
+        if self in (
+            EmberNodeType.COORDINATOR,
+            EmberNodeType.END_DEVICE,
+            EmberNodeType.ROUTER,
+        ):
+            return zdo_t.LogicalType(self - 1)
+
+        return zdo_t.LogicalType(7)
 
 
 class EmberNetworkStatus(basic.enum8):

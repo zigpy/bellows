@@ -2,6 +2,8 @@ import dataclasses
 import inspect
 import typing
 
+import zigpy.state as app_state
+
 from . import basic, named
 
 NoneType = type(None)
@@ -279,6 +281,19 @@ class EmberNetworkParameters(EzspStruct):
     # only be set at joining when using USE_NWK_COMMISSIONING as the join
     # method.
     channels: named.Channels
+
+    @property
+    def zigpy_network_information(self) -> app_state.NetworkInformation:
+        """Convert to NetworkInformation."""
+        r = app_state.NetworkInformation(
+            self.extendedPanId,
+            app_state.t.PanId(self.panId),
+            self.nwkUpdateId,
+            app_state.t.NWK(self.nwkManagerId),
+            self.radioChannel,
+            channel_mask=self.channels,
+        )
+        return r
 
 
 class EmberZigbeeNetwork(EzspStruct):

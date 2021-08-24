@@ -11,6 +11,10 @@ import bellows.config as config
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp as ezsp
 import bellows.ezsp.v4.types as t
+import bellows.ezsp.v5.types as ezsp_t5
+import bellows.ezsp.v6.types as ezsp_t6
+import bellows.ezsp.v7.types as ezsp_t7
+import bellows.ezsp.v8.types as ezsp_t8
 import bellows.types.struct
 import bellows.uart as uart
 import bellows.zigbee.application
@@ -30,20 +34,46 @@ APP_CONFIG = {
 
 
 @pytest.fixture
-def app(monkeypatch, event_loop):
+def ezsp_mock():
+    """EZSP fixture"""
     ezsp = MagicMock()
     ezsp.ezsp_version = 7
     ezsp.set_source_route = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp.addTransientLinkKey = AsyncMock(return_value=[0])
+    ezsp.readCounters = AsyncMock(return_value=[[0] * 10])
+    ezsp.readAndClearCounters = AsyncMock(return_value=[[0] * 10])
     ezsp.setPolicy = AsyncMock(return_value=[0])
     ezsp.get_board_info = AsyncMock(
         return_value=("Mock Manufacturer", "Mock board", "Mock version")
     )
+    type(ezsp).types = ezsp_t7
     type(ezsp).is_ezsp_running = PropertyMock(return_value=True)
-    config = bellows.zigbee.application.ControllerApplication.SCHEMA(APP_CONFIG)
-    ctrl = bellows.zigbee.application.ControllerApplication(config)
-    ctrl._ezsp = ezsp
-    monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.1)
+
+    return ezsp
+
+
+@pytest.fixture
+def app(monkeypatch, event_loop, ezsp_mock):
+    app_cfg = bellows.zigbee.application.ControllerApplication.SCHEMA(APP_CONFIG)
+    ctrl = bellows.zigbee.application.ControllerApplication(app_cfg)
+
+    ctrl._ezsp = ezsp_mock
+    monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.01)
+    ctrl._ctrl_event.set()
+    ctrl._in_flight_msg = asyncio.Semaphore()
+    ctrl.handle_message = MagicMock()
+    return ctrl
+
+
+@pytest.fixture
+def app_src_rtg(monkeypatch, event_loop, ezsp_mock):
+    app_cfg = bellows.zigbee.application.ControllerApplication.SCHEMA(
+        {**APP_CONFIG, config.CONF_PARAM_SRC_RTG: True}
+    )
+    ctrl = bellows.zigbee.application.ControllerApplication(app_cfg)
+
+    ctrl._ezsp = ezsp_mock
+    monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.01)
     ctrl._ctrl_event.set()
     ctrl._in_flight_msg = asyncio.Semaphore()
     ctrl.handle_message = MagicMock()
@@ -69,7 +99,16 @@ def ieee(init=0):
 @patch("zigpy.device.Device._initialize", new=AsyncMock())
 @patch("bellows.zigbee.application.ControllerApplication._watchdog", new=AsyncMock())
 async def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4):
-    nwk_params = MagicMock(spec_set=bellows.types.struct.EmberNetworkParameters())
+    nwk_params = bellows.types.struct.EmberNetworkParameters(
+        extendedPanId=t.ExtendedPanId.convert("aa:bb:cc:dd:ee:ff:aa:bb"),
+        panId=t.EmberPanId(0x55AA),
+        radioTxPower=0,
+        radioChannel=25,
+        joinMethod=t.EmberJoinMethod.USE_MAC_ASSOCIATION,
+        nwkManagerId=t.EmberNodeId(0x0000),
+        nwkUpdateId=1,
+        channels=t.Channels.ALL_CHANNELS,
+    )
 
     async def mock_leave(*args, **kwargs):
         app._ezsp.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_DOWN])
@@ -91,7 +130,7 @@ async def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_versi
     )
     ezsp_mock.setPolicy = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp_mock.getMfgToken = AsyncMock(return_value=(b"Some token\xff",))
-    ezsp_mock.getNodeId = AsyncMock(return_value=[0x0000])
+    ezsp_mock.getNodeId = AsyncMock(return_value=[t.EmberNodeId(0x0000)])
     ezsp_mock.getEui64 = AsyncMock(return_value=[ieee])
     ezsp_mock.getValue = AsyncMock(return_value=(0, b"\x01" * 6))
     ezsp_mock.leaveNetwork = AsyncMock(side_effect=mock_leave)
@@ -114,11 +153,11 @@ async def test_startup(app, ieee):
 
 
 async def test_startup_nwk_params(app, ieee):
-    assert app.pan_id is None
-    assert app.extended_pan_id is None
+    assert app.pan_id == 0xFFFE
+    assert app.extended_pan_id == t.ExtendedPanId.convert("ff:ff:ff:ff:ff:ff:ff:ff")
     assert app.channel is None
     assert app.channels is None
-    assert app.nwk_update_id is None
+    assert app.nwk_update_id == 0
 
     await _test_startup(app, t.EmberNodeType.COORDINATOR, ieee)
 
@@ -130,7 +169,9 @@ async def test_startup_nwk_params(app, ieee):
 
 
 async def test_startup_ezsp_ver7(app, ieee):
+    app.state.counters["ezsp_counters"] = MagicMock()
     await _test_startup(app, t.EmberNodeType.COORDINATOR, ieee, ezsp_version=7)
+    assert app.state.counters["ezsp_counters"].reset.call_count == 1
 
 
 async def test_startup_no_status(app, ieee):
@@ -171,13 +212,21 @@ async def test_form_network(app):
     await app.form_network()
 
 
-def _frame_handler(app, aps, ieee, src_ep, cluster=0, data=b"\x01\x00\x00"):
+def _frame_handler(
+    app,
+    aps,
+    ieee,
+    src_ep,
+    cluster=0,
+    data=b"\x01\x00\x00",
+    message_type=t.EmberIncomingMessageType.INCOMING_UNICAST,
+):
     if ieee not in app.devices:
         app.add_device(ieee, 3)
     aps.sourceEndpoint = src_ep
     aps.clusterId = cluster
     app.ezsp_callback_handler(
-        "incomingMessageHandler", [None, aps, 1, 2, 3, 4, 5, data]
+        "incomingMessageHandler", [message_type, aps, 1, 2, 3, 4, 5, data]
     )
 
 
@@ -193,13 +242,35 @@ async def test_frame_handler_unknown_device(app, aps, ieee):
     assert app.handle_join.call_count == 0
 
 
-def test_frame_handler(app, aps, ieee):
+@pytest.mark.parametrize(
+    "msg_type, counter",
+    (
+        (
+            t.EmberIncomingMessageType.INCOMING_BROADCAST,
+            bellows.zigbee.application.COUNTER_RX_BCAST,
+        ),
+        (
+            t.EmberIncomingMessageType.INCOMING_MULTICAST,
+            bellows.zigbee.application.COUNTER_RX_MCAST,
+        ),
+        (
+            t.EmberIncomingMessageType.INCOMING_UNICAST,
+            bellows.zigbee.application.COUNTER_RX_UNICAST,
+        ),
+        (0xFF, None),
+    ),
+)
+def test_frame_handler(app, aps, ieee, msg_type, counter):
     app.handle_join = MagicMock()
     data = b"\x18\x19\x22\xaa\x55"
-    _frame_handler(app, aps, ieee, 0, data=data)
+    _frame_handler(app, aps, ieee, 0, data=data, message_type=msg_type)
     assert app.handle_message.call_count == 1
     assert app.handle_message.call_args[0][5] is data
     assert app.handle_join.call_count == 0
+    if counter:
+        assert (
+            app.state.counters[bellows.zigbee.application.COUNTERS_CTRL][counter] == 1
+        )
 
 
 def test_frame_handler_zdo_annce(app, aps, ieee):
@@ -215,10 +286,19 @@ def test_frame_handler_zdo_annce(app, aps, ieee):
     assert app.handle_join.call_args[0][1] == ieee
 
 
-def test_send_failure(app, aps, ieee):
+@pytest.mark.parametrize(
+    "msg_type",
+    (
+        t.EmberIncomingMessageType.INCOMING_BROADCAST,
+        t.EmberIncomingMessageType.INCOMING_MULTICAST,
+        t.EmberIncomingMessageType.INCOMING_UNICAST,
+        0xFF,
+    ),
+)
+def test_send_failure(app, aps, ieee, msg_type):
     req = app._pending[254] = MagicMock()
     app.ezsp_callback_handler(
-        "messageSentHandler", [None, 0xBEED, aps, 254, sentinel.status, b""]
+        "messageSentHandler", [msg_type, 0xBEED, aps, 254, sentinel.status, b""]
     )
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
@@ -229,20 +309,46 @@ def test_dup_send_failure(app, aps, ieee):
     req = app._pending[254] = MagicMock()
     req.result.set_result.side_effect = asyncio.InvalidStateError()
     app.ezsp_callback_handler(
-        "messageSentHandler", [None, 0xBEED, aps, 254, sentinel.status, b""]
+        "messageSentHandler",
+        [
+            t.EmberIncomingMessageType.INCOMING_UNICAST,
+            0xBEED,
+            aps,
+            254,
+            sentinel.status,
+            b"",
+        ],
     )
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
 
 
 def test_send_failure_unexpected(app, aps, ieee):
-    app.ezsp_callback_handler("messageSentHandler", [None, 0xBEED, aps, 257, 1, b""])
+    app.ezsp_callback_handler(
+        "messageSentHandler",
+        [
+            t.EmberIncomingMessageType.INCOMING_BROADCAST_LOOPBACK,
+            0xBEED,
+            aps,
+            257,
+            1,
+            b"",
+        ],
+    )
 
 
 def test_send_success(app, aps, ieee):
     req = app._pending[253] = MagicMock()
     app.ezsp_callback_handler(
-        "messageSentHandler", [None, 0xBEED, aps, 253, sentinel.success, b""]
+        "messageSentHandler",
+        [
+            t.EmberIncomingMessageType.INCOMING_MULTICAST_LOOPBACK,
+            0xBEED,
+            aps,
+            253,
+            sentinel.success,
+            b"",
+        ],
     )
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
@@ -250,13 +356,19 @@ def test_send_success(app, aps, ieee):
 
 
 def test_unexpected_send_success(app, aps, ieee):
-    app.ezsp_callback_handler("messageSentHandler", [None, 0xBEED, aps, 253, 0, b""])
+    app.ezsp_callback_handler(
+        "messageSentHandler",
+        [t.EmberIncomingMessageType.INCOMING_MULTICAST, 0xBEED, aps, 253, 0, b""],
+    )
 
 
 def test_dup_send_success(app, aps, ieee):
     req = app._pending[253] = MagicMock()
     req.result.set_result.side_effect = asyncio.InvalidStateError()
-    app.ezsp_callback_handler("messageSentHandler", [None, 0xBEED, aps, 253, 0, b""])
+    app.ezsp_callback_handler(
+        "messageSentHandler",
+        [t.EmberIncomingMessageType.INCOMING_MULTICAST, 0xBEED, aps, 253, 0, b""],
+    )
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
 
@@ -332,12 +444,14 @@ def test_permit_ncp(app):
 
 
 @pytest.mark.parametrize(
-    "version, tc_policy_count", ((4, 0), (5, 0), (6, 0), (7, 0), (8, 1))
+    "version, tc_policy_count, ezsp_types",
+    ((4, 0, t), (5, 0, ezsp_t5), (6, 0, ezsp_t6), (7, 0, ezsp_t7), (8, 1, ezsp_t8)),
 )
-async def test_permit_with_key(app, version, tc_policy_count):
+async def test_permit_with_key(app, version, tc_policy_count, ezsp_types):
     p1 = patch("zigpy.application.ControllerApplication.permit")
+    p2 = patch.object(app._ezsp, "types", ezsp_types)
 
-    with patch.object(app._ezsp, "ezsp_version", version), p1 as permit_mock:
+    with patch.object(app._ezsp, "ezsp_version", version), p1 as permit_mock, p2:
         await app.permit_with_key(
             bytes([1, 2, 3, 4, 5, 6, 7, 8]),
             bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
@@ -350,12 +464,14 @@ async def test_permit_with_key(app, version, tc_policy_count):
 
 
 @pytest.mark.parametrize(
-    "version, tc_policy_count", ((4, 0), (5, 0), (6, 0), (7, 0), (8, 1))
+    "version, tc_policy_count, ezsp_types",
+    ((4, 0, t), (5, 0, ezsp_t5), (6, 0, ezsp_t6), (7, 0, ezsp_t7), (8, 1, ezsp_t8)),
 )
-async def test_permit_with_key_ieee(app, ieee, version, tc_policy_count):
+async def test_permit_with_key_ieee(app, ieee, version, tc_policy_count, ezsp_types):
     p1 = patch("zigpy.application.ControllerApplication.permit")
+    p2 = patch.object(app._ezsp, "types", ezsp_types)
 
-    with patch.object(app._ezsp, "ezsp_version", version), p1 as permit_mock:
+    with patch.object(app._ezsp, "ezsp_version", version), p1 as permit_mock, p2:
         await app.permit_with_key(
             ieee,
             bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
@@ -493,41 +609,53 @@ async def test_request_extended_timeout(app):
 
 
 @pytest.mark.parametrize("relays", [None, [], [0x1234]])
-async def test_request_src_rtg_not_enabled(relays, app):
-    app.use_source_routing = False
+async def test_request_src_rtg_not_enabled(relays, app, ezsp_mock):
     res = await _request(app, relays=relays)
     assert res[0] == 0
-    assert app._ezsp.set_source_route.await_count == 0
-    assert app._ezsp.sendUnicast.await_count == 1
+    assert ezsp_mock.set_source_route.await_count == 0
+    assert ezsp_mock.sendUnicast.await_count == 1
     assert (
-        app._ezsp.sendUnicast.call_args[0][2].options
+        ezsp_mock.sendUnicast.call_args[0][2].options
         & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
     )
 
 
 @pytest.mark.parametrize("relays", [[], [0x1234]])
-async def test_request_src_rtg_success(relays, app):
-    app.use_source_routing = True
-    res = await _request(app, relays=relays)
+async def test_request_src_rtg_success(relays, app_src_rtg, ezsp_mock):
+    res = await _request(app_src_rtg, relays=relays)
     assert res[0] == 0
-    assert app._ezsp.set_source_route.await_count == 1
-    assert app._ezsp.sendUnicast.await_count == 1
+    assert ezsp_mock.set_source_route.await_count == 1
+    assert ezsp_mock.sendUnicast.await_count == 1
     assert (
-        not app._ezsp.sendUnicast.call_args[0][2].options
+        not ezsp_mock.sendUnicast.call_args[0][2].options
         & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
     )
 
 
 @pytest.mark.parametrize("relays", [[], [0x1234]])
-async def test_request_src_rtg_fail(relays, app):
-    app.use_source_routing = True
-    app._ezsp.set_source_route.return_value = [1]
-    res = await _request(app, relays=relays)
+async def test_request_src_rtg_success_v8(relays, app_src_rtg, ezsp_mock):
+    """Source routing on EZSP v8 or newer."""
+
+    ezsp_mock.ezsp_version = 8
+    res = await _request(app_src_rtg, relays=relays)
     assert res[0] == 0
-    assert app._ezsp.set_source_route.await_count == 1
-    assert app._ezsp.sendUnicast.await_count == 1
+    assert ezsp_mock.set_source_route.await_count == 0
+    assert ezsp_mock.sendUnicast.await_count == 1
     assert (
-        app._ezsp.sendUnicast.call_args[0][2].options
+        not ezsp_mock.sendUnicast.call_args[0][2].options
+        & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+    )
+
+
+@pytest.mark.parametrize("relays", [[], [0x1234]])
+async def test_request_src_rtg_fail(relays, app_src_rtg, ezsp_mock):
+    ezsp_mock.set_source_route.return_value = [1]
+    res = await _request(app_src_rtg, relays=relays)
+    assert res[0] == 0
+    assert ezsp_mock.set_source_route.await_count == 1
+    assert ezsp_mock.sendUnicast.await_count == 1
+    assert (
+        ezsp_mock.sendUnicast.call_args[0][2].options
         & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
     )
 
@@ -536,24 +664,24 @@ async def test_request_src_rtg_fail(relays, app):
     "send_status, sleep_count, send_unicast_count", ((0, 0, 1), (114, 3, 4), (2, 0, 1))
 )
 async def test_request_max_message_limit(
-    send_status, sleep_count, send_unicast_count, app
+    send_status, sleep_count, send_unicast_count, app_src_rtg, ezsp_mock
 ):
     async def mocksend(method, nwk, aps_frame, seq, data):
         if send_status == t.EmberStatus.SUCCESS:
-            req = app._pending[seq]
+            req = app_src_rtg._pending[seq]
             req.result.set_result((0, "success"))
         return [send_status, "send message"]
 
-    app._ezsp.sendUnicast = AsyncMock(side_effect=mocksend)
-    app._ezsp.setExtendedTimeout = AsyncMock()
+    ezsp_mock.sendUnicast = AsyncMock(side_effect=mocksend)
+    ezsp_mock.setExtendedTimeout = AsyncMock()
     device = MagicMock()
     device.relays = []
     device.node_desc.is_end_device = False
 
     with patch("asyncio.sleep") as sleep_mock:
-        await app.request(device, 9, 8, 7, 6, 5, b"", expect_reply=False)
+        await app_src_rtg.request(device, 9, 8, 7, 6, 5, b"", expect_reply=False)
     assert sleep_mock.await_count == sleep_count
-    assert app._ezsp.sendUnicast.await_count == send_unicast_count
+    assert ezsp_mock.sendUnicast.await_count == send_unicast_count
 
 
 async def _test_broadcast(
@@ -735,29 +863,38 @@ async def test_reset_controller_routine(app):
     assert app.startup.call_count == 1
 
 
-async def test_watchdog(app, monkeypatch):
+@pytest.mark.parametrize("ezsp_version", (4, 7))
+async def test_watchdog(app, monkeypatch, ezsp_version):
     from bellows.zigbee import application
 
     monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.01)
-    nop_success = 3
+    monkeypatch.setattr(application, "EZSP_COUNTERS_CLEAR_IN_WATCHDOG_PERIODS", 2)
+    nop_success = 7
+    app._ezsp.ezsp_version = ezsp_version
 
     async def nop_mock():
         nonlocal nop_success
         if nop_success:
             nop_success -= 1
-            if nop_success % 2:
+            if nop_success % 3:
                 raise EzspError
             else:
-                return
+                return ([0] * 10,)
         raise asyncio.TimeoutError
 
     app._ezsp.nop = AsyncMock(side_effect=nop_mock)
+    app._ezsp.readCounters = AsyncMock(side_effect=nop_mock)
+    app._ezsp.readAndClearCounters = AsyncMock(side_effect=nop_mock)
     app._handle_reset_request = MagicMock()
     app._ctrl_event.set()
 
     await app._watchdog()
 
-    assert app._ezsp.nop.call_count > 4
+    if ezsp_version == 4:
+        assert app._ezsp.nop.await_count > 4
+    else:
+        assert app._ezsp.readCounters.await_count >= 4
+
     assert app._handle_reset_request.call_count == 1
 
 
@@ -793,6 +930,92 @@ async def test_watchdog_counters(app, monkeypatch, caplog):
     await app._watchdog()
     assert app._ezsp.readCounters.await_count == 0
     assert app._ezsp.nop.await_count != 0
+
+
+async def test_ezsp_value_counter(app, monkeypatch):
+    from bellows.zigbee import application
+
+    monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.01)
+    nop_success = 3
+
+    async def counters_mock():
+        nonlocal nop_success
+        if nop_success:
+            nop_success -= 1
+            if nop_success % 2:
+                raise EzspError
+            else:
+                return ([0, 1, 2, 3],)
+        raise asyncio.TimeoutError
+
+    app._ezsp.readCounters = AsyncMock(side_effect=counters_mock)
+    app._ezsp.nop = AsyncMock(side_effect=EzspError)
+    app._ezsp.getValue = AsyncMock(
+        return_value=(t.EzspStatus.ERROR_OUT_OF_MEMORY, b"\x20")
+    )
+    app._handle_reset_request = MagicMock()
+    app._ctrl_event.set()
+
+    await app._watchdog()
+    assert app._ezsp.readCounters.await_count != 0
+    assert app._ezsp.nop.await_count == 0
+
+    cnt = t.EmberCounterType
+    assert (
+        app.state.counters[application.COUNTERS_EZSP][
+            cnt.COUNTER_MAC_RX_BROADCAST.name[8:]
+        ]
+        == 0
+    )
+    assert (
+        app.state.counters[application.COUNTERS_EZSP][
+            cnt.COUNTER_MAC_TX_BROADCAST.name[8:]
+        ]
+        == 1
+    )
+    assert (
+        app.state.counters[application.COUNTERS_EZSP][
+            cnt.COUNTER_MAC_RX_UNICAST.name[8:]
+        ]
+        == 2
+    )
+    assert (
+        app.state.counters[application.COUNTERS_EZSP][
+            cnt.COUNTER_MAC_TX_UNICAST_SUCCESS.name[8:]
+        ]
+        == 3
+    )
+    assert (
+        app.state.counters[application.COUNTERS_EZSP].get(
+            application.COUNTER_EZSP_BUFFERS
+        )
+        is None
+    )
+    assert (
+        app.state.counters[application.COUNTERS_CTRL][application.COUNTER_WATCHDOG] == 1
+    )
+
+    # Ezsp Value success
+    app._ezsp.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\x20"))
+    nop_success = 3
+    await app._watchdog()
+    assert (
+        app.state.counters[application.COUNTERS_EZSP][application.COUNTER_EZSP_BUFFERS]
+        == 0x20
+    )
+
+
+async def test_watchdog_cancel(app, monkeypatch):
+    """Coverage for watchdog cancellation."""
+
+    from bellows.zigbee import application
+
+    monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.01)
+
+    app._ezsp.readCounters = AsyncMock(side_effect=asyncio.CancelledError)
+
+    with pytest.raises(asyncio.CancelledError):
+        await app._watchdog()
 
 
 async def test_shutdown(app):
