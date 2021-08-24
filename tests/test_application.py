@@ -622,10 +622,24 @@ async def test_request_src_rtg_not_enabled(relays, app, ezsp_mock):
 
 @pytest.mark.parametrize("relays", [[], [0x1234]])
 async def test_request_src_rtg_success(relays, app_src_rtg, ezsp_mock):
-    app_src_rtg.use_source_routing = True
     res = await _request(app_src_rtg, relays=relays)
     assert res[0] == 0
     assert ezsp_mock.set_source_route.await_count == 1
+    assert ezsp_mock.sendUnicast.await_count == 1
+    assert (
+        not ezsp_mock.sendUnicast.call_args[0][2].options
+        & t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+    )
+
+
+@pytest.mark.parametrize("relays", [[], [0x1234]])
+async def test_request_src_rtg_success_v8(relays, app_src_rtg, ezsp_mock):
+    """Source routing on EZSP v8 or newer."""
+
+    ezsp_mock.ezsp_version = 8
+    res = await _request(app_src_rtg, relays=relays)
+    assert res[0] == 0
+    assert ezsp_mock.set_source_route.await_count == 0
     assert ezsp_mock.sendUnicast.await_count == 1
     assert (
         not ezsp_mock.sendUnicast.call_args[0][2].options
