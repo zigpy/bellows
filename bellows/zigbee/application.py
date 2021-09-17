@@ -174,6 +174,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         for cnt_group in self.state.counters:
             cnt_group.reset()
 
+        if ezsp.ezsp_version >= 8:
+            for device in self.devices.values():
+                device.relays = None
+
         ezsp.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
         self._watchdog_task = asyncio.create_task(self._watchdog())
