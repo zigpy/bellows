@@ -116,7 +116,7 @@ async def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_versi
 
     app._in_flight_msg = None
     ezsp_mock = MagicMock()
-    type(ezsp_mock.return_value).ezsp_version = PropertyMock(return_value=ezsp_version)
+    type(ezsp_mock).ezsp_version = PropertyMock(return_value=ezsp_version)
     ezsp_mock.initialize = AsyncMock(return_value=ezsp_mock)
     ezsp_mock.connect = AsyncMock()
     ezsp_mock.setConcentrator = AsyncMock()
@@ -171,6 +171,18 @@ async def test_startup_nwk_params(app, ieee):
 async def test_startup_ezsp_ver7(app, ieee):
     app.state.counters["ezsp_counters"] = MagicMock()
     await _test_startup(app, t.EmberNodeType.COORDINATOR, ieee, ezsp_version=7)
+    assert app.state.counters["ezsp_counters"].reset.call_count == 1
+
+
+async def test_startup_ezsp_ver8(app, ieee):
+    app.state.counters["ezsp_counters"] = MagicMock()
+    ieee_1 = t.EmberEUI64.convert("11:22:33:44:55:66:77:88")
+    dev_1 = app.add_device(ieee_1, 0x1234)
+    dev_1.relays = [
+        t.EmberNodeId(0x2222),
+    ]
+
+    await _test_startup(app, t.EmberNodeType.COORDINATOR, ieee, ezsp_version=8)
     assert app.state.counters["ezsp_counters"].reset.call_count == 1
 
 
