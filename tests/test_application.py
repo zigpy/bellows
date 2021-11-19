@@ -38,6 +38,7 @@ def ezsp_mock():
     """EZSP fixture"""
     ezsp = MagicMock()
     ezsp.ezsp_version = 7
+    ezsp.setManufacturerCode = AsyncMock()
     ezsp.set_source_route = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp.addTransientLinkKey = AsyncMock(return_value=[0])
     ezsp.readCounters = AsyncMock(return_value=[[0] * 10])
@@ -1408,3 +1409,51 @@ async def test_permit(app):
     await asyncio.sleep(0)
     assert ezsp.addTransientLinkKey.await_count == 0
     assert ezsp.pre_permit.await_count == 1
+
+
+@patch("bellows.zigbee.application.MFG_ID_RESET_DELAY", new=0.01)
+@pytest.mark.parametrize(
+    "ieee, expected_mfg_id",
+    (
+        ("54:ef:44:00:00:00:00:11", 0x115F),
+        ("04:cf:fc:00:00:00:00:11", 0x115F),
+        ("01:22:33:00:00:00:00:11", None),
+    ),
+)
+async def test_set_mfg_id(ieee, expected_mfg_id, app, ezsp_mock):
+    """Test setting manufacturer id based on IEEE address."""
+
+    app.handle_join = MagicMock()
+    app.cleanup_tc_link_key = AsyncMock()
+
+    app.ezsp_callback_handler(
+        "trustCenterJoinHandler",
+        [
+            1,
+            t.EmberEUI64.convert(ieee),
+            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            t.EmberJoinDecision.NO_ACTION,
+            sentinel.parent,
+        ],
+    )
+    # preempt
+    app.ezsp_callback_handler(
+        "trustCenterJoinHandler",
+        [
+            1,
+            t.EmberEUI64.convert(ieee),
+            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            t.EmberJoinDecision.NO_ACTION,
+            sentinel.parent,
+        ],
+    )
+    await asyncio.sleep(0.03)
+    if expected_mfg_id is not None:
+        assert ezsp_mock.setManufacturerCode.await_count == 2
+        assert ezsp_mock.setManufacturerCode.await_args_list[0][0][0] == expected_mfg_id
+        assert (
+            ezsp_mock.setManufacturerCode.await_args_list[1][0][0]
+            == bellows.zigbee.application.DEFAULT_MFG_ID
+        )
+    else:
+        assert ezsp_mock.setManufacturerCode.await_count == 0
