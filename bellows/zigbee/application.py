@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 import os
@@ -38,13 +40,18 @@ COUNTER_UNKNOWN_DEVICE = "unknown_device_rx"
 COUNTER_WATCHDOG = "watchdog_reset_requests"
 COUNTERS_EZSP = "ezsp_counters"
 COUNTERS_CTRL = "controller_app_counters"
+DEFAULT_MFG_ID = 0x1049
 EZSP_COUNTERS_CLEAR_IN_WATCHDOG_PERIODS = 180
 EZSP_DEFAULT_RADIUS = 0
 EZSP_MULTICAST_NON_MEMBER_RADIUS = 3
 MAX_WATCHDOG_FAILURES = 4
+MFG_ID_RESET_DELAY = 180
 RESET_ATTEMPT_BACKOFF_TIME = 5
 WATCHDOG_WAKE_PERIOD = 10
-
+IEEE_PREFIX_MFG_ID = {
+    "04:cf:fc": 0x115F,
+    "54:ef:44": 0x115F,
+}
 
 LOGGER = logging.getLogger(__name__)
 
@@ -60,6 +67,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._ctrl_event = asyncio.Event()
         self._ezsp = None
         self._multicast = None
+        self._mfg_id_task: asyncio.Task | None = None
         self._pending = zigpy.util.Requests()
         self._watchdog_task = None
         self._reset_task = None
@@ -385,7 +393,25 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             # no point in handling the join if it was denied
             return
 
+        mfg_id = next(
+            (
+                mfgid
+                for prefix, mfgid in IEEE_PREFIX_MFG_ID.items()
+                if str(ieee).startswith(prefix)
+            ),
+            None,
+        )
+        if mfg_id is not None:
+            if self._mfg_id_task and not self._mfg_id_task.done():
+                self._mfg_id_task.cancel()
+            self._mfg_id_task = asyncio.create_task(self._reset_mfg_id(mfg_id))
         self.handle_join(nwk, ieee, parent_nwk)
+
+    async def _reset_mfg_id(self, mfg_id: int) -> None:
+        """Resets manufacturer id if was temporary overridden by a joining device."""
+        await self._ezsp.setManufacturerCode(mfg_id)
+        await asyncio.sleep(MFG_ID_RESET_DELAY)
+        await self._ezsp.setManufacturerCode(DEFAULT_MFG_ID)
 
     def _handle_reset_request(self, error):
         """Reinitialize application controller."""
