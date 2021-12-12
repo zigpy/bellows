@@ -9,9 +9,9 @@ from serial import SerialException
 import zigpy.application
 import zigpy.config
 import zigpy.device
+from zigpy.exceptions import NetworkNotFormed
 from zigpy.quirks import CustomDevice, CustomEndpoint
-import zigpy.state as app_state
-from zigpy.types import Addressing, BroadcastAddress
+from zigpy.types import Addressing, BroadcastAddress, KeyData
 import zigpy.util
 import zigpy.zdo.types as zdo_t
 
@@ -127,13 +127,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             status = await self._ezsp.eraseKeyTableEntry(index)
             LOGGER.debug("Cleaned up TC link key for %s device: %s", ieee, status)
 
-    async def startup(self, auto_form=False):
-        """Perform a complete application startup"""
+    async def connect(self):
         self._ezsp = await bellows.ezsp.EZSP.initialize(self.config)
         ezsp = self._ezsp
-
         self._multicast = bellows.multicast.Multicast(ezsp)
-
         status, count = await ezsp.getConfigurationValue(
             ezsp.types.EzspConfigId.CONFIG_APS_UNICAST_MESSAGE_COUNT
         )
@@ -153,35 +150,20 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         except EzspError as exc:
             LOGGER.info("EZSP Radio does not support getMfgToken command: %s", str(exc))
 
+    async def start_network(self):
+        ezsp = self._ezsp
+
         v = await ezsp.networkInit()
         if v[0] != t.EmberStatus.SUCCESS:
-            if not auto_form:
-                raise ControllerError("Could not initialize network")
-            await self.form_network()
+            raise NetworkNotFormed()
 
         status, node_type, nwk_params = await ezsp.getNetworkParameters()
         assert status == t.EmberStatus.SUCCESS  # TODO: Better check
         if node_type != t.EmberNodeType.COORDINATOR:
-            if not auto_form:
-                raise ControllerError("Network not configured as coordinator")
+            raise NetworkNotFormed("Network not configured as coordinator")
 
-            LOGGER.info(
-                "Leaving current network as %s and forming new network", node_type.name
-            )
-            (status,) = await self._ezsp.leaveNetwork()
-            assert status == t.EmberStatus.NETWORK_DOWN
-            await self.form_network()
-            status, node_type, nwk_params = await ezsp.getNetworkParameters()
-            assert status == t.EmberStatus.SUCCESS
+        await self.load_network_info(load_devices=False)
 
-        LOGGER.info("Node type: %s, Network parameters: %s", node_type, nwk_params)
-        await ezsp.update_policies(self.config)
-        (nwk,) = await ezsp.getNodeId()
-        (ieee,) = await ezsp.getEui64()
-
-        node_info = app_state.NodeInfo(nwk, ieee, node_type.zdo_logical_type)
-        self.state.node_information = node_info
-        self.state.network_information = nwk_params.zigpy_network_information
         for cnt_group in self.state.counters:
             cnt_group.reset()
 
@@ -198,9 +180,109 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         await self.multicast.startup(self.get_device(self.ieee))
 
-    async def shutdown(self):
-        """Shutdown and cleanup ControllerApplication."""
-        LOGGER.info("Shutting down ControllerApplication")
+    async def load_network_info(self, *, load_devices=False) -> None:
+        ezsp = self._ezsp
+
+        (status,) = await ezsp.networkInit()
+        LOGGER.debug("Network init status: %s", status)
+        assert status == t.EmberStatus.SUCCESS
+
+        status, node_type, nwk_params = await ezsp.getNetworkParameters()
+        assert status == t.EmberStatus.SUCCESS
+
+        node_info = self.state.node_info
+        (node_info.nwk,) = await ezsp.getNodeId()
+        (node_info.ieee,) = await ezsp.getEui64()
+        node_info.logical_type = node_type.zdo_logical_type
+
+        network_info = self.state.network_info
+
+        network_info.extended_pan_id = nwk_params.extendedPanId
+        network_info.pan_id = nwk_params.panId
+        network_info.nwk_update_id = nwk_params.nwkUpdateId
+        network_info.nwk_manager_id = nwk_params.nwkManagerId
+        network_info.channel = nwk_params.radioChannel
+        network_info.channel_mask = nwk_params.channels
+
+        (status, security_level) = await ezsp.getConfigurationValue(
+            ezsp.types.EzspConfigId.CONFIG_SECURITY_LEVEL
+        )
+        assert status == t.EmberStatus.SUCCESS
+        network_info.security_level = security_level
+
+        # Network key
+        (status, key) = await ezsp.getKey(ezsp.types.EmberKeyType.CURRENT_NETWORK_KEY)
+        assert status == t.EmberStatus.SUCCESS
+        network_info.network_key = bellows.zigbee.util.ezsp_key_struct_to_zigpy_key(
+            key, ezsp=ezsp
+        )
+
+        # Security state
+        (status, state) = await ezsp.getCurrentSecurityState()
+        assert status == t.EmberStatus.SUCCESS
+
+        # TCLK
+        (status, key) = await ezsp.getKey(ezsp.types.EmberKeyType.TRUST_CENTER_LINK_KEY)
+        assert status == t.EmberStatus.SUCCESS
+
+        network_info.tc_link_key = bellows.zigbee.util.ezsp_key_struct_to_zigpy_key(
+            key, ezsp=ezsp
+        )
+
+        if (
+            state.bitmask
+            & ezsp.types.EmberCurrentSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
+        ):
+            network_info.stack_specific = {
+                "ezsp": {"hashed_tclk": network_info.tc_link_key.key.serialize().hex()}
+            }
+            network_info.tc_link_key.key = KeyData(b"ZigBeeAlliance09")
+
+        if not load_devices:
+            return
+
+        network_info.key_table = []
+
+        for idx in range(0, 192):
+            (status, key) = await ezsp.getKeyTableEntry(idx)
+
+            if status == t.EmberStatus.INDEX_OUT_OF_RANGE:
+                break
+            elif status == t.EmberStatus.TABLE_ENTRY_ERASED:
+                continue
+
+            assert status == t.EmberStatus.SUCCESS
+
+            network_info.key_table.append(
+                bellows.zigbee.util.ezsp_key_struct_to_zigpy_key(key, ezsp=ezsp)
+            )
+
+        network_info.children = []
+        network_info.nwk_addresses = {}
+
+        for idx in range(0, 255 + 1):
+            (status, nwk, eui64, node_type) = await ezsp.getChildData(idx)
+
+            if status == t.EmberStatus.NOT_JOINED:
+                continue
+
+            network_info.children.append(eui64)
+            network_info.nwk_addresses[eui64] = nwk
+
+        for idx in range(0, 255 + 1):
+            (nwk,) = await ezsp.getAddressTableRemoteNodeId(idx)
+            (eui64,) = await ezsp.getAddressTableRemoteEui64(idx)
+
+            # Ignore invalid NWK entries
+            if nwk in t.EmberDistinguishedNodeId.__members__.values():
+                continue
+
+            network_info.nwk_addresses[eui64] = nwk
+
+    async def write_network_info(*, network_info, node_info):
+        pass
+
+    async def disconnect(self):
         self.controller_event.clear()
         if self._watchdog_task and not self._watchdog_task.done():
             LOGGER.debug("Cancelling watchdog")

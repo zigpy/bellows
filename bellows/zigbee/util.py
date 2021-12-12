@@ -2,6 +2,7 @@ import os
 from typing import Any, Dict
 
 import zigpy.config
+import zigpy.state
 
 import bellows.types as t
 
@@ -37,3 +38,22 @@ def zha_security(
                 t.EmberInitialSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
             )
     return isc
+
+
+def ezsp_key_struct_to_zigpy_key(key, *, ezsp):
+    zigpy_key = zigpy.state.Key()
+    zigpy_key.key = key.key
+
+    if key.bitmask & ezsp.types.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER:
+        zigpy_key.seq = key.sequenceNumber
+
+    if key.bitmask & ezsp.types.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER:
+        zigpy_key.tx_counter = key.outgoingFrameCounter
+
+    if key.bitmask & ezsp.types.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER:
+        zigpy_key.rx_counter = key.outgoingFrameCounter
+
+    if key.bitmask & ezsp.types.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64:
+        zigpy_key.partner_ieee = key.partnerEUI64
+
+    return zigpy_key

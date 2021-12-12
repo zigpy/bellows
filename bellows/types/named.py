@@ -603,6 +603,9 @@ class EmberStatus(basic.enum8):
     # An index was passed into the function that was larger than the valid
     # range.
     INDEX_OUT_OF_RANGE = 0xB1
+    # The passed key data is not valid. A key of all zeros or all F's are reserved
+    # values and cannot be used.
+    KEY_INVALID = 0xB2
     # There are no empty entries left in the table.
     TABLE_FULL = 0xB4
     # The requested table entry has been erased and contains no valid data.
@@ -1182,3 +1185,22 @@ class EmberSignature283k1Data(basic.fixed_list(72, basic.uint8_t)):
 
 class EmberMessageDigest(basic.fixed_list(16, basic.uint8_t)):
     """The calculated digest of a message"""
+
+
+class EmberDistinguishedNodeId(basic.enum16):
+    """A distinguished network ID that will never be assigned to any node"""
+
+    # This value is used when getting the remote node ID from the address or binding
+    # tables. It indicates that the address or binding table entry is currently in use
+    # and network address discovery is underway.
+    DISCOVERY_ACTIVE = 0xFFFC
+
+    # This value is used when getting the remote node ID from the address or binding
+    # tables. It indicates that the address or binding table entry is currently in use
+    # but the node ID corresponding to the EUI64 in the table is currently unknown.
+    UNKNOWN = 0xFFFD
+
+    # This value is used when setting or getting the remote node ID in the address table
+    # or getting the remote node ID from the binding table. It indicates that the
+    # address or binding table entry is not in use.
+    TABLE_ENTRY_UNUSED = 0xFFFF
