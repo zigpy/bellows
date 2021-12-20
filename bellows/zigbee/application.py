@@ -345,6 +345,21 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 LOGGER.warning("Couldn't add %s key: %s", key, status)
             await asyncio.sleep(0.2)
 
+        # Set NWK frame counter
+        (status,) = await ezsp.setValue(
+            ezsp.types.EzspValueId.VALUE_NWK_FRAME_COUNTER,
+            t.uint32_t(network_info.network_key.tx_counter).serialize(),
+        )
+        assert status == t.EmberStatus.SUCCESS
+
+        # Set APS frame counter
+        (status,) = await ezsp.setValue(
+            ezsp.types.EzspValueId.VALUE_APS_FRAME_COUNTER,
+            t.uint32_t(network_info.tc_link_key.tx_counter).serialize(),
+        )
+        LOGGER.debug("Set network frame counter: %s", status)
+        assert status == t.EmberStatus.SUCCESS
+
         parameters = t.EmberNetworkParameters()
         parameters.panId = t.EmberPanId(network_info.pan_id)
         parameters.extendedPanId = t.EmberEUI64(network_info.extended_pan_id)
