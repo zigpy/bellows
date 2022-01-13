@@ -331,10 +331,16 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             for key in network_info.key_table
         ]
 
-        (status,) = await ezsp.setConfigurationValue(
-            ezsp.types.EzspConfigId.CONFIG_KEY_TABLE_SIZE, len(key_table)
+        (status, key_table_size) = await ezsp.getConfigurationValue(
+            ezsp.types.EzspConfigId.CONFIG_KEY_TABLE_SIZE
         )
         assert status == t.EmberStatus.SUCCESS
+
+        if key_table_size < len(key_table):
+            (status,) = await ezsp.setConfigurationValue(
+                ezsp.types.EzspConfigId.CONFIG_KEY_TABLE_SIZE, len(key_table)
+            )
+            assert status == t.EmberStatus.SUCCESS
 
         for index, (key, is_link_key) in enumerate(key_table):
             # XXX: is there no way to set the outgoing frame counter per key?
