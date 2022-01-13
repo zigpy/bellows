@@ -195,7 +195,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         node_info.logical_type = node_type.zdo_logical_type
 
         network_info = self.state.network_info
-
         network_info.extended_pan_id = nwk_params.extendedPanId
         network_info.pan_id = nwk_params.panId
         network_info.nwk_update_id = nwk_params.nwkUpdateId
@@ -298,7 +297,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         if current_eui64 != node_info.ieee:
             if not should_update_eui64:
-                LOGGER.warning("Not updating node EUI64 to %s", node_info.ieee)
+                LOGGER.warning(
+                    "Current node's IEEE address (%s) does not match the backup's (%s)",
+                    current_eui64,
+                    node_info.ieee,
+                )
             else:
                 new_ncp_eui64 = t.EmberEUI64(node_info.ieee)
                 (status,) = await ezsp.setMfgToken(
@@ -308,9 +311,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         hashed_tclk = ezsp.ezsp_version > 4
         if hashed_tclk and not stack_specific.get("hashed_tclk"):
-            network_info.stack_specific.setdefault("ezsp", {})[
-                "hashed_tclk"
-            ] = os.urandom(8).hex()
+            stack_specific.setdefault("ezsp", {})["hashed_tclk"] = os.urandom(8).hex()
 
         # TODO: support router mode
         initial_security_state = bellows.zigbee.util.zha_security(
@@ -349,7 +350,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             )
             if status != t.EmberStatus.SUCCESS:
                 LOGGER.warning("Couldn't add %s key: %s", key, status)
-            await asyncio.sleep(0.2)
 
         # Set NWK frame counter
         (status,) = await ezsp.setValue(
@@ -366,6 +366,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         LOGGER.debug("Set network frame counter: %s", status)
         assert status == t.EmberStatus.SUCCESS
 
+        # Set the network settings
         parameters = t.EmberNetworkParameters()
         parameters.panId = t.EmberPanId(network_info.pan_id)
         parameters.extendedPanId = t.EmberEUI64(network_info.extended_pan_id)
