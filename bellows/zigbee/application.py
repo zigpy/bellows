@@ -145,10 +145,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             output_clusters=[zigpy.zcl.clusters.security.IasZone.cluster_id]
         )
 
-        brd_manuf, brd_name, version = await self._ezsp.get_board_info()
-        LOGGER.info("EZSP Radio manufacturer: %s", brd_manuf)
-        LOGGER.info("EZSP Radio board name: %s", brd_name)
-        LOGGER.info("EmberZNet version: %s", version)
+        try:
+            brd_manuf, brd_name, version = await self._ezsp.get_board_info()
+            LOGGER.info("EZSP Radio manufacturer: %s", brd_manuf)
+            LOGGER.info("EZSP Radio board name: %s", brd_name)
+            LOGGER.info("EmberZNet version: %s", version)
+        except EzspError as exc:
+            LOGGER.info("EZSP Radio does not support getMfgToken command: %s", str(exc))
 
         v = await ezsp.networkInit()
         if v[0] != t.EmberStatus.SUCCESS:
