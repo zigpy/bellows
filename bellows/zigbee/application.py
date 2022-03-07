@@ -151,12 +151,26 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         except EzspError as exc:
             LOGGER.info("EZSP Radio does not support getMfgToken command: %s", str(exc))
 
+    async def _ensure_network_running(self) -> bool:
+        """
+        Ensures the network is currently running and returns whether or not the network
+        was started.
+        """
+        (state,) = await self._ezsp.networkState()
+
+        if state != self._ezsp.types.EmberNetworkStatus.NO_NETWORK:
+            return False
+
+        (init_status,) = await self._ezsp.networkInit()
+        if init_status != t.EmberStatus.SUCCESS:
+            raise NetworkNotFormed(f"Failed to init network: {init_status!r}")
+
+        return True
+
     async def start_network(self):
         ezsp = self._ezsp
 
-        v = await ezsp.networkInit()
-        if v[0] != t.EmberStatus.SUCCESS:
-            raise NetworkNotFormed()
+        await self._ensure_network_running()
 
         status, node_type, nwk_params = await ezsp.getNetworkParameters()
         assert status == t.EmberStatus.SUCCESS  # TODO: Better check
@@ -192,8 +206,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def load_network_info(self, *, load_devices=False) -> None:
         ezsp = self._ezsp
 
-        (status,) = await ezsp.networkInit()
-        assert status == t.EmberStatus.SUCCESS
+        await self._ensure_network_running()
 
         status, node_type, nwk_params = await ezsp.getNetworkParameters()
         assert status == t.EmberStatus.SUCCESS
