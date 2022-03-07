@@ -9,8 +9,8 @@ from serial import SerialException
 import zigpy.application
 import zigpy.config
 import zigpy.device
+import zigpy.endpoint
 from zigpy.exceptions import FormationFailure, NetworkNotFormed
-from zigpy.quirks import CustomDevice, CustomEndpoint
 from zigpy.types import Addressing, BroadcastAddress, KeyData
 import zigpy.util
 import zigpy.zdo.types as zdo_t
@@ -175,10 +175,18 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self.controller_event.set()
         self._watchdog_task = asyncio.create_task(self._watchdog())
 
-        self.handle_join(self.nwk, self.ieee, 0)
-        LOGGER.debug("EZSP nwk=0x%04x, IEEE=%s", self._nwk, str(self._ieee))
+        ezsp_device = EZSPCoordinator(
+            application=self,
+            ieee=self.state.node_info.ieee,
+            nwk=self.state.node_info.nwk,
+        )
+        self.devices[self.state.node_info.ieee] = ezsp_device
+        await ezsp_device.initialize()
+        ezsp_device.endpoints[1] = EZSPCoordinator.EZSPEndpoint(ezsp_device, 1)
+        ezsp_device.model = ezsp_device.endpoints[1].model
+        ezsp_device.manufacturer = ezsp_device.endpoints[1].manufacturer
 
-        await self.multicast.startup(self.get_device(self.ieee))
+        await self.multicast.startup(ezsp_device)
 
     async def load_network_info(self, *, load_devices=False) -> None:
         ezsp = self._ezsp
@@ -944,10 +952,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         dev.relays = None
 
 
-class EZSPCoordinator(CustomDevice):
+class EZSPCoordinator(zigpy.device.Device):
     """Zigpy Device representing Coordinator."""
 
-    class EZSPEndpoint(CustomEndpoint):
+    class EZSPEndpoint(zigpy.endpoint.Endpoint):
         @property
         def manufacturer(self) -> str:
             """Manufacturer."""
@@ -984,20 +992,3 @@ class EZSPCoordinator(CustomDevice):
 
             app.groups[grp_id].remove_member(self)
             return status
-
-    signature = {
-        "endpoints": {
-            1: {
-                "profile_id": 0x0104,
-                "device_type": 0xBEEF,
-                "input_clusters": [],
-                "output_clusters": [zigpy.zcl.clusters.security.IasZone.cluster_id],
-            }
-        }
-    }
-
-    replacement = {
-        "endpoints": {1: (EZSPEndpoint, {})},
-        "manufacturer": "Silicon Labs",
-        "model": "EZSP",
-    }
