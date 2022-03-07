@@ -11,7 +11,8 @@ import zigpy.config
 import zigpy.device
 import zigpy.endpoint
 from zigpy.exceptions import FormationFailure, NetworkNotFormed
-from zigpy.types import Addressing, BroadcastAddress, KeyData
+import zigpy.state
+import zigpy.types
 import zigpy.util
 import zigpy.zdo.types as zdo_t
 
@@ -197,52 +198,61 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         status, node_type, nwk_params = await ezsp.getNetworkParameters()
         assert status == t.EmberStatus.SUCCESS
 
-        node_info = self.state.node_info
-        (node_info.nwk,) = await ezsp.getNodeId()
-        (node_info.ieee,) = await ezsp.getEui64()
-        node_info.logical_type = node_type.zdo_logical_type
+        (nwk,) = await ezsp.getNodeId()
+        (ieee,) = await ezsp.getEui64()
 
-        network_info = self.state.network_info
-        network_info.extended_pan_id = nwk_params.extendedPanId
-        network_info.pan_id = nwk_params.panId
-        network_info.nwk_update_id = nwk_params.nwkUpdateId
-        network_info.nwk_manager_id = nwk_params.nwkManagerId
-        network_info.channel = nwk_params.radioChannel
-        network_info.channel_mask = nwk_params.channels
+        self.state.node_info = zigpy.state.NodeInfo(
+            nwk=zigpy.types.NWK(nwk),
+            ieee=zigpy.types.EUI64(ieee),
+            logical_type=node_type.zdo_logical_type,
+        )
 
         (status, security_level) = await ezsp.getConfigurationValue(
             ezsp.types.EzspConfigId.CONFIG_SECURITY_LEVEL
         )
         assert status == t.EmberStatus.SUCCESS
-        network_info.security_level = security_level
+        security_level = zigpy.types.uint8_t(security_level)
 
-        # Network key
-        (status, key) = await ezsp.getKey(ezsp.types.EmberKeyType.CURRENT_NETWORK_KEY)
+        (status, network_key) = await ezsp.getKey(
+            ezsp.types.EmberKeyType.CURRENT_NETWORK_KEY
+        )
         assert status == t.EmberStatus.SUCCESS
-        network_info.network_key = bellows.zigbee.util.ezsp_key_to_zigpy_key(key, ezsp)
 
-        # Security state
+        (status, tc_link_key) = await ezsp.getKey(
+            ezsp.types.EmberKeyType.TRUST_CENTER_LINK_KEY
+        )
+        assert status == t.EmberStatus.SUCCESS
+
         (status, state) = await ezsp.getCurrentSecurityState()
         assert status == t.EmberStatus.SUCCESS
 
-        # TCLK
-        (status, key) = await ezsp.getKey(ezsp.types.EmberKeyType.TRUST_CENTER_LINK_KEY)
-        assert status == t.EmberStatus.SUCCESS
-        network_info.tc_link_key = bellows.zigbee.util.ezsp_key_to_zigpy_key(key, ezsp)
+        stack_specific = {}
 
         if (
             state.bitmask
             & ezsp.types.EmberCurrentSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
         ):
-            network_info.stack_specific = {
-                "ezsp": {"hashed_tclk": network_info.tc_link_key.key.serialize().hex()}
-            }
-            network_info.tc_link_key.key = KeyData(b"ZigBeeAlliance09")
+            stack_specific["ezsp"] = {"hashed_tclk": tc_link_key.key.serialize().hex()}
+            tc_link_key.key = zigpy.types.KeyData(b"ZigBeeAlliance09")
+
+        self.state.network_info = zigpy.state.NetworkInfo(
+            extended_pan_id=zigpy.types.ExtendedPanId(nwk_params.extendedPanId),
+            pan_id=zigpy.types.PanId(nwk_params.panId),
+            nwk_update_id=zigpy.types.uint8_t(nwk_params.nwkUpdateId),
+            nwk_manager_id=zigpy.types.NWK(nwk_params.nwkManagerId),
+            channel=zigpy.types.uint8_t(nwk_params.radioChannel),
+            channel_mask=zigpy.types.Channels(nwk_params.channels),
+            security_level=zigpy.types.uint8_t(security_level),
+            network_key=bellows.zigbee.util.ezsp_key_to_zigpy_key(network_key, ezsp),
+            tc_link_key=bellows.zigbee.util.ezsp_key_to_zigpy_key(tc_link_key, ezsp),
+            key_table=[],
+            children=[],
+            nwk_addresses={},
+            stack_specific=stack_specific,
+        )
 
         if not load_devices:
             return
-
-        network_info.key_table = []
 
         for idx in range(0, 192):
             (status, key) = await ezsp.getKeyTableEntry(idx)
@@ -254,12 +264,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
             assert status == t.EmberStatus.SUCCESS
 
-            network_info.key_table.append(
+            self.state.network_info.key_table.append(
                 bellows.zigbee.util.ezsp_key_to_zigpy_key(key, ezsp)
             )
-
-        network_info.children = []
-        network_info.nwk_addresses = {}
 
         for idx in range(0, 255 + 1):
             (status, nwk, eui64, node_type) = await ezsp.getChildData(idx)
@@ -267,8 +274,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             if status == t.EmberStatus.NOT_JOINED:
                 continue
 
-            network_info.children.append(eui64)
-            network_info.nwk_addresses[eui64] = nwk
+            self.state.network_info.children.append(eui64)
+            self.state.network_info.nwk_addresses[eui64] = nwk
 
         for idx in range(0, 255 + 1):
             (nwk,) = await ezsp.getAddressTableRemoteNodeId(idx)
@@ -278,7 +285,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             if nwk in t.EmberDistinguishedNodeId.__members__.values():
                 continue
 
-            network_info.nwk_addresses[eui64] = nwk
+            self.state.network_info.nwk_addresses[eui64] = nwk
 
     async def write_network_info(
         self, *, network_info: zigpy.state.NetworkInfo, node_info: zigpy.state.NodeInfo
@@ -433,13 +440,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     ) -> None:
         if message_type == t.EmberIncomingMessageType.INCOMING_BROADCAST:
             self.state.counters[COUNTERS_CTRL][COUNTER_RX_BCAST].increment()
-            dst_addressing = Addressing.nwk(0xFFFE, aps_frame.destinationEndpoint)
+            dst_addressing = zigpy.types.Addressing.nwk(
+                0xFFFE, aps_frame.destinationEndpoint
+            )
         elif message_type == t.EmberIncomingMessageType.INCOMING_MULTICAST:
             self.state.counters[COUNTERS_CTRL][COUNTER_RX_MCAST].increment()
-            dst_addressing = Addressing.group(aps_frame.groupId)
+            dst_addressing = zigpy.types.Addressing.group(aps_frame.groupId)
         elif message_type == t.EmberIncomingMessageType.INCOMING_UNICAST:
             self.state.counters[COUNTERS_CTRL][COUNTER_RX_UNICAST].increment()
-            dst_addressing = Addressing.nwk(self.nwk, aps_frame.destinationEndpoint)
+            dst_addressing = zigpy.types.Addressing.nwk(
+                self.state.node_info.nwk, aps_frame.destinationEndpoint
+            )
         else:
             dst_addressing = None
 
@@ -809,7 +820,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         radius,
         sequence,
         data,
-        broadcast_address=BroadcastAddress.RX_ON_WHEN_IDLE,
+        broadcast_address=zigpy.types.BroadcastAddress.RX_ON_WHEN_IDLE,
     ):
         """Submit and send data out as an unicast transmission.
 
