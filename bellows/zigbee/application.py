@@ -323,7 +323,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it"
         )
 
-        if current_eui64 != node_info.ieee:
+        if node_info.ieee is not None and node_info.ieee != current_eui64:
             if not should_update_eui64:
                 LOGGER.warning(
                     "Current node's IEEE address (%s) does not match the backup's (%s)",
