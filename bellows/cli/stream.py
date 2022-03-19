@@ -24,7 +24,6 @@ def stream(ctx, channel, power):
     try:
         loop.run_until_complete(_stream(ctx, channel, power))
     except KeyboardInterrupt:
-        captured = ctx.obj.get("captured", 0)
         start_time = ctx.obj.get("start_time", None)
         if start_time:
             duration = time.time() - start_time
@@ -37,6 +36,7 @@ def stream(ctx, channel, power):
             loop.run_until_complete(s.mfglibStopStream())
             loop.run_until_complete(s.mfglibEnd())
             s.close()
+
 
 async def _stream(ctx, channel, power):
     s = await util.setup(ctx.obj["device"], ctx.obj["baudrate"])
@@ -57,4 +57,3 @@ async def _stream(ctx, channel, power):
     ctx.obj["start_time"] = time.time()
     while True:
         await asyncio.sleep(3600)
-
