@@ -1,4 +1,5 @@
 import zigpy.state
+import zigpy.types as zigpy_t
 
 import bellows.types as t
 
@@ -43,7 +44,7 @@ def zha_security(
 
 def ezsp_key_to_zigpy_key(key, ezsp):
     zigpy_key = zigpy.state.Key()
-    zigpy_key.key = key.key
+    zigpy_key.key = zigpy_t.KeyData(key.key)
 
     if key.bitmask & ezsp.types.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER:
         zigpy_key.seq = key.sequenceNumber
