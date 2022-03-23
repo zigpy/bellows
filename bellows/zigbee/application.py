@@ -131,7 +131,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def connect(self):
         self._ezsp = await bellows.ezsp.EZSP.initialize(self.config)
         ezsp = self._ezsp
+
         self._multicast = bellows.multicast.Multicast(ezsp)
+
         status, count = await ezsp.getConfigurationValue(
             ezsp.types.EzspConfigId.CONFIG_APS_UNICAST_MESSAGE_COUNT
         )
@@ -176,6 +178,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         assert status == t.EmberStatus.SUCCESS  # TODO: Better check
         if node_type != t.EmberNodeType.COORDINATOR:
             raise NetworkNotFormed("Network not configured as coordinator")
+
+        await ezsp.update_policies(self.config)
 
         await self.load_network_info(load_devices=False)
 
@@ -414,6 +418,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await ezsp.setValue(ezsp.types.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
 
     async def disconnect(self):
+        # TODO: how do you shut down the stack?
         self.controller_event.clear()
         if self._watchdog_task and not self._watchdog_task.done():
             LOGGER.debug("Cancelling watchdog")
