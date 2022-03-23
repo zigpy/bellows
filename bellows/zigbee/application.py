@@ -342,7 +342,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         hashed_tclk = ezsp.ezsp_version > 4
         if hashed_tclk and not stack_specific.get("hashed_tclk"):
-            stack_specific.setdefault("ezsp", {})["hashed_tclk"] = os.urandom(8).hex()
+            network_info.stack_specific.setdefault("ezsp", {})[
+                "hashed_tclk"
+            ] = os.urandom(8).hex()
 
         # TODO: support router mode
         initial_security_state = bellows.zigbee.util.zha_security(

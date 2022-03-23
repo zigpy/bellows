@@ -19,7 +19,7 @@ def zha_security(
     isc.networkKey = t.EmberKeyData(network_info.network_key.key)
     isc.networkKeySequenceNumber = t.uint8_t(network_info.network_key.seq)
 
-    if network_info.tc_link_key.partner_ieee:
+    if network_info.tc_link_key.partner_ieee != zigpy_t.EUI64.UNKNOWN:
         isc.bitmask |= t.EmberInitialSecurityBitmask.HAVE_TRUST_CENTER_EUI64
         isc.preconfiguredTrustCenterEui64 = t.EmberEUI64(
             network_info.tc_link_key.partner_ieee
