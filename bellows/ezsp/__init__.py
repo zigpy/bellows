@@ -24,7 +24,7 @@ import bellows.uart
 from . import v4, v5, v6, v7, v8
 
 EZSP_LATEST = v8.EZSP_VERSION
-PROBE_TIMEOUT = 2
+PROBE_TIMEOUT = 3
 NETWORK_OPS_TIMEOUT = 10
 LOGGER = logging.getLogger(__name__)
 MTOR_MIN_INTERVAL = 10
