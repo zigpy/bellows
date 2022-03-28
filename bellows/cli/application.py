@@ -200,7 +200,7 @@ async def bind(ctx, endpoint, cluster):
         return
 
     try:
-        v = await dev.zdo.bind(endpoint, cluster)
+        v = await dev.zdo.bind(clust)
         click.echo(v)
     except zigpy.exceptions.ZigbeeException as e:
         click.echo(e)
