@@ -19,7 +19,7 @@ LOGGER = logging.getLogger(__name__)
 )
 @click.pass_context
 def tone(ctx, channel, power):
-    """Transmit continous unmodulated tone on CHANNEL with POWER (in dBm)."""
+    """Transmit continuous unmodulated tone on CHANNEL with POWER (in dBm)."""
     loop = asyncio.get_event_loop()
     try:
         loop.run_until_complete(_tone(ctx, channel, power))
