@@ -77,7 +77,7 @@ class EZSP:
 
     @classmethod
     async def initialize(cls, zigpy_config: Dict) -> "EZSP":
-        """Return initialized EZSP instance. """
+        """Return initialized EZSP instance."""
         ezsp = cls(zigpy_config[CONF_DEVICE])
         await ezsp.connect()
         await ezsp.reset()

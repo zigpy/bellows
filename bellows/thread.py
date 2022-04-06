@@ -8,7 +8,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class EventLoopThread:
-    """ Run a parallel event loop in a separate thread """
+    """Run a parallel event loop in a separate thread."""
 
     def __init__(self):
         self.loop = None
