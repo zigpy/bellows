@@ -133,9 +133,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._in_flight_msg = asyncio.Semaphore(count)
         LOGGER.debug("APS_UNICAST_MESSAGE_COUNT is set to %s", count)
 
-        await self.add_endpoint(
-            output_clusters=[zigpy.zcl.clusters.security.IasZone.cluster_id]
-        )
+        await self.register_endpoints()
 
         try:
             brd_manuf, brd_name, version = await self._ezsp.get_board_info()
