@@ -150,7 +150,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         """
         (state,) = await self._ezsp.networkState()
 
-        if state != self._ezsp.types.EmberNetworkStatus.NO_NETWORK:
+        if state == self._ezsp.types.EmberNetworkStatus.JOINED_NETWORK:
             return False
 
         (init_status,) = await self._ezsp.networkInit()
@@ -299,11 +299,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     ) -> None:
         ezsp = self._ezsp
 
-        (status,) = await ezsp.networkInit()
-        assert status in (t.EmberStatus.SUCCESS, t.EmberStatus.NOT_JOINED)
-
-        if status == t.EmberStatus.SUCCESS:
+        try:
             (status,) = await ezsp.leaveNetwork()
+        except bellows.exception.EzspError:
+            pass
+        else:
             if status != t.EmberStatus.NETWORK_DOWN:
                 raise FormationFailure("Couldn't leave network")
 
