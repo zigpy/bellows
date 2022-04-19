@@ -98,25 +98,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         """Return EZSP MulticastController."""
         return self._multicast
 
-    async def add_endpoint(
-        self,
-        endpoint=1,
-        profile_id=zigpy.profiles.zha.PROFILE_ID,
-        device_id=0xBEEF,
-        app_flags=0x00,
-        input_clusters=[],
-        output_clusters=[],
-    ):
+    async def add_endpoint(self, descriptor: zdo_t.SimpleDescriptor) -> None:
         """Add endpoint."""
         res = await self._ezsp.addEndpoint(
-            endpoint,
-            profile_id,
-            device_id,
-            app_flags,
-            len(input_clusters),
-            len(output_clusters),
-            input_clusters,
-            output_clusters,
+            descriptor.endpoint,
+            descriptor.profile,
+            descriptor.device_type,
+            descriptor.device_version,
+            len(descriptor.input_clusters),
+            len(descriptor.output_clusters),
+            descriptor.input_clusters,
+            descriptor.output_clusters,
         )
         LOGGER.debug("Ezsp adding endpoint: %s", res)
 
