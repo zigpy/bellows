@@ -164,13 +164,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         await self._ensure_network_running()
 
-        status, node_type, nwk_params = await ezsp.getNetworkParameters()
-        assert status == t.EmberStatus.SUCCESS  # TODO: Better check
-        if node_type != t.EmberNodeType.COORDINATOR:
-            raise NetworkNotFormed("Network not configured as coordinator")
-
         await ezsp.update_policies(self.config)
-
         await self.load_network_info(load_devices=False)
 
         for cnt_group in self.state.counters:
@@ -204,6 +198,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         status, node_type, nwk_params = await ezsp.getNetworkParameters()
         assert status == t.EmberStatus.SUCCESS
+
+        if node_type != t.EmberNodeType.COORDINATOR:
+            raise NetworkNotFormed("Device not configured as coordinator")
 
         (nwk,) = await ezsp.getNodeId()
         (ieee,) = await ezsp.getEui64()

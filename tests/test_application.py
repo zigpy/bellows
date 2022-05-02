@@ -3,8 +3,7 @@ import logging
 
 import pytest
 import zigpy.config
-from zigpy.device import Device
-from zigpy.zcl.clusters import security
+import zigpy.exceptions
 import zigpy.zdo.types as zdo_t
 
 import bellows.config as config
@@ -135,11 +134,49 @@ async def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_versi
     ezsp_mock.getEui64 = AsyncMock(return_value=[ieee])
     ezsp_mock.getValue = AsyncMock(return_value=(0, b"\x01" * 6))
     ezsp_mock.leaveNetwork = AsyncMock(side_effect=mock_leave)
-    app.form_network = AsyncMock()
     ezsp_mock.reset = AsyncMock()
     ezsp_mock.version = AsyncMock()
     ezsp_mock.getConfigurationValue = AsyncMock(return_value=(0, 1))
     ezsp_mock.update_policies = AsyncMock()
+    ezsp_mock.networkState = AsyncMock(
+        return_value=[ezsp_mock.types.EmberNetworkStatus.JOINED_NETWORK]
+    )
+    ezsp_mock.getKey = AsyncMock(
+        return_value=[
+            t.EmberStatus.SUCCESS,
+            t.EmberKeyStruct(
+                bitmask=t.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER
+                | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER,
+                type=t.EmberKeyType.CURRENT_NETWORK_KEY,
+                key=t.EmberKeyData(b"ActualNetworkKey"),
+                outgoingFrameCounter=t.uint32_t(0x12345678),
+                incomingFrameCounter=t.uint32_t(0x00000000),
+                sequenceNumber=t.uint8_t(1),
+                partnerEUI64=t.EmberEUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),
+            ),
+        ]
+    )
+
+    ezsp_mock.getCurrentSecurityState = AsyncMock(
+        return_value=[
+            t.EmberStatus.SUCCESS,
+            t.EmberCurrentSecurityState(
+                bitmask=t.EmberCurrentSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY,
+                trustCenterLongAddress=t.EmberEUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),
+            ),
+        ]
+    )
+    ezsp_mock.pre_permit = AsyncMock()
+    app.permit = AsyncMock()
+
+    def form_network():
+        ezsp_mock.getNetworkParameters.return_value = [
+            0,
+            t.EmberNodeType.COORDINATOR,
+            nwk_params,
+        ]
+
+    app.form_network = AsyncMock(side_effect=form_network)
 
     p1 = patch.object(bellows.ezsp, "EZSP", new=ezsp_mock)
     p2 = patch.object(bellows.multicast.Multicast, "startup")
@@ -156,8 +193,8 @@ async def test_startup(app, ieee):
 async def test_startup_nwk_params(app, ieee):
     assert app.pan_id == 0xFFFE
     assert app.extended_pan_id == t.ExtendedPanId.convert("ff:ff:ff:ff:ff:ff:ff:ff")
-    assert app.channel is None
-    assert app.channels is None
+    assert app.channel == 0
+    assert app.channels == t.Channels.NO_CHANNELS
     assert app.nwk_update_id == 0
 
     await _test_startup(app, t.EmberNodeType.COORDINATOR, ieee)
@@ -189,7 +226,7 @@ async def test_startup_ezsp_ver8(app, ieee):
 
 async def test_startup_no_status(app, ieee):
     """Test when NCP is not a coordinator and not auto forming."""
-    with pytest.raises(ControllerError):
+    with pytest.raises(zigpy.exceptions.NetworkNotFormed):
         await _test_startup(
             app, t.EmberNodeType.UNKNOWN_DEVICE, ieee, auto_form=False, init=1
         )
@@ -204,7 +241,7 @@ async def test_startup_no_status_form(app, ieee):
 
 async def test_startup_end(app, ieee):
     """Test when NCP is a End Device and not auto forming."""
-    with pytest.raises(ControllerError):
+    with pytest.raises(zigpy.exceptions.NetworkNotFormed):
         await _test_startup(
             app, t.EmberNodeType.SLEEPY_END_DEVICE, ieee, auto_form=False
         )
@@ -215,14 +252,11 @@ async def test_startup_end_form(app, ieee):
     await _test_startup(app, t.EmberNodeType.SLEEPY_END_DEVICE, ieee, auto_form=True)
 
 
-async def test_form_network(app):
-    f = asyncio.Future()
-    f.set_result([0])
-    app._ezsp.setInitialSecurityState.side_effect = [f]
-    app._ezsp.formNetwork = AsyncMock()
-    app._ezsp.setValue = AsyncMock()
+async def test_write_network_info_failed_leave(app):
+    app._ezsp.leaveNetwork = AsyncMock(return_value=[t.EmberStatus.BAD_ARGUMENT])
 
-    await app.form_network()
+    with pytest.raises(zigpy.exceptions.FormationFailure):
+        await app.form_network()
 
 
 def _frame_handler(
@@ -1048,12 +1082,12 @@ async def test_shutdown(app):
 
 @pytest.fixture
 def coordinator(app, ieee):
-    dev = Device(app, ieee, 0x0000)
-    ep = dev.add_endpoint(1)
-    ep.profile_id = 0x0104
-    ep.device_type = 0xBEEF
-    ep.add_output_cluster(security.IasZone.cluster_id)
-    return bellows.zigbee.application.EZSPCoordinator(app, ieee, 0x0000, dev)
+    dev = bellows.zigbee.application.EZSPCoordinator(app, ieee, 0x0000)
+    dev.endpoints[1] = bellows.zigbee.application.EZSPCoordinator.EZSPEndpoint(dev, 1)
+    dev.model = dev.endpoints[1].model
+    dev.manufacturer = dev.endpoints[1].manufacturer
+
+    return dev
 
 
 async def test_ezsp_add_to_group(coordinator):

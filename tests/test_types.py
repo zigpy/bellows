@@ -1,5 +1,4 @@
 import pytest
-import zigpy.types as zt
 import zigpy.zdo.types as zdo_t
 
 import bellows.types as t
@@ -222,26 +221,3 @@ def test_ember_node_type_to_zdo_logical_type(node_type, logical_type):
 
     node_type = t.EmberNodeType(node_type)
     assert node_type.zdo_logical_type == zdo_t.LogicalType(logical_type)
-
-
-def test_ember_network_params_to_network_info():
-    """Coverage for Ember Network param to zigpy network information converter."""
-
-    network_params = t.EmberNetworkParameters(
-        t.ExtendedPanId.convert("ff:7b:aa:bb:cc:dd:ee:ff"),
-        panId=0xD539,
-        radioTxPower=8,
-        radioChannel=20,
-        joinMethod=t.EmberJoinMethod.USE_MAC_ASSOCIATION,
-        nwkManagerId=0x1234,
-        nwkUpdateId=22,
-        channels=t.Channels.ALL_CHANNELS,
-    )
-    network_info = network_params.zigpy_network_information
-    assert network_info.extended_pan_id == t.ExtendedPanId.convert(
-        "ff:7b:aa:bb:cc:dd:ee:ff"
-    )
-    assert network_info.pan_id == zt.PanId(0xD539)
-    assert network_info.nwk_update_id == 22
-    assert network_info.nwk_manager_id == zt.NWK(0x1234)
-    assert network_info.channel == 20
