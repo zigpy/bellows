@@ -27,7 +27,7 @@ import bellows.ezsp
 from bellows.ezsp.v8.types.named import EmberDeviceUpdate
 import bellows.multicast
 import bellows.types as t
-import bellows.zigbee.util
+import bellows.zigbee.util as util
 
 APS_ACK_TIMEOUT = 120
 COUNTER_EZSP_BUFFERS = "EZSP_FREE_BUFFERS"
@@ -247,8 +247,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             channel=zigpy.types.uint8_t(nwk_params.radioChannel),
             channel_mask=zigpy.types.Channels(nwk_params.channels),
             security_level=zigpy.types.uint8_t(security_level),
-            network_key=bellows.zigbee.util.ezsp_key_to_zigpy_key(network_key, ezsp),
-            tc_link_key=bellows.zigbee.util.ezsp_key_to_zigpy_key(tc_link_key, ezsp),
+            network_key=util.ezsp_key_to_zigpy_key(network_key, ezsp),
+            tc_link_key=util.ezsp_key_to_zigpy_key(tc_link_key, ezsp),
             key_table=[],
             children=[],
             nwk_addresses={},
@@ -269,7 +269,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             assert status == t.EmberStatus.SUCCESS
 
             self.state.network_info.key_table.append(
-                bellows.zigbee.util.ezsp_key_to_zigpy_key(key, ezsp)
+                util.ezsp_key_to_zigpy_key(key, ezsp)
             )
 
         for idx in range(0, 255 + 1):
@@ -331,28 +331,26 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 )
                 assert status[0] == t.EmberStatus.SUCCESS
 
-        hashed_tclk = ezsp.ezsp_version > 4
-        if hashed_tclk and not stack_specific.get("hashed_tclk"):
+        use_hashed_tclk = ezsp.ezsp_version > 4
+
+        if use_hashed_tclk and not stack_specific.get("hashed_tclk"):
+            # Generate a random default
             network_info.stack_specific.setdefault("ezsp", {})[
                 "hashed_tclk"
             ] = os.urandom(8).hex()
 
-        # TODO: support router mode
-        initial_security_state = bellows.zigbee.util.zha_security(
-            network_info, controller=True, hashed_tclk=hashed_tclk
+        initial_security_state = util.zha_security(
+            network_info=network_info,
+            node_info=node_info,
+            use_hashed_tclk=use_hashed_tclk,
         )
         status = await ezsp.setInitialSecurityState(initial_security_state)
 
         # Write keys
         key_table = [
-            (
-                bellows.zigbee.util.zigpy_key_to_ezsp_key(
-                    network_info.tc_link_key, ezsp
-                ),
-                True,
-            )
+            (util.zigpy_key_to_ezsp_key(network_info.tc_link_key, ezsp), True)
         ] + [
-            (bellows.zigbee.util.zigpy_key_to_ezsp_key(key, ezsp), False)
+            (util.zigpy_key_to_ezsp_key(key, ezsp), False)
             for key in network_info.key_table
         ]
 
