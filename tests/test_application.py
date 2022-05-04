@@ -20,8 +20,6 @@ import bellows.zigbee.application
 
 from .async_mock import AsyncMock, MagicMock, PropertyMock, patch, sentinel
 
-pytestmark = pytest.mark.asyncio
-
 APP_CONFIG = {
     config.CONF_DEVICE: {
         config.CONF_DEVICE_PATH: "/dev/null",
