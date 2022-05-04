@@ -12,7 +12,8 @@ from .async_mock import AsyncMock, MagicMock, sentinel
 pytestmark = pytest.mark.asyncio
 
 
-async def test_connect(monkeypatch):
+@pytest.mark.parametrize("flow_control", [conf.CONF_FLOW_CONTROL_DEFAULT, "hardware"])
+async def test_connect(flow_control, monkeypatch):
     appmock = MagicMock()
     transport = MagicMock()
 
@@ -24,7 +25,11 @@ async def test_connect(monkeypatch):
     monkeypatch.setattr(serial_asyncio, "create_serial_connection", mockconnect)
     gw = await uart.connect(
         conf.SCHEMA_DEVICE(
-            {conf.CONF_DEVICE_PATH: "/dev/serial", conf.CONF_DEVICE_BAUDRATE: 115200}
+            {
+                conf.CONF_DEVICE_PATH: "/dev/serial",
+                conf.CONF_DEVICE_BAUDRATE: 115200,
+                conf.CONF_FLOW_CONTROL: flow_control,
+            }
         ),
         appmock,
         use_thread=False,
