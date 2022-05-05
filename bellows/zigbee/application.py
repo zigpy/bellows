@@ -312,38 +312,34 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         try:
             (status,) = await ezsp.leaveNetwork()
-        except bellows.exception.EzspError:
-            pass
-        else:
             if status != t.EmberStatus.NETWORK_DOWN:
                 raise FormationFailure("Couldn't leave network")
-
-        # Is this necessary?
-        (status,) = await ezsp.clearKeyTable()
-        assert status == t.EmberStatus.SUCCESS
+        except bellows.exception.EzspError:
+            pass
 
         stack_specific = network_info.stack_specific.get("ezsp", {})
         (current_eui64,) = await ezsp.getEui64()
-        should_update_eui64 = stack_specific.get(
-            "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it"
-        )
 
         if (
             node_info.ieee != zigpy.types.EUI64.UNKNOWN
             and node_info.ieee != current_eui64
         ):
-            if not should_update_eui64:
-                LOGGER.warning(
-                    "Current node's IEEE address (%s) does not match the backup's (%s)",
-                    current_eui64,
-                    node_info.ieee,
-                )
-            else:
+            should_update_eui64 = stack_specific.get(
+                "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it"
+            )
+
+            if should_update_eui64:
                 new_ncp_eui64 = t.EmberEUI64(node_info.ieee)
                 (status,) = await ezsp.setMfgToken(
                     t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, new_ncp_eui64.serialize()
                 )
                 assert status[0] == t.EmberStatus.SUCCESS
+            else:
+                LOGGER.warning(
+                    "Current node's IEEE address (%s) does not match the backup's (%s)",
+                    current_eui64,
+                    node_info.ieee,
+                )
 
         use_hashed_tclk = ezsp.ezsp_version > 4
 
@@ -359,16 +355,21 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             use_hashed_tclk=use_hashed_tclk,
         )
         status = await ezsp.setInitialSecurityState(initial_security_state)
+        assert status == t.EmberStatus.SUCCESS
 
-        # Write keys
-        key_table = [
-            util.zigpy_key_to_ezsp_key(key, ezsp) for key in network_info.key_table
-        ]
+        # Clear the key table (is this necessary?)
+        (status,) = await ezsp.clearKeyTable()
+        assert status == t.EmberStatus.SUCCESS
 
+        # Grow the key table if necessary
         (status, key_table_size) = await ezsp.getConfigurationValue(
             ezsp.types.EzspConfigId.CONFIG_KEY_TABLE_SIZE
         )
         assert status == t.EmberStatus.SUCCESS
+
+        key_table = [
+            util.zigpy_key_to_ezsp_key(key, ezsp) for key in network_info.key_table
+        ]
 
         if key_table_size < len(key_table):
             (status,) = await ezsp.setConfigurationValue(
@@ -376,6 +377,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             )
             assert status == t.EmberStatus.SUCCESS
 
+        # Write APS link keys
         for key in key_table:
             # XXX: is there no way to set the outgoing frame counter per key?
             (status,) = await ezsp.addOrUpdateKeyTableEntry(

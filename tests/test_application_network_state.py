@@ -72,6 +72,7 @@ def network_info(node_info):
 
 
 def _mock_app_for_load(app):  # noqa: F811
+    """Mock methods on the application and EZSP objects to run network state code."""
     ezsp = app._ezsp
 
     app._ensure_network_running = AsyncMock()
@@ -148,6 +149,7 @@ def _mock_app_for_load(app):  # noqa: F811
 
 
 async def test_load_network_info_no_devices(app, network_info, node_info):  # noqa: F811
+    """Test `load_network_info(load_devices=False)`"""
     _mock_app_for_load(app)
 
     await app.load_network_info(load_devices=False)
@@ -161,6 +163,7 @@ async def test_load_network_info_no_devices(app, network_info, node_info):  # no
 async def test_load_network_info_with_devices(
     app, network_info, node_info  # noqa: F811
 ):
+    """Test `load_network_info(load_devices=True)`"""
     _mock_app_for_load(app)
 
     def get_child_data(index):
