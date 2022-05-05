@@ -333,7 +333,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 (status,) = await ezsp.setMfgToken(
                     t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, new_ncp_eui64.serialize()
                 )
-                assert status[0] == t.EmberStatus.SUCCESS
+                assert status == t.EmberStatus.SUCCESS
             else:
                 LOGGER.warning(
                     "Current node's IEEE address (%s) does not match the backup's (%s)",
@@ -347,14 +347,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             # Generate a random default
             network_info.stack_specific.setdefault("ezsp", {})[
                 "hashed_tclk"
-            ] = os.urandom(8).hex()
+            ] = os.urandom(16).hex()
 
         initial_security_state = util.zha_security(
             network_info=network_info,
             node_info=node_info,
             use_hashed_tclk=use_hashed_tclk,
         )
-        status = await ezsp.setInitialSecurityState(initial_security_state)
+        (status,) = await ezsp.setInitialSecurityState(initial_security_state)
         assert status == t.EmberStatus.SUCCESS
 
         # Clear the key table (is this necessary?)

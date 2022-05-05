@@ -238,3 +238,99 @@ async def test_load_network_info_with_devices(
 
     assert app.state.node_info == node_info
     assert app.state.network_info == network_info.replace(key_table=[])
+
+
+def _mock_app_for_write(app, network_info, node_info):
+    ezsp = app._ezsp
+
+    ezsp.leaveNetwork = AsyncMock(return_value=[t.EmberStatus.NETWORK_DOWN])
+    ezsp.getEui64 = AsyncMock(
+        return_value=[t.EmberEUI64.convert("00:12:4b:00:1c:a1:b8:46")]
+    )
+
+    ezsp.setInitialSecurityState = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    ezsp.clearKeyTable = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    ezsp.getConfigurationValue = AsyncMock(
+        return_value=[t.EmberStatus.SUCCESS, t.uint8_t(200)]
+    )
+    ezsp.addOrUpdateKeyTableEntry = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    ezsp.setValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    ezsp.formNetwork = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    ezsp.setValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    ezsp.setMfgToken = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+
+
+async def test_write_network_info_failed_leave(app, network_info, node_info):
+    _mock_app_for_write(app, network_info, node_info)
+
+    app._ezsp.leaveNetwork.return_value = [t.EmberStatus.BAD_ARGUMENT]
+
+    with pytest.raises(zigpy.exceptions.FormationFailure):
+        await app.write_network_info(network_info=network_info, node_info=node_info)
+
+
+async def test_write_network_info(app, network_info, node_info):
+    _mock_app_for_write(app, network_info, node_info)
+
+    await app.write_network_info(network_info=network_info, node_info=node_info)
+
+
+async def test_write_network_info_write_new_eui64(app, network_info, node_info):
+    _mock_app_for_write(app, network_info, node_info)
+
+    # Differs from what is in `node_info`
+    app._ezsp.getEui64.return_value = [t.EmberEUI64.convert("AA:AA:AA:AA:AA:AA:AA:AA")]
+
+    await app.write_network_info(
+        network_info=network_info.replace(
+            stack_specific={
+                "ezsp": {
+                    "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it": True,
+                    **network_info.stack_specific["ezsp"],
+                }
+            }
+        ),
+        node_info=node_info,
+    )
+
+    # The EUI64 is written
+    expected_eui64 = t.EmberEUI64(node_info.ieee).serialize()
+    app._ezsp.setMfgToken.assert_called_once_with(
+        t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, expected_eui64
+    )
+
+
+async def test_write_network_info_dont_write_new_eui64(app, network_info, node_info):
+    _mock_app_for_write(app, network_info, node_info)
+
+    # Differs from what is in `node_info`
+    app._ezsp.getEui64.return_value = [t.EmberEUI64.convert("AA:AA:AA:AA:AA:AA:AA:AA")]
+
+    await app.write_network_info(
+        # We don't provide the magic key so nothing is written
+        network_info=network_info,
+        node_info=node_info,
+    )
+
+    # The EUI64 is *not* written
+    app._ezsp.setMfgToken.assert_not_called()
+
+
+async def test_write_network_info_generate_hashed_tclk(app, network_info, node_info):
+    _mock_app_for_write(app, network_info, node_info)
+
+    seen_keys = set()
+
+    for i in range(10):
+        app._ezsp.setInitialSecurityState.reset_mock()
+
+        await app.write_network_info(
+            network_info=network_info.replace(stack_specific={}),
+            node_info=node_info,
+        )
+
+        call = app._ezsp.setInitialSecurityState.mock_calls[0]
+        seen_keys.add(tuple(call.args[0].preconfiguredKey))
+
+    # A new hashed key is randomly generated each time if none is provided
+    assert len(seen_keys) == 10

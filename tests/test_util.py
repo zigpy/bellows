@@ -6,7 +6,7 @@ import zigpy.zdo.types as zdo_t
 import bellows.types as bellows_t
 import bellows.zigbee.util as util
 
-from tests.test_application import ezsp_mock  # noqa: F401
+from tests.test_application import ezsp_mock
 
 
 @pytest.fixture
@@ -57,7 +57,7 @@ def zigpy_key():
 
 
 @pytest.fixture
-def ezsp_key(ezsp_mock):  # noqa: F811
+def ezsp_key(ezsp_mock):
     ezsp = ezsp_mock
     return ezsp.types.EmberKeyStruct(
         bitmask=(
@@ -118,9 +118,9 @@ def test_zha_security_router(network_info, node_info):
     )
 
 
-def test_ezsp_key_to_zigpy_key(zigpy_key, ezsp_key, ezsp_mock):  # noqa: F811
+def test_ezsp_key_to_zigpy_key(zigpy_key, ezsp_key, ezsp_mock):
     return util.ezsp_key_to_zigpy_key(ezsp_key, ezsp_mock) == zigpy_key
 
 
-def test_zigpy_key_to_ezsp_key(zigpy_key, ezsp_key, ezsp_mock):  # noqa: F811
+def test_zigpy_key_to_ezsp_key(zigpy_key, ezsp_key, ezsp_mock):
     return util.zigpy_key_to_ezsp_key(zigpy_key, ezsp_mock) == ezsp_key

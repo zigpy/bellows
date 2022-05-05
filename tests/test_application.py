@@ -251,13 +251,6 @@ async def test_startup_end_form(app, ieee):
     await _test_startup(app, t.EmberNodeType.SLEEPY_END_DEVICE, ieee, auto_form=True)
 
 
-async def test_write_network_info_failed_leave(app):
-    app._ezsp.leaveNetwork = AsyncMock(return_value=[t.EmberStatus.BAD_ARGUMENT])
-
-    with pytest.raises(zigpy.exceptions.FormationFailure):
-        await app.form_network()
-
-
 def _frame_handler(
     app,
     aps,
