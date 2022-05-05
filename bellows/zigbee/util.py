@@ -1,15 +1,19 @@
+import logging
+
 import zigpy.state
 import zigpy.types as zigpy_t
 import zigpy.zdo.types as zdo_t
 
 import bellows.types as t
 
+LOGGER = logging.getLogger(__name__)
+
 
 def zha_security(
     *,
     network_info: zigpy.state.NetworkInfo,
     node_info: zigpy.state.NodeInfo,
-    use_hashed_tclk: bool = True,
+    use_hashed_tclk: bool,
 ) -> t.EmberInitialSecurityState:
     """Construct an `EmberInitialSecurityState` out of zigpy network state."""
     isc = t.EmberInitialSecurityState()
@@ -24,16 +28,20 @@ def zha_security(
 
     # This field must be set when using commissioning mode
     if node_info.logical_type == zdo_t.LogicalType.Coordinator:
-        assert network_info.tc_link_key.partner_ieee != zigpy_t.EUI64.UNKNOWN
+        if network_info.tc_link_key.partner_ieee == zigpy_t.EUI64.UNKNOWN:
+            partner_ieee = node_info.ieee
+        else:
+            partner_ieee = network_info.tc_link_key.partner_ieee
 
         isc.bitmask |= t.EmberInitialSecurityBitmask.HAVE_TRUST_CENTER_EUI64
-        isc.preconfiguredTrustCenterEui64 = t.EmberEUI64(
-            network_info.tc_link_key.partner_ieee
-        )
+        isc.preconfiguredTrustCenterEui64 = t.EmberEUI64(partner_ieee)
     else:
         isc.preconfiguredTrustCenterEui64 = t.EmberEUI64([0x00] * 8)
 
     if use_hashed_tclk:
+        if network_info.tc_link_key.key != zigpy_t.KeyData(b"ZigBeeAlliance09"):
+            LOGGER.warning("Only the well-known TC Link Key is supported")
+
         isc.bitmask |= t.EmberInitialSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
         isc.preconfiguredKey, _ = t.EmberKeyData.deserialize(
             bytes.fromhex(network_info.stack_specific["ezsp"]["hashed_tclk"])

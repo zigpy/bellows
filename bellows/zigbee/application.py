@@ -362,10 +362,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         # Write keys
         key_table = [
-            (util.zigpy_key_to_ezsp_key(network_info.tc_link_key, ezsp), True)
-        ] + [
-            (util.zigpy_key_to_ezsp_key(key, ezsp), False)
-            for key in network_info.key_table
+            util.zigpy_key_to_ezsp_key(key, ezsp) for key in network_info.key_table
         ]
 
         (status, key_table_size) = await ezsp.getConfigurationValue(
@@ -379,10 +376,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             )
             assert status == t.EmberStatus.SUCCESS
 
-        for index, (key, is_link_key) in enumerate(key_table):
+        for key in key_table:
             # XXX: is there no way to set the outgoing frame counter per key?
             (status,) = await ezsp.addOrUpdateKeyTableEntry(
-                key.partnerEUI64, is_link_key, key.key
+                key.partnerEUI64, True, key.key
             )
             if status != t.EmberStatus.SUCCESS:
                 LOGGER.warning("Couldn't add %s key: %s", key, status)
