@@ -296,6 +296,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self.state.network_info.children.append(eui64)
             self.state.network_info.nwk_addresses[eui64] = nwk
 
+        # v4 cran crash when getAddressTableRemoteNodeId(32) is received
+        # Error code: undefined_0x8a
+        if ezsp.ezsp_version == 4:
+            return
+
         for idx in range(0, 255 + 1):
             (nwk,) = await ezsp.getAddressTableRemoteNodeId(idx)
             (eui64,) = await ezsp.getAddressTableRemoteEui64(idx)
