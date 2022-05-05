@@ -137,11 +137,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         try:
             brd_manuf, brd_name, version = await self._ezsp.get_board_info()
+        except EzspError as exc:
+            LOGGER.info("EZSP Radio does not support getMfgToken command: %r", exc)
+        else:
             LOGGER.info("EZSP Radio manufacturer: %s", brd_manuf)
             LOGGER.info("EZSP Radio board name: %s", brd_name)
             LOGGER.info("EmberZNet version: %s", version)
-        except EzspError as exc:
-            LOGGER.info("EZSP Radio does not support getMfgToken command: %s", str(exc))
 
     async def _ensure_network_running(self) -> bool:
         """

@@ -96,7 +96,9 @@ def ieee(init=0):
 
 @patch("zigpy.device.Device._initialize", new=AsyncMock())
 @patch("bellows.zigbee.application.ControllerApplication._watchdog", new=AsyncMock())
-async def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4):
+async def _test_startup(
+    app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4, board_info=True
+):
     nwk_params = bellows.types.struct.EmberNetworkParameters(
         extendedPanId=t.ExtendedPanId.convert("aa:bb:cc:dd:ee:ff:aa:bb"),
         panId=t.EmberPanId(0x55AA),
@@ -124,9 +126,14 @@ async def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_versi
     ezsp_mock.setConfigurationValue = AsyncMock(return_value=t.EmberStatus.SUCCESS)
     ezsp_mock.networkInit = AsyncMock(return_value=[init])
     ezsp_mock.getNetworkParameters = AsyncMock(return_value=[0, nwk_type, nwk_params])
-    ezsp_mock.get_board_info = AsyncMock(
-        return_value=("Mock Manufacturer", "Mock board", "Mock version")
-    )
+
+    if board_info:
+        ezsp_mock.get_board_info = AsyncMock(
+            return_value=("Mock Manufacturer", "Mock board", "Mock version")
+        )
+    else:
+        ezsp_mock.get_board_info = AsyncMock(side_effect=EzspError("Not supported"))
+
     ezsp_mock.setPolicy = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp_mock.getMfgToken = AsyncMock(return_value=(b"Some token\xff",))
     ezsp_mock.getNodeId = AsyncMock(return_value=[t.EmberNodeId(0x0000)])
@@ -249,6 +256,14 @@ async def test_startup_end(app, ieee):
 async def test_startup_end_form(app, ieee):
     """Test when NCP is a End Device but allow auto forming."""
     await _test_startup(app, t.EmberNodeType.SLEEPY_END_DEVICE, ieee, auto_form=True)
+
+
+async def test_startup_no_board_info(app, ieee, caplog):
+    """Test when NCP does not support `get_board_info`."""
+    with caplog.at_level(logging.INFO):
+        await _test_startup(app, t.EmberNodeType.COORDINATOR, ieee, board_info=False)
+
+    assert "EZSP Radio does not support getMfgToken command" in caplog.text
 
 
 def _frame_handler(
@@ -1473,7 +1488,7 @@ async def test_set_mfg_id(ieee, expected_mfg_id, app, ezsp_mock):
             sentinel.parent,
         ],
     )
-    await asyncio.sleep(0.03)
+    await asyncio.sleep(0.20)
     if expected_mfg_id is not None:
         assert ezsp_mock.setManufacturerCode.await_count == 2
         assert ezsp_mock.setManufacturerCode.await_args_list[0][0][0] == expected_mfg_id
