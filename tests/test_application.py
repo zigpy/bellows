@@ -114,6 +114,7 @@ async def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_versi
 
     app._in_flight_msg = None
     ezsp_mock = MagicMock()
+    ezsp_mock.types = ezsp_t7
     type(ezsp_mock).ezsp_version = PropertyMock(return_value=ezsp_version)
     ezsp_mock.initialize = AsyncMock(return_value=ezsp_mock)
     ezsp_mock.connect = AsyncMock()

@@ -49,16 +49,16 @@ def ezsp_key_to_zigpy_key(key, ezsp) -> zigpy.state.Key:
     zigpy_key = zigpy.state.Key()
     zigpy_key.key = zigpy_t.KeyData(key.key)
 
-    if key.bitmask & ezsp.types.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER:
+    if ezsp.types.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER in key.bitmask:
         zigpy_key.seq = key.sequenceNumber
 
-    if key.bitmask & ezsp.types.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER:
+    if ezsp.types.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER in key.bitmask:
         zigpy_key.tx_counter = key.outgoingFrameCounter
 
-    if key.bitmask & ezsp.types.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER:
+    if ezsp.types.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER in key.bitmask:
         zigpy_key.rx_counter = key.incomingFrameCounter
 
-    if key.bitmask & ezsp.types.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64:
+    if ezsp.types.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64 in key.bitmask:
         zigpy_key.partner_ieee = key.partnerEUI64
 
     return zigpy_key
