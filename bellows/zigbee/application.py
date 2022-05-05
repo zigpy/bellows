@@ -380,20 +380,20 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             if status != t.EmberStatus.SUCCESS:
                 LOGGER.warning("Couldn't add %s key: %s", key, status)
 
-        # Set NWK frame counter
-        (status,) = await ezsp.setValue(
-            ezsp.types.EzspValueId.VALUE_NWK_FRAME_COUNTER,
-            t.uint32_t(network_info.network_key.tx_counter).serialize(),
-        )
-        assert status == t.EmberStatus.SUCCESS
+        if ezsp.ezsp_version > 4:
+            # Set NWK frame counter
+            (status,) = await ezsp.setValue(
+                ezsp.types.EzspValueId.VALUE_NWK_FRAME_COUNTER,
+                t.uint32_t(network_info.network_key.tx_counter).serialize(),
+            )
+            assert status == t.EmberStatus.SUCCESS
 
-        # Set APS frame counter
-        (status,) = await ezsp.setValue(
-            ezsp.types.EzspValueId.VALUE_APS_FRAME_COUNTER,
-            t.uint32_t(network_info.tc_link_key.tx_counter).serialize(),
-        )
-        LOGGER.debug("Set network frame counter: %s", status)
-        assert status == t.EmberStatus.SUCCESS
+            # Set APS frame counter
+            (status,) = await ezsp.setValue(
+                ezsp.types.EzspValueId.VALUE_APS_FRAME_COUNTER,
+                t.uint32_t(network_info.tc_link_key.tx_counter).serialize(),
+            )
+            assert status == t.EmberStatus.SUCCESS
 
         # Set the network settings
         parameters = t.EmberNetworkParameters()
