@@ -1498,3 +1498,44 @@ async def test_set_mfg_id(ieee, expected_mfg_id, app, ezsp_mock):
         )
     else:
         assert ezsp_mock.setManufacturerCode.await_count == 0
+
+
+async def test_ensure_network_running_joined(app):
+    ezsp = app._ezsp
+    ezsp.networkState = AsyncMock(
+        return_value=[ezsp.types.EmberNetworkStatus.JOINED_NETWORK]
+    )
+
+    rsp = await app._ensure_network_running()
+
+    assert not rsp
+
+    ezsp.networkInit.assert_not_called()
+
+
+async def test_ensure_network_running_not_joined_failure(app):
+    ezsp = app._ezsp
+    ezsp.networkState = AsyncMock(
+        return_value=[ezsp.types.EmberNetworkStatus.NO_NETWORK]
+    )
+    ezsp.networkInit = AsyncMock(return_value=[ezsp.types.EmberStatus.INVALID_CALL])
+
+    with pytest.raises(zigpy.exceptions.NetworkNotFormed):
+        await app._ensure_network_running()
+
+    ezsp.networkState.assert_called_once()
+    ezsp.networkInit.assert_called_once()
+
+
+async def test_ensure_network_running_not_joined_success(app):
+    ezsp = app._ezsp
+    ezsp.networkState = AsyncMock(
+        return_value=[ezsp.types.EmberNetworkStatus.NO_NETWORK]
+    )
+    ezsp.networkInit = AsyncMock(return_value=[ezsp.types.EmberStatus.SUCCESS])
+
+    rsp = await app._ensure_network_running()
+    assert rsp
+
+    ezsp.networkState.assert_called_once()
+    ezsp.networkInit.assert_called_once()
