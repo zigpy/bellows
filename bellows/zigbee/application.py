@@ -184,11 +184,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             ieee=self.state.node_info.ieee,
             nwk=self.state.node_info.nwk,
         )
-        self.devices[self.state.node_info.ieee] = ezsp_device
-        await ezsp_device.initialize()
+
+        # The coordinator device does not respond to attribute reads
         ezsp_device.endpoints[1] = EZSPCoordinator.EZSPEndpoint(ezsp_device, 1)
         ezsp_device.model = ezsp_device.endpoints[1].model
         ezsp_device.manufacturer = ezsp_device.endpoints[1].manufacturer
+        await ezsp_device.schedule_initialize()
+
+        self.devices[self.state.node_info.ieee] = ezsp_device
 
         await self.multicast.startup(ezsp_device)
 
