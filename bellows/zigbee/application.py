@@ -273,10 +273,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             )
 
         for idx in range(0, 255 + 1):
-            (status, nwk, eui64, node_type) = await ezsp.getChildData(idx)
+            (status, *rsp) = await ezsp.getChildData(idx)
 
             if status == t.EmberStatus.NOT_JOINED:
                 continue
+
+            if ezsp.ezsp_version >= 7:
+                nwk = rsp[0].id
+                eui64 = rsp[0].eui64
+                node_type = rsp[0].type
+            else:
+                nwk, eui64, node_type = rsp
 
             self.state.network_info.children.append(eui64)
             self.state.network_info.nwk_addresses[eui64] = nwk

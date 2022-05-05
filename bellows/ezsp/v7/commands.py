@@ -137,7 +137,7 @@ COMMANDS = {
     "getChildData": (
         0x4A,
         (t.uint8_t,),
-        (t.EmberStatus, t.EmberNodeId, t.EmberEUI64, t.EmberNodeType),
+        (t.EmberStatus, t.EmberChildData),
     ),
     "getSourceRouteTableTotalSize": (0xC3, (), (t.uint8_t,)),
     "getSourceRouteTableFilledSize": (0xC2, (), (t.uint8_t,)),
