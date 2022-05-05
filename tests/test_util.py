@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 import zigpy.state
 import zigpy.types as t
@@ -60,9 +62,10 @@ def test_zha_security_normal(network_info, node_info):
 
 
 def test_zha_security_router(network_info, node_info):
-    router_node_info = node_info.replace(logical_type=zdo_t.LogicalType.Router)
     security = util.zha_security(
-        network_info=network_info, node_info=router_node_info, use_hashed_tclk=False
+        network_info=network_info,
+        node_info=node_info.replace(logical_type=zdo_t.LogicalType.Router),
+        use_hashed_tclk=False,
     )
 
     assert security.preconfiguredTrustCenterEui64 == bellows_t.EmberEUI64([0x00] * 8)
@@ -76,6 +79,45 @@ def test_zha_security_router(network_info, node_info):
         bellows_t.EmberInitialSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
         not in security.bitmask
     )
+
+
+def test_zha_security_replace_missing_tc_partner_addr(network_info, node_info):
+    security = util.zha_security(
+        network_info=network_info.replace(
+            tc_link_key=network_info.tc_link_key.replace(partner_ieee=t.EUI64.UNKNOWN)
+        ),
+        node_info=node_info,
+        use_hashed_tclk=True,
+    )
+
+    assert node_info.ieee != t.EUI64.UNKNOWN
+    assert security.preconfiguredTrustCenterEui64 == node_info.ieee
+
+
+def test_zha_security_hashed_nonstandard_tclk_warning(network_info, node_info, caplog):
+    # Nothing should be logged normally
+    with caplog.at_level(logging.WARNING):
+        util.zha_security(
+            network_info=network_info,
+            node_info=node_info,
+            use_hashed_tclk=True,
+        )
+
+    assert "Only the well-known TC Link Key is supported" not in caplog.text
+
+    # But it will be when a non-standard TCLK is used along with TCLK hashing
+    with caplog.at_level(logging.WARNING):
+        util.zha_security(
+            network_info=network_info.replace(
+                tc_link_key=network_info.tc_link_key.replace(
+                    key=t.KeyData(b"ANonstandardTCLK")
+                )
+            ),
+            node_info=node_info,
+            use_hashed_tclk=True,
+        )
+
+    assert "Only the well-known TC Link Key is supported" in caplog.text
 
 
 def test_ezsp_key_to_zigpy_key(zigpy_key, ezsp_key, ezsp_mock):
