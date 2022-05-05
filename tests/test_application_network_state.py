@@ -6,7 +6,7 @@ import zigpy.zdo.types as zdo_t
 import bellows.types as t
 
 from tests.async_mock import AsyncMock
-from tests.test_application import app, ezsp_mock  # noqa: F401
+from tests.test_application import app, ezsp_mock
 
 
 @pytest.fixture
@@ -71,7 +71,7 @@ def network_info(node_info):
     )
 
 
-def _mock_app_for_load(app):  # noqa: F811
+def _mock_app_for_load(app):
     """Mock methods on the application and EZSP objects to run network state code."""
     ezsp = app._ezsp
 
@@ -148,7 +148,7 @@ def _mock_app_for_load(app):  # noqa: F811
     )
 
 
-async def test_load_network_info_no_devices(app, network_info, node_info):  # noqa: F811
+async def test_load_network_info_no_devices(app, network_info, node_info):
     """Test `load_network_info(load_devices=False)`"""
     _mock_app_for_load(app)
 
@@ -160,9 +160,7 @@ async def test_load_network_info_no_devices(app, network_info, node_info):  # no
     )
 
 
-async def test_load_network_info_with_devices(
-    app, network_info, node_info  # noqa: F811
-):
+async def test_load_network_info_with_devices(app, network_info, node_info):
     """Test `load_network_info(load_devices=True)`"""
     _mock_app_for_load(app)
 

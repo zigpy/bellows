@@ -1,3 +1,3 @@
-import bellows.cli  # noqa: F401
+import bellows.cli
 
 # Just being able to import is a small test...
