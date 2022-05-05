@@ -296,7 +296,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             if nwk in t.EmberDistinguishedNodeId.__members__.values():
                 continue
 
-            self.state.network_info.nwk_addresses[eui64] = nwk
+            self.state.network_info.nwk_addresses[
+                zigpy.types.EUI64(eui64)
+            ] = zigpy.types.NWK(nwk)
 
     async def write_network_info(
         self, *, network_info: zigpy.state.NetworkInfo, node_info: zigpy.state.NodeInfo
