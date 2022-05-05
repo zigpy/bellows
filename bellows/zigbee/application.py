@@ -222,10 +222,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         )
         assert status == t.EmberStatus.SUCCESS
 
-        (status, tc_link_key) = await ezsp.getKey(
+        (status, ezsp_tc_link_key) = await ezsp.getKey(
             ezsp.types.EmberKeyType.TRUST_CENTER_LINK_KEY
         )
         assert status == t.EmberStatus.SUCCESS
+        tc_link_key = util.ezsp_key_to_zigpy_key(ezsp_tc_link_key, ezsp)
 
         (status, state) = await ezsp.getCurrentSecurityState()
         assert status == t.EmberStatus.SUCCESS
@@ -233,11 +234,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         stack_specific = {}
 
         if (
-            state.bitmask
-            & ezsp.types.EmberCurrentSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
+            ezsp.types.EmberCurrentSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
+            in state.bitmask
         ):
             stack_specific["ezsp"] = {"hashed_tclk": tc_link_key.key.serialize().hex()}
             tc_link_key.key = zigpy.types.KeyData(b"ZigBeeAlliance09")
+
+        # The TCLK IEEE address is returned as `FF:FF:FF:FF:FF:FF:FF:FF`
+        if self.state.node_info.logical_type == zdo_t.LogicalType.Coordinator:
+            tc_link_key.partner_ieee = self.state.node_info.ieee
 
         self.state.network_info = zigpy.state.NetworkInfo(
             extended_pan_id=zigpy.types.ExtendedPanId(nwk_params.extendedPanId),
@@ -248,7 +253,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             channel_mask=zigpy.types.Channels(nwk_params.channels),
             security_level=zigpy.types.uint8_t(security_level),
             network_key=util.ezsp_key_to_zigpy_key(network_key, ezsp),
-            tc_link_key=util.ezsp_key_to_zigpy_key(tc_link_key, ezsp),
+            tc_link_key=tc_link_key,
             key_table=[],
             children=[],
             nwk_addresses={},
