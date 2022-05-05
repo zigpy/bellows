@@ -361,31 +361,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         (status,) = await ezsp.setInitialSecurityState(initial_security_state)
         assert status == t.EmberStatus.SUCCESS
 
-        # Clear the key table (is this necessary?)
+        # Clear the key table
         (status,) = await ezsp.clearKeyTable()
         assert status == t.EmberStatus.SUCCESS
 
-        # Grow the key table if necessary
-        (status, key_table_size) = await ezsp.getConfigurationValue(
-            ezsp.types.EzspConfigId.CONFIG_KEY_TABLE_SIZE
-        )
-        assert status == t.EmberStatus.SUCCESS
-
-        key_table = [
-            util.zigpy_key_to_ezsp_key(key, ezsp) for key in network_info.key_table
-        ]
-
-        if key_table_size < len(key_table):
-            (status,) = await ezsp.setConfigurationValue(
-                ezsp.types.EzspConfigId.CONFIG_KEY_TABLE_SIZE, len(key_table)
-            )
-            assert status == t.EmberStatus.SUCCESS
-
         # Write APS link keys
-        for key in key_table:
-            # XXX: is there no way to set the outgoing frame counter per key?
+        for key in network_info.key_table:
+            ember_key = util.zigpy_key_to_ezsp_key(key, ezsp)
+
+            # XXX: is there no way to set the outgoing frame counter or seq?
             (status,) = await ezsp.addOrUpdateKeyTableEntry(
-                key.partnerEUI64, True, key.key
+                ember_key.partnerEUI64, True, ember_key.key
             )
             if status != t.EmberStatus.SUCCESS:
                 LOGGER.warning("Couldn't add %s key: %s", key, status)

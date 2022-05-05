@@ -185,10 +185,50 @@ async def test_load_network_info_with_devices(app, network_info, node_info):
     app._ezsp.getChildData = AsyncMock(side_effect=get_child_data)
 
     def get_key_table_entry(index):
-        if index < 14:
-            status = t.EmberStatus.TABLE_ENTRY_ERASED
-        else:
+        if index == 0:
+            return (
+                t.EmberStatus.SUCCESS,
+                app._ezsp.types.EmberKeyStruct(
+                    bitmask=(
+                        t.EmberKeyStructBitmask.KEY_IS_AUTHORIZED
+                        | t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
+                        | t.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER
+                        | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
+                    ),
+                    type=app._ezsp.types.EmberKeyType.APPLICATION_LINK_KEY,
+                    key=t.EmberKeyData(
+                        bytes.fromhex("857C05003E761AF9689A49416A605C76")
+                    ),
+                    outgoingFrameCounter=3792973670,
+                    incomingFrameCounter=1083290572,
+                    sequenceNumber=147,
+                    partnerEUI64=t.EmberEUI64.convert("CC:CC:CC:FF:FE:E6:8E:CA"),
+                ),
+            )
+        elif index == 1:
+            return (
+                t.EmberStatus.SUCCESS,
+                app._ezsp.types.EmberKeyStruct(
+                    bitmask=(
+                        t.EmberKeyStructBitmask.KEY_IS_AUTHORIZED
+                        | t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
+                        | t.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER
+                        | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
+                    ),
+                    type=app._ezsp.types.EmberKeyType.APPLICATION_LINK_KEY,
+                    key=t.EmberKeyData(
+                        bytes.fromhex("CA02E8BB757C94F89339D39CB3CDA7BE")
+                    ),
+                    outgoingFrameCounter=2597245184,
+                    incomingFrameCounter=824424412,
+                    sequenceNumber=19,
+                    partnerEUI64=t.EmberEUI64.convert("EC:1B:BD:FF:FE:2F:41:A4"),
+                ),
+            )
+        elif index >= 12:
             status = t.EmberStatus.INDEX_OUT_OF_RANGE
+        else:
+            status = t.EmberStatus.TABLE_ENTRY_ERASED
 
         return (
             status,
@@ -234,8 +274,11 @@ async def test_load_network_info_with_devices(app, network_info, node_info):
 
     await app.load_network_info(load_devices=True)
 
+    # EZSP doesn't provide a command to set the key sequence number
+    assert app.state.network_info == network_info.replace(
+        key_table=[key.replace(seq=0) for key in network_info.key_table]
+    )
     assert app.state.node_info == node_info
-    assert app.state.network_info == network_info.replace(key_table=[])
 
 
 def _mock_app_for_write(app, network_info, node_info):
@@ -251,7 +294,17 @@ def _mock_app_for_write(app, network_info, node_info):
     ezsp.getConfigurationValue = AsyncMock(
         return_value=[t.EmberStatus.SUCCESS, t.uint8_t(200)]
     )
-    ezsp.addOrUpdateKeyTableEntry = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    ezsp.addOrUpdateKeyTableEntry = AsyncMock(
+        side_effect=[
+            # Only the first one succeeds
+            (t.EmberStatus.SUCCESS,),
+        ]
+        + [
+            # The rest will fail
+            (t.EmberStatus.TABLE_FULL,),
+        ]
+        * 20
+    )
     ezsp.setValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp.formNetwork = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp.setValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
