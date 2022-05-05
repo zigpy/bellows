@@ -966,6 +966,8 @@ class EmberCurrentSecurityBitmask(basic.bitmap16):
     GLOBAL_LINK_KEY = 0x0004
     # This denotes that the node has a Trust Center Link Key.
     HAVE_TRUST_CENTER_LINK_KEY = 0x0010
+    # TODO: 0x0020 is unknown
+    # TODO: 0x0040 is unknown
     # This denotes that the Trust Center is using a Hashed Link Key.
     TRUST_CENTER_USES_HASHED_LINK_KEY = 0x0084
 
@@ -990,6 +992,12 @@ class EmberKeyStructBitmask(basic.bitmap16):
     # hears a device announce from the partner indicating it is not
     # an 'RX on when idle' device.
     KEY_PARTNER_IS_SLEEPY = 0x0020
+    # This indicates that the transient key which is being added is unconfirmed. This
+    # bit is set when we add a transient key while the EmberTcLinkKeyRequestPolicy is
+    # EMBER_ALLOW_TC_LINK_KEY_REQUEST_AND_GENERATE_NEW_KEY
+    UNCONFIRMED_TRANSIENT_KEY = 0x0040
+
+    # TODO: 0x0080 is unknown
 
 
 class EmberKeyStatus(basic.enum8):
