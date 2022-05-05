@@ -3,6 +3,7 @@ import zigpy.state
 import zigpy.types as zigpy_t
 import zigpy.zdo.types as zdo_t
 
+from bellows.exception import EzspError
 import bellows.types as t
 
 from tests.async_mock import AsyncMock
@@ -328,13 +329,21 @@ def _mock_app_for_write(app, network_info, node_info):
     ezsp.setMfgToken = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
 
 
-async def test_write_network_info_failed_leave(app, network_info, node_info):
+async def test_write_network_info_failed_leave1(app, network_info, node_info):
     _mock_app_for_write(app, network_info, node_info)
 
     app._ezsp.leaveNetwork.return_value = [t.EmberStatus.BAD_ARGUMENT]
 
     with pytest.raises(zigpy.exceptions.FormationFailure):
         await app.write_network_info(network_info=network_info, node_info=node_info)
+
+
+async def test_write_network_info_failed_leave2(app, network_info, node_info):
+    _mock_app_for_write(app, network_info, node_info)
+
+    app._ezsp.leaveNetwork.side_effect = EzspError("failed to leave network")
+
+    await app.write_network_info(network_info=network_info, node_info=node_info)
 
 
 async def test_write_network_info(app, network_info, node_info):
