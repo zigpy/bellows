@@ -160,11 +160,25 @@ async def test_load_network_info_no_devices(app, network_info, node_info):
     )
 
 
-async def test_load_network_info_with_devices(app, network_info, node_info):
+@pytest.mark.parametrize("ezsp_ver", [6, 7])
+async def test_load_network_info_with_devices(app, network_info, node_info, ezsp_ver):
     """Test `load_network_info(load_devices=True)`"""
     _mock_app_for_load(app)
 
-    def get_child_data(index):
+    def get_child_data_v6(index):
+        if index == 0:
+            status = t.EmberStatus.SUCCESS
+        else:
+            status = t.EmberStatus.NOT_JOINED
+
+        return (
+            status,
+            t.EmberNodeId(0xC06B),
+            t.EmberEUI64.convert("00:0b:57:ff:fe:2b:d4:57"),
+            t.EmberNodeType.SLEEPY_END_DEVICE,
+        )
+
+    def get_child_data_v7(index):
         if index == 0:
             status = t.EmberStatus.SUCCESS
         else:
@@ -182,7 +196,10 @@ async def test_load_network_info_with_devices(app, network_info, node_info):
             ),
         )
 
-    app._ezsp.getChildData = AsyncMock(side_effect=get_child_data)
+    app._ezsp.ezsp_version = ezsp_ver
+    app._ezsp.getChildData = AsyncMock(
+        side_effect={7: get_child_data_v7, 6: get_child_data_v6}[ezsp_ver]
+    )
 
     def get_key_table_entry(index):
         if index == 0:
