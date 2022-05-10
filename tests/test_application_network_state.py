@@ -6,7 +6,7 @@ import zigpy.zdo.types as zdo_t
 from bellows.exception import EzspError
 import bellows.types as t
 
-from tests.async_mock import AsyncMock
+from tests.async_mock import AsyncMock, PropertyMock
 from tests.test_application import app, ezsp_mock
 
 
@@ -161,7 +161,7 @@ async def test_load_network_info_no_devices(app, network_info, node_info):
     )
 
 
-@pytest.mark.parametrize("ezsp_ver", [6, 7])
+@pytest.mark.parametrize("ezsp_ver", [4, 6, 7])
 async def test_load_network_info_with_devices(app, network_info, node_info, ezsp_ver):
     """Test `load_network_info(load_devices=True)`"""
     _mock_app_for_load(app)
@@ -199,7 +199,11 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
 
     app._ezsp.ezsp_version = ezsp_ver
     app._ezsp.getChildData = AsyncMock(
-        side_effect={7: get_child_data_v7, 6: get_child_data_v6}[ezsp_ver]
+        side_effect={
+            7: get_child_data_v7,
+            6: get_child_data_v6,
+            4: get_child_data_v6,
+        }[ezsp_ver]
     )
 
     def get_key_table_entry(index):
@@ -292,14 +296,33 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
 
     await app.load_network_info(load_devices=True)
 
+    nwk_addresses = network_info.nwk_addresses
+
+    # v4 doesn't support address table reads so the only known addresses are from the
+    # `getChildData` call
+    if ezsp_ver == 4:
+        nwk_addresses = {
+            ieee: addr
+            for ieee, addr in network_info.nwk_addresses.items()
+            if ieee in network_info.children
+        }
+    else:
+        nwk_addresses = network_info.nwk_addresses
+
     # EZSP doesn't provide a command to set the key sequence number
     assert app.state.network_info == network_info.replace(
-        key_table=[key.replace(seq=0) for key in network_info.key_table]
+        key_table=[key.replace(seq=0) for key in network_info.key_table],
+        nwk_addresses=nwk_addresses,
     )
     assert app.state.node_info == node_info
 
+    # No crash-prone calls were made
+    if ezsp_ver == 4:
+        app._ezsp.getAddressTableRemoteNodeId.assert_not_called()
+        app._ezsp.getAddressTableRemoteEui64.assert_not_called()
 
-def _mock_app_for_write(app, network_info, node_info):
+
+def _mock_app_for_write(app, network_info, node_info, ezsp_ver=None):
     ezsp = app._ezsp
 
     ezsp.leaveNetwork = AsyncMock(return_value=[t.EmberStatus.NETWORK_DOWN])
@@ -323,7 +346,15 @@ def _mock_app_for_write(app, network_info, node_info):
         ]
         * 20
     )
-    ezsp.setValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+
+    if ezsp_ver is not None:
+        ezsp.ezsp_version = ezsp_ver
+
+        if ezsp_ver == 4:
+            ezsp.setValue = AsyncMock(return_value=[t.EmberStatus.BAD_ARGUMENT])
+        else:
+            ezsp.setValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+
     ezsp.formNetwork = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp.setValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp.setMfgToken = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
@@ -346,8 +377,9 @@ async def test_write_network_info_failed_leave2(app, network_info, node_info):
     await app.write_network_info(network_info=network_info, node_info=node_info)
 
 
-async def test_write_network_info(app, network_info, node_info):
-    _mock_app_for_write(app, network_info, node_info)
+@pytest.mark.parametrize("ezsp_ver", [4, 7])
+async def test_write_network_info(app, network_info, node_info, ezsp_ver):
+    _mock_app_for_write(app, network_info, node_info, ezsp_ver)
 
     await app.write_network_info(network_info=network_info, node_info=node_info)
 
