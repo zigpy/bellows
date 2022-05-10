@@ -219,9 +219,14 @@ class EZSP:
 
     def enter_failed_state(self, error):
         """UART received error frame."""
-        LOGGER.error("NCP entered failed state. Requesting APP controller restart")
-        self.close()
-        self.handle_callback("_reset_controller_application", (error,))
+        if self._callbacks:
+            LOGGER.error("NCP entered failed state. Requesting APP controller restart")
+            self.close()
+            self.handle_callback("_reset_controller_application", (error,))
+        else:
+            LOGGER.info(
+                "NCP entered failed state. No application handler registered, ignoring..."
+            )
 
     def __getattr__(self, name: str) -> Callable:
         if name not in self._protocol.COMMANDS:
