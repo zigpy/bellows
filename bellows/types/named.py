@@ -1141,7 +1141,7 @@ class EzspSourceRouteOverheadInformation(basic.enum8):
 
 
 class EmberKeyData(basic.fixed_list(16, basic.uint8_t)):
-    """A 128-bit key. """
+    """A 128-bit key."""
 
 
 class EmberCertificateData(basic.fixed_list(48, basic.uint8_t)):
