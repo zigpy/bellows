@@ -224,7 +224,9 @@ class EZSP:
             self.close()
             self.handle_callback("_reset_controller_application", (error,))
         else:
-            LOGGER.info("NCP entered failed state. No application handler registered, ignoring...")
+            LOGGER.info(
+                "NCP entered failed state. No application handler registered, ignoring..."
+            )
 
     def __getattr__(self, name: str) -> Callable:
         if name not in self._protocol.COMMANDS:
