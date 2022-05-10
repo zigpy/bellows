@@ -249,6 +249,13 @@ async def test_enter_failed_state(ezsp_f):
     assert cb.call_count == 1
     assert cb.call_args[0][1][0] == sentinel.error
 
+async def test_no_close_without_callback(ezsp_f):
+    ezsp_f.stop_ezsp = MagicMock(spec_set=ezsp_f.stop_ezsp)
+    ezsp_f.close = MagicMock(spec_set=ezsp_f.close)
+    ezsp_f.enter_failed_state(sentinel.error)
+    await asyncio.sleep(0)
+    assert ezsp_f.stop_ezsp.call_count == 0
+    assert ezsp_f.close.call_count == 0
 
 @patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
 @patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
