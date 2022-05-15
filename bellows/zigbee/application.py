@@ -16,6 +16,7 @@ import zigpy.types
 import zigpy.util
 import zigpy.zdo.types as zdo_t
 
+import bellows
 from bellows.config import (
     CONF_PARAM_SRC_RTG,
     CONF_PARAM_UNK_DEV,
@@ -120,6 +121,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             status = await self._ezsp.eraseKeyTableEntry(index)
             LOGGER.debug("Cleaned up TC link key for %s device: %s", ieee, status)
 
+    async def _get_board_info(self) -> tuple[str, str, str] | tuple[None, None, None]:
+        """Get the board info, handling errors when `getMfgToken` is not supported."""
+        try:
+            return await self._ezsp.get_board_info()
+        except EzspError as exc:
+            LOGGER.info("EZSP Radio does not support getMfgToken command: %r", exc)
+
+        return None, None, None
+
     async def connect(self):
         self._ezsp = await bellows.ezsp.EZSP.initialize(self.config)
         ezsp = self._ezsp
@@ -135,14 +145,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         await self.register_endpoints()
 
-        try:
-            brd_manuf, brd_name, version = await self._ezsp.get_board_info()
-        except EzspError as exc:
-            LOGGER.info("EZSP Radio does not support getMfgToken command: %r", exc)
-        else:
-            LOGGER.info("EZSP Radio manufacturer: %s", brd_manuf)
-            LOGGER.info("EZSP Radio board name: %s", brd_name)
-            LOGGER.info("EmberZNet version: %s", version)
+        brd_manuf, brd_name, version = await self._get_board_info()
+        LOGGER.info("EZSP Radio manufacturer: %s", brd_manuf)
+        LOGGER.info("EZSP Radio board name: %s", brd_name)
+        LOGGER.info("EmberZNet version: %s", version)
 
     async def _ensure_network_running(self) -> bool:
         """
@@ -247,7 +253,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if self.state.node_info.logical_type == zdo_t.LogicalType.Coordinator:
             tc_link_key.partner_ieee = self.state.node_info.ieee
 
+        brd_manuf, brd_name, version = await self._get_board_info()
+
         self.state.network_info = zigpy.state.NetworkInfo(
+            source=f"bellows@{bellows.__version__}",
             extended_pan_id=zigpy.types.ExtendedPanId(nwk_params.extendedPanId),
             pan_id=zigpy.types.PanId(nwk_params.panId),
             nwk_update_id=zigpy.types.uint8_t(nwk_params.nwkUpdateId),
@@ -261,6 +270,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             children=[],
             nwk_addresses={},
             stack_specific=stack_specific,
+            metadata={
+                "ezsp": {
+                    "manufacturer": brd_manuf,
+                    "board": brd_name,
+                    "version": version,
+                    "stack_version": ezsp.ezsp_version,
+                }
+            },
         )
 
         if not load_devices:
