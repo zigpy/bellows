@@ -3,6 +3,7 @@ import zigpy.state
 import zigpy.types as zigpy_t
 import zigpy.zdo.types as zdo_t
 
+import bellows
 from bellows.exception import EzspError
 import bellows.types as t
 
@@ -69,6 +70,7 @@ def network_info(node_info):
             zigpy_t.EUI64.convert("00:0b:57:ff:fe:2b:d4:57"): zigpy_t.NWK(0xC06B),
         },
         stack_specific={"ezsp": {"hashed_tclk": "abcdabcdabcdabcdabcdabcdabcdabcd"}},
+        source=f"bellows@{bellows.__version__}",
     )
 
 
@@ -157,7 +159,10 @@ async def test_load_network_info_no_devices(app, network_info, node_info):
 
     assert app.state.node_info == node_info
     assert app.state.network_info == network_info.replace(
-        key_table=[], children=[], nwk_addresses={}
+        key_table=[],
+        children=[],
+        nwk_addresses={},
+        metadata=app.state.network_info.metadata,
     )
 
 
@@ -313,6 +318,7 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
     assert app.state.network_info == network_info.replace(
         key_table=[key.replace(seq=0) for key in network_info.key_table],
         nwk_addresses=nwk_addresses,
+        metadata=app.state.network_info.metadata,
     )
     assert app.state.node_info == node_info
 
