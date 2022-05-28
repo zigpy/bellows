@@ -26,15 +26,14 @@ def zha_security(
     isc.networkKey = t.EmberKeyData(network_info.network_key.key)
     isc.networkKeySequenceNumber = t.uint8_t(network_info.network_key.seq)
 
-    # This field must be set when using commissioning mode
-    if node_info.logical_type == zdo_t.LogicalType.Coordinator:
-        if network_info.tc_link_key.partner_ieee == zigpy_t.EUI64.UNKNOWN:
-            partner_ieee = node_info.ieee
-        else:
-            partner_ieee = network_info.tc_link_key.partner_ieee
-
+    if (
+        node_info.logical_type != zdo_t.LogicalType.Coordinator
+        and network_info.tc_link_key.partner_ieee != zigpy_t.EUI64.UNKNOWN
+    ):
         isc.bitmask |= t.EmberInitialSecurityBitmask.HAVE_TRUST_CENTER_EUI64
-        isc.preconfiguredTrustCenterEui64 = t.EmberEUI64(partner_ieee)
+        isc.preconfiguredTrustCenterEui64 = t.EmberEUI64(
+            network_info.tc_link_key.partner_ieee
+        )
     else:
         isc.preconfiguredTrustCenterEui64 = t.EmberEUI64([0x00] * 8)
 

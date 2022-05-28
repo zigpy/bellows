@@ -43,12 +43,10 @@ def test_zha_security_normal(network_info, node_info):
         network_info=network_info, node_info=node_info, use_hashed_tclk=True
     )
 
-    assert (
-        security.preconfiguredTrustCenterEui64 == network_info.tc_link_key.partner_ieee
-    )
+    assert security.preconfiguredTrustCenterEui64 == bellows_t.EmberEUI64([0x00] * 8)
     assert (
         bellows_t.EmberInitialSecurityBitmask.HAVE_TRUST_CENTER_EUI64
-        in security.bitmask
+        not in security.bitmask
     )
 
     assert (
@@ -68,15 +66,34 @@ def test_zha_security_router(network_info, node_info):
         use_hashed_tclk=False,
     )
 
-    assert security.preconfiguredTrustCenterEui64 == bellows_t.EmberEUI64([0x00] * 8)
+    assert security.preconfiguredTrustCenterEui64 == bellows_t.EmberEUI64(
+        network_info.tc_link_key.partner_ieee
+    )
     assert (
         bellows_t.EmberInitialSecurityBitmask.HAVE_TRUST_CENTER_EUI64
-        not in security.bitmask
+        in security.bitmask
     )
 
     assert security.preconfiguredKey == network_info.tc_link_key.key
     assert (
         bellows_t.EmberInitialSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
+        not in security.bitmask
+    )
+
+
+def test_zha_security_router_unknown_tclk_partner_ieee(network_info, node_info):
+    security = util.zha_security(
+        network_info=network_info.replace(
+            tc_link_key=network_info.tc_link_key.replace(partner_ieee=t.EUI64.UNKNOWN)
+        ),
+        node_info=node_info.replace(logical_type=zdo_t.LogicalType.Router),
+        use_hashed_tclk=False,
+    )
+
+    # Not set, since we don't know it
+    assert security.preconfiguredTrustCenterEui64 == bellows_t.EmberEUI64([0x00] * 8)
+    assert (
+        bellows_t.EmberInitialSecurityBitmask.HAVE_TRUST_CENTER_EUI64
         not in security.bitmask
     )
 
@@ -91,7 +108,7 @@ def test_zha_security_replace_missing_tc_partner_addr(network_info, node_info):
     )
 
     assert node_info.ieee != t.EUI64.UNKNOWN
-    assert security.preconfiguredTrustCenterEui64 == node_info.ieee
+    assert security.preconfiguredTrustCenterEui64 == bellows_t.EmberEUI64([0x00] * 8)
 
 
 def test_zha_security_hashed_nonstandard_tclk_warning(network_info, node_info, caplog):
