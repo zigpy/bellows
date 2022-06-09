@@ -79,7 +79,7 @@ COMMANDS = {
     "startScan": (
         0x001A,
         (t.EzspNetworkScanType, t.uint32_t, t.uint8_t),
-        (t.EmberStatus,),
+        (t.sl_Status,),
     ),
     "energyScanResultHandler": (0x0048, (), (t.uint8_t, t.int8s)),
     "networkFoundHandler": (0x001B, (), (t.EmberZigbeeNetwork, t.uint8_t, t.int8s)),
