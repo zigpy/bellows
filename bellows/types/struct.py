@@ -537,6 +537,28 @@ class EmberZllAddressAssignment(EzspStruct):
     freeGroupIdMax: named.EmberMulticastId
 
 
+class EmberTokenData(EzspStruct):
+    # Token Data
+    # Token data size in bytes
+    size: basic.uint32_t
+    # Token data pointer
+    data: basic.uint8_t
+
+
+class EmberTokenInfo(EzspStruct):
+    # Information of a token in the token table
+    # NVM3 key of the token
+    nvm3Key: basic.uint32_t
+    # Token is a counter type
+    isCnt: named.Bool
+    # Token is an indexed token
+    isIdx: named.Bool
+    # Size of the token
+    size: basic.uint8_t
+    # Array size of the token
+    arraSize: basic.uint8_t
+
+
 class EmberTokTypeStackZllData(EzspStruct):
     # Public API for ZLL stack data token.
     # Token bitmask.
