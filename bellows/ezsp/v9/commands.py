@@ -61,8 +61,7 @@ COMMANDS = {
     ),
     "counterRolloverHandler": (0x00F2, (), (t.EmberCounterType,)),
     "delayTest": (0x009D, (t.uint16_t,), ()),
-    "getLibraryId": (0x0001, (t.uint8_t,), (t.EmberLibraryId,)),
-    "getLibraryStatus": (0x0001, (t.uint8_t,), (t.EmberLibraryStatus,)),
+    "getLibraryStatus": (0x0001, (t.EmberLibraryId,), (t.EmberLibraryStatus,)),
     "getXncpInfo": (0x0013, (), (t.EmberStatus, t.uint16_t, t.uint16_t)),
     "customFrame": (0x0047, (t.LVBytes,), (t.EmberStatus, t.LVBytes)),
     "customFrameHandler": (0x0054, (), (t.LVBytes,)),
@@ -545,7 +544,6 @@ COMMANDS = {
         (t.fixed_list(16, t.uint8_t), t.fixed_list(16, t.uint8_t)),
         (t.fixed_list(16, t.uint8_t),),
     ),
-    "overrideCurrentChannel": (0x0095, (t.uint8_t,), (t.EmberStatus,)),
     # 14. ZLL Frames
     "zllNetworkOps": (
         0x00B2,
