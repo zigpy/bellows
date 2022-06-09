@@ -551,12 +551,14 @@ class EmberZllAddressAssignment(EzspStruct):
     # Maximum free group id.
     freeGroupIdMax: named.EmberMulticastId
 
+
 class EmberTokenData(EzspStruct):
     # Token Data
     # Token data size in bytes
     size: basic.uint32_t
     # Token data pointer
     data: basic.uint8_t
+
 
 class EmberTokenInfo(EzspStruct):
     # Information of a token in the token table
@@ -570,6 +572,7 @@ class EmberTokenInfo(EzspStruct):
     size: basic.uint8_t
     # Array size of the token
     arraSize: basic.uint8_t
+
 
 class EmberTokTypeStackZllData(EzspStruct):
     # Public API for ZLL stack data token.

@@ -127,6 +127,7 @@ command_frames = {
     "getFirstBeacon": 0x003D,
     "getKey": 0x006A,
     "getKeyTableEntry": 0x0071,
+    "getLibraryId": 0x0001, 
     "getLibraryStatus": 0x0001,
     "getLogicalChannel": 0x00BA,
     "getMfgToken": 0x000B,

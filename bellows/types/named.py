@@ -1520,7 +1520,9 @@ class sl_Status(basic.enum32):
     SL_STATUS_BT_CTRL_MAC_CONNECTION_FAILED = 0x103F
     #  The master, at this time, is unable to make a coarse adjustment to the piconet clock,
     #  using the supplied parameters. Instead the master will attempt to move the clock using clock dragging.
-    SL_STATUS_BT_CTRL_COARSE_CLOCK_ADJUSTMENT_REJECTED_BUT_WILL_TRY_TO_ADJUST_USING_CLOCK_DRAGGING = 0x1040
+    SL_STATUS_BT_CTRL_COARSE_CLOCK_ADJUSTMENT_REJECTED_BUT_WILL_TRY_TO_ADJUST_USING_CLOCK_DRAGGING = (
+        0x1040
+    )
     #  A command was sent from the Host that should identify an Advertising or Sync handle, but the
     #  Advertising or Sync handle does not exist.
     SL_STATUS_BT_CTRL_UNKNOWN_ADVERTISING_IDENTIFIER = 0x1042
@@ -1579,7 +1581,9 @@ class sl_Status(basic.enum32):
     SL_STATUS_BT_ATT_WRITE_REQUEST_REJECTED = 0x11FC
     #  The Client Characteristic Configuration descriptor is not configured according to the
     #  requirements of the profile or service.
-    SL_STATUS_BT_ATT_CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR_IMPROPERLY_CONFIGURED = 0x11FD
+    SL_STATUS_BT_ATT_CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR_IMPROPERLY_CONFIGURED = (
+        0x11FD
+    )
     #  The profile or service request cannot be serviced because an operation that has been
     #  previously triggered is still in progress.
     SL_STATUS_BT_ATT_PROCEDURE_ALREADY_IN_PROGRESS = 0x11FE
