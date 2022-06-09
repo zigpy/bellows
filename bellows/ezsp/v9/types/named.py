@@ -221,6 +221,7 @@ class EzspConfigId(basic.enum8):
     # runtime.
     EZSP_CONFIG_GP_SINK_TABLE_SIZE = 0x42
 
+
 class EzspValueId(basic.enum8):
     # Identifies a value.
 
@@ -347,10 +348,11 @@ class EzspValueId(basic.enum8):
     VALUE_END_DEVICE_KEEP_ALIVE_SUPPORT_MODE = 0x3F
     # Return the active radio config.
     VALUE_ACTIVE_RADIO_CONFIG = 0x41
-    # Timeout in milliseconds to store entries in the transient device table. 
-    # If the devices are not authenticated before the timeout, the entry shall be 
+    # Timeout in milliseconds to store entries in the transient device table.
+    # If the devices are not authenticated before the timeout, the entry shall be
     # purged.
     VALUE_TRANSIENT_DEVICE_TIMEOUT = 0x43
+
 
 class EzspPolicyId(basic.enum8):
     # Identifies a policy.
@@ -712,4 +714,3 @@ class SecureEzspSessionId(basic.fixed_list(8, basic.uint8_t)):
     contribute to the value prevents one side from choosing a number that might have
     been previously used (either because of a bug or by malicious intent).
     """
-

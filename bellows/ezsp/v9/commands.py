@@ -127,7 +127,7 @@ COMMANDS = {
         (t.uint8_t,),
         (t.EmberStatus, t.EmberNodeId, t.EmberEUI64, t.EmberNodeType),
     ),
-    "setChildData":(
+    "setChildData": (
         0x00AC,
         (t.uint8_t,),
         (t.EmberStatus, t.EmberNodeId, t.EmberEUI64, t.EmberNodeType),
@@ -678,7 +678,15 @@ COMMANDS = {
     # 18 Token Interface Frames
     "getTokenCount": (0x0100, (), (t.uint8_t,)),
     "getTokenInfo": (0x0101, (t.uint8_t,), (t.EmberStatus)),
-    "getTokenData": (0x0102, (t.uint32_t, t.uint32_t), (t.EmberStatus, t.EmberTokenData) ),
-    "setTokenData": (0x0103, (t.uint32_t, t.uint32_t, t.EmberTokenData), (t.EmberStatus)),
+    "getTokenData": (
+        0x0102,
+        (t.uint32_t, t.uint32_t),
+        (t.EmberStatus, t.EmberTokenData),
+    ),
+    "setTokenData": (
+        0x0103,
+        (t.uint32_t, t.uint32_t, t.EmberTokenData),
+        (t.EmberStatus),
+    ),
     "resetNode": (0x0104, (), ()),
 }
