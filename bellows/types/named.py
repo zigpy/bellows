@@ -1548,7 +1548,7 @@ class sl_Status(basic.enum32):
     SL_STATUS_BT_ATT_INVALID_OFFSET = 0x1107
     #  The attribute requires authorization before it can be read or written.
     SL_STATUS_BT_ATT_INSUFFICIENT_AUTHORIZATION = 0x1108
-    #  Too many prepare writes have been queueud
+    #  Too many prepare writes have been queued
     SL_STATUS_BT_ATT_PREPARE_QUEUE_FULL = 0x1109
     #  No attribute found within the given attribute handle range.
     SL_STATUS_BT_ATT_ATT_NOT_FOUND = 0x110A
