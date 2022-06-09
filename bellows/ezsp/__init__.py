@@ -23,7 +23,7 @@ import bellows.uart
 
 from . import v4, v5, v6, v7, v8, v9
 
-EZSP_LATEST = v8.EZSP_VERSION
+EZSP_LATEST = v9.EZSP_VERSION
 PROBE_TIMEOUT = 3
 NETWORK_OPS_TIMEOUT = 10
 LOGGER = logging.getLogger(__name__)
