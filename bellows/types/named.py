@@ -38,6 +38,9 @@ class EmberMulticastId(basic.HexRepr, basic.uint16_t):
     # 16-bit ZigBee multicast group identifier.
     _hex_len = 4
 
+class EmberLibraryId(basic.uint8_t):
+    # The presence and status of the Ember id.
+    pass
 
 class EmberLibraryStatus(basic.uint8_t):
     # The presence and status of the Ember library.
@@ -311,6 +314,8 @@ class EzspStatus(basic.enum8):
     ASH_TX = 0x84
     # ASH RX
     ASH_RX = 0x85
+    # Failed to connect to CPC daemon or failed to open CPC endpoint
+    CPC_ERROR_INIT = 0x86
     # No reset or error
     NO_ERROR = 0xFF
 
