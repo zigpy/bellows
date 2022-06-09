@@ -21,9 +21,9 @@ from bellows.exception import APIException, EzspError
 import bellows.types as t
 import bellows.uart
 
-from . import v4, v5, v6, v7, v8
+from . import v4, v5, v6, v7, v8, v9
 
-EZSP_LATEST = v8.EZSP_VERSION
+EZSP_LATEST = v9.EZSP_VERSION
 PROBE_TIMEOUT = 3
 NETWORK_OPS_TIMEOUT = 10
 LOGGER = logging.getLogger(__name__)
@@ -40,6 +40,7 @@ class EZSP:
         v6.EZSP_VERSION: v6.EZSPv6,
         v7.EZSP_VERSION: v7.EZSPv7,
         v8.EZSP_VERSION: v8.EZSPv8,
+        v9.EZSP_VERSION: v9.EZSPv9,
     }
 
     def __init__(self, device_config: Dict):
