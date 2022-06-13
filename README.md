@@ -52,6 +52,8 @@ The largest change was between EZSP v4 (first added in EmberZNet 4.7.2 SDK) and 
 
 Perhaps more important to know today is that EZSP v5, v6 and v7 (EmberZNet 6.6.x.x) use the same framing format, but EmberZNet 6.7.x.x/EZSP v8 introduced new framing format and expanded command id field from 8 bits to 16 bits and is and is not backward compatible.
 
+EZSP v9 protocol is largely the same as EZSP v8, though there are breaking changes in some responses and bellows has been updated to handle the new additions.
+
 ## Project status
 
 This project is in early stages, so it is likely that APIs will change.
