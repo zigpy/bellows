@@ -445,7 +445,7 @@ async def test_write_network_info_generate_hashed_tclk(app, network_info, node_i
         )
 
         call = app._ezsp.setInitialSecurityState.mock_calls[0]
-        seen_keys.add(tuple(call.args[0].preconfiguredKey))
+        seen_keys.add(tuple(call[1][0].preconfiguredKey))
 
     # A new hashed key is randomly generated each time if none is provided
     assert len(seen_keys) == 10
