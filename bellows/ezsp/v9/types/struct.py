@@ -1,4 +1,4 @@
-"""Protocol version 7 specific structs."""
+"""Protocol version 8 specific structs."""
 
 import bellows.types.basic as basic
 from bellows.types.struct import (  # noqa: F401
@@ -12,9 +12,10 @@ from bellows.types.struct import (  # noqa: F401
     EmberNeighborTableEntry,
     EmberNetworkParameters,
     EmberRouteTableEntry,
+    EmberTokenData,
+    EmberTokenInfo,
     EmberTokTypeStackZllData,
     EmberTokTypeStackZllSecurity,
-    EmberTransientKeyData,
     EmberZigbeeNetwork,
     EmberZllAddressAssignment,
     EmberZllDeviceInfoRecord,
@@ -128,8 +129,6 @@ class EmberGpProxyTableEntry(EzspStruct):
     securityOptions: basic.uint8_t
     # The security frame counter of the GPD.
     gpdSecurityFrameCounter: named.EmberGpSecurityFrameCounter
-    # The key to use for GPD.
-    gpdKey: named.EmberKeyData
     # The list of sinks (hardcoded to 2 which is the spec minimum).
     sinkList: basic.fixed_list(2, EmberGpSinkListEntry)
     # The groupcast radius.
@@ -191,23 +190,15 @@ class EmberPerDeviceDutyCycle(EzspStruct):
     dutyCycleConsumed: named.EmberDutyCycleHectoPct
 
 
-class EmberChildData(EzspStruct):
-    """A structure containing a child node's data."""
+class EmberTransientKeyData(EzspStruct):
+    """The transient key data structure. Added in ver. 5. Revised in ver 8"""
 
-    # The EUI64 of the child
+    # The IEEE address paired with the transient link key.
     eui64: named.EmberEUI64
-    # The node type of the child
-    type: named.EmberNodeType
-    # The short address of the child
-    id: named.EmberNodeId
-    # The phy of the child
-    phy: basic.uint8_t
-    # The power of the child
-    power: basic.uint8_t
-    # The timeout of the child
-    timeout: basic.uint8_t
-
-    # The GPD's EUI64.
-    # gpdIeeeAddress: named.EmberEUI64
-    # The GPD's source ID.
-    # sourceId: basic.uint32_t
+    # The key data structure matching the transient key.
+    keyData: named.EmberKeyData
+    # This bitmask indicates whether various fields in the structure contain valid data.
+    bitmask: named.EmberKeyStructBitmask
+    # The number of seconds remaining before the key is automatically timed out of the
+    # transient key table.
+    remainingTimeSeconds: basic.uint16_t

@@ -29,16 +29,6 @@ COMMANDS = {
         (t.EzspStatus, t.LVBytes),
     ),
     "setValue": (0x00AB, (t.EzspValueId, t.LVBytes), (t.EzspStatus,)),
-    "setGpioCurrentConfiguration": (
-        0x00AC,
-        (t.uint8_t, t.uint8_t, t.uint8_t),
-        (t.EzspStatus,),
-    ),
-    "setGpioPowerUpDownConfiguration": (
-        0x00AD,
-        (t.uint8_t, t.uint8_t, t.uint8_t, t.uint8_t, t.uint8_t),
-        (t.EzspStatus,),
-    ),
     # 5. Utilities Frames
     "nop": (0x0005, (), ()),
     "echo": (0x0081, (t.LVBytes,), (t.LVBytes,)),
@@ -71,7 +61,7 @@ COMMANDS = {
     ),
     "counterRolloverHandler": (0x00F2, (), (t.EmberCounterType,)),
     "delayTest": (0x009D, (t.uint16_t,), ()),
-    "getLibraryStatus": (0x0001, (t.uint8_t,), (t.EmberLibraryStatus,)),
+    "getLibraryStatus": (0x0001, (t.EmberLibraryId,), (t.EmberLibraryStatus,)),
     "getXncpInfo": (0x0013, (), (t.EmberStatus, t.uint16_t, t.uint16_t)),
     "customFrame": (0x0047, (t.LVBytes,), (t.EmberStatus, t.LVBytes)),
     "customFrameHandler": (0x0054, (), (t.LVBytes,)),
@@ -88,7 +78,7 @@ COMMANDS = {
     "startScan": (
         0x001A,
         (t.EzspNetworkScanType, t.uint32_t, t.uint8_t),
-        (t.EmberStatus,),
+        (t.sl_Status,),
     ),
     "energyScanResultHandler": (0x0048, (), (t.uint8_t, t.int8s)),
     "networkFoundHandler": (0x001B, (), (t.EmberZigbeeNetwork, t.uint8_t, t.int8s)),
@@ -134,7 +124,12 @@ COMMANDS = {
     "getChildData": (
         0x004A,
         (t.uint8_t,),
-        (t.EmberStatus, t.EmberChildData),
+        (t.EmberStatus, t.EmberNodeId, t.EmberEUI64, t.EmberNodeType),
+    ),
+    "setChildData": (
+        0x00AC,
+        (t.uint8_t,),
+        (t.EmberStatus, t.EmberNodeId, t.EmberEUI64, t.EmberNodeType),
     ),
     "getSourceRouteTableTotalSize": (0x00C3, (), (t.uint8_t,)),
     "getSourceRouteTableFilledSize": (0x00C2, (), (t.uint8_t,)),
@@ -145,6 +140,7 @@ COMMANDS = {
     ),
     "getNeighbor": (0x0079, (t.uint8_t,), (t.EmberStatus, t.EmberNeighborTableEntry)),
     "getNeighborFrameCounter": (0x003E, (t.EmberEUI64,), (t.EmberStatus, t.uint32_t)),
+    "setNeighborFrameCounter": (0x00AD, (t.EmberEUI64,), (t.EmberStatus, t.uint32_t)),
     "setRoutingShortcutThreshold": (0x00D0, (t.uint8_t,), (t.EmberStatus,)),
     "getRoutingShortcutThreshold": (0x00D1, (), (t.uint8_t,)),
     "neighborCount": (0x007A, (), (t.uint8_t,)),
@@ -155,6 +151,7 @@ COMMANDS = {
     ),
     "setRadioPower": (0x0099, (t.int8s,), (t.EmberStatus,)),
     "setRadioChannel": (0x009A, (t.uint8_t,), (t.EmberStatus,)),
+    "setRadioIeee802154CcaMode": (0x0095, (t.uint8_t,), (t.EmberStatus,)),
     "setConcentrator": (
         0x0010,
         (t.Bool, t.uint16_t, t.uint16_t, t.uint16_t, t.uint8_t, t.uint8_t, t.uint8_t),
@@ -547,7 +544,6 @@ COMMANDS = {
         (t.fixed_list(16, t.uint8_t), t.fixed_list(16, t.uint8_t)),
         (t.fixed_list(16, t.uint8_t),),
     ),
-    "overrideCurrentChannel": (0x0095, (t.uint8_t,), (t.EmberStatus,)),
     # 14. ZLL Frames
     "zllNetworkOps": (
         0x00B2,
@@ -664,7 +660,7 @@ COMMANDS = {
     "gpSinkTableFindOrAllocateEntry": (0x00E1, (t.EmberGpAddress,), (t.uint8_t,)),
     "gpSinkTableClearAll": (0x00E2, (), ()),
     "gpSinkTableInit": (0x0070, (), ()),
-    # 16 Secure EZSP Frames
+    # 17 Secure EZSP Frames
     "setSecurityKey": (
         0x00CA,
         (t.EmberKeyData, t.SecureEzspSecurityType),
@@ -677,4 +673,18 @@ COMMANDS = {
     ),
     "resetToFactoryDefaults": (0x00CC, (), (t.EzspStatus,)),
     "getSecurityKeyStatus": (0x00CD, (), (t.EzspStatus, t.SecureEzspSecurityType)),
+    # 18 Token Interface Frames
+    "getTokenCount": (0x0100, (), (t.uint8_t,)),
+    "getTokenInfo": (0x0101, (t.uint8_t,), (t.EmberStatus)),
+    "getTokenData": (
+        0x0102,
+        (t.uint32_t, t.uint32_t),
+        (t.EmberStatus, t.EmberTokenData),
+    ),
+    "setTokenData": (
+        0x0103,
+        (t.uint32_t, t.uint32_t, t.EmberTokenData),
+        (t.EmberStatus),
+    ),
+    "resetNode": (0x0104, (), ()),
 }

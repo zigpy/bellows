@@ -202,3 +202,25 @@ class EmberTransientKeyData(EzspStruct):
     # The number of seconds remaining before the key is automatically timed out of the
     # transient key table.
     remainingTimeSeconds: basic.uint16_t
+
+
+class EmberChildData(EzspStruct):
+    """A structure containing a child node's data."""
+
+    # The EUI64 of the child
+    eui64: named.EmberEUI64
+    # The node type of the child
+    type: named.EmberNodeType
+    # The short address of the child
+    id: named.EmberNodeId
+    # The phy of the child
+    phy: basic.uint8_t
+    # The power of the child
+    power: basic.uint8_t
+    # The timeout of the child
+    timeout: basic.uint8_t
+
+    # The GPD's EUI64.
+    # gpdIeeeAddress: named.EmberEUI64
+    # The GPD's source ID.
+    # sourceId: basic.uint32_t

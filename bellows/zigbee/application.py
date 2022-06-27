@@ -9,12 +9,14 @@ from serial import SerialException
 import zigpy.application
 import zigpy.config
 import zigpy.device
-from zigpy.quirks import CustomDevice, CustomEndpoint
-import zigpy.state as app_state
-from zigpy.types import Addressing, BroadcastAddress
+import zigpy.endpoint
+from zigpy.exceptions import FormationFailure, NetworkNotFormed
+import zigpy.state
+import zigpy.types
 import zigpy.util
 import zigpy.zdo.types as zdo_t
 
+import bellows
 from bellows.config import (
     CONF_PARAM_SRC_RTG,
     CONF_PARAM_UNK_DEV,
@@ -26,7 +28,7 @@ import bellows.ezsp
 from bellows.ezsp.v8.types.named import EmberDeviceUpdate
 import bellows.multicast
 import bellows.types as t
-import bellows.zigbee.util
+import bellows.zigbee.util as util
 
 APS_ACK_TIMEOUT = 120
 COUNTER_EZSP_BUFFERS = "EZSP_FREE_BUFFERS"
@@ -97,25 +99,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         """Return EZSP MulticastController."""
         return self._multicast
 
-    async def add_endpoint(
-        self,
-        endpoint=1,
-        profile_id=zigpy.profiles.zha.PROFILE_ID,
-        device_id=0xBEEF,
-        app_flags=0x00,
-        input_clusters=[],
-        output_clusters=[],
-    ):
+    async def add_endpoint(self, descriptor: zdo_t.SimpleDescriptor) -> None:
         """Add endpoint."""
         res = await self._ezsp.addEndpoint(
-            endpoint,
-            profile_id,
-            device_id,
-            app_flags,
-            len(input_clusters),
-            len(output_clusters),
-            input_clusters,
-            output_clusters,
+            descriptor.endpoint,
+            descriptor.profile,
+            descriptor.device_type,
+            descriptor.device_version,
+            len(descriptor.input_clusters),
+            len(descriptor.output_clusters),
+            descriptor.input_clusters,
+            descriptor.output_clusters,
         )
         LOGGER.debug("Ezsp adding endpoint: %s", res)
 
@@ -127,8 +121,16 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             status = await self._ezsp.eraseKeyTableEntry(index)
             LOGGER.debug("Cleaned up TC link key for %s device: %s", ieee, status)
 
-    async def startup(self, auto_form=False):
-        """Perform a complete application startup"""
+    async def _get_board_info(self) -> tuple[str, str, str] | tuple[None, None, None]:
+        """Get the board info, handling errors when `getMfgToken` is not supported."""
+        try:
+            return await self._ezsp.get_board_info()
+        except EzspError as exc:
+            LOGGER.info("EZSP Radio does not support getMfgToken command: %r", exc)
+
+        return None, None, None
+
+    async def connect(self):
         self._ezsp = await bellows.ezsp.EZSP.initialize(self.config)
         ezsp = self._ezsp
 
@@ -141,47 +143,37 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._in_flight_msg = asyncio.Semaphore(count)
         LOGGER.debug("APS_UNICAST_MESSAGE_COUNT is set to %s", count)
 
-        await self.add_endpoint(
-            output_clusters=[zigpy.zcl.clusters.security.IasZone.cluster_id]
-        )
+        await self.register_endpoints()
 
-        try:
-            brd_manuf, brd_name, version = await self._ezsp.get_board_info()
-            LOGGER.info("EZSP Radio manufacturer: %s", brd_manuf)
-            LOGGER.info("EZSP Radio board name: %s", brd_name)
-            LOGGER.info("EmberZNet version: %s", version)
-        except EzspError as exc:
-            LOGGER.info("EZSP Radio does not support getMfgToken command: %s", str(exc))
+        brd_manuf, brd_name, version = await self._get_board_info()
+        LOGGER.info("EZSP Radio manufacturer: %s", brd_manuf)
+        LOGGER.info("EZSP Radio board name: %s", brd_name)
+        LOGGER.info("EmberZNet version: %s", version)
 
-        v = await ezsp.networkInit()
-        if v[0] != t.EmberStatus.SUCCESS:
-            if not auto_form:
-                raise ControllerError("Could not initialize network")
-            await self.form_network()
+    async def _ensure_network_running(self) -> bool:
+        """
+        Ensures the network is currently running and returns whether or not the network
+        was started.
+        """
+        (state,) = await self._ezsp.networkState()
 
-        status, node_type, nwk_params = await ezsp.getNetworkParameters()
-        assert status == t.EmberStatus.SUCCESS  # TODO: Better check
-        if node_type != t.EmberNodeType.COORDINATOR:
-            if not auto_form:
-                raise ControllerError("Network not configured as coordinator")
+        if state == self._ezsp.types.EmberNetworkStatus.JOINED_NETWORK:
+            return False
 
-            LOGGER.info(
-                "Leaving current network as %s and forming new network", node_type.name
-            )
-            (status,) = await self._ezsp.leaveNetwork()
-            assert status == t.EmberStatus.NETWORK_DOWN
-            await self.form_network()
-            status, node_type, nwk_params = await ezsp.getNetworkParameters()
-            assert status == t.EmberStatus.SUCCESS
+        (init_status,) = await self._ezsp.networkInit()
+        if init_status != t.EmberStatus.SUCCESS:
+            raise NetworkNotFormed(f"Failed to init network: {init_status!r}")
 
-        LOGGER.info("Node type: %s, Network parameters: %s", node_type, nwk_params)
+        return True
+
+    async def start_network(self):
+        ezsp = self._ezsp
+
+        await self._ensure_network_running()
+
         await ezsp.update_policies(self.config)
-        (nwk,) = await ezsp.getNodeId()
-        (ieee,) = await ezsp.getEui64()
+        await self.load_network_info(load_devices=False)
 
-        node_info = app_state.NodeInfo(nwk, ieee, node_type.zdo_logical_type)
-        self.state.node_information = node_info
-        self.state.network_information = nwk_params.zigpy_network_information
         for cnt_group in self.state.counters:
             cnt_group.reset()
 
@@ -193,14 +185,249 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self.controller_event.set()
         self._watchdog_task = asyncio.create_task(self._watchdog())
 
-        self.handle_join(self.nwk, self.ieee, 0)
-        LOGGER.debug("EZSP nwk=0x%04x, IEEE=%s", self._nwk, str(self._ieee))
+        ezsp_device = EZSPCoordinator(
+            application=self,
+            ieee=self.state.node_info.ieee,
+            nwk=self.state.node_info.nwk,
+        )
+        self.devices[self.state.node_info.ieee] = ezsp_device
 
-        await self.multicast.startup(self.get_device(self.ieee))
+        # The coordinator device does not respond to attribute reads
+        ezsp_device.endpoints[1] = EZSPCoordinator.EZSPEndpoint(ezsp_device, 1)
+        ezsp_device.model = ezsp_device.endpoints[1].model
+        ezsp_device.manufacturer = ezsp_device.endpoints[1].manufacturer
+        await ezsp_device.schedule_initialize()
 
-    async def shutdown(self):
-        """Shutdown and cleanup ControllerApplication."""
-        LOGGER.info("Shutting down ControllerApplication")
+        await self.multicast.startup(ezsp_device)
+
+    async def load_network_info(self, *, load_devices=False) -> None:
+        ezsp = self._ezsp
+
+        await self._ensure_network_running()
+
+        status, node_type, nwk_params = await ezsp.getNetworkParameters()
+        assert status == t.EmberStatus.SUCCESS
+
+        if node_type != t.EmberNodeType.COORDINATOR:
+            raise NetworkNotFormed("Device not configured as coordinator")
+
+        (nwk,) = await ezsp.getNodeId()
+        (ieee,) = await ezsp.getEui64()
+
+        self.state.node_info = zigpy.state.NodeInfo(
+            nwk=zigpy.types.NWK(nwk),
+            ieee=zigpy.types.EUI64(ieee),
+            logical_type=node_type.zdo_logical_type,
+        )
+
+        (status, security_level) = await ezsp.getConfigurationValue(
+            ezsp.types.EzspConfigId.CONFIG_SECURITY_LEVEL
+        )
+        assert status == t.EmberStatus.SUCCESS
+        security_level = zigpy.types.uint8_t(security_level)
+
+        (status, network_key) = await ezsp.getKey(
+            ezsp.types.EmberKeyType.CURRENT_NETWORK_KEY
+        )
+        assert status == t.EmberStatus.SUCCESS
+
+        (status, ezsp_tc_link_key) = await ezsp.getKey(
+            ezsp.types.EmberKeyType.TRUST_CENTER_LINK_KEY
+        )
+        assert status == t.EmberStatus.SUCCESS
+        tc_link_key = util.ezsp_key_to_zigpy_key(ezsp_tc_link_key, ezsp)
+
+        (status, state) = await ezsp.getCurrentSecurityState()
+        assert status == t.EmberStatus.SUCCESS
+
+        stack_specific = {}
+
+        if (
+            ezsp.types.EmberCurrentSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
+            in state.bitmask
+        ):
+            stack_specific["ezsp"] = {"hashed_tclk": tc_link_key.key.serialize().hex()}
+            tc_link_key.key = zigpy.types.KeyData(b"ZigBeeAlliance09")
+
+        # The TCLK IEEE address is returned as `FF:FF:FF:FF:FF:FF:FF:FF`
+        if self.state.node_info.logical_type == zdo_t.LogicalType.Coordinator:
+            tc_link_key.partner_ieee = self.state.node_info.ieee
+
+        brd_manuf, brd_name, version = await self._get_board_info()
+
+        self.state.network_info = zigpy.state.NetworkInfo(
+            source=f"bellows@{bellows.__version__}",
+            extended_pan_id=zigpy.types.ExtendedPanId(nwk_params.extendedPanId),
+            pan_id=zigpy.types.PanId(nwk_params.panId),
+            nwk_update_id=zigpy.types.uint8_t(nwk_params.nwkUpdateId),
+            nwk_manager_id=zigpy.types.NWK(nwk_params.nwkManagerId),
+            channel=zigpy.types.uint8_t(nwk_params.radioChannel),
+            channel_mask=zigpy.types.Channels(nwk_params.channels),
+            security_level=zigpy.types.uint8_t(security_level),
+            network_key=util.ezsp_key_to_zigpy_key(network_key, ezsp),
+            tc_link_key=tc_link_key,
+            key_table=[],
+            children=[],
+            nwk_addresses={},
+            stack_specific=stack_specific,
+            metadata={
+                "ezsp": {
+                    "manufacturer": brd_manuf,
+                    "board": brd_name,
+                    "version": version,
+                    "stack_version": ezsp.ezsp_version,
+                }
+            },
+        )
+
+        if not load_devices:
+            return
+
+        for idx in range(0, 192):
+            (status, key) = await ezsp.getKeyTableEntry(idx)
+
+            if status == t.EmberStatus.INDEX_OUT_OF_RANGE:
+                break
+            elif status == t.EmberStatus.TABLE_ENTRY_ERASED:
+                continue
+
+            assert status == t.EmberStatus.SUCCESS
+
+            self.state.network_info.key_table.append(
+                util.ezsp_key_to_zigpy_key(key, ezsp)
+            )
+
+        for idx in range(0, 255 + 1):
+            (status, *rsp) = await ezsp.getChildData(idx)
+
+            if status == t.EmberStatus.NOT_JOINED:
+                continue
+
+            if ezsp.ezsp_version >= 7:
+                nwk = rsp[0].id
+                eui64 = rsp[0].eui64
+                node_type = rsp[0].type
+            else:
+                nwk, eui64, node_type = rsp
+
+            self.state.network_info.children.append(eui64)
+            self.state.network_info.nwk_addresses[eui64] = nwk
+
+        # v4 can crash when getAddressTableRemoteNodeId(32) is received
+        # Error code: undefined_0x8a
+        if ezsp.ezsp_version == 4:
+            return
+
+        for idx in range(0, 255 + 1):
+            (nwk,) = await ezsp.getAddressTableRemoteNodeId(idx)
+            (eui64,) = await ezsp.getAddressTableRemoteEui64(idx)
+
+            # Ignore invalid NWK entries
+            if nwk in t.EmberDistinguishedNodeId.__members__.values():
+                continue
+
+            self.state.network_info.nwk_addresses[
+                zigpy.types.EUI64(eui64)
+            ] = zigpy.types.NWK(nwk)
+
+    async def write_network_info(
+        self, *, network_info: zigpy.state.NetworkInfo, node_info: zigpy.state.NodeInfo
+    ) -> None:
+        ezsp = self._ezsp
+
+        try:
+            (status,) = await ezsp.leaveNetwork()
+            if status != t.EmberStatus.NETWORK_DOWN:
+                raise FormationFailure("Couldn't leave network")
+        except bellows.exception.EzspError:
+            pass
+
+        stack_specific = network_info.stack_specific.get("ezsp", {})
+        (current_eui64,) = await ezsp.getEui64()
+
+        if (
+            node_info.ieee != zigpy.types.EUI64.UNKNOWN
+            and node_info.ieee != current_eui64
+        ):
+            should_update_eui64 = stack_specific.get(
+                "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it"
+            )
+
+            if should_update_eui64:
+                new_ncp_eui64 = t.EmberEUI64(node_info.ieee)
+                (status,) = await ezsp.setMfgToken(
+                    t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, new_ncp_eui64.serialize()
+                )
+                assert status == t.EmberStatus.SUCCESS
+            else:
+                LOGGER.warning(
+                    "Current node's IEEE address (%s) does not match the backup's (%s)",
+                    current_eui64,
+                    node_info.ieee,
+                )
+
+        use_hashed_tclk = ezsp.ezsp_version > 4
+
+        if use_hashed_tclk and not stack_specific.get("hashed_tclk"):
+            # Generate a random default
+            network_info.stack_specific.setdefault("ezsp", {})[
+                "hashed_tclk"
+            ] = os.urandom(16).hex()
+
+        initial_security_state = util.zha_security(
+            network_info=network_info,
+            node_info=node_info,
+            use_hashed_tclk=use_hashed_tclk,
+        )
+        (status,) = await ezsp.setInitialSecurityState(initial_security_state)
+        assert status == t.EmberStatus.SUCCESS
+
+        # Clear the key table
+        (status,) = await ezsp.clearKeyTable()
+        assert status == t.EmberStatus.SUCCESS
+
+        # Write APS link keys
+        for key in network_info.key_table:
+            ember_key = util.zigpy_key_to_ezsp_key(key, ezsp)
+
+            # XXX: is there no way to set the outgoing frame counter or seq?
+            (status,) = await ezsp.addOrUpdateKeyTableEntry(
+                ember_key.partnerEUI64, True, ember_key.key
+            )
+            if status != t.EmberStatus.SUCCESS:
+                LOGGER.warning("Couldn't add %s key: %s", key, status)
+
+        if ezsp.ezsp_version > 4:
+            # Set NWK frame counter
+            (status,) = await ezsp.setValue(
+                ezsp.types.EzspValueId.VALUE_NWK_FRAME_COUNTER,
+                t.uint32_t(network_info.network_key.tx_counter).serialize(),
+            )
+            assert status == t.EmberStatus.SUCCESS
+
+            # Set APS frame counter
+            (status,) = await ezsp.setValue(
+                ezsp.types.EzspValueId.VALUE_APS_FRAME_COUNTER,
+                t.uint32_t(network_info.tc_link_key.tx_counter).serialize(),
+            )
+            assert status == t.EmberStatus.SUCCESS
+
+        # Set the network settings
+        parameters = t.EmberNetworkParameters()
+        parameters.panId = t.EmberPanId(network_info.pan_id)
+        parameters.extendedPanId = t.EmberEUI64(network_info.extended_pan_id)
+        parameters.radioTxPower = t.uint8_t(8)
+        parameters.radioChannel = t.uint8_t(network_info.channel)
+        parameters.joinMethod = t.EmberJoinMethod.USE_MAC_ASSOCIATION
+        parameters.nwkManagerId = t.EmberNodeId(network_info.nwk_manager_id)
+        parameters.nwkUpdateId = t.uint8_t(network_info.nwk_update_id)
+        parameters.channels = t.Channels(network_info.channel_mask)
+
+        await ezsp.formNetwork(parameters)
+        await ezsp.setValue(ezsp.types.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
+
+    async def disconnect(self):
+        # TODO: how do you shut down the stack?
         self.controller_event.clear()
         if self._watchdog_task and not self._watchdog_task.done():
             LOGGER.debug("Cancelling watchdog")
@@ -209,38 +436,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._reset_task.cancel()
         if self._ezsp is not None:
             self._ezsp.close()
-
-    async def form_network(self):
-        nwk = self.config[zigpy.config.CONF_NWK]
-
-        pan_id = nwk[zigpy.config.CONF_NWK_PAN_ID]
-        if pan_id is None:
-            pan_id = int.from_bytes(os.urandom(2), byteorder="little")
-
-        extended_pan_id = nwk[zigpy.config.CONF_NWK_EXTENDED_PAN_ID]
-        if extended_pan_id is None:
-            extended_pan_id = t.EmberEUI64([t.uint8_t(0)] * 8)
-
-        hashed_tclk = self._ezsp.ezsp_version > 4
-        initial_security_state = bellows.zigbee.util.zha_security(
-            nwk, controller=True, hashed_tclk=hashed_tclk
-        )
-        v = await self._ezsp.setInitialSecurityState(initial_security_state)
-        assert v[0] == t.EmberStatus.SUCCESS  # TODO: Better check
-        parameters = t.EmberNetworkParameters()
-        parameters.panId = t.EmberPanId(pan_id)
-        parameters.extendedPanId = extended_pan_id
-        parameters.radioTxPower = t.uint8_t(8)
-        parameters.radioChannel = t.uint8_t(nwk[zigpy.config.CONF_NWK_CHANNEL])
-        parameters.joinMethod = t.EmberJoinMethod.USE_MAC_ASSOCIATION
-        parameters.nwkManagerId = t.EmberNodeId(0)
-        parameters.nwkUpdateId = t.uint8_t(nwk[zigpy.config.CONF_NWK_UPDATE_ID])
-        parameters.channels = nwk[zigpy.config.CONF_NWK_CHANNELS]
-
-        await self._ezsp.formNetwork(parameters)
-        await self._ezsp.setValue(
-            self._ezsp.types.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1
-        )
 
     async def force_remove(self, dev):
         # This should probably be delivered to the parent device instead
@@ -277,13 +472,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     ) -> None:
         if message_type == t.EmberIncomingMessageType.INCOMING_BROADCAST:
             self.state.counters[COUNTERS_CTRL][COUNTER_RX_BCAST].increment()
-            dst_addressing = Addressing.nwk(0xFFFE, aps_frame.destinationEndpoint)
+            dst_addressing = zigpy.types.Addressing.nwk(
+                0xFFFE, aps_frame.destinationEndpoint
+            )
         elif message_type == t.EmberIncomingMessageType.INCOMING_MULTICAST:
             self.state.counters[COUNTERS_CTRL][COUNTER_RX_MCAST].increment()
-            dst_addressing = Addressing.group(aps_frame.groupId)
+            dst_addressing = zigpy.types.Addressing.group(aps_frame.groupId)
         elif message_type == t.EmberIncomingMessageType.INCOMING_UNICAST:
             self.state.counters[COUNTERS_CTRL][COUNTER_RX_UNICAST].increment()
-            dst_addressing = Addressing.nwk(self.nwk, aps_frame.destinationEndpoint)
+            dst_addressing = zigpy.types.Addressing.nwk(
+                self.state.node_info.nwk, aps_frame.destinationEndpoint
+            )
         else:
             dst_addressing = None
 
@@ -653,7 +852,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         radius,
         sequence,
         data,
-        broadcast_address=BroadcastAddress.RX_ON_WHEN_IDLE,
+        broadcast_address=zigpy.types.BroadcastAddress.RX_ON_WHEN_IDLE,
     ):
         """Submit and send data out as an unicast transmission.
 
@@ -796,10 +995,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         dev.relays = None
 
 
-class EZSPCoordinator(CustomDevice):
+class EZSPCoordinator(zigpy.device.Device):
     """Zigpy Device representing Coordinator."""
 
-    class EZSPEndpoint(CustomEndpoint):
+    class EZSPEndpoint(zigpy.endpoint.Endpoint):
         @property
         def manufacturer(self) -> str:
             """Manufacturer."""
@@ -836,20 +1035,3 @@ class EZSPCoordinator(CustomDevice):
 
             app.groups[grp_id].remove_member(self)
             return status
-
-    signature = {
-        "endpoints": {
-            1: {
-                "profile_id": 0x0104,
-                "device_type": 0xBEEF,
-                "input_clusters": [],
-                "output_clusters": [zigpy.zcl.clusters.security.IasZone.cluster_id],
-            }
-        }
-    }
-
-    replacement = {
-        "endpoints": {1: (EZSPEndpoint, {})},
-        "manufacturer": "Silicon Labs",
-        "model": "EZSP",
-    }

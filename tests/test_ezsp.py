@@ -15,8 +15,6 @@ DEVICE_CONFIG = {
     config.CONF_DEVICE_BAUDRATE: 115200,
 }
 
-pytestmark = pytest.mark.asyncio
-
 
 @pytest.fixture
 async def ezsp_f():

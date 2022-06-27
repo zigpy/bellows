@@ -1,14 +1,14 @@
 import pytest
 
-import bellows.ezsp.v8
+import bellows.ezsp.v9
 
 from .async_mock import AsyncMock, MagicMock, patch
 
 
 @pytest.fixture
 def ezsp_f():
-    """EZSP v8 protocol handler."""
-    return bellows.ezsp.v8.EZSPv8(MagicMock(), MagicMock())
+    """EZSP v9 protocol handler."""
+    return bellows.ezsp.v9.EZSPv9(MagicMock(), MagicMock())
 
 
 def test_ezsp_frame(ezsp_f):
@@ -111,6 +111,7 @@ command_frames = {
     "getCertificate": 0x00A5,
     "getCertificate283k1": 0x00EC,
     "getChildData": 0x004A,
+    "setChildData": 0x00AC,
     "getConfigurationValue": 0x0052,
     "getCurrentDutyCycle": 0x004C,
     "getCurrentSecurityState": 0x0069,
@@ -128,6 +129,7 @@ command_frames = {
     "getMulticastTableEntry": 0x0063,
     "getNeighbor": 0x0079,
     "getNeighborFrameCounter": 0x003E,
+    "setNeighborFrameCounter": 0x00AD,
     "getNetworkParameters": 0x0028,
     "getNextBeacon": 0x0004,
     "getNodeId": 0x0027,
@@ -137,6 +139,7 @@ command_frames = {
     "getPhyInterfaceCount": 0x00FC,
     "getPolicy": 0x0056,
     "getRadioParameters": 0x00FD,
+    "setRadioIeee802154CcaMode": 0x0095,
     "getRandomNumber": 0x0049,
     "getRouteTableEntry": 0x007B,
     "getRoutingShortcutThreshold": 0x00D1,
@@ -147,6 +150,11 @@ command_frames = {
     "getStandaloneBootloaderVersionPlatMicroPhy": 0x0091,
     "getTimer": 0x004E,
     "getToken": 0x000A,
+    "getTokenCount": 0x0100,
+    "getTokenInfo": 0x0101,
+    "getTokenData": 0x0102,
+    "setTokenData": 0x0103,
+    "resetNode": 0x0104,
     "getTransientKeyTableEntry": 0x006D,
     "getTransientLinkKey": 0x00CE,
     "getTrueRandomEntropySource": 0x004F,
@@ -208,7 +216,6 @@ command_frames = {
     "networkState": 0x0018,
     "noCallbacks": 0x0007,
     "nop": 0x0005,
-    "overrideCurrentChannel": 0x0095,
     "permitJoining": 0x0022,
     "pollCompleteHandler": 0x0043,
     "pollForData": 0x0042,
@@ -242,12 +249,11 @@ command_frames = {
     "setBinding": 0x002B,
     "setBindingRemoteNodeId": 0x0030,
     "setBrokenRouteErrorCode": 0x0011,
+    "setChildData": 0x00AC,
     "setConcentrator": 0x0010,
     "setConfigurationValue": 0x0053,
     "setDutyCycleLimitsInStack": 0x0040,
     "setExtendedTimeout": 0x007E,
-    "setGpioCurrentConfiguration": 0x00AC,
-    "setGpioPowerUpDownConfiguration": 0x00AD,
     "setHubConnectivity": 0x00E4,
     "setInitialSecurityState": 0x0068,
     "setKeyTableEntry": 0x0072,
@@ -257,12 +263,14 @@ command_frames = {
     "setManufacturerCode": 0x0015,
     "setMfgToken": 0x000C,
     "setMulticastTableEntry": 0x0064,
+    "setNeighborFrameCounter": 0x00AD,
     "setParentClassificationEnabled": 0x00E7,
     "setPolicy": 0x0055,
     "setPowerDescriptor": 0x0016,
     "setPreinstalledCbkeData": 0x00A2,
     "setPreinstalledCbkeData283k1": 0x00ED,
     "setRadioChannel": 0x009A,
+    "setRadioIeee802154CcaMode": 0x0095,
     "setRadioPower": 0x0099,
     "setRoutingShortcutThreshold": 0x00D0,
     "setSecurityKey": 0x00CA,

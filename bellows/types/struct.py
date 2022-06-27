@@ -2,8 +2,6 @@ import dataclasses
 import inspect
 import typing
 
-import zigpy.state as app_state
-
 from . import basic, named
 
 NoneType = type(None)
@@ -282,19 +280,6 @@ class EmberNetworkParameters(EzspStruct):
     # method.
     channels: named.Channels
 
-    @property
-    def zigpy_network_information(self) -> app_state.NetworkInformation:
-        """Convert to NetworkInformation."""
-        r = app_state.NetworkInformation(
-            self.extendedPanId,
-            app_state.t.PanId(self.panId),
-            self.nwkUpdateId,
-            app_state.t.NWK(self.nwkManagerId),
-            self.radioChannel,
-            channel_mask=self.channels,
-        )
-        return r
-
 
 class EmberZigbeeNetwork(EzspStruct):
     # The parameters of a ZigBee network.
@@ -550,6 +535,28 @@ class EmberZllAddressAssignment(EzspStruct):
     freeGroupIdMin: named.EmberMulticastId
     # Maximum free group id.
     freeGroupIdMax: named.EmberMulticastId
+
+
+class EmberTokenData(EzspStruct):
+    # Token Data
+    # Token data size in bytes
+    size: basic.uint32_t
+    # Token data pointer
+    data: basic.uint8_t
+
+
+class EmberTokenInfo(EzspStruct):
+    # Information of a token in the token table
+    # NVM3 key of the token
+    nvm3Key: basic.uint32_t
+    # Token is a counter type
+    isCnt: named.Bool
+    # Token is an indexed token
+    isIdx: named.Bool
+    # Size of the token
+    size: basic.uint8_t
+    # Array size of the token
+    arraSize: basic.uint8_t
 
 
 class EmberTokTypeStackZllData(EzspStruct):

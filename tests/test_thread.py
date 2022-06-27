@@ -7,8 +7,6 @@ import pytest
 
 from bellows.thread import EventLoopThread, ThreadsafeProxy
 
-pytestmark = pytest.mark.asyncio
-
 
 async def test_thread_start(monkeypatch):
     current_loop = asyncio.get_event_loop()

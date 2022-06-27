@@ -4,8 +4,6 @@ import bellows.ezsp.v5
 
 from .async_mock import AsyncMock, MagicMock, patch
 
-pytestmark = pytest.mark.asyncio
-
 
 @pytest.fixture
 def ezsp_f():
