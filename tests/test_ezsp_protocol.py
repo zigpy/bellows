@@ -8,8 +8,6 @@ import bellows.ezsp.v4.types as t
 
 from .async_mock import AsyncMock, MagicMock, patch
 
-pytestmark = pytest.mark.asyncio
-
 
 class _DummyProtocolHandler(bellows.ezsp.v4.EZSPv4):
     """Protocol handler mock."""
@@ -29,7 +27,6 @@ def prot_hndl():
     return _DummyProtocolHandler(MagicMock(), MagicMock())
 
 
-@pytest.mark.asyncio
 async def test_command(prot_hndl):
     coro = prot_hndl.command("nop")
     prot_hndl._awaiting[prot_hndl._seq - 1][2].set_result(True)
@@ -73,7 +70,6 @@ def test_receive_reply_invalid_command(prot_hndl):
     assert prot_hndl.cb_mock.call_count == 0
 
 
-@pytest.mark.asyncio
 async def test_cfg_initialize(prot_hndl, caplog):
     """Test initialization."""
 
@@ -94,7 +90,6 @@ async def test_cfg_initialize(prot_hndl, caplog):
             assert "Couldn't set" in caplog.text
 
 
-@pytest.mark.asyncio
 async def test_update_policies(prot_hndl):
     """Test update_policies."""
 
@@ -107,7 +102,6 @@ async def test_update_policies(prot_hndl):
             await prot_hndl.update_policies({"ezsp_policies": {}})
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "status, raw, expected_value",
     (

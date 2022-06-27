@@ -610,6 +610,9 @@ class EmberStatus(basic.enum8):
     # An index was passed into the function that was larger than the valid
     # range.
     INDEX_OUT_OF_RANGE = 0xB1
+    # The passed key data is not valid. A key of all zeros or all F's are reserved
+    # values and cannot be used.
+    KEY_INVALID = 0xB2
     # There are no empty entries left in the table.
     TABLE_FULL = 0xB4
     # The requested table entry has been erased and contains no valid data.
@@ -970,6 +973,8 @@ class EmberCurrentSecurityBitmask(basic.bitmap16):
     GLOBAL_LINK_KEY = 0x0004
     # This denotes that the node has a Trust Center Link Key.
     HAVE_TRUST_CENTER_LINK_KEY = 0x0010
+    # TODO: 0x0020 is unknown
+    # TODO: 0x0040 is unknown
     # This denotes that the Trust Center is using a Hashed Link Key.
     TRUST_CENTER_USES_HASHED_LINK_KEY = 0x0084
 
@@ -994,6 +999,12 @@ class EmberKeyStructBitmask(basic.bitmap16):
     # hears a device announce from the partner indicating it is not
     # an 'RX on when idle' device.
     KEY_PARTNER_IS_SLEEPY = 0x0020
+    # This indicates that the transient key which is being added is unconfirmed. This
+    # bit is set when we add a transient key while the EmberTcLinkKeyRequestPolicy is
+    # EMBER_ALLOW_TC_LINK_KEY_REQUEST_AND_GENERATE_NEW_KEY
+    UNCONFIRMED_TRANSIENT_KEY = 0x0040
+
+    # TODO: 0x0080 is unknown
 
 
 class EmberKeyStatus(basic.enum8):
@@ -1757,3 +1768,22 @@ class sl_Status(basic.enum32):
     SL_STATUS_WIFI_RETRY_EXCEEDED = 0x0B1F
     #  The request failed because the MSDU life time was exceeded
     SL_STATUS_WIFI_TX_LIFETIME_EXCEEDED = 0x0B20
+
+
+class EmberDistinguishedNodeId(basic.enum16):
+    """A distinguished network ID that will never be assigned to any node"""
+
+    # This value is used when getting the remote node ID from the address or binding
+    # tables. It indicates that the address or binding table entry is currently in use
+    # and network address discovery is underway.
+    DISCOVERY_ACTIVE = 0xFFFC
+
+    # This value is used when getting the remote node ID from the address or binding
+    # tables. It indicates that the address or binding table entry is currently in use
+    # but the node ID corresponding to the EUI64 in the table is currently unknown.
+    UNKNOWN = 0xFFFD
+
+    # This value is used when setting or getting the remote node ID in the address table
+    # or getting the remote node ID from the binding table. It indicates that the
+    # address or binding table entry is not in use.
+    TABLE_ENTRY_UNUSED = 0xFFFF

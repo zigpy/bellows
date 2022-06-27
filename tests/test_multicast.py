@@ -7,8 +7,6 @@ import bellows.types as t
 
 from .async_mock import AsyncMock, MagicMock, sentinel
 
-pytestmark = pytest.mark.asyncio
-
 CUSTOM_SIZE = 12
 
 
@@ -25,7 +23,6 @@ def multicast(ezsp_f):
     return m
 
 
-@pytest.mark.asyncio
 async def test_initialize(multicast):
     group_id = 0x0200
     mct = active_multicasts = 4
@@ -49,7 +46,6 @@ async def test_initialize(multicast):
     assert len(multicast._available) == CUSTOM_SIZE - active_multicasts
 
 
-@pytest.mark.asyncio
 async def test_initialize_fail_configured_size(multicast):
 
     multicast._ezsp.getConfigurationValue.return_value = t.EmberStatus.ERR_FATAL, 16
@@ -59,7 +55,6 @@ async def test_initialize_fail_configured_size(multicast):
     assert len(multicast._available) == 0
 
 
-@pytest.mark.asyncio
 async def test_initialize_fail(multicast):
     group_id = 0x0200
 
@@ -79,7 +74,6 @@ async def test_initialize_fail(multicast):
     assert len(multicast._available) == 0
 
 
-@pytest.mark.asyncio
 async def test_startup(multicast):
 
     coordinator = MagicMock()
@@ -107,7 +101,6 @@ def _subscribe(multicast, group_id, success=True):
     return multicast.subscribe(group_id)
 
 
-@pytest.mark.asyncio
 async def test_subscribe(multicast):
     grp_id = 0x0200
     multicast._available.add(1)
@@ -128,7 +121,6 @@ async def test_subscribe(multicast):
     assert grp_id in multicast._multicast
 
 
-@pytest.mark.asyncio
 async def test_subscribe_fail(multicast):
     grp_id = 0x0200
     multicast._available.add(1)
@@ -142,7 +134,6 @@ async def test_subscribe_fail(multicast):
     assert len(multicast._available) == 1
 
 
-@pytest.mark.asyncio
 async def test_subscribe_no_avail(multicast):
     grp_id = 0x0200
 
@@ -161,7 +152,6 @@ def _unsubscribe(multicast, group_id, success=True):
     return multicast.unsubscribe(group_id)
 
 
-@pytest.mark.asyncio
 async def test_unsubscribe(multicast):
     grp_id = 0x0200
     multicast._available.add(1)
@@ -185,7 +175,6 @@ async def test_unsubscribe(multicast):
     assert len(multicast._available) == 1
 
 
-@pytest.mark.asyncio
 async def test_unsubscribe_fail(multicast):
     grp_id = 0x0200
     multicast._available.add(1)

@@ -4,8 +4,6 @@ import bellows.ezsp.v8
 
 from .async_mock import AsyncMock, MagicMock, patch
 
-pytestmark = pytest.mark.asyncio
-
 
 @pytest.fixture
 def ezsp_f():
@@ -27,7 +25,6 @@ def test_ezsp_frame_rx(ezsp_f):
     assert ezsp_f._handle_callback.call_args[0][1] == [0x01, 0x02, 0x1234]
 
 
-@pytest.mark.asyncio
 async def test_set_source_routing(ezsp_f):
     """Test setting source routing."""
     with patch.object(
@@ -37,7 +34,6 @@ async def test_set_source_routing(ezsp_f):
         assert src_mock.await_count == 1
 
 
-@pytest.mark.asyncio
 async def test_pre_permit(ezsp_f):
     """Test pre permit."""
     p1 = patch.object(ezsp_f, "setPolicy", new=AsyncMock())

@@ -3,8 +3,7 @@ import logging
 
 import pytest
 import zigpy.config
-from zigpy.device import Device
-from zigpy.zcl.clusters import security
+import zigpy.exceptions
 import zigpy.zdo.types as zdo_t
 
 import bellows.config as config
@@ -20,8 +19,6 @@ import bellows.uart as uart
 import bellows.zigbee.application
 
 from .async_mock import AsyncMock, MagicMock, PropertyMock, patch, sentinel
-
-pytestmark = pytest.mark.asyncio
 
 APP_CONFIG = {
     config.CONF_DEVICE: {
@@ -99,7 +96,9 @@ def ieee(init=0):
 
 @patch("zigpy.device.Device._initialize", new=AsyncMock())
 @patch("bellows.zigbee.application.ControllerApplication._watchdog", new=AsyncMock())
-async def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4):
+async def _test_startup(
+    app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4, board_info=True
+):
     nwk_params = bellows.types.struct.EmberNetworkParameters(
         extendedPanId=t.ExtendedPanId.convert("aa:bb:cc:dd:ee:ff:aa:bb"),
         panId=t.EmberPanId(0x55AA),
@@ -117,6 +116,7 @@ async def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_versi
 
     app._in_flight_msg = None
     ezsp_mock = MagicMock()
+    ezsp_mock.types = ezsp_t7
     type(ezsp_mock).ezsp_version = PropertyMock(return_value=ezsp_version)
     ezsp_mock.initialize = AsyncMock(return_value=ezsp_mock)
     ezsp_mock.connect = AsyncMock()
@@ -126,20 +126,63 @@ async def _test_startup(app, nwk_type, ieee, auto_form=False, init=0, ezsp_versi
     ezsp_mock.setConfigurationValue = AsyncMock(return_value=t.EmberStatus.SUCCESS)
     ezsp_mock.networkInit = AsyncMock(return_value=[init])
     ezsp_mock.getNetworkParameters = AsyncMock(return_value=[0, nwk_type, nwk_params])
-    ezsp_mock.get_board_info = AsyncMock(
-        return_value=("Mock Manufacturer", "Mock board", "Mock version")
-    )
+
+    if board_info:
+        ezsp_mock.get_board_info = AsyncMock(
+            return_value=("Mock Manufacturer", "Mock board", "Mock version")
+        )
+    else:
+        ezsp_mock.get_board_info = AsyncMock(side_effect=EzspError("Not supported"))
+
     ezsp_mock.setPolicy = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp_mock.getMfgToken = AsyncMock(return_value=(b"Some token\xff",))
     ezsp_mock.getNodeId = AsyncMock(return_value=[t.EmberNodeId(0x0000)])
     ezsp_mock.getEui64 = AsyncMock(return_value=[ieee])
     ezsp_mock.getValue = AsyncMock(return_value=(0, b"\x01" * 6))
     ezsp_mock.leaveNetwork = AsyncMock(side_effect=mock_leave)
-    app.form_network = AsyncMock()
     ezsp_mock.reset = AsyncMock()
     ezsp_mock.version = AsyncMock()
     ezsp_mock.getConfigurationValue = AsyncMock(return_value=(0, 1))
     ezsp_mock.update_policies = AsyncMock()
+    ezsp_mock.networkState = AsyncMock(
+        return_value=[ezsp_mock.types.EmberNetworkStatus.JOINED_NETWORK]
+    )
+    ezsp_mock.getKey = AsyncMock(
+        return_value=[
+            t.EmberStatus.SUCCESS,
+            t.EmberKeyStruct(
+                bitmask=t.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER
+                | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER,
+                type=t.EmberKeyType.CURRENT_NETWORK_KEY,
+                key=t.EmberKeyData(b"ActualNetworkKey"),
+                outgoingFrameCounter=t.uint32_t(0x12345678),
+                incomingFrameCounter=t.uint32_t(0x00000000),
+                sequenceNumber=t.uint8_t(1),
+                partnerEUI64=t.EmberEUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),
+            ),
+        ]
+    )
+
+    ezsp_mock.getCurrentSecurityState = AsyncMock(
+        return_value=[
+            t.EmberStatus.SUCCESS,
+            t.EmberCurrentSecurityState(
+                bitmask=t.EmberCurrentSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY,
+                trustCenterLongAddress=t.EmberEUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),
+            ),
+        ]
+    )
+    ezsp_mock.pre_permit = AsyncMock()
+    app.permit = AsyncMock()
+
+    def form_network():
+        ezsp_mock.getNetworkParameters.return_value = [
+            0,
+            t.EmberNodeType.COORDINATOR,
+            nwk_params,
+        ]
+
+    app.form_network = AsyncMock(side_effect=form_network)
 
     p1 = patch.object(bellows.ezsp, "EZSP", new=ezsp_mock)
     p2 = patch.object(bellows.multicast.Multicast, "startup")
@@ -156,8 +199,8 @@ async def test_startup(app, ieee):
 async def test_startup_nwk_params(app, ieee):
     assert app.pan_id == 0xFFFE
     assert app.extended_pan_id == t.ExtendedPanId.convert("ff:ff:ff:ff:ff:ff:ff:ff")
-    assert app.channel is None
-    assert app.channels is None
+    assert app.channel == 0
+    assert app.channels == t.Channels.NO_CHANNELS
     assert app.nwk_update_id == 0
 
     await _test_startup(app, t.EmberNodeType.COORDINATOR, ieee)
@@ -189,7 +232,7 @@ async def test_startup_ezsp_ver8(app, ieee):
 
 async def test_startup_no_status(app, ieee):
     """Test when NCP is not a coordinator and not auto forming."""
-    with pytest.raises(ControllerError):
+    with pytest.raises(zigpy.exceptions.NetworkNotFormed):
         await _test_startup(
             app, t.EmberNodeType.UNKNOWN_DEVICE, ieee, auto_form=False, init=1
         )
@@ -204,7 +247,7 @@ async def test_startup_no_status_form(app, ieee):
 
 async def test_startup_end(app, ieee):
     """Test when NCP is a End Device and not auto forming."""
-    with pytest.raises(ControllerError):
+    with pytest.raises(zigpy.exceptions.NetworkNotFormed):
         await _test_startup(
             app, t.EmberNodeType.SLEEPY_END_DEVICE, ieee, auto_form=False
         )
@@ -215,14 +258,12 @@ async def test_startup_end_form(app, ieee):
     await _test_startup(app, t.EmberNodeType.SLEEPY_END_DEVICE, ieee, auto_form=True)
 
 
-async def test_form_network(app):
-    f = asyncio.Future()
-    f.set_result([0])
-    app._ezsp.setInitialSecurityState.side_effect = [f]
-    app._ezsp.formNetwork = AsyncMock()
-    app._ezsp.setValue = AsyncMock()
+async def test_startup_no_board_info(app, ieee, caplog):
+    """Test when NCP does not support `get_board_info`."""
+    with caplog.at_level(logging.INFO):
+        await _test_startup(app, t.EmberNodeType.COORDINATOR, ieee, board_info=False)
 
-    await app.form_network()
+    assert "EZSP Radio does not support getMfgToken command" in caplog.text
 
 
 def _frame_handler(
@@ -1048,12 +1089,12 @@ async def test_shutdown(app):
 
 @pytest.fixture
 def coordinator(app, ieee):
-    dev = Device(app, ieee, 0x0000)
-    ep = dev.add_endpoint(1)
-    ep.profile_id = 0x0104
-    ep.device_type = 0xBEEF
-    ep.add_output_cluster(security.IasZone.cluster_id)
-    return bellows.zigbee.application.EZSPCoordinator(app, ieee, 0x0000, dev)
+    dev = bellows.zigbee.application.EZSPCoordinator(app, ieee, 0x0000)
+    dev.endpoints[1] = bellows.zigbee.application.EZSPCoordinator.EZSPEndpoint(dev, 1)
+    dev.model = dev.endpoints[1].model
+    dev.manufacturer = dev.endpoints[1].manufacturer
+
+    return dev
 
 
 async def test_ezsp_add_to_group(coordinator):
@@ -1447,7 +1488,7 @@ async def test_set_mfg_id(ieee, expected_mfg_id, app, ezsp_mock):
             sentinel.parent,
         ],
     )
-    await asyncio.sleep(0.03)
+    await asyncio.sleep(0.20)
     if expected_mfg_id is not None:
         assert ezsp_mock.setManufacturerCode.await_count == 2
         assert ezsp_mock.setManufacturerCode.await_args_list[0][0][0] == expected_mfg_id
@@ -1457,3 +1498,44 @@ async def test_set_mfg_id(ieee, expected_mfg_id, app, ezsp_mock):
         )
     else:
         assert ezsp_mock.setManufacturerCode.await_count == 0
+
+
+async def test_ensure_network_running_joined(app):
+    ezsp = app._ezsp
+    ezsp.networkState = AsyncMock(
+        return_value=[ezsp.types.EmberNetworkStatus.JOINED_NETWORK]
+    )
+
+    rsp = await app._ensure_network_running()
+
+    assert not rsp
+
+    ezsp.networkInit.assert_not_called()
+
+
+async def test_ensure_network_running_not_joined_failure(app):
+    ezsp = app._ezsp
+    ezsp.networkState = AsyncMock(
+        return_value=[ezsp.types.EmberNetworkStatus.NO_NETWORK]
+    )
+    ezsp.networkInit = AsyncMock(return_value=[ezsp.types.EmberStatus.INVALID_CALL])
+
+    with pytest.raises(zigpy.exceptions.NetworkNotFormed):
+        await app._ensure_network_running()
+
+    ezsp.networkState.assert_called_once()
+    ezsp.networkInit.assert_called_once()
+
+
+async def test_ensure_network_running_not_joined_success(app):
+    ezsp = app._ezsp
+    ezsp.networkState = AsyncMock(
+        return_value=[ezsp.types.EmberNetworkStatus.NO_NETWORK]
+    )
+    ezsp.networkInit = AsyncMock(return_value=[ezsp.types.EmberStatus.SUCCESS])
+
+    rsp = await app._ensure_network_running()
+    assert rsp
+
+    ezsp.networkState.assert_called_once()
+    ezsp.networkInit.assert_called_once()
