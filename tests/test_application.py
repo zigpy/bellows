@@ -1539,3 +1539,47 @@ async def test_ensure_network_running_not_joined_success(app):
 
     ezsp.networkState.assert_called_once()
     ezsp.networkInit.assert_called_once()
+
+
+async def test_startup_coordinator_existing_groups_joined(app, ieee):
+    """Coordinator joins groups loaded from the database."""
+
+    app._ensure_network_running = AsyncMock()
+    app._ezsp.update_policies = AsyncMock()
+    app.load_network_info = AsyncMock()
+
+    app._multicast = bellows.multicast.Multicast(app._ezsp)
+    app.state.node_info.ieee = ieee
+
+    db_device = app.add_device(ieee, 0x0000)
+    db_ep = db_device.add_endpoint(1)
+
+    app.groups.add_group(0x1234, "Group Name", suppress_event=True)
+    app.groups[0x1234].add_member(db_ep, suppress_event=True)
+
+    p1 = patch.object(bellows.multicast.Multicast, "_initialize")
+    p2 = patch.object(bellows.multicast.Multicast, "subscribe")
+
+    with p1 as p1, p2 as p2:
+        await app.start_network()
+
+    p2.assert_called_once_with(0x1234)
+
+
+async def test_startup_new_coordinator_no_groups_joined(app, ieee):
+    """Coordinator freshy added to the database has no groups to join."""
+
+    app._ensure_network_running = AsyncMock()
+    app._ezsp.update_policies = AsyncMock()
+    app.load_network_info = AsyncMock()
+
+    app._multicast = bellows.multicast.Multicast(app._ezsp)
+    app.state.node_info.ieee = ieee
+
+    p1 = patch.object(bellows.multicast.Multicast, "_initialize")
+    p2 = patch.object(bellows.multicast.Multicast, "subscribe")
+
+    with p1 as p1, p2 as p2:
+        await app.start_network()
+
+    p2.assert_not_called()
