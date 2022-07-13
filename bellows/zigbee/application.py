@@ -185,6 +185,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self.controller_event.set()
         self._watchdog_task = asyncio.create_task(self._watchdog())
 
+        try:
+            db_device = self.get_device(ieee=self.state.node_info.ieee)
+        except KeyError:
+            db_device = None
+
         ezsp_device = EZSPCoordinator(
             application=self,
             ieee=self.state.node_info.ieee,
@@ -197,6 +202,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         ezsp_device.model = ezsp_device.endpoints[1].model
         ezsp_device.manufacturer = ezsp_device.endpoints[1].manufacturer
         await ezsp_device.schedule_initialize()
+
+        # Group membership is stored in the database for EZSP coordinators
+        if db_device is not None:
+            ezsp_device.endpoints[1].member_of.update(db_device.endpoints[1].member_of)
 
         await self.multicast.startup(ezsp_device)
 
