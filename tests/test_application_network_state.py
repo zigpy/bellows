@@ -81,6 +81,7 @@ def _mock_app_for_load(app):
     ezsp = app._ezsp
 
     app._ensure_network_running = AsyncMock()
+    ezsp.can_write_custom_eui64 = AsyncMock(return_value=True)
     ezsp.getNetworkParameters = AsyncMock(
         return_value=[
             t.EmberStatus.SUCCESS,
