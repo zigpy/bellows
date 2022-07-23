@@ -291,6 +291,12 @@ class EZSP:
             version = "unknown stack version"
         return tokens[0], tokens[1], version
 
+    async def can_write_custom_eui64(self) -> bool:
+        """Checks if the write-once custom EUI64 token has been written."""
+        (custom_eui_64,) = await self.getMfgToken(t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
+
+        return custom_eui_64 == b"\xFF" * 8
+
     def add_callback(self, cb):
         id_ = hash(cb)
         while id_ in self._callbacks:
