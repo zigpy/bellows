@@ -204,7 +204,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await ezsp_device.schedule_initialize()
 
         # Group membership is stored in the database for EZSP coordinators
-        if db_device is not None:
+        if db_device is not None and 1 in db_device.endpoints:
             ezsp_device.endpoints[1].member_of.update(db_device.endpoints[1].member_of)
 
         await self.multicast.startup(ezsp_device)
