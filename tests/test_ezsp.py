@@ -436,3 +436,16 @@ async def test_leave_network(ezsp_f):
         cmd_mock.side_effect = _mock_cmd
         (status,) = await ezsp_f.leaveNetwork(timeout=0.01)
         assert status == t.EmberStatus.NETWORK_DOWN
+
+
+@pytest.mark.parametrize(
+    "value, expected_result",
+    [(b"\xFF" * 8, True), (bytes.fromhex("0846b8a11c004b1200"), False)],
+)
+async def test_can_write_custom_eui64(ezsp_f, value, expected_result):
+    ezsp_f.getMfgToken = AsyncMock(return_value=[value])
+
+    result = await ezsp_f.can_write_custom_eui64()
+    assert result == expected_result
+
+    ezsp_f.getMfgToken.assert_called_once_with(t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)

@@ -263,6 +263,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             tc_link_key.partner_ieee = self.state.node_info.ieee
 
         brd_manuf, brd_name, version = await self._get_board_info()
+        can_write_custom_eui64 = await ezsp.can_write_custom_eui64()
 
         self.state.network_info = zigpy.state.NetworkInfo(
             source=f"bellows@{bellows.__version__}",
@@ -285,6 +286,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     "board": brd_name,
                     "version": version,
                     "stack_version": ezsp.ezsp_version,
+                    "can_write_custom_eui64": can_write_custom_eui64,
                 }
             },
         )
@@ -351,6 +353,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         except bellows.exception.EzspError:
             pass
 
+        can_write_custom_eui64 = await ezsp.can_write_custom_eui64()
         stack_specific = network_info.stack_specific.get("ezsp", {})
         (current_eui64,) = await ezsp.getEui64()
 
@@ -362,7 +365,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it"
             )
 
-            if should_update_eui64:
+            if should_update_eui64 and not can_write_custom_eui64:
+                LOGGER.error(
+                    "Current node's IEEE address has already been written once. It"
+                    " cannot be written again without fully erasing the chip with JTAG."
+                )
+            elif should_update_eui64:
                 new_ncp_eui64 = t.EmberEUI64(node_info.ieee)
                 (status,) = await ezsp.setMfgToken(
                     t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, new_ncp_eui64.serialize()

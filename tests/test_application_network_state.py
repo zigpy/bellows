@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 import zigpy.state
 import zigpy.types as zigpy_t
@@ -79,6 +81,7 @@ def _mock_app_for_load(app):
     ezsp = app._ezsp
 
     app._ensure_network_running = AsyncMock()
+    ezsp.can_write_custom_eui64 = AsyncMock(return_value=True)
     ezsp.getNetworkParameters = AsyncMock(
         return_value=[
             t.EmberStatus.SUCCESS,
@@ -364,6 +367,7 @@ def _mock_app_for_write(app, network_info, node_info, ezsp_ver=None):
     ezsp.formNetwork = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp.setValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp.setMfgToken = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    ezsp.can_write_custom_eui64 = AsyncMock(return_value=True)
 
 
 async def test_write_network_info_failed_leave1(app, network_info, node_info):
@@ -413,6 +417,34 @@ async def test_write_network_info_write_new_eui64(app, network_info, node_info):
     app._ezsp.setMfgToken.assert_called_once_with(
         t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, expected_eui64
     )
+
+
+async def test_write_network_info_write_new_eui64_failure(
+    caplog, app, network_info, node_info
+):
+    _mock_app_for_write(app, network_info, node_info)
+
+    app._ezsp.can_write_custom_eui64.return_value = False
+
+    # Differs from what is in `node_info`
+    app._ezsp.getEui64.return_value = [t.EmberEUI64.convert("AA:AA:AA:AA:AA:AA:AA:AA")]
+
+    await app.write_network_info(
+        network_info=network_info.replace(
+            stack_specific={
+                "ezsp": {
+                    "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it": True,
+                    **network_info.stack_specific["ezsp"],
+                }
+            }
+        ),
+        node_info=node_info,
+    )
+
+    assert "cannot be written" in caplog.text
+
+    # The EUI64 is not written
+    app._ezsp.setMfgToken.assert_not_called()
 
 
 async def test_write_network_info_dont_write_new_eui64(app, network_info, node_info):

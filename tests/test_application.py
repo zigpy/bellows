@@ -126,6 +126,7 @@ async def _test_startup(
     ezsp_mock.setConfigurationValue = AsyncMock(return_value=t.EmberStatus.SUCCESS)
     ezsp_mock.networkInit = AsyncMock(return_value=[init])
     ezsp_mock.getNetworkParameters = AsyncMock(return_value=[0, nwk_type, nwk_params])
+    ezsp_mock.can_write_custom_eui64 = AsyncMock(return_value=True)
 
     if board_info:
         ezsp_mock.get_board_info = AsyncMock(
