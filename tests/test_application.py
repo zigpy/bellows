@@ -17,6 +17,7 @@ import bellows.ezsp.v8.types as ezsp_t8
 import bellows.types.struct
 import bellows.uart as uart
 import bellows.zigbee.application
+import bellows.zigbee.device
 
 from .async_mock import AsyncMock, MagicMock, PropertyMock, patch, sentinel
 
@@ -1090,8 +1091,8 @@ async def test_shutdown(app):
 
 @pytest.fixture
 def coordinator(app, ieee):
-    dev = bellows.zigbee.application.EZSPCoordinator(app, ieee, 0x0000)
-    dev.endpoints[1] = bellows.zigbee.application.EZSPCoordinator.EZSPEndpoint(dev, 1)
+    dev = bellows.zigbee.device.EZSPCoordinator(app, ieee, 0x0000)
+    dev.endpoints[1] = bellows.zigbee.device.EZSPEndpoint(dev, 1)
     dev.model = dev.endpoints[1].model
     dev.manufacturer = dev.endpoints[1].manufacturer
 

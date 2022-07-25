@@ -28,6 +28,7 @@ import bellows.ezsp
 from bellows.ezsp.v8.types.named import EmberDeviceUpdate
 import bellows.multicast
 import bellows.types as t
+from bellows.zigbee.device import EZSPCoordinator, EZSPEndpoint
 import bellows.zigbee.util as util
 
 APS_ACK_TIMEOUT = 120
@@ -198,7 +199,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self.devices[self.state.node_info.ieee] = ezsp_device
 
         # The coordinator device does not respond to attribute reads
-        ezsp_device.endpoints[1] = EZSPCoordinator.EZSPEndpoint(ezsp_device, 1)
+        ezsp_device.endpoints[1] = EZSPEndpoint(ezsp_device, 1)
         ezsp_device.model = ezsp_device.endpoints[1].model
         ezsp_device.manufacturer = ezsp_device.endpoints[1].manufacturer
         await ezsp_device.schedule_initialize()
@@ -1010,45 +1011,3 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             LOGGER.debug("No %s device found", nwk)
             return
         dev.relays = None
-
-
-class EZSPCoordinator(zigpy.device.Device):
-    """Zigpy Device representing Coordinator."""
-
-    class EZSPEndpoint(zigpy.endpoint.Endpoint):
-        @property
-        def manufacturer(self) -> str:
-            """Manufacturer."""
-            return "Silicon Labs"
-
-        @property
-        def model(self) -> str:
-            """Model."""
-            return "EZSP"
-
-        async def add_to_group(self, grp_id: int, name: str = None) -> t.EmberStatus:
-            if grp_id in self.member_of:
-                return t.EmberStatus.SUCCESS
-
-            app = self.device.application
-            status = await app.multicast.subscribe(grp_id)
-            if status != t.EmberStatus.SUCCESS:
-                self.debug("Couldn't subscribe to 0x%04x group", grp_id)
-                return status
-
-            group = app.groups.add_group(grp_id, name)
-            group.add_member(self)
-            return status
-
-        async def remove_from_group(self, grp_id: int) -> t.EmberStatus:
-            if grp_id not in self.member_of:
-                return t.EmberStatus.SUCCESS
-
-            app = self.device.application
-            status = await app.multicast.unsubscribe(grp_id)
-            if status != t.EmberStatus.SUCCESS:
-                self.debug("Couldn't unsubscribe 0x%04x group", grp_id)
-                return status
-
-            app.groups[grp_id].remove_member(self)
-            return status
