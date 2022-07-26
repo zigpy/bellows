@@ -12,7 +12,7 @@ import zigpy.zdo.types as zdo_t
 import bellows.types as t
 
 if typing.TYPE_CHECKING:
-    import zigpy.application
+    import zigpy.application  # pragma: no cover
 
 # Test tone at 8dBm power level produced a max RSSI of -3dB
 # -21dB corresponds to 100% LQI on the ZZH!
