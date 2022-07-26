@@ -267,19 +267,25 @@ class EZSP:
         """Return board info."""
 
         tokens = []
+
         for token in (t.EzspMfgTokenId.MFG_STRING, t.EzspMfgTokenId.MFG_BOARD_NAME):
-            LOGGER.debug("getting " "%s" " token", token.name)
-            (result,) = await self.getMfgToken(token)
+            (value,) = await self.getMfgToken(token)
+            LOGGER.debug("Read %s token: %s", token.name, value)
+
+            # Tokens are fixed-length and initially filled with \xFF
+            result = value.rstrip(b"\xFF").split(b"\x00", 1)[0]
+
             try:
-                result = result.split(b"\xFF")[0]
-                result = result.decode()
+                result = result.decode("utf-8")
             except UnicodeDecodeError:
-                pass
+                result = "0x" + result.hex().upper()
+
             tokens.append(result)
 
         (status, ver_info_bytes) = await self.getValue(
             self.types.EzspValueId.VALUE_VERSION_INFO
         )
+
         if status == t.EmberStatus.SUCCESS:
             build, ver_info_bytes = t.uint16_t.deserialize(ver_info_bytes)
             major, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
