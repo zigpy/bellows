@@ -336,30 +336,83 @@ async def test_ezsp_newer_version(ezsp_f):
 async def test_board_info(ezsp_f):
     """Test getting board info."""
 
-    status = 0x00
+    def cmd_mock(config):
+        async def replacement(*args):
+            return tuple(config[args])
 
-    async def cmd_mock(cmd_name, *args):
-        assert cmd_name in ("getMfgToken", "getValue")
-        if cmd_name == "getMfgToken":
-            if args[0] == t.EzspMfgTokenId.MFG_BOARD_NAME:
-                return (b"\xfe\xff\xff\xff",)
-            return (b"Manufacturer\xff\xff\xff",)
+        return replacement
 
-        if cmd_name == "getValue":
-            return (status, b"\x01\x02\x03\x04\x05\x06")
-
-    with patch.object(ezsp_f, "_command", new=cmd_mock):
+    with patch.object(
+        ezsp_f,
+        "_command",
+        new=cmd_mock(
+            {
+                ("getMfgToken", t.EzspMfgTokenId.MFG_BOARD_NAME): (
+                    b"\xfe\xff\xff\xff",
+                ),
+                ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (
+                    b"Manufacturer\xff\xff\xff",
+                ),
+                ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
+                    0x00,
+                    b"\x01\x02\x03\x04\x05\x06",
+                ),
+            }
+        ),
+    ):
         mfg, brd, ver = await ezsp_f.get_board_info()
+
     assert mfg == "Manufacturer"
-    assert brd == b"\xfe"
+    assert brd == "0xFE"
     assert ver == "3.4.5.6 build 513"
 
-    with patch.object(ezsp_f, "_command", new=cmd_mock):
-        status = 0x01
+    with patch.object(
+        ezsp_f,
+        "_command",
+        new=cmd_mock(
+            {
+                ("getMfgToken", t.EzspMfgTokenId.MFG_BOARD_NAME): (
+                    b"\xfe\xff\xff\xff",
+                ),
+                ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (
+                    b"Manufacturer\xff\xff\xff",
+                ),
+                ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
+                    0x01,
+                    b"\x01\x02\x03\x04\x05\x06",
+                ),
+            }
+        ),
+    ):
         mfg, brd, ver = await ezsp_f.get_board_info()
+
     assert mfg == "Manufacturer"
-    assert brd == b"\xfe"
+    assert brd == "0xFE"
     assert ver == "unknown stack version"
+
+    with patch.object(
+        ezsp_f,
+        "_command",
+        new=cmd_mock(
+            {
+                ("getMfgToken", t.EzspMfgTokenId.MFG_BOARD_NAME): (
+                    b"SkyBlue v0.1\x00\xff\xff\xff",
+                ),
+                ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (
+                    b"Nabu Casa\x00\xff\xff\xff\xff\xff\xff",
+                ),
+                ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
+                    0x00,
+                    b"\xbf\x00\x07\x01\x00\x00\xaa",
+                ),
+            }
+        ),
+    ):
+        mfg, brd, ver = await ezsp_f.get_board_info()
+
+    assert mfg == "Nabu Casa"
+    assert brd == "SkyBlue v0.1"
+    assert ver == "7.1.0.0 build 191"
 
 
 async def test_set_source_route(ezsp_f):
@@ -436,3 +489,16 @@ async def test_leave_network(ezsp_f):
         cmd_mock.side_effect = _mock_cmd
         (status,) = await ezsp_f.leaveNetwork(timeout=0.01)
         assert status == t.EmberStatus.NETWORK_DOWN
+
+
+@pytest.mark.parametrize(
+    "value, expected_result",
+    [(b"\xFF" * 8, True), (bytes.fromhex("0846b8a11c004b1200"), False)],
+)
+async def test_can_write_custom_eui64(ezsp_f, value, expected_result):
+    ezsp_f.getMfgToken = AsyncMock(return_value=[value])
+
+    result = await ezsp_f.can_write_custom_eui64()
+    assert result == expected_result
+
+    ezsp_f.getMfgToken.assert_called_once_with(t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)

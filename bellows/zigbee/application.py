@@ -28,6 +28,7 @@ import bellows.ezsp
 from bellows.ezsp.v8.types.named import EmberDeviceUpdate
 import bellows.multicast
 import bellows.types as t
+from bellows.zigbee.device import EZSPCoordinator, EZSPEndpoint
 import bellows.zigbee.util as util
 
 APS_ACK_TIMEOUT = 120
@@ -198,13 +199,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self.devices[self.state.node_info.ieee] = ezsp_device
 
         # The coordinator device does not respond to attribute reads
-        ezsp_device.endpoints[1] = EZSPCoordinator.EZSPEndpoint(ezsp_device, 1)
+        ezsp_device.endpoints[1] = EZSPEndpoint(ezsp_device, 1)
         ezsp_device.model = ezsp_device.endpoints[1].model
         ezsp_device.manufacturer = ezsp_device.endpoints[1].manufacturer
         await ezsp_device.schedule_initialize()
 
         # Group membership is stored in the database for EZSP coordinators
-        if db_device is not None:
+        if db_device is not None and 1 in db_device.endpoints:
             ezsp_device.endpoints[1].member_of.update(db_device.endpoints[1].member_of)
 
         await self.multicast.startup(ezsp_device)
@@ -263,6 +264,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             tc_link_key.partner_ieee = self.state.node_info.ieee
 
         brd_manuf, brd_name, version = await self._get_board_info()
+        can_write_custom_eui64 = await ezsp.can_write_custom_eui64()
 
         self.state.network_info = zigpy.state.NetworkInfo(
             source=f"bellows@{bellows.__version__}",
@@ -285,6 +287,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     "board": brd_name,
                     "version": version,
                     "stack_version": ezsp.ezsp_version,
+                    "can_write_custom_eui64": can_write_custom_eui64,
                 }
             },
         )
@@ -351,6 +354,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         except bellows.exception.EzspError:
             pass
 
+        can_write_custom_eui64 = await ezsp.can_write_custom_eui64()
         stack_specific = network_info.stack_specific.get("ezsp", {})
         (current_eui64,) = await ezsp.getEui64()
 
@@ -362,7 +366,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it"
             )
 
-            if should_update_eui64:
+            if should_update_eui64 and not can_write_custom_eui64:
+                LOGGER.error(
+                    "Current node's IEEE address has already been written once. It"
+                    " cannot be written again without fully erasing the chip with JTAG."
+                )
+            elif should_update_eui64:
                 new_ncp_eui64 = t.EmberEUI64(node_info.ieee)
                 (status,) = await ezsp.setMfgToken(
                     t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, new_ncp_eui64.serialize()
@@ -1002,45 +1011,3 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             LOGGER.debug("No %s device found", nwk)
             return
         dev.relays = None
-
-
-class EZSPCoordinator(zigpy.device.Device):
-    """Zigpy Device representing Coordinator."""
-
-    class EZSPEndpoint(zigpy.endpoint.Endpoint):
-        @property
-        def manufacturer(self) -> str:
-            """Manufacturer."""
-            return "Silicon Labs"
-
-        @property
-        def model(self) -> str:
-            """Model."""
-            return "EZSP"
-
-        async def add_to_group(self, grp_id: int, name: str = None) -> t.EmberStatus:
-            if grp_id in self.member_of:
-                return t.EmberStatus.SUCCESS
-
-            app = self.device.application
-            status = await app.multicast.subscribe(grp_id)
-            if status != t.EmberStatus.SUCCESS:
-                self.debug("Couldn't subscribe to 0x%04x group", grp_id)
-                return status
-
-            group = app.groups.add_group(grp_id, name)
-            group.add_member(self)
-            return status
-
-        async def remove_from_group(self, grp_id: int) -> t.EmberStatus:
-            if grp_id not in self.member_of:
-                return t.EmberStatus.SUCCESS
-
-            app = self.device.application
-            status = await app.multicast.unsubscribe(grp_id)
-            if status != t.EmberStatus.SUCCESS:
-                self.debug("Couldn't unsubscribe 0x%04x group", grp_id)
-                return status
-
-            app.groups[grp_id].remove_member(self)
-            return status

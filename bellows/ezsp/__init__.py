@@ -267,19 +267,25 @@ class EZSP:
         """Return board info."""
 
         tokens = []
+
         for token in (t.EzspMfgTokenId.MFG_STRING, t.EzspMfgTokenId.MFG_BOARD_NAME):
-            LOGGER.debug("getting " "%s" " token", token.name)
-            (result,) = await self.getMfgToken(token)
+            (value,) = await self.getMfgToken(token)
+            LOGGER.debug("Read %s token: %s", token.name, value)
+
+            # Tokens are fixed-length and initially filled with \xFF
+            result = value.rstrip(b"\xFF").split(b"\x00", 1)[0]
+
             try:
-                result = result.split(b"\xFF")[0]
-                result = result.decode()
+                result = result.decode("utf-8")
             except UnicodeDecodeError:
-                pass
+                result = "0x" + result.hex().upper()
+
             tokens.append(result)
 
         (status, ver_info_bytes) = await self.getValue(
             self.types.EzspValueId.VALUE_VERSION_INFO
         )
+
         if status == t.EmberStatus.SUCCESS:
             build, ver_info_bytes = t.uint16_t.deserialize(ver_info_bytes)
             major, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
@@ -290,6 +296,12 @@ class EZSP:
         else:
             version = "unknown stack version"
         return tokens[0], tokens[1], version
+
+    async def can_write_custom_eui64(self) -> bool:
+        """Checks if the write-once custom EUI64 token has been written."""
+        (custom_eui_64,) = await self.getMfgToken(t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
+
+        return custom_eui_64 == b"\xFF" * 8
 
     def add_callback(self, cb):
         id_ = hash(cb)
