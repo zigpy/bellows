@@ -1,12 +1,18 @@
-import asyncio
+from __future__ import annotations
+
 import logging
+import typing
 
 import zigpy.device
 import zigpy.endpoint
+import zigpy.util
 import zigpy.zdo
 import zigpy.zdo.types as zdo_t
 
 import bellows.types as t
+
+if typing.TYPE_CHECKING:
+    import zigpy.application
 
 # Test tone at 8dBm power level produced a max RSSI of -3dB
 # -21dB corresponds to 100% LQI on the ZZH!
@@ -77,68 +83,28 @@ class EZSPZDOEndpoint(zigpy.zdo.ZDO):
     def app(self) -> zigpy.application.ControllerApplication:
         return self.device.application
 
-    def _send_loopback_reply(
-        self, command_id: zdo_t.ZDOCmd, *, tsn: t.uint8_t, **kwargs
-    ):
+    def make_zdo_reply(self, cmd: zdo_t.ZDOCmd, **kwargs):
         """
-        Constructs and sends back a loopback ZDO response.
+        Provides a way to create ZDO commands with schemas. Currently does nothing.
         """
+        return list(kwargs.values())
 
-        message = t.uint8_t(tsn).serialize() + self._serialize(
-            command_id, *kwargs.values()
-        )
-
-        LOGGER.debug("Sending loopback reply %s (%s), tsn=%s", command_id, kwargs, tsn)
-
-        self.app.handle_message(
-            sender=self.app._device,
-            profile=ZDO_PROFILE,
-            cluster=command_id,
-            src_ep=ZDO_ENDPOINT,
-            dst_ep=ZDO_ENDPOINT,
-            message=message,
-        )
-
-    def handle_mgmt_nwk_update_req(
-        self, hdr: zdo_t.ZDOHeader, NwkUpdate: zdo_t.NwkUpdate, *, dst_addressing
-    ):
-        """
-        Handles ZDO `Mgmt_NWK_Update_req` sent to the coordinator.
-        """
-
-        self.create_catching_task(
-            self.async_handle_mgmt_nwk_update_req(
-                hdr, NwkUpdate, dst_addressing=dst_addressing
-            )
-        )
-
-    async def async_handle_mgmt_nwk_update_req(
-        self, hdr: zdo_t.ZDOHeader, NwkUpdate: zdo_t.NwkUpdate, *, dst_addressing
-    ):
-        if NwkUpdate.ScanDuration == zdo_t.NwkUpdate.CHANNEL_CHANGE_REQ:
-            return
-        elif (
-            NwkUpdate.ScanDuration
-            == zdo_t.NwkUpdate.CHANNEL_MASK_MANAGER_ADDR_CHANGE_REQ
+    @zigpy.util.retryable_request
+    async def request(self, command, *args, use_ieee=False):
+        if (
+            command == zdo_t.ZDOCmd.Mgmt_NWK_Update_req
+            and args[0].ScanDuration < zdo_t.NwkUpdate.CHANNEL_CHANGE_REQ
         ):
-            return
+            return await self._ezsp_energy_scan(*args)
 
-        # XXX: EmberZNet bug causes every other scan to:
-        # 1. Immediately fail because a scan is already running (one shouldn't be).
-        # 2. Actually start a scan.
-        # 3. Never send the "scan completed" command, just the intermediate values.
-        for i in range(SCAN_RETRIES):
-            try:
-                results = await self.app._ezsp.startScan(
-                    t.EzspNetworkScanType.ENERGY_SCAN,
-                    NwkUpdate.ScanChannels,
-                    NwkUpdate.ScanDuration,
-                )
-                break
-            except Exception:
-                await asyncio.sleep(SCAN_FAILURE_DELAY)
-        else:
-            raise RuntimeError("Failed to scan")
+        return await super().request(command, *args, use_ieee=use_ieee)
+
+    async def _ezsp_energy_scan(self, NwkUpdate: zdo_t.NwkUpdate):
+        results = await self.app._ezsp.startScan(
+            t.EzspNetworkScanType.ENERGY_SCAN,
+            NwkUpdate.ScanChannels,
+            NwkUpdate.ScanDuration,
+        )
 
         # Linearly remap RSSI to LQI
         rescaled_values = [
@@ -146,14 +112,13 @@ class EZSPZDOEndpoint(zigpy.zdo.ZDO):
             for _, v in results
         ]
 
-        self._send_loopback_reply(
-            zdo_t.ZDOCmd.Mgmt_NWK_Update_rsp,
+        return self.make_zdo_reply(
+            cmd=zdo_t.ZDOCmd.Mgmt_NWK_Update_rsp,
             Status=zdo_t.Status.SUCCESS,
             ScannedChannels=NwkUpdate.ScanChannels,
             TotalTransmissions=0,
             TransmissionFailures=0,
             EnergyValues=rescaled_values,
-            tsn=hdr.tsn,
         )
 
 
