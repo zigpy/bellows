@@ -337,6 +337,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             # Ignore invalid NWK entries
             if nwk in t.EmberDistinguishedNodeId.__members__.values():
                 continue
+            elif eui64 == t.EmberEUI64.convert("00:00:00:00:00:00:00:00"):
+                continue
 
             self.state.network_info.nwk_addresses[
                 zigpy.types.EUI64(eui64)
