@@ -280,6 +280,7 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
             {
                 16: t.EmberNodeId(0x44CB),
                 17: t.EmberNodeId(0x0702),
+                18: t.EmberNodeId(0x0000),  # bogus entry
             }.get(index, t.EmberNodeId(0xFFFF)),
         )
 
@@ -290,11 +291,12 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
     def get_addr_table_eui64(index):
         if index < 16:
             return (t.EmberEUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),)
-        elif 16 <= index <= 17:
+        elif 16 <= index <= 18:
             return (
                 {
                     16: t.EmberEUI64.convert("cc:cc:cc:ff:fe:e6:8e:ca"),
                     17: t.EmberEUI64.convert("ec:1b:bd:ff:fe:2f:41:a4"),
+                    18: t.EmberEUI64.convert("00:00:00:00:00:00:00:00"),
                 }[index],
             )
         else:
