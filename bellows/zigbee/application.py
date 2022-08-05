@@ -5,7 +5,6 @@ import logging
 import os
 from typing import Dict, Optional
 
-from serial import SerialException
 import zigpy.application
 import zigpy.config
 import zigpy.device
@@ -337,6 +336,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             # Ignore invalid NWK entries
             if nwk in t.EmberDistinguishedNodeId.__members__.values():
                 continue
+            elif eui64 == t.EmberEUI64.convert("00:00:00:00:00:00:00:00"):
+                continue
 
             self.state.network_info.nwk_addresses[
                 zigpy.types.EUI64(eui64)
@@ -650,8 +651,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             try:
                 await self._reset_controller()
                 break
-            except (asyncio.TimeoutError, SerialException) as exc:
-                LOGGER.debug("ControllerApplication reset unsuccessful: %s", str(exc))
+            except Exception as exc:
+                LOGGER.warning(
+                    "ControllerApplication reset unsuccessful: %s",
+                    repr(exc),
+                    exc_info=exc,
+                )
             await asyncio.sleep(RESET_ATTEMPT_BACKOFF_TIME)
 
         self._reset_task = None

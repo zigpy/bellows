@@ -134,8 +134,20 @@ class ProtocolHandler(abc.ABC):
 
     def __call__(self, data: bytes) -> None:
         """Handler for received data frame."""
+        orig_data = data
         sequence, frame_id, data = self._ezsp_frame_rx(data)
-        frame_name = self.COMMANDS_BY_ID[frame_id][0]
+
+        try:
+            frame_name = self.COMMANDS_BY_ID[frame_id][0]
+        except KeyError:
+            LOGGER.warning(
+                "Unknown application frame 0x%04X received: %s (%s).  This is a bug!",
+                frame_id,
+                binascii.hexlify(data),
+                binascii.hexlify(orig_data),
+            )
+            return
+
         LOGGER.debug(
             "Application frame %s (%s) received: %s",
             frame_id,

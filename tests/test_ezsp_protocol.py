@@ -121,3 +121,14 @@ async def test_get_free_buffers(prot_hndl, status, raw, expected_value):
             assert free_buffers is expected_value
         else:
             assert free_buffers == expected_value
+
+
+async def test_unknown_command(prot_hndl, caplog):
+    """Test receiving an unknown command."""
+
+    unregistered_command = 0x04
+
+    with caplog.at_level(logging.WARNING):
+        prot_hndl(bytes([0x00, 0x00, unregistered_command, 0xAB, 0xCD]))
+
+        assert "0x0004 received: b'abcd' (b'000004abcd')" in caplog.text
