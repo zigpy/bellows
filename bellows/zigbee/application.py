@@ -652,7 +652,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             except Exception as exc:
                 LOGGER.warning(
                     "ControllerApplication reset unsuccessful: %s",
-                    str(exc),
+                    repr(exc),
                     exc_info=exc,
                 )
             await asyncio.sleep(RESET_ATTEMPT_BACKOFF_TIME)
