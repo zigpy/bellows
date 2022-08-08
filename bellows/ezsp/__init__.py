@@ -226,7 +226,7 @@ class EZSP:
         LOGGER.debug(
             "%s connection lost unexpectedly: %s", self._config[CONF_DEVICE_PATH], exc
         )
-        self.enter_failed_state("Serial connection loss: {}".format(exc))
+        self.enter_failed_state(f"Serial connection loss: {exc!r}")
 
     def enter_failed_state(self, error):
         """UART received error frame."""

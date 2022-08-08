@@ -636,7 +636,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def _handle_reset_request(self, error):
         """Reinitialize application controller."""
-        LOGGER.debug("Resetting ControllerApplication. Cause: '%s'", error)
+        LOGGER.debug("Resetting ControllerApplication. Cause: %r", error)
         self.controller_event.clear()
         if self._reset_task:
             LOGGER.debug("Preempting ControllerApplication reset")
@@ -653,8 +653,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 break
             except Exception as exc:
                 LOGGER.warning(
-                    "ControllerApplication reset unsuccessful: %s",
-                    repr(exc),
+                    "ControllerApplication reset unsuccessful: %r",
+                    exc,
                     exc_info=exc,
                 )
             await asyncio.sleep(RESET_ATTEMPT_BACKOFF_TIME)
@@ -957,7 +957,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
                 failures = 0
             except (asyncio.TimeoutError, EzspError) as exc:
-                LOGGER.warning("Watchdog heartbeat timeout: %s", str(exc))
+                LOGGER.warning("Watchdog heartbeat timeout: %s", repr(exc))
                 failures += 1
                 if failures > MAX_WATCHDOG_FAILURES:
                     break
@@ -972,9 +972,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
 
         self.state.counters[COUNTERS_CTRL][COUNTER_WATCHDOG].increment()
-        self._handle_reset_request(
-            "Watchdog timeout. Heartbeat timeouts: {}".format(failures)
-        )
+        self._handle_reset_request(f"Watchdog timeout. Heartbeat timeouts: {failures}")
 
     async def _get_free_buffers(self) -> Optional[int]:
         status, value = await self._ezsp.getValue(
