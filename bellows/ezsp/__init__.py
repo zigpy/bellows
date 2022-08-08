@@ -73,19 +73,29 @@ class EZSP:
     async def _probe(self) -> None:
         """Open port and try sending a command"""
         await self.connect()
-        await self.reset()
-        self.close()
+
+        try:
+            await self.reset()
+        finally:
+            self.close()
 
     @classmethod
     async def initialize(cls, zigpy_config: Dict) -> "EZSP":
         """Return initialized EZSP instance."""
         ezsp = cls(zigpy_config[CONF_DEVICE])
         await ezsp.connect()
-        await ezsp.reset()
-        await ezsp.version()
-        await ezsp._protocol.initialize(zigpy_config)
-        if zigpy_config[CONF_PARAM_SRC_RTG]:
-            await ezsp.set_source_routing()
+
+        try:
+            await ezsp.reset()
+            await ezsp.version()
+            await ezsp._protocol.initialize(zigpy_config)
+
+            if zigpy_config[CONF_PARAM_SRC_RTG]:
+                await ezsp.set_source_routing()
+        except Exception:
+            ezsp.close()
+            raise
+
         return ezsp
 
     async def connect(self) -> None:
