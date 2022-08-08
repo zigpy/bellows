@@ -455,6 +455,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._reset_task.cancel()
         if self._ezsp is not None:
             self._ezsp.close()
+            self._ezsp = None
 
     async def force_remove(self, dev):
         # This should probably be delivered to the parent device instead
@@ -665,7 +666,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def _reset_controller(self):
         """Reset Controller."""
-        self._ezsp.close()
+        if self._ezsp is not None:
+            self._ezsp.close()
+            self._ezsp = None
+
         await asyncio.sleep(0.5)
         await self.startup()
 
