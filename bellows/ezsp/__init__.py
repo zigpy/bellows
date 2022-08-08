@@ -54,7 +54,7 @@ class EZSP:
     @classmethod
     async def probe(cls, device_config: Dict) -> bool | dict[str, int | str | bool]:
         """Probe port for the device presence."""
-        for config in (device_config, {**device_config, CONF_DEVICE_BAUDRATE: 115200}):
+        for config in ({**device_config, CONF_DEVICE_BAUDRATE: 115200}, device_config):
             ezsp = cls(SCHEMA_DEVICE(config))
             try:
                 await asyncio.wait_for(ezsp._probe(), timeout=PROBE_TIMEOUT)
