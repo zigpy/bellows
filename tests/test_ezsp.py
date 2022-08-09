@@ -281,7 +281,7 @@ async def test_probe_success(mock_connect, mock_reset):
 
 
 @pytest.mark.parametrize(
-    "exception", (asyncio.TimeoutError, serial.SerialException, EzspError)
+    "exception", (asyncio.TimeoutError, serial.SerialException, EzspError, RuntimeError)
 )
 async def test_probe_fail(exception):
     """Test device probing fails."""
@@ -323,6 +323,23 @@ async def test_ezsp_init(
     )
     await ezsp.EZSP.initialize(zigpy_config)
     assert src_mock.await_count == 1
+
+
+@patch.object(ezsp.EZSP, "version", side_effect=RuntimeError("Uh oh"))
+@patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
+@patch.object(ezsp.EZSP, "close", new_callable=MagicMock)
+@patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
+async def test_ezsp_init_failure(conn_mock, close_mock, reset_mock, version_mock):
+    """Test initialize method failing."""
+    zigpy_config = config.CONFIG_SCHEMA({"device": DEVICE_CONFIG})
+
+    with pytest.raises(RuntimeError):
+        await ezsp.EZSP.initialize(zigpy_config)
+
+    assert conn_mock.await_count == 1
+    assert reset_mock.await_count == 1
+    assert version_mock.await_count == 1
+    assert close_mock.call_count == 1
 
 
 async def test_ezsp_newer_version(ezsp_f):

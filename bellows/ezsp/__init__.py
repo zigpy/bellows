@@ -7,7 +7,6 @@ import functools
 import logging
 from typing import Any, Awaitable, Callable, Dict, List, Tuple, Union
 
-import serial
 from zigpy.typing import DeviceType
 
 from bellows.config import (
@@ -17,7 +16,7 @@ from bellows.config import (
     CONF_PARAM_SRC_RTG,
     SCHEMA_DEVICE,
 )
-from bellows.exception import APIException, EzspError
+from bellows.exception import EzspError
 import bellows.types as t
 import bellows.uart
 
@@ -59,7 +58,7 @@ class EZSP:
             try:
                 await asyncio.wait_for(ezsp._probe(), timeout=PROBE_TIMEOUT)
                 return config
-            except (asyncio.TimeoutError, serial.SerialException, APIException) as exc:
+            except Exception as exc:
                 LOGGER.debug(
                     "Unsuccessful radio probe of '%s' port",
                     device_config[CONF_DEVICE_PATH],
