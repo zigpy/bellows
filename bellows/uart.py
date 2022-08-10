@@ -204,7 +204,7 @@ class Gateway(asyncio.Protocol):
         LOGGER.debug("Resetting ASH")
         if self._reset_future is not None:
             LOGGER.error(
-                ("received new reset request while an existing " "one is in progress")
+                "received new reset request while an existing one is in progress"
             )
             return await self._reset_future
 
