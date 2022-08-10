@@ -17,6 +17,7 @@ import zigpy.zdo.types as zdo_t
 
 import bellows
 from bellows.config import (
+    CONF_PARAM_MAX_WATCHDOG_FAILURES,
     CONF_PARAM_SRC_RTG,
     CONF_PARAM_UNK_DEV,
     CONFIG_SCHEMA,
@@ -46,7 +47,6 @@ DEFAULT_MFG_ID = 0x1049
 EZSP_COUNTERS_CLEAR_IN_WATCHDOG_PERIODS = 180
 EZSP_DEFAULT_RADIUS = 0
 EZSP_MULTICAST_NON_MEMBER_RADIUS = 3
-MAX_WATCHDOG_FAILURES = 4
 MFG_ID_RESET_DELAY = 180
 RESET_ATTEMPT_BACKOFF_TIME = 5
 WATCHDOG_WAKE_PERIOD = 10
@@ -963,7 +963,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             except (asyncio.TimeoutError, EzspError) as exc:
                 LOGGER.warning("Watchdog heartbeat timeout: %s", repr(exc))
                 failures += 1
-                if failures > MAX_WATCHDOG_FAILURES:
+                if failures > self.config[CONF_PARAM_MAX_WATCHDOG_FAILURES]:
                     break
             except asyncio.CancelledError:
                 raise
