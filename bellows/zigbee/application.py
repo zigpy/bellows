@@ -17,6 +17,7 @@ import zigpy.zdo.types as zdo_t
 
 import bellows
 from bellows.config import (
+    CONF_PARAM_MAX_WATCHDOG_FAILURES,
     CONF_PARAM_SRC_RTG,
     CONF_PARAM_UNK_DEV,
     CONFIG_SCHEMA,
@@ -46,7 +47,6 @@ DEFAULT_MFG_ID = 0x1049
 EZSP_COUNTERS_CLEAR_IN_WATCHDOG_PERIODS = 180
 EZSP_DEFAULT_RADIUS = 0
 EZSP_MULTICAST_NON_MEMBER_RADIUS = 3
-MAX_WATCHDOG_FAILURES = 4
 MFG_ID_RESET_DELAY = 180
 RESET_ATTEMPT_BACKOFF_TIME = 5
 WATCHDOG_WAKE_PERIOD = 10
@@ -455,6 +455,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._reset_task.cancel()
         if self._ezsp is not None:
             self._ezsp.close()
+            self._ezsp = None
 
     async def force_remove(self, dev):
         # This should probably be delivered to the parent device instead
@@ -636,7 +637,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def _handle_reset_request(self, error):
         """Reinitialize application controller."""
-        LOGGER.debug("Resetting ControllerApplication. Cause: '%s'", error)
+        LOGGER.debug("Resetting ControllerApplication. Cause: %r", error)
         self.controller_event.clear()
         if self._reset_task:
             LOGGER.debug("Preempting ControllerApplication reset")
@@ -653,8 +654,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 break
             except Exception as exc:
                 LOGGER.warning(
-                    "ControllerApplication reset unsuccessful: %s",
-                    repr(exc),
+                    "ControllerApplication reset unsuccessful: %r",
+                    exc,
                     exc_info=exc,
                 )
             await asyncio.sleep(RESET_ATTEMPT_BACKOFF_TIME)
@@ -665,7 +666,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def _reset_controller(self):
         """Reset Controller."""
-        self._ezsp.close()
+        if self._ezsp is not None:
+            self._ezsp.close()
+            self._ezsp = None
+
         await asyncio.sleep(0.5)
         await self.startup()
 
@@ -957,9 +961,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
                 failures = 0
             except (asyncio.TimeoutError, EzspError) as exc:
-                LOGGER.warning("Watchdog heartbeat timeout: %s", str(exc))
+                LOGGER.warning("Watchdog heartbeat timeout: %s", repr(exc))
                 failures += 1
-                if failures > MAX_WATCHDOG_FAILURES:
+                if failures > self.config[CONF_PARAM_MAX_WATCHDOG_FAILURES]:
                     break
             except asyncio.CancelledError:
                 raise
@@ -972,9 +976,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
 
         self.state.counters[COUNTERS_CTRL][COUNTER_WATCHDOG].increment()
-        self._handle_reset_request(
-            "Watchdog timeout. Heartbeat timeouts: {}".format(failures)
-        )
+        self._handle_reset_request(f"Watchdog timeout. Heartbeat timeouts: {failures}")
 
     async def _get_free_buffers(self) -> Optional[int]:
         status, value = await self._ezsp.getValue(

@@ -912,10 +912,11 @@ async def test_reset_controller_loop(app, monkeypatch):
 async def test_reset_controller_routine(app):
     app._ezsp.reconnect = AsyncMock()
     app.startup = AsyncMock()
+    ezsp = app._ezsp
 
     await app._reset_controller()
 
-    assert app._ezsp.close.call_count == 1
+    assert ezsp.close.call_count == 1
     assert app.startup.call_count == 1
 
 
@@ -1079,6 +1080,7 @@ async def test_shutdown(app):
     watchdog_f = asyncio.Future()
     app._reset_task = reset_f
     app._watchdog_task = watchdog_f
+    ezsp = app._ezsp
 
     await app.shutdown()
     assert app.controller_event.is_set() is False
@@ -1086,7 +1088,7 @@ async def test_shutdown(app):
     assert reset_f.cancelled() is True
     assert watchdog_f.done() is True
     assert watchdog_f.cancelled() is True
-    assert app._ezsp.close.call_count == 1
+    assert ezsp.close.call_count == 1
 
 
 @pytest.fixture

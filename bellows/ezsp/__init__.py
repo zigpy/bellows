@@ -7,7 +7,6 @@ import functools
 import logging
 from typing import Any, Awaitable, Callable, Dict, List, Tuple, Union
 
-import serial
 from zigpy.typing import DeviceType
 
 from bellows.config import (
@@ -17,7 +16,7 @@ from bellows.config import (
     CONF_PARAM_SRC_RTG,
     SCHEMA_DEVICE,
 )
-from bellows.exception import APIException, EzspError
+from bellows.exception import EzspError
 import bellows.types as t
 import bellows.uart
 
@@ -59,7 +58,7 @@ class EZSP:
             try:
                 await asyncio.wait_for(ezsp._probe(), timeout=PROBE_TIMEOUT)
                 return config
-            except (asyncio.TimeoutError, serial.SerialException, APIException) as exc:
+            except Exception as exc:
                 LOGGER.debug(
                     "Unsuccessful radio probe of '%s' port",
                     device_config[CONF_DEVICE_PATH],
@@ -73,19 +72,29 @@ class EZSP:
     async def _probe(self) -> None:
         """Open port and try sending a command"""
         await self.connect()
-        await self.reset()
-        self.close()
+
+        try:
+            await self.reset()
+        finally:
+            self.close()
 
     @classmethod
     async def initialize(cls, zigpy_config: Dict) -> "EZSP":
         """Return initialized EZSP instance."""
         ezsp = cls(zigpy_config[CONF_DEVICE])
         await ezsp.connect()
-        await ezsp.reset()
-        await ezsp.version()
-        await ezsp._protocol.initialize(zigpy_config)
-        if zigpy_config[CONF_PARAM_SRC_RTG]:
-            await ezsp.set_source_routing()
+
+        try:
+            await ezsp.reset()
+            await ezsp.version()
+            await ezsp._protocol.initialize(zigpy_config)
+
+            if zigpy_config[CONF_PARAM_SRC_RTG]:
+                await ezsp.set_source_routing()
+        except Exception:
+            ezsp.close()
+            raise
+
         return ezsp
 
     async def connect(self) -> None:
@@ -216,7 +225,7 @@ class EZSP:
         LOGGER.debug(
             "%s connection lost unexpectedly: %s", self._config[CONF_DEVICE_PATH], exc
         )
-        self.enter_failed_state("Serial connection loss: {}".format(exc))
+        self.enter_failed_state(f"Serial connection loss: {exc!r}")
 
     def enter_failed_state(self, error):
         """UART received error frame."""
