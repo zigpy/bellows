@@ -671,7 +671,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._ezsp = None
 
         await asyncio.sleep(0.5)
-        await self.startup()
+        await self.connect()
+        await self.initialize()
 
     async def mrequest(
         self,
