@@ -63,7 +63,7 @@ class EventLoopThread:
             self.loop.call_soon_threadsafe(task.cancel)
 
         # Scheduling with `call_later` gives the loop time to propagate cancellation
-        self.loop.call_soon_threadsafe(self.loop.call_later, 0, self.loop.stop)
+        self.loop.call_soon_threadsafe(self.loop.call_later, 0.1, self.loop.stop)
 
 
 class ThreadsafeProxy:
