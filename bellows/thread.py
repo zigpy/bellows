@@ -59,17 +59,18 @@ class EventLoopThread:
         if self.loop is None:
             return
 
-        task = None
+        def cancel_tasks_and_stop_loop():
+            tasks = asyncio.all_tasks(loop=self.loop)
 
-        for task in asyncio.all_tasks(loop=self.loop):
-            self.loop.call_soon_threadsafe(task.cancel)
+            for task in tasks:
+                self.loop.call_soon_threadsafe(task.cancel)
 
-        if task is not None:
-            # Stop the loop when the last task is done
-            task.add_done_callback(lambda _: self.loop.stop())
-        else:
-            # Scheduling with `call_later` gives the loop time to propagate cancellation
-            self.loop.call_soon_threadsafe(self.loop.call_later, 0, self.loop.stop)
+            gather = asyncio.gather(*tasks, return_exceptions=True)
+            gather.add_done_callback(
+                lambda _: self.loop.call_soon_threadsafe(self.loop.stop)
+            )
+
+        self.loop.call_soon_threadsafe(cancel_tasks_and_stop_loop)
 
 
 class ThreadsafeProxy:
