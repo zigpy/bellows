@@ -194,9 +194,11 @@ class Gateway(asyncio.Protocol):
         """Port was closed unexpectedly."""
         if self._connection_done_future:
             self._connection_done_future.set_result(exc)
+            self._connection_done_future = None
 
         if self._reset_future:
             self._reset_future.cancel()
+            self._reset_future = None
 
         if self._send_task:
             self._send_task.cancel()
