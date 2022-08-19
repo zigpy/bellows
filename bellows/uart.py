@@ -198,8 +198,9 @@ class Gateway(asyncio.Protocol):
         if self._reset_future:
             self._reset_future.cancel()
 
-        self._send_task.cancel()
-        self._send_task = None
+        if self._send_task:
+            self._send_task.cancel()
+            self._send_task = None
 
         if exc is None:
             LOGGER.debug("Closed serial connection")
