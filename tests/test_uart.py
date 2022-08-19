@@ -306,7 +306,7 @@ def test_data(gw):
     gw._sendq.put_nowait(gw.Terminator)
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(gw._send_task())
+    loop.run_until_complete(gw._send_loop())
     assert write_call_count == 4
 
 

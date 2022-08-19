@@ -45,12 +45,14 @@ class Gateway(asyncio.Protocol):
         self._pending = (-1, None)
         self._connection_done_future = connection_done_future
 
+        self._send_task = None
+
     def connection_made(self, transport):
         """Callback when the uart is connected"""
         self._transport = transport
         if self._connected_future is not None:
             self._connected_future.set_result(True)
-            asyncio.create_task(self._send_task())
+            self._send_task = asyncio.create_task(self._send_loop())
 
     def data_received(self, data):
         """Callback when there is data received from the uart"""
@@ -192,11 +194,18 @@ class Gateway(asyncio.Protocol):
         """Port was closed unexpectedly."""
         if self._connection_done_future:
             self._connection_done_future.set_result(exc)
+
+        if self._reset_future:
+            self._reset_future.cancel()
+
+        self._send_task.cancel()
+        self._send_task = None
+
         if exc is None:
             LOGGER.debug("Closed serial connection")
             return
 
-        LOGGER.error("Lost serial connection: %s", exc)
+        LOGGER.error("Lost serial connection: %r", exc)
         self._application.connection_lost(exc)
 
     async def reset(self):
@@ -222,7 +231,7 @@ class Gateway(asyncio.Protocol):
         self.write(self._rst_frame())
         return await asyncio.wait_for(self._reset_future, timeout=RESET_TIMEOUT)
 
-    async def _send_task(self):
+    async def _send_loop(self):
         """Send queue handler"""
         while True:
             item = await self._sendq.get()
