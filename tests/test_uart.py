@@ -322,3 +322,40 @@ def test_connection_closed(gw):
     gw.connection_lost(None)
 
     assert gw._application.connection_lost.call_count == 0
+
+
+async def test_connection_lost_reset_error_propagation(monkeypatch):
+    app = MagicMock()
+    transport = MagicMock()
+
+    async def mockconnect(loop, protocol_factory, **kwargs):
+        protocol = protocol_factory()
+        loop.call_soon(protocol.connection_made, transport)
+        return None, protocol
+
+    monkeypatch.setattr(serial_asyncio, "create_serial_connection", mockconnect)
+
+    def on_transport_close():
+        gw.connection_lost(None)
+
+    transport.close.side_effect = on_transport_close
+    gw = await uart.connect(
+        conf.SCHEMA_DEVICE(
+            {conf.CONF_DEVICE_PATH: "/dev/serial", conf.CONF_DEVICE_BAUDRATE: 115200}
+        ),
+        app,
+        use_thread=False,
+    )
+
+    asyncio.get_running_loop().call_later(0.1, gw.connection_lost, ValueError())
+
+    with pytest.raises(asyncio.CancelledError):
+        await gw.reset()
+
+    # Need to close to release thread
+    gw.close()
+
+    # Ensure all threads are cleaned up
+    [t.join(1) for t in threading.enumerate() if "bellows" in t.name]
+    threads = [t for t in threading.enumerate() if "bellows" in t.name]
+    assert len(threads) == 0
