@@ -909,15 +909,19 @@ async def test_reset_controller_loop(app, monkeypatch):
     assert app._reset_task is None
 
 
-async def test_reset_controller_routine(app):
-    app._ezsp.reconnect = AsyncMock()
-    app.startup = AsyncMock()
-    ezsp = app._ezsp
+async def test_reset_controller_routine(app, monkeypatch):
+    from bellows.zigbee import application
 
-    await app._reset_controller()
+    monkeypatch.setattr(application, "RESET_ATTEMPT_BACKOFF_TIME", 0.01)
 
-    assert ezsp.close.call_count == 1
-    assert app.startup.call_count == 1
+    # Fails to connect, then connects but fails to start network, then finally works
+    app.connect = AsyncMock(side_effect=[RuntimeError("broken"), None, None])
+    app.initialize = AsyncMock(side_effect=[asyncio.TimeoutError(), None])
+    app._watchdog_task = MagicMock()
+
+    await app._reset_controller_loop()
+    assert app.connect.call_count == 3
+    assert app.initialize.call_count == 2
 
 
 @pytest.mark.parametrize("ezsp_version", (4, 7))
