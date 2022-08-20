@@ -339,7 +339,7 @@ async def test_connection_lost_reset_error_propagation(monkeypatch):
             {conf.CONF_DEVICE_PATH: "/dev/serial", conf.CONF_DEVICE_BAUDRATE: 115200}
         ),
         app,
-        use_thread=False,
+        use_thread=False,  # required until #484 is merged
     )
 
     asyncio.get_running_loop().call_later(0.1, gw.connection_lost, ValueError())
