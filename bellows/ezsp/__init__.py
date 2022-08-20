@@ -82,6 +82,7 @@ class EZSP:
         ezsp = cls(zigpy_config[CONF_DEVICE])
         await ezsp.connect()
 
+        # `zigbeed` resets on startup
         if zigpy_config[CONF_DEVICE][CONF_DEVICE_PATH].startswith("socket://"):
             try:
                 await asyncio.wait_for(
@@ -91,7 +92,6 @@ class EZSP:
             except asyncio.TimeoutError:
                 pass
             else:
-                # The coordinator reset on startup, there's no need to do it again
                 LOGGER.debug("Received a reset on startup, not resetting again")
                 ezsp.start_ezsp()
 

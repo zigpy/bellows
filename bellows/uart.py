@@ -163,6 +163,7 @@ class Gateway(asyncio.Protocol):
 
     async def wait_for_startup_reset(self) -> None:
         """Wait for the first reset frame on startup."""
+        assert self._startup_reset_future is None
         self._startup_reset_future = asyncio.get_running_loop().create_future()
 
         try:
