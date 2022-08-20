@@ -159,3 +159,23 @@ def test_proxy_loop_closed():
     loop.close()
     proxy.test()
     assert obj.test.call_count == 0
+
+
+async def test_thread_task_cancellation_after_stop(thread):
+    loop = asyncio.get_event_loop()
+    obj = mock.MagicMock()
+
+    async def wait_forever():
+        return await thread.loop.create_future()
+
+    obj.wait_forever = wait_forever
+
+    # Stop the thread while we're waiting
+    loop.call_later(0.1, thread.force_stop)
+
+    proxy = ThreadsafeProxy(obj, thread.loop)
+
+    # The cancellation should propagate to the outer event loop
+    with pytest.raises(asyncio.CancelledError):
+        # This will stall forever without the patch
+        await asyncio.wait_for(proxy.wait_forever(), 1)

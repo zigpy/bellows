@@ -56,8 +56,21 @@ class EventLoopThread:
         return thread_complete
 
     def force_stop(self):
-        if self.loop is not None:
-            self.loop.call_soon_threadsafe(self.loop.stop)
+        if self.loop is None:
+            return
+
+        def cancel_tasks_and_stop_loop():
+            tasks = asyncio.all_tasks(loop=self.loop)
+
+            for task in tasks:
+                self.loop.call_soon_threadsafe(task.cancel)
+
+            gather = asyncio.gather(*tasks, return_exceptions=True)
+            gather.add_done_callback(
+                lambda _: self.loop.call_soon_threadsafe(self.loop.stop)
+            )
+
+        self.loop.call_soon_threadsafe(cancel_tasks_and_stop_loop)
 
 
 class ThreadsafeProxy:
