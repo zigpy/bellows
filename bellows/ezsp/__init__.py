@@ -31,6 +31,9 @@ MTOR_MAX_INTERVAL = 90
 MTOR_ROUTE_ERROR_THRESHOLD = 4
 MTOR_DELIVERY_FAIL_THRESHOLD = 3
 
+NETWORK_COORDINATOR_STARTUP_DELAY = 3
+NETWORK_COORDINATOR_STARTUP_RESET_WAIT = 2
+
 
 class EZSP:
     _BY_VERSION = {
@@ -72,11 +75,7 @@ class EZSP:
     async def _probe(self) -> None:
         """Open port and try sending a command"""
         await self.connect()
-
-        try:
-            await self.reset()
-        finally:
-            self.close()
+        await self.version()
 
     @classmethod
     async def initialize(cls, zigpy_config: Dict) -> "EZSP":
@@ -84,8 +83,23 @@ class EZSP:
         ezsp = cls(zigpy_config[CONF_DEVICE])
         await ezsp.connect()
 
+        if zigpy_config[CONF_DEVICE][CONF_DEVICE_PATH].startswith("socket://"):
+            try:
+                await asyncio.wait_for(
+                    ezsp._gw.wait_for_startup_reset(),
+                    NETWORK_COORDINATOR_STARTUP_RESET_WAIT,
+                )
+            except asyncio.TimeoutError:
+                pass
+            else:
+                # The coordinator reset on startup, there's no need to do it again
+                LOGGER.debug("Received a reset on startup, not resetting again")
+                ezsp.start_ezsp()
+
         try:
-            await ezsp.reset()
+            if not ezsp.is_ezsp_running:
+                await ezsp.reset()
+
             await ezsp.version()
             await ezsp._protocol.initialize(zigpy_config)
 

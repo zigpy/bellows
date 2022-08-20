@@ -40,6 +40,7 @@ class Gateway(asyncio.Protocol):
         self._buffer = b""
         self._application = application
         self._reset_future = None
+        self._startup_reset_future = None
         self._connected_future = connected_future
         self._sendq = asyncio.Queue()
         self._pending = (-1, None)
@@ -153,13 +154,21 @@ class Gateway(asyncio.Protocol):
             self._application.enter_failed_state(code)
             return
 
-        if self._reset_future is None:
-            LOGGER.warning("Reset future is None")
-            return
-
-        # Make sure that the reset_future is not done
-        if not self._reset_future.done():
+        if self._reset_future and not self._reset_future.done():
             self._reset_future.set_result(True)
+        elif self._startup_reset_future and not self._startup_reset_future.done():
+            self._startup_reset_future.set_result(True)
+        else:
+            LOGGER.warning("Received an unexpected reset: %r", code)
+
+    async def wait_for_startup_reset(self) -> None:
+        """Wait for the first reset frame on startup."""
+        self._startup_reset_future = asyncio.get_running_loop().create_future()
+
+        try:
+            await self._startup_reset_future
+        finally:
+            self._startup_reset_future = None
 
     @staticmethod
     def _get_error_code(data):
