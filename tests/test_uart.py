@@ -39,7 +39,6 @@ async def test_connect(flow_control, monkeypatch):
 
 
 async def test_connect_threaded(monkeypatch):
-
     appmock = MagicMock()
     transport = MagicMock()
 
@@ -71,7 +70,6 @@ async def test_connect_threaded(monkeypatch):
 
 
 async def test_connect_threaded_failure(monkeypatch):
-
     appmock = MagicMock()
     transport = MagicMock()
 
@@ -249,7 +247,6 @@ def test_close(gw):
 
 
 async def test_reset(gw):
-    gw._loop = asyncio.get_event_loop()
     gw._sendq.put_nowait(sentinel.queue_item)
     fut = asyncio.Future()
     gw._pending = (sentinel.seq, fut)
@@ -270,14 +267,12 @@ async def test_reset(gw):
 
 
 async def test_reset_timeout(gw, monkeypatch):
-    gw._loop = asyncio.get_event_loop()
     monkeypatch.setattr(uart, "RESET_TIMEOUT", 0.1)
     with pytest.raises(asyncio.TimeoutError):
         await gw.reset()
 
 
 async def test_reset_old(gw):
-    gw._loop = asyncio.get_event_loop()
     future = asyncio.get_event_loop().create_future()
     future.set_result(sentinel.result)
     gw._reset_future = future
