@@ -1,10 +1,10 @@
 import asyncio
 import binascii
 import logging
+import urllib.parse
 
 import serial
 import serial_asyncio
-import urllib.parse
 
 from bellows.config import (
     CONF_DEVICE_BAUDRATE,
