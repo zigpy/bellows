@@ -110,13 +110,10 @@ async def setup(dev, baudrate, cbh=None, configure=True):
     if cbh:
         s.add_callback(cbh)
     try:
-        await s.connect()
+        await s.init()
     except Exception as e:
         LOGGER.error(e)
         raise click.Abort()
-    LOGGER.debug("Connected. Resetting.")
-    await s.reset()
-    await s.version()
 
     async def cfg(config_id, value):
         v = await s.setConfigurationValue(config_id, value)

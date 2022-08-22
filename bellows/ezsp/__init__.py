@@ -80,26 +80,10 @@ class EZSP:
     async def initialize(cls, zigpy_config: Dict) -> "EZSP":
         """Return initialized EZSP instance."""
         ezsp = cls(zigpy_config[CONF_DEVICE])
-        await ezsp.connect()
 
-        # `zigbeed` resets on startup
-        if zigpy_config[CONF_DEVICE][CONF_DEVICE_PATH].startswith("socket://"):
-            try:
-                await asyncio.wait_for(
-                    ezsp._gw.wait_for_startup_reset(),
-                    NETWORK_COORDINATOR_STARTUP_RESET_WAIT,
-                )
-            except asyncio.TimeoutError:
-                pass
-            else:
-                LOGGER.debug("Received a reset on startup, not resetting again")
-                ezsp.start_ezsp()
+        await ezsp.init()
 
         try:
-            if not ezsp.is_ezsp_running:
-                await ezsp.reset()
-
-            await ezsp.version()
             await ezsp._protocol.initialize(zigpy_config)
 
             if zigpy_config[CONF_PARAM_SRC_RTG]:
@@ -109,6 +93,32 @@ class EZSP:
             raise
 
         return ezsp
+
+    async def init(self) -> None:
+        await self.connect()
+
+        # `zigbeed` resets on startup
+        if self._config[CONF_DEVICE_PATH].startswith("socket://"):
+            try:
+                await asyncio.wait_for(
+                    self._gw.wait_for_startup_reset(),
+                    NETWORK_COORDINATOR_STARTUP_RESET_WAIT,
+                )
+            except asyncio.TimeoutError:
+                pass
+            else:
+                LOGGER.debug("Received a reset on startup, not resetting again")
+                self.start_ezsp()
+
+        try:
+            if not self.is_ezsp_running:
+                LOGGER.debug("Connected. Resetting.")
+                await self.reset()
+
+            await self.version()
+        except Exception:
+            self.close()
+            raise
 
     async def connect(self) -> None:
         assert self._gw is None
