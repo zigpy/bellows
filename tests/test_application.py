@@ -909,15 +909,19 @@ async def test_reset_controller_loop(app, monkeypatch):
     assert app._reset_task is None
 
 
-async def test_reset_controller_routine(app):
-    app._ezsp.reconnect = AsyncMock()
-    app.startup = AsyncMock()
-    ezsp = app._ezsp
+async def test_reset_controller_routine(app, monkeypatch):
+    from bellows.zigbee import application
 
-    await app._reset_controller()
+    monkeypatch.setattr(application, "RESET_ATTEMPT_BACKOFF_TIME", 0.01)
 
-    assert ezsp.close.call_count == 1
-    assert app.startup.call_count == 1
+    # Fails to connect, then connects but fails to start network, then finally works
+    app.connect = AsyncMock(side_effect=[RuntimeError("broken"), None, None])
+    app.initialize = AsyncMock(side_effect=[asyncio.TimeoutError(), None])
+    app._watchdog_task = MagicMock()
+
+    await app._reset_controller_loop()
+    assert app.connect.call_count == 3
+    assert app.initialize.call_count == 2
 
 
 @pytest.mark.parametrize("ezsp_version", (4, 7))
@@ -1356,9 +1360,9 @@ def test_src_rtg_config(config, result):
     assert ctrl.use_source_routing is result
 
 
-@patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
+@patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
 @patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
-async def test_probe_success(mock_connect, mock_reset):
+async def test_probe_success(mock_connect, mock_version):
     """Test device probing."""
 
     res = await ezsp.EZSP.probe(APP_CONFIG[config.CONF_DEVICE])
@@ -1366,18 +1370,18 @@ async def test_probe_success(mock_connect, mock_reset):
     assert type(res) is dict
     assert mock_connect.call_count == 1
     assert mock_connect.await_count == 1
-    assert mock_reset.call_count == 1
+    assert mock_version.call_count == 1
     assert mock_connect.return_value.close.call_count == 1
 
     mock_connect.reset_mock()
-    mock_reset.reset_mock()
+    mock_version.reset_mock()
     mock_connect.reset_mock()
     res = await ezsp.EZSP.probe(APP_CONFIG[config.CONF_DEVICE])
     assert res
     assert type(res) is dict
     assert mock_connect.call_count == 1
     assert mock_connect.await_count == 1
-    assert mock_reset.call_count == 1
+    assert mock_version.call_count == 1
     assert mock_connect.return_value.close.call_count == 1
 
 

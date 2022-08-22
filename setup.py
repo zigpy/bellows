@@ -22,7 +22,7 @@ setup(
         "pyserial",
         "pyserial-asyncio",
         "voluptuous",
-        "zigpy>=0.47.0",
+        "zigpy>=0.50.0",
     ],
     dependency_links=[
         "https://codeload.github.com/rcloran/pure-pcapy-3/zip/master",

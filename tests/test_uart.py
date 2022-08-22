@@ -39,7 +39,6 @@ async def test_connect(flow_control, monkeypatch):
 
 
 async def test_connect_threaded(monkeypatch):
-
     appmock = MagicMock()
     transport = MagicMock()
 
@@ -71,7 +70,6 @@ async def test_connect_threaded(monkeypatch):
 
 
 async def test_connect_threaded_failure(monkeypatch):
-
     appmock = MagicMock()
     transport = MagicMock()
 
@@ -249,7 +247,6 @@ def test_close(gw):
 
 
 async def test_reset(gw):
-    gw._loop = asyncio.get_event_loop()
     gw._sendq.put_nowait(sentinel.queue_item)
     fut = asyncio.Future()
     gw._pending = (sentinel.seq, fut)
@@ -270,14 +267,12 @@ async def test_reset(gw):
 
 
 async def test_reset_timeout(gw, monkeypatch):
-    gw._loop = asyncio.get_event_loop()
     monkeypatch.setattr(uart, "RESET_TIMEOUT", 0.1)
     with pytest.raises(asyncio.TimeoutError):
         await gw.reset()
 
 
 async def test_reset_old(gw):
-    gw._loop = asyncio.get_event_loop()
     future = asyncio.get_event_loop().create_future()
     future.set_result(sentinel.result)
     gw._reset_future = future
@@ -306,7 +301,7 @@ def test_data(gw):
     gw._sendq.put_nowait(gw.Terminator)
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(gw._send_task())
+    loop.run_until_complete(gw._send_loop())
     assert write_call_count == 4
 
 
@@ -322,3 +317,58 @@ def test_connection_closed(gw):
     gw.connection_lost(None)
 
     assert gw._application.connection_lost.call_count == 0
+
+
+async def test_connection_lost_reset_error_propagation(monkeypatch):
+    app = MagicMock()
+    transport = MagicMock()
+
+    async def mockconnect(loop, protocol_factory, **kwargs):
+        protocol = protocol_factory()
+        loop.call_soon(protocol.connection_made, transport)
+        return None, protocol
+
+    monkeypatch.setattr(serial_asyncio, "create_serial_connection", mockconnect)
+
+    def on_transport_close():
+        gw.connection_lost(None)
+
+    transport.close.side_effect = on_transport_close
+    gw = await uart.connect(
+        conf.SCHEMA_DEVICE(
+            {conf.CONF_DEVICE_PATH: "/dev/serial", conf.CONF_DEVICE_BAUDRATE: 115200}
+        ),
+        app,
+        use_thread=False,  # required until #484 is merged
+    )
+
+    asyncio.get_running_loop().call_later(0.1, gw.connection_lost, ValueError())
+
+    with pytest.raises(asyncio.CancelledError):
+        await gw.reset()
+
+    # Need to close to release thread
+    gw.close()
+
+    # Ensure all threads are cleaned up
+    [t.join(1) for t in threading.enumerate() if "bellows" in t.name]
+    threads = [t for t in threading.enumerate() if "bellows" in t.name]
+    assert len(threads) == 0
+
+
+async def test_wait_for_startup_reset(gw):
+    loop = asyncio.get_running_loop()
+    loop.call_later(0.01, gw.data_received, b"\xc1\x02\x0b\nR\x7e")
+
+    assert gw._startup_reset_future is None
+    await gw.wait_for_startup_reset()
+    assert gw._startup_reset_future is None
+
+
+async def test_wait_for_startup_reset_failure(gw):
+    assert gw._startup_reset_future is None
+
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(gw.wait_for_startup_reset(), 0.01)
+
+    assert gw._startup_reset_future is None
