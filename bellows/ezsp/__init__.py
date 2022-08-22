@@ -6,6 +6,7 @@ import asyncio
 import functools
 import logging
 from typing import Any, Awaitable, Callable, Dict, List, Tuple, Union
+import urllib.parse
 
 from zigpy.typing import DeviceType
 
@@ -80,7 +81,8 @@ class EZSP:
     async def _startup_reset(self):
         """Start EZSP and reset the stack."""
         # `zigbeed` resets on startup
-        if self._config[CONF_DEVICE_PATH].startswith("socket://"):
+        parsed_path = urllib.parse.urlparse(self._config[CONF_DEVICE_PATH])
+        if parsed_path.scheme == "socket":
             try:
                 await asyncio.wait_for(
                     self._gw.wait_for_startup_reset(),

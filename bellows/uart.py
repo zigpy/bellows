@@ -1,6 +1,7 @@
 import asyncio
 import binascii
 import logging
+import urllib.parse
 
 import serial
 import serial_asyncio
@@ -359,16 +360,22 @@ async def _connect(config, application):
     else:
         xon_xoff, rtscts = False, True
 
-    transport, protocol = await serial_asyncio.create_serial_connection(
-        loop,
-        lambda: protocol,
-        url=config[CONF_DEVICE_PATH],
-        baudrate=config[CONF_DEVICE_BAUDRATE],
-        parity=serial.PARITY_NONE,
-        stopbits=serial.STOPBITS_ONE,
-        xonxoff=xon_xoff,
-        rtscts=rtscts,
-    )
+    parsed_path = urllib.parse.urlparse(config[CONF_DEVICE_PATH])
+    if parsed_path.scheme == "socket":
+        transport, protocol = await loop.create_connection(
+            lambda: protocol, parsed_path.hostname, parsed_path.port
+        )
+    else:
+        transport, protocol = await serial_asyncio.create_serial_connection(
+            loop,
+            lambda: protocol,
+            url=config[CONF_DEVICE_PATH],
+            baudrate=config[CONF_DEVICE_BAUDRATE],
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            xonxoff=xon_xoff,
+            rtscts=rtscts,
+        )
 
     await connection_future
 
