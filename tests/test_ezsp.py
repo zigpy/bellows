@@ -257,26 +257,26 @@ async def test_no_close_without_callback(ezsp_f):
     assert ezsp_f.close.call_count == 0
 
 
-@patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
+@patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
 @patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
-async def test_probe_success(mock_connect, mock_reset):
+async def test_probe_success(mock_connect, mock_version):
     """Test device probing."""
 
     res = await ezsp.EZSP.probe(DEVICE_CONFIG)
     assert type(res) is dict
     assert mock_connect.call_count == 1
     assert mock_connect.await_count == 1
-    assert mock_reset.call_count == 1
+    assert mock_version.call_count == 1
     assert mock_connect.return_value.close.call_count == 1
 
     mock_connect.reset_mock()
-    mock_reset.reset_mock()
+    mock_version.reset_mock()
     mock_connect.reset_mock()
     res = await ezsp.EZSP.probe(DEVICE_CONFIG)
     assert type(res) is dict
     assert mock_connect.call_count == 1
     assert mock_connect.await_count == 1
-    assert mock_reset.call_count == 1
+    assert mock_version.call_count == 1
     assert mock_connect.return_value.close.call_count == 1
 
 
@@ -286,17 +286,17 @@ async def test_probe_success(mock_connect, mock_reset):
 async def test_probe_fail(exception):
     """Test device probing fails."""
 
-    p1 = patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
+    p1 = patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
     p2 = patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
 
-    with p1 as mock_reset, p2 as mock_connect:
-        mock_reset.side_effect = exception
+    with p1 as mock_version, p2 as mock_connect:
+        mock_version.side_effect = exception
         res = await ezsp.EZSP.probe(DEVICE_CONFIG)
 
     assert res is False
     assert mock_connect.call_count == 2
     assert mock_connect.await_count == 2
-    assert mock_reset.call_count == 2
+    assert mock_version.call_count == 2
     assert mock_connect.return_value.close.call_count == 2
 
 
@@ -513,9 +513,78 @@ async def test_leave_network(ezsp_f):
     [(b"\xFF" * 8, True), (bytes.fromhex("0846b8a11c004b1200"), False)],
 )
 async def test_can_write_custom_eui64(ezsp_f, value, expected_result):
+    """Test detecting whether or not the EUI64 can be written again."""
     ezsp_f.getMfgToken = AsyncMock(return_value=[value])
 
     result = await ezsp_f.can_write_custom_eui64()
     assert result == expected_result
 
     ezsp_f.getMfgToken.assert_called_once_with(t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
+
+
+@patch.object(ezsp.EZSP, "set_source_routing", new_callable=AsyncMock)
+@patch("bellows.ezsp.v4.EZSPv4.initialize", new_callable=AsyncMock)
+@patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
+@patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
+@patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
+async def test_ezsp_init_zigbeed(
+    conn_mock, reset_mock, version_mock, prot_handler_mock, src_mock
+):
+    """Test initialize method with a received startup reset frame."""
+    zigpy_config = config.CONFIG_SCHEMA(
+        {
+            "device": {
+                **DEVICE_CONFIG,
+                config.CONF_DEVICE_PATH: "socket://localhost:1234",
+            }
+        }
+    )
+
+    gw_wait_reset_mock = conn_mock.return_value.wait_for_startup_reset = AsyncMock()
+
+    await ezsp.EZSP.initialize(zigpy_config)
+
+    assert conn_mock.await_count == 1
+    assert reset_mock.await_count == 0  # Reset is not called
+    assert gw_wait_reset_mock.await_count == 1
+    assert version_mock.await_count == 1
+    assert prot_handler_mock.await_count == 1
+    assert src_mock.call_count == 0
+    assert src_mock.await_count == 0
+
+
+@patch.object(ezsp.EZSP, "set_source_routing", new_callable=AsyncMock)
+@patch("bellows.ezsp.v4.EZSPv4.initialize", new_callable=AsyncMock)
+@patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
+@patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
+@patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
+@patch("bellows.ezsp.NETWORK_COORDINATOR_STARTUP_RESET_WAIT", 0.01)
+async def test_ezsp_init_zigbeed_timeout(
+    conn_mock, reset_mock, version_mock, prot_handler_mock, src_mock
+):
+    """Test initialize method with a received startup reset frame."""
+    zigpy_config = config.CONFIG_SCHEMA(
+        {
+            "device": {
+                **DEVICE_CONFIG,
+                config.CONF_DEVICE_PATH: "socket://localhost:1234",
+            }
+        }
+    )
+
+    async def wait_forever(*args, **kwargs):
+        return await asyncio.get_running_loop().create_future()
+
+    gw_wait_reset_mock = conn_mock.return_value.wait_for_startup_reset = AsyncMock(
+        side_effect=wait_forever
+    )
+
+    await ezsp.EZSP.initialize(zigpy_config)
+
+    assert conn_mock.await_count == 1
+    assert reset_mock.await_count == 1  # Reset will be called
+    assert gw_wait_reset_mock.await_count == 1
+    assert version_mock.await_count == 1
+    assert prot_handler_mock.await_count == 1
+    assert src_mock.call_count == 0
+    assert src_mock.await_count == 0

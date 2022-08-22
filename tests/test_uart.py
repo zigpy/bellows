@@ -354,3 +354,21 @@ async def test_connection_lost_reset_error_propagation(monkeypatch):
     [t.join(1) for t in threading.enumerate() if "bellows" in t.name]
     threads = [t for t in threading.enumerate() if "bellows" in t.name]
     assert len(threads) == 0
+
+
+async def test_wait_for_startup_reset(gw):
+    loop = asyncio.get_running_loop()
+    loop.call_later(0.01, gw.data_received, b"\xc1\x02\x0b\nR\x7e")
+
+    assert gw._startup_reset_future is None
+    await gw.wait_for_startup_reset()
+    assert gw._startup_reset_future is None
+
+
+async def test_wait_for_startup_reset_failure(gw):
+    assert gw._startup_reset_future is None
+
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(gw.wait_for_startup_reset(), 0.01)
+
+    assert gw._startup_reset_future is None
