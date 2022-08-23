@@ -6,6 +6,7 @@ import asyncio
 import functools
 import logging
 from typing import Any, Awaitable, Callable, Dict, List, Tuple, Union
+import urllib.parse
 
 from zigpy.typing import DeviceType
 
@@ -74,7 +75,27 @@ class EZSP:
     async def _probe(self) -> None:
         """Open port and try sending a command"""
         await self.connect()
+        await self._startup_reset()
         await self.version()
+
+    async def _startup_reset(self):
+        """Start EZSP and reset the stack."""
+        # `zigbeed` resets on startup
+        parsed_path = urllib.parse.urlparse(self._config[CONF_DEVICE_PATH])
+        if parsed_path.scheme == "socket":
+            try:
+                await asyncio.wait_for(
+                    self._gw.wait_for_startup_reset(),
+                    NETWORK_COORDINATOR_STARTUP_RESET_WAIT,
+                )
+            except asyncio.TimeoutError:
+                pass
+            else:
+                LOGGER.debug("Received a reset on startup, not resetting again")
+                self.start_ezsp()
+
+        if not self.is_ezsp_running:
+            await self.reset()
 
     @classmethod
     async def initialize(cls, zigpy_config: Dict) -> "EZSP":
@@ -82,23 +103,8 @@ class EZSP:
         ezsp = cls(zigpy_config[CONF_DEVICE])
         await ezsp.connect()
 
-        # `zigbeed` resets on startup
-        if zigpy_config[CONF_DEVICE][CONF_DEVICE_PATH].startswith("socket://"):
-            try:
-                await asyncio.wait_for(
-                    ezsp._gw.wait_for_startup_reset(),
-                    NETWORK_COORDINATOR_STARTUP_RESET_WAIT,
-                )
-            except asyncio.TimeoutError:
-                pass
-            else:
-                LOGGER.debug("Received a reset on startup, not resetting again")
-                ezsp.start_ezsp()
-
         try:
-            if not ezsp.is_ezsp_running:
-                await ezsp.reset()
-
+            await ezsp._startup_reset()
             await ezsp.version()
             await ezsp._protocol.initialize(zigpy_config)
 

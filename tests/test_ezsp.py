@@ -257,27 +257,34 @@ async def test_no_close_without_callback(ezsp_f):
     assert ezsp_f.close.call_count == 0
 
 
-@patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
 @patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
-async def test_probe_success(mock_connect, mock_version):
+async def test_probe_success(mock_connect):
     """Test device probing."""
 
-    res = await ezsp.EZSP.probe(DEVICE_CONFIG)
-    assert type(res) is dict
-    assert mock_connect.call_count == 1
-    assert mock_connect.await_count == 1
-    assert mock_version.call_count == 1
-    assert mock_connect.return_value.close.call_count == 1
+    # Probe works with default baud
+    with patch(
+        "bellows.ezsp.protocol.ProtocolHandler.command",
+        AsyncMock(return_value=(4, 0, 0)),
+    ):
+        res = await ezsp.EZSP.probe(DEVICE_CONFIG)
 
-    mock_connect.reset_mock()
-    mock_version.reset_mock()
-    mock_connect.reset_mock()
-    res = await ezsp.EZSP.probe(DEVICE_CONFIG)
     assert type(res) is dict
     assert mock_connect.call_count == 1
     assert mock_connect.await_count == 1
-    assert mock_version.call_count == 1
     assert mock_connect.return_value.close.call_count == 1
+    mock_connect.reset_mock()
+
+    # Probe first fails with default baud but then works with alternate baud
+    with patch(
+        "bellows.ezsp.protocol.ProtocolHandler.command",
+        AsyncMock(side_effect=[asyncio.TimeoutError(), (4, 0, 0)]),
+    ):
+        res = await ezsp.EZSP.probe(DEVICE_CONFIG)
+
+    assert type(res) is dict
+    assert mock_connect.call_count == 2
+    assert mock_connect.await_count == 2
+    assert mock_connect.return_value.close.call_count == 2
 
 
 @pytest.mark.parametrize(
