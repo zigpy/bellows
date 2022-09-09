@@ -508,7 +508,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             )
             self.state.counters[COUNTERS_CTRL][COUNTER_RX_UNICAST].increment()
         elif message_type == t.EmberIncomingMessageType.INCOMING_BROADCAST_LOOPBACK:
-            pass
+            return
         else:
             LOGGER.warning("Ignoring unknown message type: %r", message_type)
             return
