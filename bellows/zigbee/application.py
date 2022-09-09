@@ -692,6 +692,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if not self.is_controller_running:
             raise ControllerError("ApplicationController is not running")
 
+        LOGGER.debug("Sending packet %r", packet)
+
         try:
             device = self.get_device_with_address(packet.dst)
         except (KeyError, ValueError):
