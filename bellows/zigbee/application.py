@@ -19,7 +19,6 @@ import bellows
 from bellows.config import (
     CONF_PARAM_MAX_WATCHDOG_FAILURES,
     CONF_PARAM_SRC_RTG,
-    CONF_PARAM_UNK_DEV,
     CONFIG_SCHEMA,
     SCHEMA_DEVICE,
 )
@@ -493,47 +492,43 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         message: bytes,
     ) -> None:
         if message_type == t.EmberIncomingMessageType.INCOMING_BROADCAST:
+            dst = zigpy.types.AddrModeAddress(
+                addr_mode=zigpy.types.AddrMode.Broadcast,
+                address=zigpy.types.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
+            )
             self.state.counters[COUNTERS_CTRL][COUNTER_RX_BCAST].increment()
-            dst_addressing = zigpy.types.Addressing.nwk(
-                0xFFFE, aps_frame.destinationEndpoint
-            )
         elif message_type == t.EmberIncomingMessageType.INCOMING_MULTICAST:
-            self.state.counters[COUNTERS_CTRL][COUNTER_RX_MCAST].increment()
-            dst_addressing = zigpy.types.Addressing.group(aps_frame.groupId)
-        elif message_type == t.EmberIncomingMessageType.INCOMING_UNICAST:
-            self.state.counters[COUNTERS_CTRL][COUNTER_RX_UNICAST].increment()
-            dst_addressing = zigpy.types.Addressing.nwk(
-                self.state.node_info.nwk, aps_frame.destinationEndpoint
+            dst = zigpy.types.AddrModeAddress(
+                addr_mode=zigpy.types.AddrMode.Group, address=aps_frame.groupId
             )
+            self.state.counters[COUNTERS_CTRL][COUNTER_RX_MCAST].increment()
+        elif message_type == t.EmberIncomingMessageType.INCOMING_UNICAST:
+            dst = zigpy.types.AddrModeAddress(
+                addr_mode=zigpy.types.AddrMode.NWK, address=self.state.node_info.nwk
+            )
+            self.state.counters[COUNTERS_CTRL][COUNTER_RX_UNICAST].increment()
+        elif message_type == t.EmberIncomingMessageType.INCOMING_BROADCAST_LOOPBACK:
+            pass
         else:
-            dst_addressing = None
-
-        if (
-            aps_frame.clusterId == zdo_t.ZDOCmd.Device_annce
-            and aps_frame.destinationEndpoint == 0
-        ):
-            nwk, rest = t.uint16_t.deserialize(message[1:])
-            ieee, _ = t.EmberEUI64.deserialize(rest)
-            LOGGER.info("ZDO Device announce: 0x%04x, %s", nwk, ieee)
-            self.handle_join(nwk, ieee, 0)
-        try:
-            device = self.get_device(nwk=sender)
-        except KeyError:
-            LOGGER.debug("No such device %s", sender)
-            self.state.counters[COUNTERS_CTRL][COUNTER_UNKNOWN_DEVICE].increment()
-            if self.config[CONF_PARAM_UNK_DEV]:
-                asyncio.create_task(self._handle_no_such_device(sender))
+            LOGGER.warning("Ignoring unknown message type: %r", message_type)
             return
 
-        device.radio_details(lqi, rssi)
-        self.handle_message(
-            device,
-            aps_frame.profileId,
-            aps_frame.clusterId,
-            aps_frame.sourceEndpoint,
-            aps_frame.destinationEndpoint,
-            message,
-            dst_addressing=dst_addressing,
+        self.packet_received(
+            zigpy.types.ZigbeePacket(
+                src=zigpy.types.AddrModeAddress(
+                    addr_mode=zigpy.types.AddrMode.NWK,
+                    address=sender,
+                ),
+                src_ep=aps_frame.sourceEndpoint,
+                dst=dst,
+                dst_ep=aps_frame.destinationEndpoint,
+                tsn=aps_frame.sequence,
+                profile=aps_frame.profileId,
+                cluster_id=aps_frame.clusterId,
+                data=message,
+                lqi=lqi,
+                rssi=rssi,
+            )
         )
 
     def _handle_frame_sent(
@@ -699,7 +694,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         try:
             device = self.get_device_with_address(packet.dst)
-        except KeyError:
+        except (KeyError, ValueError):
             device = None
 
         if packet.dst.addr_mode == zigpy.types.AddrMode.IEEE:
