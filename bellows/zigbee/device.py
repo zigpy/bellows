@@ -22,12 +22,6 @@ RSSI_MAX = -21
 # -89dB corresponds to 0% LQI on the ZZH!
 RSSI_MIN = -89
 
-SCAN_RETRIES = 3
-SCAN_FAILURE_DELAY = 1.0  # seconds
-
-ZDO_PROFILE = 0x0000
-ZDO_ENDPOINT = 0
-
 LOGGER = logging.getLogger(__name__)
 
 
