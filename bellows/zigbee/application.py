@@ -715,7 +715,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.profileId = t.uint16_t(packet.profile)
         aps_frame.clusterId = t.uint16_t(packet.cluster_id)
         aps_frame.sourceEndpoint = t.uint8_t(packet.src_ep)
-        aps_frame.destinationEndpoint = t.uint8_t(packet.dst_ep)
+        aps_frame.destinationEndpoint = t.uint8_t(packet.dst_ep or 0)
         aps_frame.options = self._default_tx_options
         aps_frame.sequence = t.uint8_t(packet.tsn)
 
