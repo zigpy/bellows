@@ -523,9 +523,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 dst=dst,
                 dst_ep=aps_frame.destinationEndpoint,
                 tsn=aps_frame.sequence,
-                profile=aps_frame.profileId,
+                profile_id=aps_frame.profileId,
                 cluster_id=aps_frame.clusterId,
-                data=message,
+                data=zigpy.types.SerializableBytes(message),
                 lqi=lqi,
                 rssi=rssi,
             )
@@ -712,7 +712,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             )
 
         aps_frame = t.EmberApsFrame()
-        aps_frame.profileId = t.uint16_t(packet.profile)
+        aps_frame.profileId = t.uint16_t(packet.profile_id)
         aps_frame.clusterId = t.uint16_t(packet.cluster_id)
         aps_frame.sourceEndpoint = t.uint8_t(packet.src_ep)
         aps_frame.destinationEndpoint = t.uint8_t(packet.dst_ep or 0)
@@ -752,7 +752,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                                 device.nwk,
                                 aps_frame,
                                 message_tag,
-                                packet.data,
+                                packet.data.serialize(),
                             )
                         elif packet.dst.addr_mode == zigpy.types.AddrMode.Group:
                             status, _ = await self._ezsp.sendMulticast(
@@ -760,7 +760,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                                 packet.radius,
                                 packet.non_member_radius,
                                 message_tag,
-                                packet.data,
+                                packet.data.serialize(),
                             )
                         elif packet.dst.addr_mode == zigpy.types.AddrMode.Broadcast:
                             status, _ = await self._ezsp.sendBroadcast(
@@ -768,7 +768,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                                 aps_frame,
                                 packet.radius,
                                 message_tag,
-                                packet.data,
+                                packet.data.serialize(),
                             )
 
                     if status == t.EmberStatus.SUCCESS:
@@ -925,13 +925,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         LOGGER.debug(
             "Processing route record request: %s", (nwk, ieee, lqi, rssi, relays)
         )
-        try:
-            dev = self.get_device(ieee=ieee)
-        except KeyError:
-            LOGGER.debug("Why we don't have a device for %s ieee and %s NWK", ieee, nwk)
-            self.handle_join(nwk, ieee, 0)
-            return
-        dev.relays = relays
+        self.handle_relays(nwk=nwk, relays=relays)
 
     def handle_route_error(self, status: t.EmberStatus, nwk: t.EmberNodeId) -> None:
         LOGGER.debug("Processing route error: status=%s, nwk=%s", status, nwk)
