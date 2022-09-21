@@ -31,6 +31,7 @@ from bellows.zigbee.device import EZSPCoordinator, EZSPEndpoint
 import bellows.zigbee.util as util
 
 APS_ACK_TIMEOUT = 120
+RETRY_DELAYS = [0.5, 1.0, 1.5]
 COUNTER_EZSP_BUFFERS = "EZSP_FREE_BUFFERS"
 COUNTER_NWK_CONFLICTS = "nwk_conflicts"
 COUNTER_RESET_REQ = "reset_requests"
@@ -71,16 +72,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._pending = zigpy.util.Requests()
         self._watchdog_task = None
         self._reset_task = None
-        self._in_flight_msg = None
-        self._default_tx_options = (
-            t.EmberApsOption.APS_OPTION_RETRY
-            | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-        )
 
-        if self.config[CONF_PARAM_SRC_RTG]:
-            self._default_tx_options &= ~(
-                t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-            )
         self._req_lock = asyncio.Lock()
 
     @property
@@ -139,7 +131,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             ezsp.types.EzspConfigId.CONFIG_APS_UNICAST_MESSAGE_COUNT
         )
         assert status == t.EmberStatus.SUCCESS
-        self._in_flight_msg = asyncio.Semaphore(count)
+        self._concurrent_requests_semaphore.max_value = count
         LOGGER.debug("APS_UNICAST_MESSAGE_COUNT is set to %s", count)
 
         await self.register_endpoints()
@@ -688,7 +680,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         return res == t.EmberStatus.SUCCESS
 
-    async def send_packet(self, packet):
+    async def send_packet(self, packet: zigpy.types.ZigbeePacket) -> None:
         if not self.is_controller_running:
             raise ControllerError("ApplicationController is not running")
 
@@ -716,7 +708,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.clusterId = t.uint16_t(packet.cluster_id)
         aps_frame.sourceEndpoint = t.uint8_t(packet.src_ep)
         aps_frame.destinationEndpoint = t.uint8_t(packet.dst_ep or 0)
-        aps_frame.options = self._default_tx_options
+        aps_frame.options = t.EmberApsOption.APS_OPTION_RETRY
         aps_frame.sequence = t.uint8_t(packet.tsn)
 
         if packet.dst.addr_mode == zigpy.types.AddrMode.Group:
@@ -724,32 +716,31 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         else:
             aps_frame.groupId = t.uint16_t(0x0000)
 
+        if not self.config[CONF_PARAM_SRC_RTG]:
+            aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+
         message_tag = self.get_sequence()
 
         with self._pending.new(message_tag) as req:
-            async with self._in_flight_msg:
-                for retry_delay in [0.5, 1.0, 1.5]:
+            async with self._limit_concurrency():
+                for attempt, retry_delay in enumerate(RETRY_DELAYS):
                     # Source routing is handled by the firmware in v8+
                     if self.config[CONF_PARAM_SRC_RTG] and device is not None:
                         if not await self._set_source_route(device):
-                            # Enable route discovery if we aren't aware of a route
+                            # Force route discovery if we aren't aware of a route
                             aps_frame.options |= (
-                                t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                                t.EmberApsOption.APS_OPTION_FORCE_ROUTE_DISCOVERY
                             )
 
                     async with self._req_lock:
+                        # We can only set extended timeout if we know the device's IEEE
                         if packet.extended_timeout and device is not None:
-                            LOGGER.debug(
-                                "Extending timeout for %s/0x%04x",
-                                device.ieee,
-                                device.nwk,
-                            )
                             await self._ezsp.setExtendedTimeout(device.ieee, True)
 
                         if packet.dst.addr_mode == zigpy.types.AddrMode.NWK:
                             status, _ = await self._ezsp.sendUnicast(
                                 t.EmberOutgoingMessageType.OUTGOING_DIRECT,
-                                device.nwk,
+                                t.EmberNodeId(packet.dst.address),
                                 aps_frame,
                                 message_tag,
                                 packet.data.serialize(),
@@ -764,7 +755,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             )
                         elif packet.dst.addr_mode == zigpy.types.AddrMode.Broadcast:
                             status, _ = await self._ezsp.sendBroadcast(
-                                packet.dst.address,
+                                t.EmberNodeId(packet.dst.address),
                                 aps_frame,
                                 packet.radius,
                                 message_tag,
@@ -782,13 +773,22 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             f"Failed to enqueue message: {status!r}", status
                         )
                     else:
-                        LOGGER.debug(
-                            "Request %s failed to enqueue, retrying in %ss: %s",
-                            message_tag,
-                            retry_delay,
-                            status,
-                        )
-                        await asyncio.sleep(retry_delay)
+                        if attempt < len(RETRY_DELAYS):
+                            LOGGER.debug(
+                                "Request %s failed to enqueue, retrying in %ss: %s",
+                                message_tag,
+                                retry_delay,
+                                status,
+                            )
+                            await asyncio.sleep(retry_delay)
+                else:
+                    raise zigpy.exceptions.DeliveryError(
+                        (
+                            f"Failed to enqueue message after {len(RETRY_DELAYS)}"
+                            f" attempts: {status!r}"
+                        ),
+                        status,
+                    )
 
             # Wait for `messageSentHandler` message
             send_status, _ = await asyncio.wait_for(req.result, timeout=APS_ACK_TIMEOUT)
@@ -929,9 +929,4 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def handle_route_error(self, status: t.EmberStatus, nwk: t.EmberNodeId) -> None:
         LOGGER.debug("Processing route error: status=%s, nwk=%s", status, nwk)
-        try:
-            dev = self.get_device(nwk=nwk)
-        except KeyError:
-            LOGGER.debug("No %s device found", nwk)
-            return
-        dev.relays = None
+        self.handle_relays(nwk=nwk, relays=None)
