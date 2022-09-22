@@ -18,7 +18,6 @@ import zigpy.zdo.types as zdo_t
 import bellows
 from bellows.config import (
     CONF_PARAM_MAX_WATCHDOG_FAILURES,
-    CONF_PARAM_SRC_RTG,
     CONFIG_SCHEMA,
     SCHEMA_DEVICE,
 )
@@ -170,7 +169,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         # Device relays are cleared on startup when "source routing" on newer EmberZNet
         # to enable route discovery when first sending requests
-        if self.config[CONF_PARAM_SRC_RTG] and ezsp.ezsp_version >= 8:
+        if self.config[zigpy.config.CONF_SOURCE_ROUTING] and ezsp.ezsp_version >= 8:
             for device in self.devices.values():
                 device.relays = None
 
@@ -713,7 +712,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         else:
             aps_frame.groupId = t.uint16_t(0x0000)
 
-        if not self.config[CONF_PARAM_SRC_RTG]:
+        if not self.config[zigpy.config.CONF_SOURCE_ROUTING]:
             aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
 
         message_tag = self.get_sequence()

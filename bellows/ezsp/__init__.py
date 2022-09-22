@@ -8,11 +8,12 @@ import logging
 from typing import Any, Callable, Dict, List, Tuple, Union
 import urllib.parse
 
+import zigpy.config
+
 from bellows.config import (
     CONF_DEVICE,
     CONF_DEVICE_BAUDRATE,
     CONF_DEVICE_PATH,
-    CONF_PARAM_SRC_RTG,
     SCHEMA_DEVICE,
 )
 from bellows.exception import EzspError
@@ -106,7 +107,7 @@ class EZSP:
             await ezsp.version()
             await ezsp._protocol.initialize(zigpy_config)
 
-            if zigpy_config[CONF_PARAM_SRC_RTG]:
+            if zigpy_config[zigpy.config.CONF_SOURCE_ROUTING]:
                 await ezsp.set_source_routing()
         except Exception:
             ezsp.close()

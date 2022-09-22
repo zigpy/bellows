@@ -27,7 +27,6 @@ APP_CONFIG = {
         config.CONF_DEVICE_PATH: "/dev/null",
         config.CONF_DEVICE_BAUDRATE: 115200,
     },
-    config.CONF_PARAM_UNK_DEV: "yes",
     zigpy.config.CONF_DATABASE: None,
 }
 
@@ -75,11 +74,6 @@ def make_app(monkeypatch, event_loop, ezsp_mock):
 @pytest.fixture
 def app(make_app):
     return make_app({})
-
-
-@pytest.fixture
-def app_src_rtg(make_app):
-    return make_app({config.CONF_PARAM_SRC_RTG: True})
 
 
 @pytest.fixture
@@ -624,7 +618,31 @@ def packet():
 
 
 async def _test_send_packet_unicast(app, packet, *, statuses=(t.EmberStatus.SUCCESS,)):
-    app._ezsp.sendUnicast = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 0x12))
+    def send_unicast(*args, **kwargs):
+        nonlocal statuses
+
+        status = statuses[0]
+        statuses = statuses[1:]
+
+        if not statuses:
+            asyncio.get_running_loop().call_soon(
+                app.ezsp_callback_handler,
+                "messageSentHandler",
+                list(
+                    dict(
+                        type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+                        indexOrDestination=0x1234,
+                        apsFrame=sentinel.aps,
+                        messageTag=sentinel.msg_tag,
+                        status=status,
+                        message=b"",
+                    ).values()
+                ),
+            )
+
+        return [status, 0x12]
+
+    app._ezsp.sendUnicast = AsyncMock(side_effect=send_unicast)
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
     asyncio.get_running_loop().call_soon(
@@ -642,8 +660,10 @@ async def _test_send_packet_unicast(app, packet, *, statuses=(t.EmberStatus.SUCC
         ),
     )
 
+    expected_unicast_calls = len(statuses)
+
     await app.send_packet(packet)
-    assert app._ezsp.sendUnicast.call_count == 1
+    assert app._ezsp.sendUnicast.call_count == expected_unicast_calls
     assert (
         app._ezsp.sendUnicast.mock_calls[-1].args[0]
         == t.EmberOutgoingMessageType.OUTGOING_DIRECT
@@ -690,7 +710,7 @@ async def test_send_packet_unicast_ieee_no_fallback(app, packet, caplog):
 
 
 async def test_send_packet_unicast_source_route_ezsp7(make_app, packet):
-    app = make_app({config.CONF_PARAM_SRC_RTG: True})
+    app = make_app({zigpy.config.CONF_SOURCE_ROUTING: True})
     app._ezsp.ezsp_version = 7
     app._ezsp.setSourceRoute = AsyncMock(
         spec_set=app._ezsp.setSourceRoute, return_value=(t.EmberStatus.SUCCESS,)
@@ -706,7 +726,7 @@ async def test_send_packet_unicast_source_route_ezsp7(make_app, packet):
 
 
 async def test_send_packet_unicast_source_route_ezsp8_have_relays(make_app, packet):
-    app = make_app({config.CONF_PARAM_SRC_RTG: True})
+    app = make_app({zigpy.config.CONF_SOURCE_ROUTING: True})
     app._ezsp.ezsp_version = 8
 
     device = MagicMock()
@@ -722,7 +742,7 @@ async def test_send_packet_unicast_source_route_ezsp8_have_relays(make_app, pack
 
 
 async def test_send_packet_unicast_source_route_ezsp8_no_relays(make_app, packet):
-    app = make_app({config.CONF_PARAM_SRC_RTG: True})
+    app = make_app({zigpy.config.CONF_SOURCE_ROUTING: True})
     app._ezsp.ezsp_version = 8
 
     packet.source_route = [0x0001, 0x0002]
@@ -730,6 +750,38 @@ async def test_send_packet_unicast_source_route_ezsp8_no_relays(make_app, packet
 
     aps_frame = app._ezsp.sendUnicast.mock_calls[0].args[2]
     assert t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY in aps_frame.options
+
+
+async def test_send_packet_unicast_retries_success(app, packet):
+    await _test_send_packet_unicast(
+        app,
+        packet,
+        statuses=(
+            t.EmberStatus.NO_BUFFERS,
+            t.EmberStatus.NO_BUFFERS,
+            t.EmberStatus.SUCCESS,
+        ),
+    )
+
+
+async def test_send_packet_unicast_unexpected_failure(app, packet):
+    with pytest.raises(zigpy.exceptions.DeliveryError):
+        await _test_send_packet_unicast(
+            app, packet, statuses=(t.EmberStatus.ERR_FATAL,)
+        )
+
+
+async def test_send_packet_unicast_retries_failure(app, packet):
+    with pytest.raises(zigpy.exceptions.DeliveryError):
+        await _test_send_packet_unicast(
+            app,
+            packet,
+            statuses=(
+                t.EmberStatus.NO_BUFFERS,
+                t.EmberStatus.NO_BUFFERS,
+                t.EmberStatus.NO_BUFFERS,
+            ),
+        )
 
 
 async def test_send_packet_broadcast(app, packet):
@@ -1489,3 +1541,32 @@ async def test_startup_new_coordinator_no_groups_joined(app, ieee):
         await app.start_network()
 
     p2.assert_not_called()
+
+
+@pytest.mark.parametrize("enable_source_routing", [True, False])
+async def test_startup_source_routing(make_app, ieee, enable_source_routing):
+    """Existing relays are cleared on startup."""
+
+    app = make_app({zigpy.config.CONF_SOURCE_ROUTING: enable_source_routing})
+
+    app._ezsp.ezsp_version = 9
+    app._ezsp.update_policies = AsyncMock()
+
+    app._ensure_network_running = AsyncMock()
+    app.load_network_info = AsyncMock()
+    app.state.node_info.ieee = ieee
+
+    app._multicast = bellows.multicast.Multicast(app._ezsp)
+    app._multicast._initialize = AsyncMock()
+
+    mock_device = MagicMock()
+    mock_device.relays = sentinel.relays
+    mock_device.initialize = AsyncMock()
+    app.devices[0xABCD] = mock_device
+
+    await app.start_network()
+
+    if enable_source_routing:
+        assert mock_device.relays is None
+    else:
+        assert mock_device.relays is sentinel.relays
