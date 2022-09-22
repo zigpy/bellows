@@ -439,23 +439,6 @@ async def test_board_info(ezsp_f):
     assert ver == "7.1.0.0 build 191"
 
 
-async def test_set_source_route(ezsp_f):
-    """Test setting a src route for device."""
-    device = MagicMock()
-    device.relays = None
-
-    with patch.object(ezsp_f, "setSourceRoute", new=AsyncMock()) as src_mock:
-        src_mock.return_value = (sentinel.success,)
-        res = await ezsp_f.set_source_route(device)
-        assert src_mock.await_count == 0
-        assert res == (t.EmberStatus.ERR_FATAL,)
-
-        device.relays = []
-        res = await ezsp_f.set_source_route(device)
-        assert src_mock.await_count == 1
-        assert res == (sentinel.success,)
-
-
 async def test_pre_permit(ezsp_f):
     with patch("bellows.ezsp.v4.EZSPv4.pre_permit") as pre_mock:
         await ezsp_f.pre_permit(sentinel.time)

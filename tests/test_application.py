@@ -53,32 +53,33 @@ def ezsp_mock():
 
 
 @pytest.fixture
-def app(monkeypatch, event_loop, ezsp_mock):
-    app_cfg = bellows.zigbee.application.ControllerApplication.SCHEMA(APP_CONFIG)
-    app = bellows.zigbee.application.ControllerApplication(app_cfg)
+def make_app(monkeypatch, event_loop, ezsp_mock):
+    def inner(config):
+        app_cfg = bellows.zigbee.application.ControllerApplication.SCHEMA(
+            {**APP_CONFIG, **config}
+        )
+        app = bellows.zigbee.application.ControllerApplication(app_cfg)
 
-    app._ezsp = ezsp_mock
-    monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.01)
-    app._ctrl_event.set()
-    app._in_flight_msg = asyncio.Semaphore()
-    app.handle_message = MagicMock()
-    app.packet_received = MagicMock()
-    return app
+        app._ezsp = ezsp_mock
+        monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.01)
+        app._ctrl_event.set()
+        app._in_flight_msg = asyncio.Semaphore()
+        app.handle_message = MagicMock()
+        app.packet_received = MagicMock()
+
+        return app
+
+    return inner
 
 
 @pytest.fixture
-def app_src_rtg(monkeypatch, event_loop, ezsp_mock):
-    app_cfg = bellows.zigbee.application.ControllerApplication.SCHEMA(
-        {**APP_CONFIG, config.CONF_PARAM_SRC_RTG: True}
-    )
-    ctrl = bellows.zigbee.application.ControllerApplication(app_cfg)
+def app(make_app):
+    return make_app({})
 
-    ctrl._ezsp = ezsp_mock
-    monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.01)
-    ctrl._ctrl_event.set()
-    ctrl._in_flight_msg = asyncio.Semaphore()
-    ctrl.handle_message = MagicMock()
-    return ctrl
+
+@pytest.fixture
+def app_src_rtg(make_app):
+    return make_app({config.CONF_PARAM_SRC_RTG: True})
 
 
 @pytest.fixture
@@ -622,7 +623,7 @@ def packet():
     )
 
 
-async def test_unicast(app, packet):
+async def _test_send_packet_unicast(app, packet, *, statuses=(t.EmberStatus.SUCCESS,)):
     app._ezsp.sendUnicast = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 0x12))
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
@@ -644,12 +645,12 @@ async def test_unicast(app, packet):
     await app.send_packet(packet)
     assert app._ezsp.sendUnicast.call_count == 1
     assert (
-        app._ezsp.sendUnicast.mock_calls[0].args[0]
+        app._ezsp.sendUnicast.mock_calls[-1].args[0]
         == t.EmberOutgoingMessageType.OUTGOING_DIRECT
     )
-    assert app._ezsp.sendUnicast.mock_calls[0].args[1] == t.EmberNodeId(0x1234)
+    assert app._ezsp.sendUnicast.mock_calls[-1].args[1] == t.EmberNodeId(0x1234)
 
-    aps_frame = app._ezsp.sendUnicast.mock_calls[0].args[2]
+    aps_frame = app._ezsp.sendUnicast.mock_calls[-1].args[2]
     assert aps_frame.profileId == packet.profile_id
     assert aps_frame.clusterId == packet.cluster_id
     assert aps_frame.sourceEndpoint == packet.src_ep
@@ -657,13 +658,81 @@ async def test_unicast(app, packet):
     assert aps_frame.sequence == packet.tsn
     assert aps_frame.groupId == 0x0000
 
-    assert app._ezsp.sendUnicast.mock_calls[0].args[3] == sentinel.msg_tag
-    assert app._ezsp.sendUnicast.mock_calls[0].args[4] == b"some data"
+    assert app._ezsp.sendUnicast.mock_calls[-1].args[3] == sentinel.msg_tag
+    assert app._ezsp.sendUnicast.mock_calls[-1].args[4] == b"some data"
 
     assert len(app._pending) == 0
 
 
-async def test_broadcast(app, packet):
+async def test_send_packet_unicast(app, packet):
+    await _test_send_packet_unicast(app, packet)
+
+
+async def test_send_packet_unicast_ieee_fallback(app, packet, caplog):
+    ieee = zigpy_t.EUI64.convert("aa:bb:cc:dd:11:22:33:44")
+    packet.dst = zigpy_t.AddrModeAddress(addr_mode=zigpy_t.AddrMode.IEEE, address=ieee)
+    app.add_device(nwk=0x1234, ieee=ieee)
+
+    with caplog.at_level(logging.WARNING):
+        await _test_send_packet_unicast(app, packet)
+
+    assert "IEEE addressing is not supported" in caplog.text
+
+
+async def test_send_packet_unicast_ieee_no_fallback(app, packet, caplog):
+    ieee = zigpy_t.EUI64.convert("aa:bb:cc:dd:11:22:33:44")
+    packet.dst = zigpy_t.AddrModeAddress(addr_mode=zigpy_t.AddrMode.IEEE, address=ieee)
+
+    with pytest.raises(ValueError):
+        await _test_send_packet_unicast(app, packet)
+
+    assert app._ezsp.sendUnicast.call_count == 0
+
+
+async def test_send_packet_unicast_source_route_ezsp7(make_app, packet):
+    app = make_app({config.CONF_PARAM_SRC_RTG: True})
+    app._ezsp.ezsp_version = 7
+    app._ezsp.setSourceRoute = AsyncMock(
+        spec_set=app._ezsp.setSourceRoute, return_value=(t.EmberStatus.SUCCESS,)
+    )
+
+    packet.source_route = [0x0001, 0x0002]
+    await _test_send_packet_unicast(app, packet)
+
+    assert app._ezsp.setSourceRoute.await_count == 1
+    app._ezsp.setSourceRoute.assert_called_once_with(
+        packet.dst.address, [0x0001, 0x0002]
+    )
+
+
+async def test_send_packet_unicast_source_route_ezsp8_have_relays(make_app, packet):
+    app = make_app({config.CONF_PARAM_SRC_RTG: True})
+    app._ezsp.ezsp_version = 8
+
+    device = MagicMock()
+    device.relays = [0x0003]
+
+    app.get_device = MagicMock(return_value=device)
+
+    packet.source_route = [0x0001, 0x0002]
+    await _test_send_packet_unicast(app, packet)
+
+    aps_frame = app._ezsp.sendUnicast.mock_calls[0].args[2]
+    assert t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY not in aps_frame.options
+
+
+async def test_send_packet_unicast_source_route_ezsp8_no_relays(make_app, packet):
+    app = make_app({config.CONF_PARAM_SRC_RTG: True})
+    app._ezsp.ezsp_version = 8
+
+    packet.source_route = [0x0001, 0x0002]
+    await _test_send_packet_unicast(app, packet)
+
+    aps_frame = app._ezsp.sendUnicast.mock_calls[0].args[2]
+    assert t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY in aps_frame.options
+
+
+async def test_send_packet_broadcast(app, packet):
     packet.dst = zigpy_t.AddrModeAddress(
         addr_mode=zigpy_t.AddrMode.Broadcast, address=0xFFFE
     )
@@ -706,7 +775,7 @@ async def test_broadcast(app, packet):
     assert len(app._pending) == 0
 
 
-async def test_multicast(app, packet):
+async def test_send_packet_multicast(app, packet):
     packet.dst = zigpy_t.AddrModeAddress(
         addr_mode=zigpy_t.AddrMode.Group, address=0x1234
     )

@@ -499,10 +499,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 addr_mode=zigpy.types.AddrMode.NWK, address=self.state.node_info.nwk
             )
             self.state.counters[COUNTERS_CTRL][COUNTER_RX_UNICAST].increment()
-        elif message_type == t.EmberIncomingMessageType.INCOMING_BROADCAST_LOOPBACK:
-            return
         else:
-            LOGGER.warning("Ignoring unknown message type: %r", message_type)
+            LOGGER.debug("Ignoring message type: %r", message_type)
             return
 
         self.packet_received(
@@ -663,21 +661,20 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self.connect()
         await self.initialize()
 
-    async def _set_source_route(self, device: zigpy.device.Device) -> bool:
+    async def _set_source_route(
+        self, nwk: zigpy.types.NWK, relays: list[zigpy.types.NWK]
+    ) -> bool:
         if self._ezsp.ezsp_version >= 8:
-            # Pretend EmberZNet knows about the device's relays if they
-            # are set (i.e. we did not receive a routing error that)
-            # reset them
-            return device.relays is not None
+            # Pretend EmberZNet knows about the device's relays if they are set (i.e. we
+            # did not receive a routing error)
+            try:
+                device = self.get_device(nwk=nwk)
+            except KeyError:
+                return False
+            else:
+                return device.relays is not None
 
-        (res,) = await self._ezsp.set_source_route(device)
-        LOGGER.debug(
-            "Set source route for %s to %s: %s",
-            device,
-            device.relays,
-            res,
-        )
-
+        (res,) = await self._ezsp.setSourceRoute(nwk, relays)
         return res == t.EmberStatus.SUCCESS
 
     async def send_packet(self, packet: zigpy.types.ZigbeePacket) -> None:
@@ -724,20 +721,21 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         with self._pending.new(message_tag) as req:
             async with self._limit_concurrency():
                 for attempt, retry_delay in enumerate(RETRY_DELAYS):
-                    # Source routing is handled by the firmware in v8+
-                    if self.config[CONF_PARAM_SRC_RTG] and device is not None:
-                        if not await self._set_source_route(device):
-                            # Force route discovery if we aren't aware of a route
-                            aps_frame.options |= (
-                                t.EmberApsOption.APS_OPTION_FORCE_ROUTE_DISCOVERY
-                            )
-
                     async with self._req_lock:
-                        # We can only set extended timeout if we know the device's IEEE
-                        if packet.extended_timeout and device is not None:
-                            await self._ezsp.setExtendedTimeout(device.ieee, True)
-
                         if packet.dst.addr_mode == zigpy.types.AddrMode.NWK:
+                            if packet.extended_timeout and device is not None:
+                                await self._ezsp.setExtendedTimeout(device.ieee, True)
+
+                            if (
+                                packet.source_route is not None
+                                and not await self._set_source_route(
+                                    packet.dst.address, packet.source_route
+                                )
+                            ):
+                                aps_frame.options |= (
+                                    t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                                )
+
                             status, _ = await self._ezsp.sendUnicast(
                                 t.EmberOutgoingMessageType.OUTGOING_DIRECT,
                                 t.EmberNodeId(packet.dst.address),

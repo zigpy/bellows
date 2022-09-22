@@ -8,7 +8,7 @@ import zigpy.zdo.types as zdo_t
 from bellows.zigbee.device import EZSPCoordinator, EZSPEndpoint
 
 from tests.async_mock import AsyncMock
-from tests.test_application import app, ezsp_mock
+from tests.test_application import app, ezsp_mock, make_app
 
 
 @pytest.fixture

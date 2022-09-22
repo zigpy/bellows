@@ -5,10 +5,8 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
-from typing import Any, Awaitable, Callable, Dict, List, Tuple, Union
+from typing import Any, Callable, Dict, List, Tuple, Union
 import urllib.parse
-
-from zigpy.typing import DeviceType
 
 from bellows.config import (
     CONF_DEVICE,
@@ -347,15 +345,6 @@ class EZSP:
                 handler(*args)
             except Exception as e:
                 LOGGER.exception("Exception running handler", exc_info=e)
-
-    def set_source_route(self, device: DeviceType) -> Awaitable:
-        if device.relays is not None:
-            return self.setSourceRoute(device.nwk, device.relays)
-
-        LOGGER.debug("No known routes for %s", device.nwk)
-        status = asyncio.Future()
-        status.set_result((t.EmberStatus.ERR_FATAL,))
-        return status
 
     async def set_source_routing(self) -> None:
         """Enable source routing on NCP."""

@@ -70,7 +70,10 @@ class EventLoopThread:
                 lambda _: self.loop.call_soon_threadsafe(self.loop.stop)
             )
 
-        self.loop.call_soon_threadsafe(cancel_tasks_and_stop_loop)
+        try:
+            self.loop.call_soon_threadsafe(cancel_tasks_and_stop_loop)
+        except RuntimeError:
+            pass
 
 
 class ThreadsafeProxy:
