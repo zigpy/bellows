@@ -17,10 +17,7 @@ setup(
     install_requires=[
         "click",
         "click-log>=0.2.1",
-        "dataclasses;python_version<'3.7'",
         "pure_pcapy3==1.0.1",
-        "pyserial",
-        "pyserial-asyncio",
         "voluptuous",
         "zigpy>=0.51.0",
     ],
