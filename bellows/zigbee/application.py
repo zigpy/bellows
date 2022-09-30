@@ -340,12 +340,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     ) -> None:
         ezsp = self._ezsp
 
-        try:
-            (status,) = await ezsp.leaveNetwork()
-            if status != t.EmberStatus.NETWORK_DOWN:
-                raise FormationFailure("Couldn't leave network")
-        except bellows.exception.EzspError:
-            pass
+        await self.reset_network_info()
 
         can_write_custom_eui64 = await ezsp.can_write_custom_eui64()
         stack_specific = network_info.stack_specific.get("ezsp", {})
@@ -436,6 +431,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         await ezsp.formNetwork(parameters)
         await ezsp.setValue(ezsp.types.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
+
+    async def reset_network_info(self):
+        try:
+            (status,) = await self._ezsp.leaveNetwork()
+        except bellows.exception.EzspError:
+            pass
+        else:
+            if status != t.EmberStatus.NETWORK_DOWN:
+                raise FormationFailure("Couldn't leave network")
 
     async def disconnect(self):
         # TODO: how do you shut down the stack?
