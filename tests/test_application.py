@@ -688,6 +688,13 @@ async def test_send_packet_unicast(app, packet):
     await _test_send_packet_unicast(app, packet)
 
 
+async def test_send_packet_unicast_not_running(app, packet):
+    app.controller_event.clear()
+
+    with pytest.raises(ControllerError):
+        await _test_send_packet_unicast(app, packet)
+
+
 async def test_send_packet_unicast_ieee_fallback(app, packet, caplog):
     ieee = zigpy_t.EUI64.convert("aa:bb:cc:dd:11:22:33:44")
     packet.dst = zigpy_t.AddrModeAddress(addr_mode=zigpy_t.AddrMode.IEEE, address=ieee)
