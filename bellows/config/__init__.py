@@ -20,8 +20,6 @@ CONF_DEVICE_BAUDRATE = "baudrate"
 CONF_EZSP_CONFIG = "ezsp_config"
 CONF_EZSP_POLICIES = "ezsp_policies"
 CONF_PARAM_MAX_WATCHDOG_FAILURES = "max_watchdog_failures"
-CONF_PARAM_SRC_RTG = "source_routing"
-CONF_PARAM_UNK_DEV = "handle_unknown_devices"
 CONF_FLOW_CONTROL = "flow_control"
 CONF_FLOW_CONTROL_DEFAULT = "software"
 
@@ -38,8 +36,6 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
     {
         vol.Required(CONF_DEVICE): SCHEMA_DEVICE,
         vol.Optional(CONF_PARAM_MAX_WATCHDOG_FAILURES, default=4): int,
-        vol.Optional(CONF_PARAM_SRC_RTG, default=False): cv_boolean,
-        vol.Optional(CONF_PARAM_UNK_DEV, default=False): cv_boolean,
         vol.Optional(CONF_EZSP_CONFIG, default={}): dict,
         vol.Optional(CONF_EZSP_POLICIES, default={}): vol.Schema(
             {vol.Optional(str): int}

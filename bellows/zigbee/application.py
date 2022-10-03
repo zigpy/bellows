@@ -18,8 +18,6 @@ import zigpy.zdo.types as zdo_t
 import bellows
 from bellows.config import (
     CONF_PARAM_MAX_WATCHDOG_FAILURES,
-    CONF_PARAM_SRC_RTG,
-    CONF_PARAM_UNK_DEV,
     CONFIG_SCHEMA,
     SCHEMA_DEVICE,
 )
@@ -32,6 +30,7 @@ from bellows.zigbee.device import EZSPCoordinator, EZSPEndpoint
 import bellows.zigbee.util as util
 
 APS_ACK_TIMEOUT = 120
+RETRY_DELAYS = [0.5, 1.0, 1.5]
 COUNTER_EZSP_BUFFERS = "EZSP_FREE_BUFFERS"
 COUNTER_NWK_CONFLICTS = "nwk_conflicts"
 COUNTER_RESET_REQ = "reset_requests"
@@ -59,7 +58,6 @@ LOGGER = logging.getLogger(__name__)
 
 
 class ControllerApplication(zigpy.application.ControllerApplication):
-    direct = t.EmberOutgoingMessageType.OUTGOING_DIRECT
     probe = bellows.ezsp.EZSP.probe
     SCHEMA = CONFIG_SCHEMA
     SCHEMA_DEVICE = SCHEMA_DEVICE
@@ -73,15 +71,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._pending = zigpy.util.Requests()
         self._watchdog_task = None
         self._reset_task = None
-        self._in_flight_msg = None
-        self._tx_options = (
-            t.EmberApsOption.APS_OPTION_RETRY
-            | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-        )
 
-        self.use_source_routing = self.config[CONF_PARAM_SRC_RTG]
-        if self.use_source_routing:
-            self._tx_options ^= t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
         self._req_lock = asyncio.Lock()
 
     @property
@@ -140,7 +130,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             ezsp.types.EzspConfigId.CONFIG_APS_UNICAST_MESSAGE_COUNT
         )
         assert status == t.EmberStatus.SUCCESS
-        self._in_flight_msg = asyncio.Semaphore(count)
+        self._concurrent_requests_semaphore.max_value = count
         LOGGER.debug("APS_UNICAST_MESSAGE_COUNT is set to %s", count)
 
         await self.register_endpoints()
@@ -177,7 +167,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         for cnt_group in self.state.counters:
             cnt_group.reset()
 
-        if ezsp.ezsp_version >= 8:
+        # Device relays are cleared on startup when "source routing" on newer EmberZNet
+        # to enable route discovery when first sending requests
+        if self.config[zigpy.config.CONF_SOURCE_ROUTING] and ezsp.ezsp_version >= 8:
             for device in self.devices.values():
                 device.relays = None
 
@@ -348,12 +340,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     ) -> None:
         ezsp = self._ezsp
 
-        try:
-            (status,) = await ezsp.leaveNetwork()
-            if status != t.EmberStatus.NETWORK_DOWN:
-                raise FormationFailure("Couldn't leave network")
-        except bellows.exception.EzspError:
-            pass
+        await self.reset_network_info()
 
         can_write_custom_eui64 = await ezsp.can_write_custom_eui64()
         stack_specific = network_info.stack_specific.get("ezsp", {})
@@ -445,6 +432,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await ezsp.formNetwork(parameters)
         await ezsp.setValue(ezsp.types.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
 
+    async def reset_network_info(self):
+        try:
+            (status,) = await self._ezsp.leaveNetwork()
+        except bellows.exception.EzspError:
+            pass
+        else:
+            if status != t.EmberStatus.NETWORK_DOWN:
+                raise FormationFailure("Couldn't leave network")
+
     async def disconnect(self):
         # TODO: how do you shut down the stack?
         self.controller_event.clear()
@@ -491,47 +487,41 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         message: bytes,
     ) -> None:
         if message_type == t.EmberIncomingMessageType.INCOMING_BROADCAST:
+            dst = zigpy.types.AddrModeAddress(
+                addr_mode=zigpy.types.AddrMode.Broadcast,
+                address=zigpy.types.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
+            )
             self.state.counters[COUNTERS_CTRL][COUNTER_RX_BCAST].increment()
-            dst_addressing = zigpy.types.Addressing.nwk(
-                0xFFFE, aps_frame.destinationEndpoint
-            )
         elif message_type == t.EmberIncomingMessageType.INCOMING_MULTICAST:
-            self.state.counters[COUNTERS_CTRL][COUNTER_RX_MCAST].increment()
-            dst_addressing = zigpy.types.Addressing.group(aps_frame.groupId)
-        elif message_type == t.EmberIncomingMessageType.INCOMING_UNICAST:
-            self.state.counters[COUNTERS_CTRL][COUNTER_RX_UNICAST].increment()
-            dst_addressing = zigpy.types.Addressing.nwk(
-                self.state.node_info.nwk, aps_frame.destinationEndpoint
+            dst = zigpy.types.AddrModeAddress(
+                addr_mode=zigpy.types.AddrMode.Group, address=aps_frame.groupId
             )
+            self.state.counters[COUNTERS_CTRL][COUNTER_RX_MCAST].increment()
+        elif message_type == t.EmberIncomingMessageType.INCOMING_UNICAST:
+            dst = zigpy.types.AddrModeAddress(
+                addr_mode=zigpy.types.AddrMode.NWK, address=self.state.node_info.nwk
+            )
+            self.state.counters[COUNTERS_CTRL][COUNTER_RX_UNICAST].increment()
         else:
-            dst_addressing = None
-
-        if (
-            aps_frame.clusterId == zdo_t.ZDOCmd.Device_annce
-            and aps_frame.destinationEndpoint == 0
-        ):
-            nwk, rest = t.uint16_t.deserialize(message[1:])
-            ieee, _ = t.EmberEUI64.deserialize(rest)
-            LOGGER.info("ZDO Device announce: 0x%04x, %s", nwk, ieee)
-            self.handle_join(nwk, ieee, 0)
-        try:
-            device = self.get_device(nwk=sender)
-        except KeyError:
-            LOGGER.debug("No such device %s", sender)
-            self.state.counters[COUNTERS_CTRL][COUNTER_UNKNOWN_DEVICE].increment()
-            if self.config[CONF_PARAM_UNK_DEV]:
-                asyncio.create_task(self._handle_no_such_device(sender))
+            LOGGER.debug("Ignoring message type: %r", message_type)
             return
 
-        device.radio_details(lqi, rssi)
-        self.handle_message(
-            device,
-            aps_frame.profileId,
-            aps_frame.clusterId,
-            aps_frame.sourceEndpoint,
-            aps_frame.destinationEndpoint,
-            message,
-            dst_addressing=dst_addressing,
+        self.packet_received(
+            zigpy.types.ZigbeePacket(
+                src=zigpy.types.AddrModeAddress(
+                    addr_mode=zigpy.types.AddrMode.NWK,
+                    address=sender,
+                ),
+                src_ep=aps_frame.sourceEndpoint,
+                dst=dst,
+                dst_ep=aps_frame.destinationEndpoint,
+                tsn=aps_frame.sequence,
+                profile_id=aps_frame.profileId,
+                cluster_id=aps_frame.clusterId,
+                data=zigpy.types.SerializableBytes(message),
+                lqi=lqi,
+                rssi=rssi,
+            )
         )
 
     def _handle_frame_sent(
@@ -674,154 +664,140 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self.connect()
         await self.initialize()
 
-    async def mrequest(
-        self,
-        group_id,
-        profile,
-        cluster,
-        src_ep,
-        sequence,
-        data,
-        *,
-        hops=EZSP_DEFAULT_RADIUS,
-        non_member_radius=EZSP_MULTICAST_NON_MEMBER_RADIUS,
-    ):
-        """Submit and send data out as a multicast transmission.
+    async def _set_source_route(
+        self, nwk: zigpy.types.NWK, relays: list[zigpy.types.NWK]
+    ) -> bool:
+        if self._ezsp.ezsp_version >= 8:
+            # Pretend EmberZNet knows about the device's relays if they are set (i.e. we
+            # did not receive a routing error)
+            try:
+                device = self.get_device(nwk=nwk)
+            except KeyError:
+                return False
+            else:
+                return device.relays is not None
 
-        :param group_id: destination multicast address
-        :param profile: Zigbee Profile ID to use for outgoing message
-        :param cluster: cluster id where the message is being sent
-        :param src_ep: source endpoint id
-        :param sequence: transaction sequence number of the message
-        :param data: Zigbee message payload
-        :param hops: the message will be delivered to all nodes within this number of
-                     hops of the sender. A value of zero is converted to MAX_HOPS
-        :param non_member_radius: the number of hops that the message will be forwarded
-                                  by devices that are not members of the group. A value
-                                  of 7 or greater is treated as infinite
-        :returns: return a tuple of a status and an error_message. Original requestor
-                  has more context to provide a more meaningful error message
-        """
+        (res,) = await self._ezsp.setSourceRoute(nwk, relays)
+        return res == t.EmberStatus.SUCCESS
+
+    async def send_packet(self, packet: zigpy.types.ZigbeePacket) -> None:
         if not self.is_controller_running:
             raise ControllerError("ApplicationController is not running")
 
-        aps_frame = t.EmberApsFrame()
-        aps_frame.profileId = t.uint16_t(profile)
-        aps_frame.clusterId = t.uint16_t(cluster)
-        aps_frame.sourceEndpoint = t.uint8_t(src_ep)
-        aps_frame.destinationEndpoint = t.uint8_t(src_ep)
-        aps_frame.options = t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-        aps_frame.groupId = t.uint16_t(group_id)
-        aps_frame.sequence = t.uint8_t(sequence)
-        message_tag = self.get_sequence()
+        LOGGER.debug("Sending packet %r", packet)
 
-        with self._pending.new(message_tag):
-            async with self._in_flight_msg:
-                res = await self._ezsp.sendMulticast(
-                    aps_frame, hops, non_member_radius, message_tag, data
+        try:
+            device = self.get_device_with_address(packet.dst)
+        except (KeyError, ValueError):
+            device = None
+
+        if packet.dst.addr_mode == zigpy.types.AddrMode.IEEE:
+            LOGGER.warning("IEEE addressing is not supported, falling back to NWK")
+
+            if device is None:
+                raise ValueError(f"Cannot find device with ieee {packet.dst.address}")
+
+            packet = packet.replace(
+                dst=zigpy.types.AddrModeAddress(
+                    addr_mode=zigpy.types.AddrMode.NWK, address=device.nwk
                 )
-                if res[0] != t.EmberStatus.SUCCESS:
-                    return res[0], "EZSP sendMulticast failure: %s" % (res[0],)
-
-        return res[0], "EZSP sendMulticast success: %s" % (res[0],)
-
-    async def request(
-        self,
-        device,
-        profile,
-        cluster,
-        src_ep,
-        dst_ep,
-        sequence,
-        data,
-        expect_reply=True,
-        use_ieee=False,
-    ):
-        """Submit and send data out as an unicast transmission.
-
-        :param device: destination device
-        :param profile: Zigbee Profile ID to use for outgoing message
-        :param cluster: cluster id where the message is being sent
-        :param src_ep: source endpoint id
-        :param dst_ep: destination endpoint id
-        :param sequence: transaction sequence number of the message
-        :param data: Zigbee message payload
-        :param expect_reply: True if this is essentially a request
-        :param use_ieee: use EUI64 for destination addressing
-        :returns: return a tuple of a status and an error_message. Original requestor
-                  has more context to provide a more meaningful error message
-        """
-        if not self.is_controller_running:
-            raise ControllerError("ApplicationController is not running")
+            )
 
         aps_frame = t.EmberApsFrame()
-        aps_frame.profileId = t.uint16_t(profile)
-        aps_frame.clusterId = t.uint16_t(cluster)
-        aps_frame.sourceEndpoint = t.uint8_t(src_ep)
-        aps_frame.destinationEndpoint = t.uint8_t(dst_ep)
-        aps_frame.options = self._tx_options
-        aps_frame.groupId = t.uint16_t(0)
-        aps_frame.sequence = t.uint8_t(sequence)
+        aps_frame.profileId = t.uint16_t(packet.profile_id)
+        aps_frame.clusterId = t.uint16_t(packet.cluster_id)
+        aps_frame.sourceEndpoint = t.uint8_t(packet.src_ep)
+        aps_frame.destinationEndpoint = t.uint8_t(packet.dst_ep or 0)
+        aps_frame.options = t.EmberApsOption.APS_OPTION_RETRY
+        aps_frame.sequence = t.uint8_t(packet.tsn)
+
+        if packet.dst.addr_mode == zigpy.types.AddrMode.Group:
+            aps_frame.groupId = t.uint16_t(packet.dst.address)
+        else:
+            aps_frame.groupId = t.uint16_t(0x0000)
+
+        if not self.config[zigpy.config.CONF_SOURCE_ROUTING]:
+            aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+
         message_tag = self.get_sequence()
 
-        if use_ieee:
-            LOGGER.warning(
-                ("EUI64 addressing is not currently supported, " "reverting to NWK")
-            )
         with self._pending.new(message_tag) as req:
-            async with self._in_flight_msg:
-                delays = [0.5, 1.0, 1.5]
-                while True:
-                    if self.use_source_routing:
-                        if self._ezsp.ezsp_version < 8:
-                            (res,) = await self._ezsp.set_source_route(device)
-                        else:
-                            res = (
-                                t.EmberStatus.SUCCESS
-                                if device.relays is not None
-                                else t.EmberStatus.ERR_FATAL
-                            )
-                        if res != t.EmberStatus.SUCCESS:
-                            aps_frame.options ^= (
-                                t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-                            )
-                        else:
-                            LOGGER.debug(
-                                "Set source route for %s to %s: %s",
-                                device.nwk,
-                                device.relays,
-                                res,
-                            )
-
+            async with self._limit_concurrency():
+                for attempt, retry_delay in enumerate(RETRY_DELAYS):
                     async with self._req_lock:
-                        if expect_reply and (
-                            device.node_desc is None or device.node_desc.is_end_device
-                        ):
-                            LOGGER.debug(
-                                "Extending timeout for %s/0x%04x",
-                                device.ieee,
-                                device.nwk,
+                        if packet.dst.addr_mode == zigpy.types.AddrMode.NWK:
+                            if packet.extended_timeout and device is not None:
+                                await self._ezsp.setExtendedTimeout(device.ieee, True)
+
+                            if (
+                                packet.source_route is not None
+                                and not await self._set_source_route(
+                                    packet.dst.address, packet.source_route
+                                )
+                            ):
+                                aps_frame.options |= (
+                                    t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                                )
+
+                            status, _ = await self._ezsp.sendUnicast(
+                                t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+                                t.EmberNodeId(packet.dst.address),
+                                aps_frame,
+                                message_tag,
+                                packet.data.serialize(),
                             )
-                            await self._ezsp.setExtendedTimeout(device.ieee, True)
+                        elif packet.dst.addr_mode == zigpy.types.AddrMode.Group:
+                            status, _ = await self._ezsp.sendMulticast(
+                                aps_frame,
+                                packet.radius,
+                                packet.non_member_radius,
+                                message_tag,
+                                packet.data.serialize(),
+                            )
+                        elif packet.dst.addr_mode == zigpy.types.AddrMode.Broadcast:
+                            status, _ = await self._ezsp.sendBroadcast(
+                                t.EmberNodeId(packet.dst.address),
+                                aps_frame,
+                                packet.radius,
+                                message_tag,
+                                packet.data.serialize(),
+                            )
 
-                        status, _ = await self._ezsp.sendUnicast(
-                            self.direct, device.nwk, aps_frame, message_tag, data
-                        )
-                    if not (
-                        status == t.EmberStatus.MAX_MESSAGE_LIMIT_REACHED and delays
-                    ):
-                        # retry only on MAX_MESSAGE_LIMIT_REACHED if tries are left
+                    if status == t.EmberStatus.SUCCESS:
                         break
+                    elif status not in (
+                        t.EmberStatus.MAX_MESSAGE_LIMIT_REACHED,
+                        t.EmberStatus.NO_BUFFERS,
+                        t.EmberStatus.NETWORK_BUSY,
+                    ):
+                        raise zigpy.exceptions.DeliveryError(
+                            f"Failed to enqueue message: {status!r}", status
+                        )
+                    else:
+                        if attempt < len(RETRY_DELAYS):
+                            LOGGER.debug(
+                                "Request %s failed to enqueue, retrying in %ss: %s",
+                                message_tag,
+                                retry_delay,
+                                status,
+                            )
+                            await asyncio.sleep(retry_delay)
+                else:
+                    raise zigpy.exceptions.DeliveryError(
+                        (
+                            f"Failed to enqueue message after {len(RETRY_DELAYS)}"
+                            f" attempts: {status!r}"
+                        ),
+                        status,
+                    )
 
-                    delay = delays.pop(0)
-                    LOGGER.debug("retrying request %s tag in %ss", message_tag, delay)
-                    await asyncio.sleep(delay)
+            # Wait for `messageSentHandler` message
+            send_status, _ = await asyncio.wait_for(req.result, timeout=APS_ACK_TIMEOUT)
 
-                if status != t.EmberStatus.SUCCESS:
-                    return status, f"EZSP sendUnicast failure: {str(status)}"
-
-                res = await asyncio.wait_for(req.result, APS_ACK_TIMEOUT)
-        return res
+            if send_status != t.EmberStatus.SUCCESS:
+                raise zigpy.exceptions.DeliveryError(
+                    f"Failed to deliver message: {send_status!r}", send_status
+                )
 
     async def permit(self, time_s: int = 60, node: t.EmberNodeId = None) -> None:
         """Permit joining."""
@@ -869,59 +845,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 device.model,
             )
             self.handle_leave(nwk, device.ieee)
-
-    async def broadcast(
-        self,
-        profile,
-        cluster,
-        src_ep,
-        dst_ep,
-        grpid,
-        radius,
-        sequence,
-        data,
-        broadcast_address=zigpy.types.BroadcastAddress.RX_ON_WHEN_IDLE,
-    ):
-        """Submit and send data out as an unicast transmission.
-
-        :param profile: Zigbee Profile ID to use for outgoing message
-        :param cluster: cluster id where the message is being sent
-        :param src_ep: source endpoint id
-        :param dst_ep: destination endpoint id
-        :param: grpid: group id to address the broadcast to
-        :param radius: max radius of the broadcast
-        :param sequence: transaction sequence number of the message
-        :param data: zigbee message payload
-        :param timeout: how long to wait for transmission ACK
-        :param broadcast_address: broadcast address.
-        :returns: return a tuple of a status and an error_message. Original requestor
-                  has more context to provide a more meaningful error message
-        """
-        if not self.is_controller_running:
-            raise ControllerError("ApplicationController is not running")
-
-        aps_frame = t.EmberApsFrame()
-        aps_frame.profileId = t.uint16_t(profile)
-        aps_frame.clusterId = t.uint16_t(cluster)
-        aps_frame.sourceEndpoint = t.uint8_t(src_ep)
-        aps_frame.destinationEndpoint = t.uint8_t(dst_ep)
-        aps_frame.options = t.EmberApsOption.APS_OPTION_NONE
-        aps_frame.groupId = t.uint16_t(grpid)
-        aps_frame.sequence = t.uint8_t(sequence)
-        message_tag = self.get_sequence()
-
-        with self._pending.new(message_tag) as req:
-            async with self._in_flight_msg:
-                async with self._req_lock:
-                    res = await self._ezsp.sendBroadcast(
-                        broadcast_address, aps_frame, radius, message_tag, data
-                    )
-                if res[0] != t.EmberStatus.SUCCESS:
-                    return res[0], "broadcast send failure"
-
-                # Wait for messageSentHandler message
-                res = await asyncio.wait_for(req.result, timeout=APS_ACK_TIMEOUT)
-        return res
 
     async def _watchdog(self):
         """Watchdog handler."""
@@ -1003,19 +926,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         LOGGER.debug(
             "Processing route record request: %s", (nwk, ieee, lqi, rssi, relays)
         )
-        try:
-            dev = self.get_device(ieee=ieee)
-        except KeyError:
-            LOGGER.debug("Why we don't have a device for %s ieee and %s NWK", ieee, nwk)
-            self.handle_join(nwk, ieee, 0)
-            return
-        dev.relays = relays
+        self.handle_relays(nwk=nwk, relays=relays)
 
     def handle_route_error(self, status: t.EmberStatus, nwk: t.EmberNodeId) -> None:
         LOGGER.debug("Processing route error: status=%s, nwk=%s", status, nwk)
-        try:
-            dev = self.get_device(nwk=nwk)
-        except KeyError:
-            LOGGER.debug("No %s device found", nwk)
-            return
-        dev.relays = None
+        self.handle_relays(nwk=nwk, relays=None)

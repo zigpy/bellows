@@ -17,12 +17,9 @@ setup(
     install_requires=[
         "click",
         "click-log>=0.2.1",
-        "dataclasses;python_version<'3.7'",
         "pure_pcapy3==1.0.1",
-        "pyserial",
-        "pyserial-asyncio",
         "voluptuous",
-        "zigpy>=0.50.0",
+        "zigpy>=0.51.0",
     ],
     dependency_links=[
         "https://codeload.github.com/rcloran/pure-pcapy-3/zip/master",
