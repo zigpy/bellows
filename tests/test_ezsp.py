@@ -2,7 +2,6 @@ import asyncio
 import functools
 
 import pytest
-import serial
 
 from bellows import config, ezsp, uart
 from bellows.exception import EzspError
@@ -204,7 +203,7 @@ def test_callback_exc(ezsp_f):
     assert testcb.call_count == 1
 
 
-@pytest.mark.parametrize("version, call_count", ((4, 1), (5, 2), (6, 2)))
+@pytest.mark.parametrize("version, call_count", ((4, 1), (5, 2), (6, 2), (99, 2)))
 async def test_change_version(ezsp_f, version, call_count):
     def mockcommand(name, *args):
         assert name == "version"
@@ -287,9 +286,7 @@ async def test_probe_success(mock_connect):
     assert mock_connect.return_value.close.call_count == 2
 
 
-@pytest.mark.parametrize(
-    "exception", (asyncio.TimeoutError, serial.SerialException, EzspError, RuntimeError)
-)
+@pytest.mark.parametrize("exception", (asyncio.TimeoutError, EzspError, RuntimeError))
 async def test_probe_fail(exception):
     """Test device probing fails."""
 
@@ -437,23 +434,6 @@ async def test_board_info(ezsp_f):
     assert mfg == "Nabu Casa"
     assert brd == "SkyBlue v0.1"
     assert ver == "7.1.0.0 build 191"
-
-
-async def test_set_source_route(ezsp_f):
-    """Test setting a src route for device."""
-    device = MagicMock()
-    device.relays = None
-
-    with patch.object(ezsp_f, "setSourceRoute", new=AsyncMock()) as src_mock:
-        src_mock.return_value = (sentinel.success,)
-        res = await ezsp_f.set_source_route(device)
-        assert src_mock.await_count == 0
-        assert res == (t.EmberStatus.ERR_FATAL,)
-
-        device.relays = []
-        res = await ezsp_f.set_source_route(device)
-        assert src_mock.await_count == 1
-        assert res == (sentinel.success,)
 
 
 async def test_pre_permit(ezsp_f):

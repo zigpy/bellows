@@ -287,7 +287,6 @@ def test_data(gw):
     def mockwrite(data):
         nonlocal loop, write_call_count
         if data == b"\x10 @\xda}^Z~":
-            print(write_call_count)
             loop.call_soon(gw._handle_nak, gw._pending[0])
         else:
             loop.call_soon(gw._handle_ack, (gw._pending[0] + 1) % 8)

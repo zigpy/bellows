@@ -10,7 +10,7 @@ from bellows.exception import EzspError
 import bellows.types as t
 
 from tests.async_mock import AsyncMock, PropertyMock
-from tests.test_application import app, ezsp_mock
+from tests.test_application import app, ezsp_mock, make_app
 
 
 @pytest.fixture
