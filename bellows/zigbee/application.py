@@ -791,13 +791,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                         status,
                     )
 
-            # Wait for `messageSentHandler` message
-            send_status, _ = await asyncio.wait_for(req.result, timeout=APS_ACK_TIMEOUT)
-
-            if send_status != t.EmberStatus.SUCCESS:
-                raise zigpy.exceptions.DeliveryError(
-                    f"Failed to deliver message: {send_status!r}", send_status
+                # Wait for `messageSentHandler` message
+                send_status, _ = await asyncio.wait_for(
+                    req.result, timeout=APS_ACK_TIMEOUT
                 )
+
+                if send_status != t.EmberStatus.SUCCESS:
+                    raise zigpy.exceptions.DeliveryError(
+                        f"Failed to deliver message: {send_status!r}", send_status
+                    )
 
     async def permit(self, time_s: int = 60, node: t.EmberNodeId = None) -> None:
         """Permit joining."""

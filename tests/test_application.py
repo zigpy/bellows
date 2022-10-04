@@ -625,7 +625,8 @@ async def _test_send_packet_unicast(app, packet, *, statuses=(t.EmberStatus.SUCC
         statuses = statuses[1:]
 
         if not statuses:
-            asyncio.get_running_loop().call_soon(
+            asyncio.get_running_loop().call_later(
+                0.01,
                 app.ezsp_callback_handler,
                 "messageSentHandler",
                 list(
@@ -645,7 +646,8 @@ async def _test_send_packet_unicast(app, packet, *, statuses=(t.EmberStatus.SUCC
     app._ezsp.sendUnicast = AsyncMock(side_effect=send_unicast)
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
-    asyncio.get_running_loop().call_soon(
+    asyncio.get_running_loop().call_later(
+        0.01,
         app.ezsp_callback_handler,
         "messageSentHandler",
         list(
@@ -789,6 +791,60 @@ async def test_send_packet_unicast_retries_failure(app, packet):
                 t.EmberStatus.NO_BUFFERS,
             ),
         )
+
+
+async def test_send_packet_unicast_concurrency(app, packet, monkeypatch):
+    monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.1)
+
+    app._concurrent_requests_semaphore.max_value = 10
+
+    max_concurrency = 0
+    in_flight_requests = 0
+
+    async def send_message_sent_reply(
+        type, indexOrDestination, apsFrame, messageTag, message
+    ):
+        nonlocal max_concurrency, in_flight_requests
+
+        max_concurrency = max(max_concurrency, in_flight_requests)
+        in_flight_requests -= 1
+
+        await asyncio.sleep(0.01)
+
+        app.ezsp_callback_handler(
+            "messageSentHandler",
+            list(
+                dict(
+                    type=type,
+                    indexOrDestination=indexOrDestination,
+                    apsFrame=apsFrame,
+                    messageTag=messageTag,
+                    status=t.EmberStatus.SUCCESS,
+                    message=b"",
+                ).values()
+            ),
+        )
+
+    async def send_unicast(type, indexOrDestination, apsFrame, messageTag, message):
+        nonlocal max_concurrency, in_flight_requests
+
+        in_flight_requests += 1
+        max_concurrency = max(max_concurrency, in_flight_requests)
+
+        asyncio.create_task(
+            send_message_sent_reply(
+                type, indexOrDestination, apsFrame, messageTag, message
+            )
+        )
+
+        return [t.EmberStatus.SUCCESS, 0x12]
+
+    app._ezsp.sendUnicast = AsyncMock(side_effect=send_unicast)
+
+    responses = await asyncio.gather(*[app.send_packet(packet) for _ in range(100)])
+    assert len(responses) == 100
+    assert max_concurrency == 10
+    assert in_flight_requests == 0
 
 
 async def test_send_packet_broadcast(app, packet):
