@@ -708,16 +708,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.clusterId = t.uint16_t(packet.cluster_id)
         aps_frame.sourceEndpoint = t.uint8_t(packet.src_ep)
         aps_frame.destinationEndpoint = t.uint8_t(packet.dst_ep or 0)
-        aps_frame.options = t.EmberApsOption.APS_OPTION_RETRY
+        aps_frame.options = t.EmberApsOption.APS_OPTION_NONE
         aps_frame.sequence = t.uint8_t(packet.tsn)
 
         if packet.dst.addr_mode == zigpy.types.AddrMode.Group:
             aps_frame.groupId = t.uint16_t(packet.dst.address)
         else:
             aps_frame.groupId = t.uint16_t(0x0000)
-
-        if not self.config[zigpy.config.CONF_SOURCE_ROUTING]:
-            aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
 
         message_tag = self.get_sequence()
 
@@ -729,7 +726,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             if packet.extended_timeout and device is not None:
                                 await self._ezsp.setExtendedTimeout(device.ieee, True)
 
-                            if (
+                            # Only enable APS frame options for NWK-addressed packets
+                            aps_frame.options |= t.EmberApsOption.APS_OPTION_RETRY
+
+                            if not self.config[zigpy.config.CONF_SOURCE_ROUTING] or (
                                 packet.source_route is not None
                                 and not await self._set_source_route(
                                     packet.dst.address, packet.source_route
