@@ -31,6 +31,13 @@ APP_CONFIG = {
 }
 
 
+@pytest.fixture(autouse=True)
+def remove_startup_delay():
+    """Remove startup delay."""
+    with patch("bellows.zigbee.application.POST_STARTUP_DELAY_S", 0.01):
+        yield
+
+
 @pytest.fixture
 def ezsp_mock():
     """EZSP fixture"""

@@ -49,6 +49,7 @@ EZSP_MULTICAST_NON_MEMBER_RADIUS = 3
 MFG_ID_RESET_DELAY = 180
 RESET_ATTEMPT_BACKOFF_TIME = 5
 WATCHDOG_WAKE_PERIOD = 10
+POST_STARTUP_DELAY_S = 0.5
 IEEE_PREFIX_MFG_ID = {
     "04:cf:fc": 0x115F,
     "54:ef:44": 0x115F,
@@ -200,6 +201,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             ezsp_device.endpoints[1].member_of.update(db_device.endpoints[1].member_of)
 
         await self.multicast.startup(ezsp_device)
+
+        await asyncio.sleep(POST_STARTUP_DELAY_S)
 
     async def load_network_info(self, *, load_devices=False) -> None:
         ezsp = self._ezsp
