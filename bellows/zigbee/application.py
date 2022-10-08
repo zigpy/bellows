@@ -796,7 +796,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     req.result, timeout=APS_ACK_TIMEOUT
                 )
 
-                if send_status != t.EmberStatus.SUCCESS:
+                # Only throw a delivery exception for packets sent with NWK addressing
+                # https://github.com/home-assistant/core/issues/79832
+                if (
+                    send_status != t.EmberStatus.SUCCESS
+                    and packet.dst.addr_mode == zigpy.types.AddrMode.NWK
+                ):
                     raise zigpy.exceptions.DeliveryError(
                         f"Failed to deliver message: {send_status!r}", send_status
                     )
