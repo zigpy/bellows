@@ -646,22 +646,6 @@ async def _test_send_packet_unicast(app, packet, *, statuses=(t.EmberStatus.SUCC
     app._ezsp.sendUnicast = AsyncMock(side_effect=send_unicast)
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
-    asyncio.get_running_loop().call_later(
-        0.01,
-        app.ezsp_callback_handler,
-        "messageSentHandler",
-        list(
-            dict(
-                type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
-                indexOrDestination=0x1234,
-                apsFrame=sentinel.aps,
-                messageTag=sentinel.msg_tag,
-                status=t.EmberStatus.SUCCESS,
-                message=b"",
-            ).values()
-        ),
-    )
-
     expected_unicast_calls = len(statuses)
 
     await app.send_packet(packet)
@@ -872,6 +856,51 @@ async def test_send_packet_broadcast(app, packet):
     )
 
     await app.send_packet(packet)
+    assert app._ezsp.sendBroadcast.call_count == 1
+    assert app._ezsp.sendBroadcast.mock_calls[0].args[0] == t.EmberNodeId(0xFFFE)
+
+    aps_frame = app._ezsp.sendBroadcast.mock_calls[0].args[1]
+    assert aps_frame.profileId == packet.profile_id
+    assert aps_frame.clusterId == packet.cluster_id
+    assert aps_frame.sourceEndpoint == packet.src_ep
+    assert aps_frame.destinationEndpoint == packet.dst_ep
+    assert aps_frame.sequence == packet.tsn
+    assert aps_frame.groupId == 0x0000
+
+    assert app._ezsp.sendBroadcast.mock_calls[0].args[2] == packet.radius
+    assert app._ezsp.sendBroadcast.mock_calls[0].args[3] == sentinel.msg_tag
+    assert app._ezsp.sendBroadcast.mock_calls[0].args[4] == b"some data"
+
+    assert len(app._pending) == 0
+
+
+async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
+    packet.dst = zigpy_t.AddrModeAddress(
+        addr_mode=zigpy_t.AddrMode.Broadcast, address=0xFFFE
+    )
+    packet.radius = 30
+
+    app._ezsp.sendBroadcast = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 0x12))
+    app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
+
+    asyncio.get_running_loop().call_soon(
+        app.ezsp_callback_handler,
+        "messageSentHandler",
+        list(
+            dict(
+                type=t.EmberOutgoingMessageType.OUTGOING_BROADCAST,
+                indexOrDestination=0xFFFE,
+                apsFrame=sentinel.aps,
+                messageTag=sentinel.msg_tag,
+                status=t.EmberStatus.DELIVERY_FAILED,
+                message=b"",
+            ).values()
+        ),
+    )
+
+    # Does not throw an error
+    await app.send_packet(packet)
+
     assert app._ezsp.sendBroadcast.call_count == 1
     assert app._ezsp.sendBroadcast.mock_calls[0].args[0] == t.EmberNodeId(0xFFFE)
 
