@@ -17,6 +17,7 @@ from zigpy.config import (  # noqa: F401 pylint: disable=unused-import
 )
 
 CONF_DEVICE_BAUDRATE = "baudrate"
+CONF_USE_THREAD = "use_thread"
 CONF_EZSP_CONFIG = "ezsp_config"
 CONF_EZSP_POLICIES = "ezsp_policies"
 CONF_PARAM_MAX_WATCHDOG_FAILURES = "max_watchdog_failures"
@@ -40,6 +41,7 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
         vol.Optional(CONF_EZSP_POLICIES, default={}): vol.Schema(
             {vol.Optional(str): int}
         ),
+        vol.Optional(CONF_USE_THREAD, default=True): cv_boolean,
     }
 )
 

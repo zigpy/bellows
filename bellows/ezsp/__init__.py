@@ -10,12 +10,7 @@ import urllib.parse
 
 import zigpy.config
 
-from bellows.config import (
-    CONF_DEVICE,
-    CONF_DEVICE_BAUDRATE,
-    CONF_DEVICE_PATH,
-    SCHEMA_DEVICE,
-)
+import bellows.config as conf
 from bellows.exception import EzspError
 import bellows.types as t
 import bellows.uart
@@ -55,15 +50,18 @@ class EZSP:
     @classmethod
     async def probe(cls, device_config: Dict) -> bool | dict[str, int | str | bool]:
         """Probe port for the device presence."""
-        for config in ({**device_config, CONF_DEVICE_BAUDRATE: 115200}, device_config):
-            ezsp = cls(SCHEMA_DEVICE(config))
+        for config in (
+            {**device_config, conf.CONF_DEVICE_BAUDRATE: 115200},
+            device_config,
+        ):
+            ezsp = cls(conf.SCHEMA_DEVICE(config))
             try:
                 await asyncio.wait_for(ezsp._probe(), timeout=PROBE_TIMEOUT)
                 return config
             except Exception as exc:
                 LOGGER.debug(
                     "Unsuccessful radio probe of '%s' port",
-                    device_config[CONF_DEVICE_PATH],
+                    device_config[conf.CONF_DEVICE_PATH],
                     exc_info=exc,
                 )
             finally:
@@ -73,14 +71,14 @@ class EZSP:
 
     async def _probe(self) -> None:
         """Open port and try sending a command"""
-        await self.connect()
+        await self.connect(use_thread=False)
         await self._startup_reset()
         await self.version()
 
     async def _startup_reset(self):
         """Start EZSP and reset the stack."""
         # `zigbeed` resets on startup
-        parsed_path = urllib.parse.urlparse(self._config[CONF_DEVICE_PATH])
+        parsed_path = urllib.parse.urlparse(self._config[conf.CONF_DEVICE_PATH])
         if parsed_path.scheme == "socket":
             try:
                 await asyncio.wait_for(
@@ -99,8 +97,8 @@ class EZSP:
     @classmethod
     async def initialize(cls, zigpy_config: Dict) -> "EZSP":
         """Return initialized EZSP instance."""
-        ezsp = cls(zigpy_config[CONF_DEVICE])
-        await ezsp.connect()
+        ezsp = cls(zigpy_config[conf.CONF_DEVICE])
+        await ezsp.connect(use_thread=zigpy_config[conf.CONF_USE_THREAD])
 
         try:
             await ezsp._startup_reset()
@@ -115,9 +113,9 @@ class EZSP:
 
         return ezsp
 
-    async def connect(self) -> None:
+    async def connect(self, *, use_thread: bool = True) -> None:
         assert self._gw is None
-        self._gw = await bellows.uart.connect(self._config, self)
+        self._gw = await bellows.uart.connect(self._config, self, use_thread=use_thread)
         self._protocol = v4.EZSPv4(self.handle_callback, self._gw)
 
     async def reset(self):
@@ -241,7 +239,9 @@ class EZSP:
     def connection_lost(self, exc):
         """Lost serial connection."""
         LOGGER.debug(
-            "%s connection lost unexpectedly: %s", self._config[CONF_DEVICE_PATH], exc
+            "%s connection lost unexpectedly: %s",
+            self._config[conf.CONF_DEVICE_PATH],
+            exc,
         )
         self.enter_failed_state(f"Serial connection loss: {exc!r}")
 
