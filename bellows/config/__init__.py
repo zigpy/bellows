@@ -44,3 +44,9 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 )
 
 cv_uint16 = vol.All(int, vol.Range(min=0, max=65535))
+
+
+def cv_optional_int(min: int | None = None, max: int | None = None) -> vol.All:
+    """Voluptuous validator to create an optional integer validator."""
+
+    return vol.Maybe(vol.All(int, vol.Range(min=min, max=max)))
