@@ -704,12 +704,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             )
 
         aps_frame = t.EmberApsFrame()
+        aps_frame.sequence = t.uint8_t(packet.tsn)
         aps_frame.profileId = t.uint16_t(packet.profile_id)
         aps_frame.clusterId = t.uint16_t(packet.cluster_id)
         aps_frame.sourceEndpoint = t.uint8_t(packet.src_ep)
         aps_frame.destinationEndpoint = t.uint8_t(packet.dst_ep or 0)
-        aps_frame.options = t.EmberApsOption.APS_OPTION_RETRY
-        aps_frame.sequence = t.uint8_t(packet.tsn)
+        aps_frame.options = t.EmberApsOption.APS_OPTION_NONE
+
+        if zigpy.types.TransmitOptions.ACK in packet.tx_options:
+            aps_frame.options |= t.EmberApsOption.APS_OPTION_RETRY
 
         if packet.dst.addr_mode == zigpy.types.AddrMode.Group:
             aps_frame.groupId = t.uint16_t(packet.dst.address)

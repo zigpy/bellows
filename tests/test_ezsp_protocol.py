@@ -6,7 +6,7 @@ import pytest
 import bellows.ezsp.v4
 import bellows.ezsp.v4.types as t
 
-from .async_mock import AsyncMock, MagicMock, patch
+from .async_mock import ANY, AsyncMock, MagicMock, patch
 
 
 class _DummyProtocolHandler(bellows.ezsp.v4.EZSPv4):
@@ -88,6 +88,40 @@ async def test_cfg_initialize(prot_hndl, caplog):
         with caplog.at_level(logging.WARNING):
             await prot_hndl.initialize({"ezsp_config": {}, "source_routing": False})
             assert "Couldn't set" in caplog.text
+
+
+async def test_cfg_initialize_skip(prot_hndl):
+    """Test initialization."""
+
+    p1 = patch.object(
+        prot_hndl,
+        "setConfigurationValue",
+        new=AsyncMock(return_value=(t.EzspStatus.SUCCESS,)),
+    )
+    p2 = patch.object(
+        prot_hndl,
+        "getConfigurationValue",
+        new=AsyncMock(return_value=(t.EzspStatus.SUCCESS, 22)),
+    )
+    p3 = patch.object(prot_hndl, "get_free_buffers", new=AsyncMock(22))
+    with p1, p2, p3:
+        await prot_hndl.initialize(
+            {"ezsp_config": {"CONFIG_END_DEVICE_POLL_TIMEOUT": None}}
+        )
+
+        # Config not set when it is explicitly disabled
+        with pytest.raises(AssertionError):
+            prot_hndl.setConfigurationValue.assert_called_with(
+                t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, ANY
+            )
+
+    with p1, p2, p3:
+        await prot_hndl.initialize({"ezsp_config": {}})
+
+        # Config is set by default
+        prot_hndl.setConfigurationValue.assert_any_call(
+            t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, ANY
+        )
 
 
 async def test_update_policies(prot_hndl):

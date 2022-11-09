@@ -152,7 +152,7 @@ async def test_proxy_no_thread():
     assert obj.test.call_count == 1
 
 
-def test_proxy_loop_closed():
+async def test_proxy_loop_closed():
     loop = asyncio.new_event_loop()
     obj = mock.MagicMock()
     proxy = ThreadsafeProxy(obj, loop)

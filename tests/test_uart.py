@@ -281,7 +281,8 @@ async def test_reset_old(gw):
     gw._transport.write.assert_not_called()
 
 
-def test_data(gw):
+async def test_data(gw):
+    loop = asyncio.get_running_loop()
     write_call_count = 0
 
     def mockwrite(data):
@@ -299,8 +300,7 @@ def test_data(gw):
     gw.data(b"baz")
     gw._sendq.put_nowait(gw.Terminator)
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(gw._send_loop())
+    await gw._send_loop()
     assert write_call_count == 4
 
 

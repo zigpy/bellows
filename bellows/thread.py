@@ -94,7 +94,7 @@ class ThreadsafeProxy:
 
         def func_wrapper(*args, **kwargs):
             loop = self._obj_loop
-            curr_loop = asyncio.get_event_loop()
+            curr_loop = asyncio.get_running_loop()
             call = functools.partial(func, *args, **kwargs)
             if loop == curr_loop:
                 return call()
