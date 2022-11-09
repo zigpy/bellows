@@ -87,17 +87,14 @@ def test_command_ezsp_stopped(ezsp_f):
         ezsp_f._command("version")
 
 
-def _test_list_command(ezsp_f, mockcommand):
-    loop = asyncio.get_event_loop()
+async def _test_list_command(ezsp_f, mockcommand):
     ezsp_f._command = mockcommand
-    return loop.run_until_complete(
-        ezsp_f._list_command(
-            "startScan", ["networkFoundHandler"], "scanCompleteHandler", 1
-        )
+    return await ezsp_f._list_command(
+        "startScan", ["networkFoundHandler"], "scanCompleteHandler", 1
     )
 
 
-def test_list_command(ezsp_f):
+async def test_list_command(ezsp_f):
     async def mockcommand(name, *args):
         assert name == "startScan"
         ezsp_f.frame_received(b"\x01\x00\x1b" + b"\x00" * 20)
@@ -106,20 +103,20 @@ def test_list_command(ezsp_f):
 
         return [0]
 
-    result = _test_list_command(ezsp_f, mockcommand)
+    result = await _test_list_command(ezsp_f, mockcommand)
     assert len(result) == 2
 
 
-def test_list_command_initial_failure(ezsp_f):
+async def test_list_command_initial_failure(ezsp_f):
     async def mockcommand(name, *args):
         assert name == "startScan"
         return [1]
 
     with pytest.raises(Exception):
-        _test_list_command(ezsp_f, mockcommand)
+        await _test_list_command(ezsp_f, mockcommand)
 
 
-def test_list_command_later_failure(ezsp_f):
+async def test_list_command_later_failure(ezsp_f):
     async def mockcommand(name, *args):
         assert name == "startScan"
         ezsp_f.frame_received(b"\x01\x00\x1b" + b"\x00" * 20)
@@ -129,10 +126,10 @@ def test_list_command_later_failure(ezsp_f):
         return [0]
 
     with pytest.raises(Exception):
-        _test_list_command(ezsp_f, mockcommand)
+        await _test_list_command(ezsp_f, mockcommand)
 
 
-def _test_form_network(ezsp_f, initial_result, final_result):
+async def _test_form_network(ezsp_f, initial_result, final_result):
     async def mockcommand(name, *args):
         assert name == "formNetwork"
         ezsp_f.frame_received(b"\x01\x00\x19" + final_result)
@@ -140,22 +137,21 @@ def _test_form_network(ezsp_f, initial_result, final_result):
 
     ezsp_f._command = mockcommand
 
-    loop = asyncio.get_event_loop()
-    return loop.run_until_complete(ezsp_f.formNetwork(MagicMock()))
+    await ezsp_f.formNetwork(MagicMock())
 
 
-def test_form_network(ezsp_f):
-    _test_form_network(ezsp_f, [0], b"\x90")
+async def test_form_network(ezsp_f):
+    await _test_form_network(ezsp_f, [0], b"\x90")
 
 
-def test_form_network_fail(ezsp_f):
+async def test_form_network_fail(ezsp_f):
     with pytest.raises(Exception):
-        _test_form_network(ezsp_f, [1], b"\x90")
+        await _test_form_network(ezsp_f, [1], b"\x90")
 
 
-def test_form_network_fail_stack_status(ezsp_f):
+async def test_form_network_fail_stack_status(ezsp_f):
     with pytest.raises(Exception):
-        _test_form_network(ezsp_f, [0], b"\x00")
+        await _test_form_network(ezsp_f, [0], b"\x00")
 
 
 def test_receive_new(ezsp_f):
