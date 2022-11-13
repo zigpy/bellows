@@ -722,10 +722,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if not self.config[zigpy.config.CONF_SOURCE_ROUTING]:
             aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
 
-        message_tag = self.get_sequence()
-
-        with self._pending.new(message_tag) as req:
-            async with self._limit_concurrency():
+        async with self._limit_concurrency():
+            message_tag = self.get_sequence()
+            with self._pending.new(message_tag) as req:
                 for attempt, retry_delay in enumerate(RETRY_DELAYS):
                     async with self._req_lock:
                         if packet.dst.addr_mode == zigpy.types.AddrMode.NWK:
