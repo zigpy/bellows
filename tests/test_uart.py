@@ -318,6 +318,12 @@ def test_connection_closed(gw):
     assert gw._application.connection_lost.call_count == 0
 
 
+def test_eof_received(gw):
+    gw.eof_received()
+
+    assert gw._application.connection_lost.call_count == 1
+
+
 async def test_connection_lost_reset_error_propagation(monkeypatch):
     app = MagicMock()
     transport = MagicMock()
