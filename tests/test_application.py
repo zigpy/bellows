@@ -705,9 +705,7 @@ async def test_send_packet_unicast_ieee_no_fallback(app, packet, caplog):
 async def test_send_packet_unicast_source_route_ezsp7(make_app, packet):
     app = make_app({zigpy.config.CONF_SOURCE_ROUTING: True})
     app._ezsp.ezsp_version = 7
-    app._ezsp.setSourceRoute = AsyncMock(
-        spec_set=app._ezsp.setSourceRoute, return_value=(t.EmberStatus.SUCCESS,)
-    )
+    app._ezsp.setSourceRoute = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
 
     packet.source_route = [0x0001, 0x0002]
     await _test_send_packet_unicast(app, packet)
