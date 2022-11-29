@@ -86,7 +86,7 @@ def zigpy_key_to_ezsp_key(zigpy_key: zigpy.state.Key, ezsp):
         key.bitmask |= ezsp.types.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
 
     if zigpy_key.rx_counter is not None:
-        key.outgoingFrameCounter = t.uint32_t(zigpy_key.rx_counter)
+        key.incomingFrameCounter = t.uint32_t(zigpy_key.rx_counter)
         key.bitmask |= ezsp.types.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER
 
     if zigpy_key.partner_ieee is not None:
