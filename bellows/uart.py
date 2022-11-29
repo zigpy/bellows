@@ -199,8 +199,15 @@ class Gateway(asyncio.Protocol):
         """Delete reset future."""
         self._reset_future = None
 
+    def eof_received(self):
+        """Server gracefully closed its side of the connection."""
+        self.connection_lost(OSError("Server closed connection"))
+
     def connection_lost(self, exc):
         """Port was closed unexpectedly."""
+
+        LOGGER.debug("Connection lost: %r", exc)
+
         if self._connection_done_future:
             self._connection_done_future.set_result(exc)
             self._connection_done_future = None

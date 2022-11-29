@@ -208,17 +208,7 @@ class _IntEnumMeta(enum.EnumMeta):
 def enum_factory(int_type: CALLABLE_T, undefined: str = "undefined") -> CALLABLE_T:
     """Enum factory."""
 
-    class _NewEnum(enum.IntEnum, metaclass=_IntEnumMeta):
-        def serialize(self):
-            """Serialize enum."""
-            return int_type(self.value).serialize()
-
-        @classmethod
-        def deserialize(cls, data: bytes) -> (bytes, bytes):
-            """Deserialize data."""
-            val, data = int_type.deserialize(data)
-            return cls(val), data
-
+    class _NewEnum(int_type, enum.Enum, metaclass=_IntEnumMeta):
         @classmethod
         def _missing_(cls, value):
             new = int_type.__new__(cls, value)

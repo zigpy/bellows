@@ -138,8 +138,8 @@ def test_zha_security_hashed_nonstandard_tclk_warning(network_info, node_info, c
 
 
 def test_ezsp_key_to_zigpy_key(zigpy_key, ezsp_key, ezsp_mock):
-    return util.ezsp_key_to_zigpy_key(ezsp_key, ezsp_mock) == zigpy_key
+    assert util.ezsp_key_to_zigpy_key(ezsp_key, ezsp_mock) == zigpy_key
 
 
 def test_zigpy_key_to_ezsp_key(zigpy_key, ezsp_key, ezsp_mock):
-    return util.zigpy_key_to_ezsp_key(zigpy_key, ezsp_mock) == ezsp_key
+    assert util.zigpy_key_to_ezsp_key(zigpy_key, ezsp_mock) == ezsp_key

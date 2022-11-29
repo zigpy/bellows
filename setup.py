@@ -19,7 +19,7 @@ setup(
         "click-log>=0.2.1",
         "pure_pcapy3==1.0.1",
         "voluptuous",
-        "zigpy>=0.51.0",
+        "zigpy>=0.52.0",
     ],
     dependency_links=[
         "https://codeload.github.com/rcloran/pure-pcapy-3/zip/master",
