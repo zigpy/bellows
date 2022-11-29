@@ -776,7 +776,7 @@ async def test_send_packet_unicast_retries_failure(app, packet):
 
 
 async def test_send_packet_unicast_concurrency(app, packet, monkeypatch):
-    monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.1)
+    monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.5)
 
     app._concurrent_requests_semaphore.max_value = 10
 
