@@ -1078,8 +1078,13 @@ class EmberKeyStructBitmask(basic.bitmap16):
     # bit is set when we add a transient key while the EmberTcLinkKeyRequestPolicy is
     # EMBER_ALLOW_TC_LINK_KEY_REQUEST_AND_GENERATE_NEW_KEY
     UNCONFIRMED_TRANSIENT_KEY = 0x0040
-
-    # TODO: 0x0080 is unknown
+    # This indicates that the actual key data is stored in PSA, and the respective PSA
+    # ID is recorded in the psa_id field.
+    KEY_HAS_PSA_ID = 0x0080
+    # This indicates that the keyData field has valid data. On certain parts and
+    # depending on the security configuration, keys may live in secure storage and are
+    # not exportable. In such cases, keyData will not house the actual key contents.
+    KEY_HAS_KEY_DATA = 0x0100
 
 
 class EmberKeyStatus(basic.enum8):
