@@ -291,7 +291,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
             if status == t.EmberStatus.INDEX_OUT_OF_RANGE:
                 break
-            elif status == t.EmberStatus.TABLE_ENTRY_ERASED:
+            elif status in (t.EmberStatus.TABLE_ENTRY_ERASED, t.EmberStatus.NOT_FOUND):
                 continue
 
             assert status == t.EmberStatus.SUCCESS

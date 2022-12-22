@@ -331,6 +331,8 @@ class EmberStatus(basic.enum8):
     ERR_FATAL = 0x01
     # An invalid value was passed as an argument to a function
     BAD_ARGUMENT = 0x02
+    # The requested information was not found.
+    NOT_FOUND = 0x03
     # The manufacturing and stack token format in nonvolatile memory is
     # different than what the stack expects (returned at initialization).
     EEPROM_MFG_STACK_VERSION_MISMATCH = 0x04
@@ -345,6 +347,8 @@ class EmberStatus(basic.enum8):
     EEPROM_STACK_VERSION_MISMATCH = 0x07
     # There are no more buffers.
     NO_BUFFERS = 0x18
+    # Packet is dropped by packet-handoff callbacks.
+    PACKET_HANDOFF_DROP_PACKET = 0x19
     # Specified an invalid baud rate.
     SERIAL_INVALID_BAUD_RATE = 0x20
     # Specified an invalid serial port.
@@ -367,6 +371,8 @@ class EmberStatus(basic.enum8):
     MAC_TRANSMIT_QUEUE_FULL = 0x39
     # MAC header FCR error on receive.
     MAC_UNKNOWN_HEADER_TYPE = 0x3A
+    # MAC ACK header received.
+    MAC_ACK_HEADER_TYPE = 0x3B
     # The MAC can't complete this task because it is scanning.
     MAC_SCANNING = 0x3D
     # No pending data exists for device doing a data poll.
@@ -386,6 +392,9 @@ class EmberStatus(basic.enum8):
     # We expected to receive an ACK following the transmission, but the MAC
     # level ACK was never received.
     MAC_NO_ACK_RECEIVED = 0x40
+    # MAC failed to transmit a message because it could not successfully perform a radio
+    # network switch.
+    MAC_RADIO_NETWORK_SWITCH_FAILED = 0x41
     # Indirect data message timed out before polled.
     MAC_INDIRECT_TIMEOUT = 0x42
     # The Simulated EEPROM is telling the application that there is at least
@@ -441,6 +450,12 @@ class EmberStatus(basic.enum8):
     # error, and it is possible this error is the result of exceeding the life
     # cycles of the flash.
     ERR_FLASH_ERASE_FAIL = 0x4C
+    # The Simulated EEPROM is repairing itself. While there's nothing for an app to do
+    # when the SimEE is going to repair itself (SimEE has to be fully functional for
+    # the rest of the system to work), alert the application to the fact that repair is
+    # occurring.  There are debugging scenarios where an app might want to know that
+    # repair is happening, such as monitoring frequency.
+    SIM_EEPROM_REPAIRING = 0x4D
     # The bootloader received an invalid message (failed attempt to go into
     # bootloader).
     ERR_BOOTLOADER_TRAP_TABLE_BAD = 0x58
@@ -474,6 +489,24 @@ class EmberStatus(basic.enum8):
     # The application is trying to overwrite an address table entry that is in
     # use.
     ADDRESS_TABLE_ENTRY_IS_ACTIVE = 0x76
+    # An attempt was made to transmit during the suspend period.
+    TRANSMISSION_SUSPENDED = 0x77
+    # Security match.
+    MATCH = 0x78
+    # Drop frame.
+    DROP_FRAME = 0x79
+    # TODO: no docs
+    PASS_UNPROCESSED = 0x7A
+    # TODO: no docs
+    TX_THEN_DROP = 0x7B
+    # TODO: no docs
+    NO_SECURITY = 0x7C
+    # TODO: no docs
+    COUNTER_FAILURE = 0x7D
+    # TODO: no docs
+    AUTH_FAILURE = 0x7E
+    # TODO: no docs
+    UNPROCESSED = 0x7F
     # Conversion is complete.
     ADC_CONVERSION_DONE = 0x80
     # Conversion cannot be done because a request is being processed.
@@ -485,6 +518,9 @@ class EmberStatus(basic.enum8):
     # Sleeping (for a duration) has been abnormally interrupted and exited
     # prematurely.
     SLEEP_INTERRUPTED = 0x85
+    # The transmit attempt failed because the radio scheduler could not find a slot to
+    # transmit this packet in or a higher priority event interrupted it.
+    PHY_TX_SCHED_FAIL = 0x87
     # The transmit hardware buffer underflowed.
     PHY_TX_UNDERFLOW = 0x88
     # The transmit hardware did not finish transmitting a packet.
@@ -501,9 +537,10 @@ class EmberStatus(basic.enum8):
     # The transmit attempt failed because all CCA attempts indicated that the channel
     # was busy
     PHY_TX_CCA_FAIL = 0x8D
-    # The software installed on the hardware doesn't recognize the hardware
-    # radio type.
-    PHY_OSCILLATOR_CHECK_FAILED = 0x8E
+    # The transmit attempt was blocked from going over the air. Typically this is due to
+    # the Radio Hold Off (RHO) or Coexistence plugins as they can prevent transmits
+    # based on external signals.
+    PHY_TX_BLOCKED = 0x8E
     # The expected ACK was received after the last transmission.
     PHY_ACK_RECEIVED = 0x8F
     # The stack software has completed initialization and is ready to send and
@@ -526,6 +563,12 @@ class EmberStatus(basic.enum8):
     # The local PAN ID has changed. The application can obtain the new PAN ID
     # by calling emberGetPanId().
     PAN_ID_CHANGED = 0x9A
+    # The channel has changed.
+    CHANNEL_CHANGED = 0x9B
+    # The network has been opened for joining.
+    NETWORK_OPENED = 0x9C
+    # The network has been closed for joining.
+    NETWORK_CLOSED = 0x9D
     # An attempt to join or rejoin the network failed because no router beacons
     # could be heard by the joining node.
     NO_BEACONS = 0xAB
@@ -563,9 +606,6 @@ class EmberStatus(basic.enum8):
     # recipient from the short address (no entry in the binding table) or there
     # is no link key entry in the table associated with the destination, or
     # there was a failure to load the correct key into the encryption core.
-    # TRUST_CENTER_MASTER_KEY_NOT_SET 0xA7 There was an attempt to form a
-    # network using commercial security without setting the Trust Center master
-    # key first.
     APS_ENCRYPTION_ERROR = 0xA6
     # There was an attempt to form a network using commercial security without setting
     # the Trust Center master key first.
@@ -620,9 +660,44 @@ class EmberStatus(basic.enum8):
     # The requested function cannot be executed because the library that
     # contains the necessary functionality is not present.
     LIBRARY_NOT_PRESENT = 0xB5
+    # The received signature corresponding to the message that was passed to the CBKE
+    # Library failed verification and is not valid.
+    SIGNATURE_VERIFY_FAILURE = 0xB9
     # The stack accepted the command and is currently processing the request.
     # The results will be returned via an appropriate handler.
     OPERATION_IN_PROGRESS = 0xBA
+    # The EUI of the Trust center has changed due to a successful rejoin. The device may
+    # need to perform other authentication to verify the new TC is authorized to take
+    # over.
+    TRUST_CENTER_EUI_HAS_CHANGED = 0xBC
+    # An error occurred when trying to encrypt at the APS Level. To APS encrypt an
+    # outgoing packet, the sender needs to know the EUI64 of the destination. This
+    # error occurs because the EUI64 of the destination can't be determined from the
+    # short address (no entry in the neighbor, child, binding or address tables).
+    IEEE_ADDRESS_DISCOVERY_IN_PROGRESS = 0xBE
+    # NVM3 is telling the application that the initialization was aborted as no valid
+    # NVM3 page was found.
+    NVM3_TOKEN_NO_VALID_PAGES = 0xC0
+    # NVM3 is telling the application that the initialization was aborted as the NVM3
+    # instance was already opened with other parameters.
+    NVM3_ERR_OPENED_WITH_OTHER_PARAMETERS = 0xC1
+    # NVM3 is telling the application that the initialization was aborted as the NVM3
+    # instance is not aligned properly in memory.
+    NVM3_ERR_ALIGNMENT_INVALID = 0xC2
+    # NVM3 is telling the application that the initialization was aborted as the size of
+    # the NVM3 instance is too small.
+    NVM3_ERR_SIZE_TOO_SMALL = 0xC3
+    # NVM3 is telling the application that the initialization was aborted as the NVM3
+    # page size is not supported.
+    NVM3_ERR_PAGE_SIZE_NOT_SUPPORTED = 0xC4
+    # NVM3 is telling the application that there was an error initializing some of the
+    # tokens.
+    NVM3_ERR_TOKEN_INIT = 0xC5
+    # NVM3 is telling the application there has been an error when attempting to upgrade
+    # SimEE tokens.
+    NVM3_ERR_UPGRADE = 0xC6
+    # NVM3 is telling the application that there has been an unknown error.
+    NVM3_ERR_UNKNOWN = 0xC7
     # This error is reserved for customer application use.  This will never be
     # returned from any portion of the network stack or HAL.
     APPLICATION_ERROR_0 = 0xF0
