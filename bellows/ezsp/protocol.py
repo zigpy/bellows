@@ -141,7 +141,7 @@ class ProtocolHandler(abc.ABC):
         sequence, frame_id, data = self._ezsp_frame_rx(data)
 
         try:
-            frame_name = self.COMMANDS_BY_ID[frame_id][0]
+            frame_name, _, schema = self.COMMANDS_BY_ID[frame_id]
         except KeyError:
             LOGGER.warning(
                 "Unknown application frame 0x%04X received: %s (%s).  This is a bug!",
@@ -151,14 +151,15 @@ class ProtocolHandler(abc.ABC):
             )
             return
 
-        LOGGER.debug(
-            "Application frame %s (%s) received: %s",
-            frame_id,
-            frame_name,
-            binascii.hexlify(data),
-        )
-        schema = self.COMMANDS_BY_ID[frame_id][2]
-        result, data = self.types.deserialize(data, schema)
+        try:
+            result, data = self.types.deserialize(data, schema)
+        except Exception:
+            LOGGER.warning(
+                "Failed to parse frame %s: %s", frame_name, binascii.hexlify(data)
+            )
+            raise
+
+        LOGGER.debug("Application frame received %s: %s", frame_name, result)
 
         if sequence in self._awaiting:
             expected_id, schema, future = self._awaiting.pop(sequence)
