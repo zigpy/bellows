@@ -288,6 +288,11 @@ class EZSP:
         just have EZSP application stuff here, with all escaping/stuffing and
         data randomization removed.
         """
+
+        if self._protocol is None:
+            LOGGER.debug("Ignoring frame, protocol is not configured: %r", data)
+            return
+
         self._protocol(data)
 
     async def get_board_info(self) -> Tuple[str, str, str]:
