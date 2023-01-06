@@ -51,19 +51,19 @@ RESET_ATTEMPT_BACKOFF_TIME = 5
 WATCHDOG_WAKE_PERIOD = 10
 IEEE_PREFIX_MFG_ID = {
     # Unregistered Xiaomi (typo?)
-    "04:cf:fc": 0x115F,
+    "04:CF:FC": 0x115F,
     # Xiaomi
-    "04:cf:8c": 0x115F,
-    "28:6c:07": 0x115F,
-    "34:ce:00": 0x115F,
-    "40:31:3c": 0x115F,
-    "50:64:2b": 0x115F,
-    "78:11:dc": 0x115F,
-    "7c:49:eb": 0x115F,
-    "ec:41:18": 0x115F,
+    "04:CF:8C": 0x115F,
+    "28:6C:07": 0x115F,
+    "34:CE:00": 0x115F,
+    "40:31:3C": 0x115F,
+    "50:64:2B": 0x115F,
+    "78:11:DC": 0x115F,
+    "7C:49:EB": 0x115F,
+    "EC:41:18": 0x115F,
     # Lumi
-    "18:c2:3c": 0x115F,
-    "54:ef:44": 0x115F,
+    "18:C2:3C": 0x115F,
+    "54:EF:44": 0x115F,
 }
 
 LOGGER = logging.getLogger(__name__)
