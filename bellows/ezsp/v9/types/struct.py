@@ -1,4 +1,6 @@
-"""Protocol version 8 specific structs."""
+"""Protocol version 9 specific structs."""
+
+from __future__ import annotations
 
 import bellows.types.basic as basic
 from bellows.types.struct import (  # noqa: F401
@@ -99,6 +101,14 @@ class EmberKeyStruct(EzspStruct):
     sequenceNumber: basic.uint8_t
     # The IEEE address of the partner device also in possession of the key.
     partnerEUI64: named.EmberEUI64
+
+    @classmethod
+    def deserialize(cls, data: bytes) -> tuple[named.EmberKeyStruct, bytes]:
+        # XXX: EZSPv9 serialization bug
+        if len(data) == 24:
+            return cls(), data[24:]
+
+        return super().deserialize(data)
 
 
 class EmberGpSinkListEntry(EzspStruct):

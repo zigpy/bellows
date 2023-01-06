@@ -50,8 +50,8 @@ MFG_ID_RESET_DELAY = 180
 RESET_ATTEMPT_BACKOFF_TIME = 5
 WATCHDOG_WAKE_PERIOD = 10
 IEEE_PREFIX_MFG_ID = {
-    "04:cf:fc": 0x115F,
-    "54:ef:44": 0x115F,
+    "04:CF:8C": 0x115F,  # Xiaomi
+    "54:EF:44": 0x115F,  # Lumi
 }
 
 LOGGER = logging.getLogger(__name__)
@@ -291,7 +291,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
             if status == t.EmberStatus.INDEX_OUT_OF_RANGE:
                 break
-            elif status == t.EmberStatus.TABLE_ENTRY_ERASED:
+            elif status in (t.EmberStatus.TABLE_ENTRY_ERASED, t.EmberStatus.NOT_FOUND):
                 continue
 
             assert status == t.EmberStatus.SUCCESS
@@ -605,14 +605,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             # no point in handling the join if it was denied
             return
 
-        mfg_id = next(
-            (
-                mfgid
-                for prefix, mfgid in IEEE_PREFIX_MFG_ID.items()
-                if str(ieee).startswith(prefix)
-            ),
-            None,
-        )
+        mfg_id = IEEE_PREFIX_MFG_ID.get(str(ieee)[:8].upper())
+
         if mfg_id is not None:
             if self._mfg_id_task and not self._mfg_id_task.done():
                 self._mfg_id_task.cancel()
