@@ -617,14 +617,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             # no point in handling the join if it was denied
             return
 
-        mfg_id = next(
-            (
-                mfgid
-                for prefix, mfgid in IEEE_PREFIX_MFG_ID.items()
-                if str(ieee).startswith(prefix)
-            ),
-            None,
-        )
+        mfg_id = IEEE_PREFIX_MFG_ID.get(str(ieee)[:8].upper())
+
         if mfg_id is not None:
             if self._mfg_id_task and not self._mfg_id_task.done():
                 self._mfg_id_task.cancel()
