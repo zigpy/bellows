@@ -335,7 +335,9 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
 
 def _mock_app_for_write(app, network_info, node_info, ezsp_ver=None):
     ezsp = app._ezsp
-
+    ezsp.networkState = AsyncMock(
+        return_value=[ezsp.types.EmberNetworkStatus.JOINED_NETWORK]
+    )
     ezsp.leaveNetwork = AsyncMock(return_value=[t.EmberStatus.NETWORK_DOWN])
     ezsp.getEui64 = AsyncMock(
         return_value=[t.EmberEUI64.convert("00:12:4b:00:1c:a1:b8:46")]
@@ -483,3 +485,15 @@ async def test_write_network_info_generate_hashed_tclk(app, network_info, node_i
 
     # A new hashed key is randomly generated each time if none is provided
     assert len(seen_keys) == 10
+
+
+async def test_reset_network_with_no_formed_network(app):
+    _mock_app_for_write(app, network_info, node_info)
+
+    app._ezsp.networkState = AsyncMock(
+        return_value=[app._ezsp.types.EmberNetworkStatus.NO_NETWORK]
+    )
+
+    app._ezsp.networkInit = AsyncMock(return_value=[t.EmberStatus.NOT_JOINED])
+
+    await app.reset_network_info()

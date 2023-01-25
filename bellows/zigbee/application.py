@@ -433,6 +433,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await ezsp.setValue(ezsp.types.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
 
     async def reset_network_info(self):
+        # The network must be running before we can leave it
+        try:
+            await self._ensure_network_running()
+        except zigpy.exceptions.NetworkNotFormed:
+            return
+
         try:
             (status,) = await self._ezsp.leaveNetwork()
         except bellows.exception.EzspError:
