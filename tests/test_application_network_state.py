@@ -335,7 +335,9 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
 
 def _mock_app_for_write(app, network_info, node_info, ezsp_ver=None):
     ezsp = app._ezsp
-
+    ezsp.networkState = AsyncMock(
+        return_value=[ezsp.types.EmberNetworkStatus.JOINED_NETWORK]
+    )
     ezsp.leaveNetwork = AsyncMock(return_value=[t.EmberStatus.NETWORK_DOWN])
     ezsp.getEui64 = AsyncMock(
         return_value=[t.EmberEUI64.convert("00:12:4b:00:1c:a1:b8:46")]
