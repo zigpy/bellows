@@ -7,7 +7,7 @@ import serial_asyncio
 from bellows import uart
 import bellows.config as conf
 
-from .async_mock import AsyncMock, MagicMock, sentinel
+from .async_mock import AsyncMock, MagicMock, patch, sentinel
 
 
 @pytest.mark.parametrize("flow_control", [conf.CONF_FLOW_CONTROL_DEFAULT, "hardware"])
@@ -92,6 +92,45 @@ async def test_connect_threaded_failure(monkeypatch):
             ),
             appmock,
         )
+
+    # Ensure all threads are cleaned up
+    [t.join(1) for t in threading.enumerate() if "bellows" in t.name]
+    threads = [t for t in threading.enumerate() if "bellows" in t.name]
+    assert len(threads) == 0
+
+
+async def test_connect_threaded_failure_cancellation_propagation(monkeypatch):
+    appmock = MagicMock()
+
+    async def mock_connect(loop, protocol_factory, *args, **kwargs):
+        protocol = protocol_factory()
+        transport = AsyncMock()
+
+        protocol.connection_made(transport)
+
+        return transport, protocol
+
+    with patch("bellows.uart.zigpy.serial.create_serial_connection", mock_connect):
+        gw = await uart.connect(
+            conf.SCHEMA_DEVICE(
+                {
+                    conf.CONF_DEVICE_PATH: "/dev/serial",
+                    conf.CONF_DEVICE_BAUDRATE: 115200,
+                }
+            ),
+            appmock,
+            use_thread=True,
+        )
+
+    # Begin waiting for the startup reset
+    wait_for_reset = gw.wait_for_startup_reset()
+
+    # But lose connection halfway through
+    asyncio.get_running_loop().call_later(0.1, gw.connection_lost, RuntimeError())
+
+    # Cancellation should propagate to the outer loop
+    with pytest.raises(RuntimeError):
+        await wait_for_reset
 
     # Ensure all threads are cleaned up
     [t.join(1) for t in threading.enumerate() if "bellows" in t.name]
