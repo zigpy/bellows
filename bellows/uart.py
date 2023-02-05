@@ -213,7 +213,9 @@ class Gateway(asyncio.Protocol):
         # callback to stop itself, which will cause the a future to propagate a
         # `CancelledError` into the active event loop, breaking everything!
         if self._startup_reset_future:
-            self._startup_reset_future.set_exception(exc)
+            self._startup_reset_future.set_exception(
+                exc or OSError("Server closed connection")
+            )
 
         if self._connection_done_future:
             self._connection_done_future.set_result(exc)
