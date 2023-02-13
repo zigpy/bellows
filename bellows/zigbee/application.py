@@ -125,14 +125,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         ezsp = self._ezsp
 
         self._multicast = bellows.multicast.Multicast(ezsp)
-
-        status, count = await ezsp.getConfigurationValue(
-            ezsp.types.EzspConfigId.CONFIG_APS_UNICAST_MESSAGE_COUNT
-        )
-        assert status == t.EmberStatus.SUCCESS
-        self._concurrent_requests_semaphore.max_value = count
-        LOGGER.debug("APS_UNICAST_MESSAGE_COUNT is set to %s", count)
-
         await self.register_endpoints()
 
         brd_manuf, brd_name, version = await self._get_board_info()
