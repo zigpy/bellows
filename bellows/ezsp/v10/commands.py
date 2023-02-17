@@ -311,7 +311,7 @@ COMMANDS = {
     "incomingNetworkStatusHandler": (
         0x00C4,
         (),
-        tuple({"errorCode": t.EmberStatus, "target": t.EmberNodeId}.values()),
+        tuple({"errorCode": t.EmberStackError, "target": t.EmberNodeId}.values()),
     ),
     "setSourceRouteDiscoveryMode": (0x005A, (t.uint8_t,), (t.uint32_t,)),
     "incomingManyToOneRouteRequestHandler": (
