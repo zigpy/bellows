@@ -38,6 +38,7 @@ from bellows.types.named import (  # noqa: F401, F403
     EmberSignature283k1Data,
     EmberSignatureData,
     EmberSmacData,
+    EmberStackError,
     EmberStatus,
     EmberZdoConfigurationFlags,
     EmberZllKeyIndex,

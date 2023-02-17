@@ -7,7 +7,7 @@ import voluptuous
 
 import bellows.config
 
-from . import commands, config, types as v9_types
+from . import commands, config, types as v10_types
 from .. import protocol
 
 EZSP_VERSION = 10
@@ -22,7 +22,7 @@ class EZSPv10(protocol.ProtocolHandler):
         bellows.config.CONF_EZSP_CONFIG: voluptuous.Schema(config.EZSP_SCHEMA),
         bellows.config.CONF_EZSP_POLICIES: voluptuous.Schema(config.EZSP_POLICIES_SCH),
     }
-    types = v9_types
+    types = v10_types
 
     def _ezsp_frame_tx(self, name: str) -> bytes:
         """Serialize the frame id."""
@@ -39,17 +39,17 @@ class EZSPv10(protocol.ProtocolHandler):
 
     async def pre_permit(self, time_s: int) -> None:
         """Temporarily change TC policy while allowing new joins."""
-        wild_card_ieee = v9_types.EmberEUI64([0xFF] * 8)
-        tc_link_key = v9_types.EmberKeyData(b"ZigBeeAlliance09")
+        wild_card_ieee = v10_types.EmberEUI64([0xFF] * 8)
+        tc_link_key = v10_types.EmberKeyData(b"ZigBeeAlliance09")
         await self.addTransientLinkKey(wild_card_ieee, tc_link_key)
         await self.setPolicy(
-            v9_types.EzspPolicyId.TRUST_CENTER_POLICY,
-            v9_types.EzspDecisionBitmask.ALLOW_JOINS
-            | v9_types.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS,
+            v10_types.EzspPolicyId.TRUST_CENTER_POLICY,
+            v10_types.EzspDecisionBitmask.ALLOW_JOINS
+            | v10_types.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS,
         )
         await asyncio.sleep(time_s + 2)
         await self.setPolicy(
-            v9_types.EzspPolicyId.TRUST_CENTER_POLICY,
+            v10_types.EzspPolicyId.TRUST_CENTER_POLICY,
             self.tc_policy,
         )
 
