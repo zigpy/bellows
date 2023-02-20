@@ -15,7 +15,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class EZSPv9(protocol.ProtocolHandler):
-    """EZSP Version 8 Protocol version handler."""
+    """EZSP Version 9 Protocol version handler."""
 
     COMMANDS = commands.COMMANDS
     SCHEMAS = {
