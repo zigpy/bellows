@@ -9,7 +9,7 @@ The project can be used as a stand-alone library, however, the main goal of this
 
 - https://www.home-assistant.io/integrations/zha/
 
-bellows interacts with the Zigbee Network Coprocessor (NCP) with EmberZNet PRO Zigbee coordinator firmware using the EZSP protocol serial interface APIs via via UART for Silicon Labs EM35x and EFR32 Zigbee radio module/chips hardware. The library currently supports the Silicon Labs EZSP (EmberZNet Serial Protocol) API versions v4/v5/v6/v7/v8 for Silabs older EM35x "Ember" and their newer EFR32 "Mighty Gecko" SoCs using ASH protocols over a serial interface.
+bellows interacts with the Zigbee Network Coprocessor (NCP) with EmberZNet PRO Zigbee coordinator firmware using the EZSP protocol serial interface APIs via via UART for Silicon Labs EM35x and EFR32 Zigbee radio module/chips hardware. The library currently supports the Silicon Labs EZSP (EmberZNet Serial Protocol) API versions v4/v5/v6/v7/v8/v9/v10 for Silabs older EM35x "Ember" and their newer EFR32 "Mighty Gecko" SoCs using ASH protocols over a serial interface.
 
 ## Hardware requirement
 
@@ -52,7 +52,7 @@ The largest change was between EZSP v4 (first added in EmberZNet 4.7.2 SDK) and 
 
 Perhaps more important to know today is that EZSP v5, v6 and v7 (EmberZNet 6.6.x.x) use the same framing format, but EmberZNet 6.7.x.x/EZSP v8 introduced new framing format and expanded command id field from 8 bits to 16 bits and is and is not backward compatible.
 
-EZSP v9 protocol is largely the same as EZSP v8, though there are breaking changes in some responses and bellows has been updated to handle the new additions.
+EZSP v9 and EZSP v10 protocol versions are largely the same as EZSP v8, though there are a few minor breaking changes in some responses for which bellows has been updated to handle those new additions and differences.
 
 ## Project status
 
