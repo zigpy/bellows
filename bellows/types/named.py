@@ -254,7 +254,7 @@ class EzspStatus(basic.enum8):
     ERROR_SECURITY_PARAMETERS_NOT_SET = 0x48
     # Received frame with unsupported control byte
     ERROR_UNSUPPORTED_CONTROL = 0x49
-    # Received frame is unsecure, when security is established
+    # Received frame is insecure, when security is established
     ERROR_UNSECURE_FRAME = 0x4A
     # Incompatible ASH version
     ASH_ERROR_VERSION = 0x50
