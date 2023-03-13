@@ -571,7 +571,6 @@ async def test_permit_with_key_ieee(app, ieee, version, tc_policy_count, ezsp_ty
 
 
 async def test_permit_with_key_invalid_install_code(app, ieee):
-
     with pytest.raises(Exception):
         await app.permit_with_key(
             ieee, bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]), 60

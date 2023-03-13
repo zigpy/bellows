@@ -41,15 +41,15 @@ def test_ids(commands):
 
 def test_parms(commands):
     """Test that parameter descriptions seem valid"""
-    for command, parms in commands.items():
-        assert isinstance(parms[1], tuple), command
-        assert isinstance(parms[2], tuple), command
+    for command, params in commands.items():
+        assert isinstance(params[1], tuple), command
+        assert isinstance(params[2], tuple), command
 
 
 def test_handlers(commands):
     """Test that handler methods only have responses"""
-    for command, parms in commands.items():
+    for command, params in commands.items():
         if not command.endswith("Handler"):
             continue
-        assert len(parms[1]) == 0, command
-        assert len(parms[2]) > 0, command
+        assert len(params[1]) == 0, command
+        assert len(params[2]) > 0, command

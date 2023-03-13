@@ -47,7 +47,6 @@ async def test_initialize(multicast):
 
 
 async def test_initialize_fail_configured_size(multicast):
-
     multicast._ezsp.getConfigurationValue.return_value = t.EmberStatus.ERR_FATAL, 16
     await multicast._initialize()
     ezsp = multicast._ezsp
@@ -75,7 +74,6 @@ async def test_initialize_fail(multicast):
 
 
 async def test_startup(multicast):
-
     coordinator = MagicMock()
     ep1 = MagicMock(spec_set=Endpoint)
     ep1.member_of = [sentinel.grp, sentinel.grp, sentinel.grp]
