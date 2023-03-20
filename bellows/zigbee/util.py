@@ -1,4 +1,5 @@
 import logging
+import math
 
 import zigpy.state
 import zigpy.types as zigpy_t
@@ -7,6 +8,14 @@ import zigpy.zdo.types as zdo_t
 import bellows.types as t
 
 LOGGER = logging.getLogger(__name__)
+
+# Test tone at 8dBm power level produced a max RSSI of -3dB
+# -21dB corresponds to 100% LQI on the ZZH!
+RSSI_MAX = -5
+
+# Grounded antenna and then shielded produced a min RSSI of -92
+# -89dB corresponds to 0% LQI on the ZZH!
+RSSI_MIN = -92
 
 
 def zha_security(
@@ -94,3 +103,19 @@ def zigpy_key_to_ezsp_key(zigpy_key: zigpy.state.Key, ezsp):
         key.bitmask |= ezsp.types.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
 
     return key
+
+
+def logistic(x: float, *, L: float = 1, x_0: float = 0, k: float = 1) -> float:
+    """Logistic function."""
+    return L / (1 + math.exp(-k * (x - x_0)))
+
+
+def remap_rssi_to_lqi(rssi: int) -> float:
+    """Remaps RSSI (in dBm) to LQI (0-255)."""
+
+    return logistic(
+        x=rssi,
+        L=255,
+        x_0=(RSSI_MAX - RSSI_MIN) / 2,
+        k=0.1,
+    )

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import statistics
 from typing import Dict, Optional
 
 import zigpy.application
@@ -671,6 +672,27 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         (res,) = await self._ezsp.setSourceRoute(nwk, relays)
         return res == t.EmberStatus.SUCCESS
+
+    async def energy_scan(
+        self, channels: t.Channels.ALL_CHANNELS, duration_exp: int = 2, count: int = 1
+    ) -> dict[int, float]:
+        all_results = {}
+
+        for _ in range(count):
+            results = await self._ezsp.startScan(
+                t.EzspNetworkScanType.ENERGY_SCAN,
+                channels,
+                duration_exp,
+            )
+
+            for channel, rssi in results:
+                all_results.setdefault(channel, []).append(rssi)
+
+        # Remap RSSI to LQI
+        return {
+            channel: util.remap_rssi_to_lqi(statistics.mean(rssis))
+            for channel, rssis in all_results.items()
+        }
 
     async def send_packet(self, packet: zigpy.types.ZigbeePacket) -> None:
         if not self.is_controller_running:
