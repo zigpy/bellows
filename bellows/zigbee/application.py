@@ -674,7 +674,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         return res == t.EmberStatus.SUCCESS
 
     async def energy_scan(
-        self, channels: t.Channels.ALL_CHANNELS, duration_exp: int = 2, count: int = 1
+        self, channels: t.Channels, duration_exp: int, count: int
     ) -> dict[int, float]:
         all_results = {}
 
