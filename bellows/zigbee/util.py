@@ -116,6 +116,6 @@ def remap_rssi_to_lqi(rssi: int) -> float:
     return logistic(
         x=rssi,
         L=255,
-        x_0=(RSSI_MAX - RSSI_MIN) / 2,
+        x_0=(RSSI_MIN + RSSI_MAX) / 2,
         k=0.1,
     )
