@@ -785,17 +785,18 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                         status,
                     )
 
+                # Only throw a delivery exception for packets sent with NWK addressing.
+                # https://github.com/home-assistant/core/issues/79832
+                # Broadcasts/multicasts don't have ACKs or confirmations either.
+                if packet.dst.addr_mode != zigpy.types.AddrMode.NWK:
+                    return
+
                 # Wait for `messageSentHandler` message
                 send_status, _ = await asyncio.wait_for(
                     req.result, timeout=APS_ACK_TIMEOUT
                 )
 
-                # Only throw a delivery exception for packets sent with NWK addressing
-                # https://github.com/home-assistant/core/issues/79832
-                if (
-                    send_status != t.EmberStatus.SUCCESS
-                    and packet.dst.addr_mode == zigpy.types.AddrMode.NWK
-                ):
+                if send_status != t.EmberStatus.SUCCESS:
                     raise zigpy.exceptions.DeliveryError(
                         f"Failed to deliver message: {send_status!r}", send_status
                     )
