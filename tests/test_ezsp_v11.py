@@ -14,7 +14,7 @@ def ezsp_f():
 def test_ezsp_frame(ezsp_f):
     ezsp_f._seq = 0x22
     data = ezsp_f._ezsp_frame("version", 11)
-    assert data == b"\x22\x00\x01\x00\x00\x0a"
+    assert data == b"\x22\x00\x01\x00\x00\x0b"
 
 
 def test_ezsp_frame_rx(ezsp_f):
