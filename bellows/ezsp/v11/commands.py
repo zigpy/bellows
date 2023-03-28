@@ -287,7 +287,11 @@ COMMANDS = {
         (t.EmberStatus,),
     ),
     "pollCompleteHandler": (0x0043, (), (t.EmberStatus,)),
-    "pollHandler": (0x0044, (), (t.EmberNodeId,)),
+    "pollHandler": (
+        0x0044,
+        (),
+        tuple({"childId": t.EmberNodeId, "transmitExpected": t.Bool}.values()),
+    ),
     "incomingSenderEui64Handler": (0x0062, (), (t.EmberEUI64,)),
     "incomingMessageHandler": (
         0x0045,
