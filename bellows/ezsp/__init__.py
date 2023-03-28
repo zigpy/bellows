@@ -271,16 +271,20 @@ class EZSP:
             if frame_name == "stackStatusHandler":
                 fut.set_result(response)
 
-        self.add_callback(cb)
-        v = await self._command("formNetwork", parameters)
-        if v[0] != self.types.EmberStatus.SUCCESS:
-            raise Exception(f"Failure forming network: {v}")
+        cb_id = self.add_callback(cb)
 
-        v = await fut
-        if v[0] != self.types.EmberStatus.NETWORK_UP:
-            raise Exception(f"Failure forming network: {v}")
+        try:
+            v = await self._command("formNetwork", parameters)
+            if v[0] != self.types.EmberStatus.SUCCESS:
+                raise Exception(f"Failure forming network: {v}")
 
-        return v
+            v = await fut
+            if v[0] != self.types.EmberStatus.NETWORK_UP:
+                raise Exception(f"Failure forming network: {v}")
+
+            return v
+        finally:
+            self.remove_callback(cb_id)
 
     def frame_received(self, data: bytes) -> None:
         """Handle a received EZSP frame
