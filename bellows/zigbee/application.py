@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import statistics
 from typing import Dict, Optional
 
 import zigpy.application
@@ -672,6 +673,27 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         (res,) = await self._ezsp.setSourceRoute(nwk, relays)
         return res == t.EmberStatus.SUCCESS
 
+    async def energy_scan(
+        self, channels: t.Channels, duration_exp: int, count: int
+    ) -> dict[int, float]:
+        all_results = {}
+
+        for _ in range(count):
+            results = await self._ezsp.startScan(
+                t.EzspNetworkScanType.ENERGY_SCAN,
+                channels,
+                duration_exp,
+            )
+
+            for channel, rssi in results:
+                all_results.setdefault(channel, []).append(rssi)
+
+        # Remap RSSI to LQI
+        return {
+            channel: util.remap_rssi_to_lqi(statistics.mean(rssis))
+            for channel, rssis in all_results.items()
+        }
+
     async def send_packet(self, packet: zigpy.types.ZigbeePacket) -> None:
         if not self.is_controller_running:
             raise ControllerError("ApplicationController is not running")
@@ -785,17 +807,18 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                         status,
                     )
 
+                # Only throw a delivery exception for packets sent with NWK addressing.
+                # https://github.com/home-assistant/core/issues/79832
+                # Broadcasts/multicasts don't have ACKs or confirmations either.
+                if packet.dst.addr_mode != zigpy.types.AddrMode.NWK:
+                    return
+
                 # Wait for `messageSentHandler` message
                 send_status, _ = await asyncio.wait_for(
                     req.result, timeout=APS_ACK_TIMEOUT
                 )
 
-                # Only throw a delivery exception for packets sent with NWK addressing
-                # https://github.com/home-assistant/core/issues/79832
-                if (
-                    send_status != t.EmberStatus.SUCCESS
-                    and packet.dst.addr_mode == zigpy.types.AddrMode.NWK
-                ):
+                if send_status != t.EmberStatus.SUCCESS:
                     raise zigpy.exceptions.DeliveryError(
                         f"Failed to deliver message: {send_status!r}", send_status
                     )

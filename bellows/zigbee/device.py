@@ -14,23 +14,7 @@ import bellows.types as t
 if typing.TYPE_CHECKING:
     import zigpy.application  # pragma: no cover
 
-# Test tone at 8dBm power level produced a max RSSI of -3dB
-# -21dB corresponds to 100% LQI on the ZZH!
-RSSI_MAX = -21
-
-# Grounded antenna and then shielded produced a min RSSI of -92
-# -89dB corresponds to 0% LQI on the ZZH!
-RSSI_MIN = -89
-
 LOGGER = logging.getLogger(__name__)
-
-
-def clamp(v: float, minimum: float, maximum: float) -> float:
-    """
-    Restricts `v` to be between `minimum` and `maximum`.
-    """
-
-    return min(max(minimum, v), maximum)
 
 
 class EZSPEndpoint(zigpy.endpoint.Endpoint):
@@ -82,38 +66,6 @@ class EZSPZDOEndpoint(zigpy.zdo.ZDO):
         Provides a way to create ZDO commands with schemas. Currently does nothing.
         """
         return list(kwargs.values())
-
-    @zigpy.util.retryable_request
-    async def request(self, command, *args, use_ieee=False):
-        if (
-            command == zdo_t.ZDOCmd.Mgmt_NWK_Update_req
-            and args[0].ScanDuration < zdo_t.NwkUpdate.CHANNEL_CHANGE_REQ
-        ):
-            return await self._ezsp_energy_scan(*args)
-
-        return await super().request(command, *args, use_ieee=use_ieee)
-
-    async def _ezsp_energy_scan(self, NwkUpdate: zdo_t.NwkUpdate):
-        results = await self.app._ezsp.startScan(
-            t.EzspNetworkScanType.ENERGY_SCAN,
-            NwkUpdate.ScanChannels,
-            NwkUpdate.ScanDuration,
-        )
-
-        # Linearly remap RSSI to LQI
-        rescaled_values = [
-            int(100 * (clamp(v, RSSI_MIN, RSSI_MAX) - RSSI_MIN) / (RSSI_MAX - RSSI_MIN))
-            for _, v in results
-        ]
-
-        return self.make_zdo_reply(
-            cmd=zdo_t.ZDOCmd.Mgmt_NWK_Update_rsp,
-            Status=zdo_t.Status.SUCCESS,
-            ScannedChannels=NwkUpdate.ScanChannels,
-            TotalTransmissions=0,
-            TransmissionFailures=0,
-            EnergyValues=rescaled_values,
-        )
 
 
 class EZSPCoordinator(zigpy.device.Device):

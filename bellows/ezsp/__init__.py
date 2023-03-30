@@ -15,9 +15,9 @@ from bellows.exception import EzspError
 import bellows.types as t
 import bellows.uart
 
-from . import v4, v5, v6, v7, v8, v9, v10
+from . import v4, v5, v6, v7, v8, v9, v10, v11
 
-EZSP_LATEST = v10.EZSP_VERSION
+EZSP_LATEST = v11.EZSP_VERSION
 PROBE_TIMEOUT = 3
 NETWORK_OPS_TIMEOUT = 10
 LOGGER = logging.getLogger(__name__)
@@ -38,6 +38,7 @@ class EZSP:
         v8.EZSP_VERSION: v8.EZSPv8,
         v9.EZSP_VERSION: v9.EZSPv9,
         v10.EZSP_VERSION: v10.EZSPv10,
+        v11.EZSP_VERSION: v11.EZSPv11,
     }
 
     def __init__(self, device_config: Dict):
@@ -271,16 +272,20 @@ class EZSP:
             if frame_name == "stackStatusHandler":
                 fut.set_result(response)
 
-        self.add_callback(cb)
-        v = await self._command("formNetwork", parameters)
-        if v[0] != self.types.EmberStatus.SUCCESS:
-            raise Exception(f"Failure forming network: {v}")
+        cb_id = self.add_callback(cb)
 
-        v = await fut
-        if v[0] != self.types.EmberStatus.NETWORK_UP:
-            raise Exception(f"Failure forming network: {v}")
+        try:
+            v = await self._command("formNetwork", parameters)
+            if v[0] != self.types.EmberStatus.SUCCESS:
+                raise Exception(f"Failure forming network: {v}")
 
-        return v
+            v = await fut
+            if v[0] != self.types.EmberStatus.NETWORK_UP:
+                raise Exception(f"Failure forming network: {v}")
+
+            return v
+        finally:
+            self.remove_callback(cb_id)
 
     def frame_received(self, data: bytes) -> None:
         """Handle a received EZSP frame
