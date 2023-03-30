@@ -143,3 +143,8 @@ def test_ezsp_key_to_zigpy_key(zigpy_key, ezsp_key, ezsp_mock):
 
 def test_zigpy_key_to_ezsp_key(zigpy_key, ezsp_key, ezsp_mock):
     assert util.zigpy_key_to_ezsp_key(zigpy_key, ezsp_mock) == ezsp_key
+
+
+def test_remap_rssi_to_lqi():
+    assert 0 <= util.remap_rssi_to_lqi(-200) <= 0.01
+    assert 254 <= util.remap_rssi_to_lqi(100) <= 255

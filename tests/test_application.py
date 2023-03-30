@@ -125,6 +125,7 @@ async def _test_startup(
     ezsp_mock.networkInit = AsyncMock(return_value=[init])
     ezsp_mock.getNetworkParameters = AsyncMock(return_value=[0, nwk_type, nwk_params])
     ezsp_mock.can_write_custom_eui64 = AsyncMock(return_value=True)
+    ezsp_mock.startScan = AsyncMock(return_value=[[c, 1] for c in range(11, 26 + 1)])
 
     if board_info:
         ezsp_mock.get_board_info = AsyncMock(
@@ -1659,3 +1660,46 @@ async def test_startup_source_routing(make_app, ieee, enable_source_routing):
         assert mock_device.relays is None
     else:
         assert mock_device.relays is sentinel.relays
+
+
+@pytest.mark.parametrize(
+    "scan_results",
+    [
+        # Normal
+        [
+            -39,
+            -30,
+            -26,
+            -33,
+            -23,
+            -53,
+            -42,
+            -46,
+            -69,
+            -75,
+            -49,
+            -67,
+            -57,
+            -81,
+            -29,
+            -40,
+        ],
+        # Maximum
+        [10] * (26 - 11 + 1),
+        # Minimum
+        [-200] * (26 - 11 + 1),
+    ],
+)
+async def test_energy_scanning(app, scan_results):
+    app._ezsp.startScan = AsyncMock(
+        return_value=list(zip(range(11, 26 + 1), scan_results))
+    )
+
+    results = await app.energy_scan(
+        channels=t.Channels.ALL_CHANNELS,
+        duration_exp=2,
+        count=1,
+    )
+
+    assert set(results.keys()) == set(t.Channels.ALL_CHANNELS)
+    assert all(0 <= v <= 255 for v in results.values())
