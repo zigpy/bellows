@@ -110,11 +110,25 @@ def logistic(x: float, *, L: float = 1, x_0: float = 0, k: float = 1) -> float:
     return L / (1 + math.exp(-k * (x - x_0)))
 
 
-def remap_rssi_to_lqi(rssi: int) -> float:
-    """Remaps RSSI (in dBm) to LQI (0-255)."""
-
+def map_rssi_to_energy(rssi: int) -> float:
+    """Remaps RSSI (in dBm) to Energy (0-255)."""
     return logistic(
         x=rssi,
+        L=255,
+        x_0=RSSI_MIN + 0.45 * (RSSI_MAX - RSSI_MIN),
+        k=0.13,
+    )
+
+
+def logit(y: float, *, L: float = 1, x_0: float = 0, k: float = 1) -> float:
+    """Logit function (inverse of logistic)."""
+    return x_0 - math.log(L / y - 1) / k
+
+
+def map_energy_to_rssi(lqi: float) -> float:
+    """Remaps Energy (0-255) back to RSSI (in dBm)."""
+    return logit(
+        y=lqi,
         L=255,
         x_0=RSSI_MIN + 0.45 * (RSSI_MAX - RSSI_MIN),
         k=0.13,

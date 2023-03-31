@@ -688,9 +688,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             for channel, rssi in results:
                 all_results.setdefault(channel, []).append(rssi)
 
-        # Remap RSSI to LQI
+        # Remap RSSI to Energy
         return {
-            channel: util.remap_rssi_to_lqi(statistics.mean(rssis))
+            channel: util.map_rssi_to_energy(statistics.mean(rssis))
             for channel, rssis in all_results.items()
         }
 
