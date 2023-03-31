@@ -145,6 +145,11 @@ def test_zigpy_key_to_ezsp_key(zigpy_key, ezsp_key, ezsp_mock):
     assert util.zigpy_key_to_ezsp_key(zigpy_key, ezsp_mock) == ezsp_key
 
 
-def test_remap_rssi_to_lqi():
-    assert 0 <= util.remap_rssi_to_lqi(-200) <= 0.01
-    assert 254 <= util.remap_rssi_to_lqi(100) <= 255
+def test_map_rssi_to_energy():
+    assert 0 <= util.map_rssi_to_energy(-200) <= 0.01
+    assert 254 <= util.map_rssi_to_energy(100) <= 255
+
+    # Make sure the two functions are inverses
+    for rssi in range(-100, 100):
+        energy = util.map_rssi_to_energy(rssi)
+        assert abs(util.map_energy_to_rssi(energy) - rssi) < 0.1
