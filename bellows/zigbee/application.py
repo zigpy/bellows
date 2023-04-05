@@ -144,10 +144,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             return False
 
         (init_status,) = await self._ezsp.networkInit()
-        if init_status != t.EmberStatus.SUCCESS:
-            raise NetworkNotFormed(f"Failed to init network: {init_status!r}")
-
-        return True
+        if init_status == t.EmberStatus.SUCCESS:
+            return True
+        elif init_status == t.EmberStatus.NOT_JOINED:
+            raise NetworkNotFormed("Node is not part of a network")
+        else:
+            raise ControllerError(f"Failed to initialize network: {init_status!r}")
 
     async def start_network(self):
         ezsp = self._ezsp
