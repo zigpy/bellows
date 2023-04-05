@@ -70,21 +70,21 @@ def test_attr(ezsp_f):
     assert callable(m)
 
 
-def test_non_existent_attr(ezsp_f):
+async def test_non_existent_attr(ezsp_f):
     with pytest.raises(AttributeError):
-        ezsp_f.nonexistentMethod()
+        await ezsp_f.nonexistentMethod()
 
 
-def test_command(ezsp_f):
+async def test_command(ezsp_f):
     ezsp_f.start_ezsp()
     with patch.object(ezsp_f._protocol, "command") as cmd_mock:
-        ezsp_f.nop()
+        await ezsp_f.nop()
     assert cmd_mock.call_count == 1
 
 
-def test_command_ezsp_stopped(ezsp_f):
+async def test_command_ezsp_stopped(ezsp_f):
     with pytest.raises(EzspError):
-        ezsp_f._command("version")
+        await ezsp_f._command("version")
 
 
 async def _test_list_command(ezsp_f, mockcommand):
