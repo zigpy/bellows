@@ -1,6 +1,12 @@
 import asyncio
 import binascii
 import logging
+import sys
+
+if sys.version_info[:2] < (3, 11):
+    from async_timeout import timeout as asyncio_timeout  # pragma: no cover
+else:
+    from asyncio import timeout as asyncio_timeout  # pragma: no cover
 
 import zigpy.serial
 
@@ -257,7 +263,9 @@ class Gateway(asyncio.Protocol):
         self._reset_future = asyncio.get_event_loop().create_future()
         self._reset_future.add_done_callback(self._reset_cleanup)
         self.write(self._rst_frame())
-        return await asyncio.wait_for(self._reset_future, timeout=RESET_TIMEOUT)
+
+        async with asyncio_timeout(RESET_TIMEOUT):
+            return await self._reset_future
 
     async def _send_loop(self):
         """Send queue handler"""

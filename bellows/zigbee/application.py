@@ -4,7 +4,13 @@ import asyncio
 import logging
 import os
 import statistics
+import sys
 from typing import Dict, Optional
+
+if sys.version_info[:2] < (3, 11):
+    from async_timeout import timeout as asyncio_timeout  # pragma: no cover
+else:
+    from asyncio import timeout as asyncio_timeout  # pragma: no cover
 
 import zigpy.application
 import zigpy.config
@@ -816,9 +822,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     return
 
                 # Wait for `messageSentHandler` message
-                send_status, _ = await asyncio.wait_for(
-                    req.result, timeout=APS_ACK_TIMEOUT
-                )
+                async with asyncio_timeout(APS_ACK_TIMEOUT):
+                    send_status, _ = await req.result
 
                 if send_status != t.EmberStatus.SUCCESS:
                     raise zigpy.exceptions.DeliveryError(
@@ -880,9 +885,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
         while True:
             try:
-                await asyncio.wait_for(
-                    self.controller_event.wait(), timeout=WATCHDOG_WAKE_PERIOD * 2
-                )
+                async with asyncio_timeout(WATCHDOG_WAKE_PERIOD * 2):
+                    await self.controller_event.wait()
+
                 if self._ezsp.ezsp_version == 4:
                     await self._ezsp.nop()
                 else:

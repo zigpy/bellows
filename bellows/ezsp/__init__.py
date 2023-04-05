@@ -5,8 +5,14 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
+import sys
 from typing import Any, Callable, Dict, List, Tuple, Union
 import urllib.parse
+
+if sys.version_info[:2] < (3, 11):
+    from async_timeout import timeout as asyncio_timeout  # pragma: no cover
+else:
+    from asyncio import timeout as asyncio_timeout  # pragma: no cover
 
 import zigpy.config
 
@@ -58,7 +64,9 @@ class EZSP:
         ):
             ezsp = cls(conf.SCHEMA_DEVICE(config))
             try:
-                await asyncio.wait_for(ezsp._probe(), timeout=PROBE_TIMEOUT)
+                async with asyncio_timeout(PROBE_TIMEOUT):
+                    await ezsp._probe()
+
                 return config
             except Exception as exc:
                 LOGGER.debug(
@@ -83,10 +91,8 @@ class EZSP:
         parsed_path = urllib.parse.urlparse(self._config[conf.CONF_DEVICE_PATH])
         if parsed_path.scheme == "socket":
             try:
-                await asyncio.wait_for(
-                    self._gw.wait_for_startup_reset(),
-                    NETWORK_COORDINATOR_STARTUP_RESET_WAIT,
-                )
+                async with asyncio_timeout(NETWORK_COORDINATOR_STARTUP_RESET_WAIT):
+                    await self._gw.wait_for_startup_reset()
             except asyncio.TimeoutError:
                 pass
             else:
@@ -233,8 +239,9 @@ class EZSP:
             (status,) = await self._command("leaveNetwork")
             if status != t.EmberStatus.SUCCESS:
                 raise EzspError(f"failed to leave network: {status.name}")
-            result = await asyncio.wait_for(stack_status, timeout=timeout)
-            return result
+
+            async with asyncio_timeout(timeout):
+                return await stack_status
         finally:
             self.remove_callback(cb_id)
 

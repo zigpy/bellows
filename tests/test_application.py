@@ -60,7 +60,7 @@ def make_app(monkeypatch, event_loop, ezsp_mock):
         app = bellows.zigbee.application.ControllerApplication(app_cfg)
 
         app._ezsp = ezsp_mock
-        monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.01)
+        monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.05)
         app._ctrl_event.set()
         app._in_flight_msg = asyncio.Semaphore()
         app.handle_message = MagicMock()

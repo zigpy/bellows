@@ -3,7 +3,13 @@ import asyncio
 import binascii
 import functools
 import logging
+import sys
 from typing import Any, Callable, Dict, Optional, Tuple
+
+if sys.version_info[:2] < (3, 11):
+    from async_timeout import timeout as asyncio_timeout  # pragma: no cover
+else:
+    from asyncio import timeout as asyncio_timeout  # pragma: no cover
 
 from bellows.config import CONF_EZSP_CONFIG, CONF_EZSP_POLICIES
 from bellows.exception import EzspError
@@ -111,7 +117,7 @@ class ProtocolHandler(abc.ABC):
 
         return int.from_bytes(value, byteorder="little")
 
-    def command(self, name, *args) -> asyncio.Future:
+    async def command(self, name, *args) -> Any:
         """Serialize command and send it."""
         LOGGER.debug("Send command %s: %s", name, args)
         data = self._ezsp_frame(name, *args)
@@ -120,7 +126,9 @@ class ProtocolHandler(abc.ABC):
         future = asyncio.Future()
         self._awaiting[self._seq] = (c[0], c[2], future)
         self._seq = (self._seq + 1) % 256
-        return asyncio.wait_for(future, timeout=EZSP_CMD_TIMEOUT)
+
+        async with asyncio_timeout(EZSP_CMD_TIMEOUT):
+            return await future
 
     async def set_source_routing(self) -> None:
         """Enable source routing on NCP."""

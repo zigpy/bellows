@@ -29,7 +29,10 @@ def prot_hndl():
 
 async def test_command(prot_hndl):
     coro = prot_hndl.command("nop")
-    prot_hndl._awaiting[prot_hndl._seq - 1][2].set_result(True)
+    asyncio.get_running_loop().call_soon(
+        lambda: prot_hndl._awaiting[prot_hndl._seq - 1][2].set_result(True)
+    )
+
     await coro
     assert prot_hndl._gw.data.call_count == 1
 
