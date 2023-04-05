@@ -201,7 +201,7 @@ class Gateway(asyncio.Protocol):
 
     def eof_received(self):
         """Server gracefully closed its side of the connection."""
-        self.connection_lost(OSError("Server closed connection"))
+        self.connection_lost(ConnectionResetError("Remote server closed connection"))
 
     def connection_lost(self, exc):
         """Port was closed unexpectedly."""
@@ -214,7 +214,7 @@ class Gateway(asyncio.Protocol):
         # `CancelledError` into the active event loop, breaking everything!
         if self._startup_reset_future:
             self._startup_reset_future.set_exception(
-                exc or OSError("Server closed connection")
+                exc or ConnectionResetError("Remote server closed connection")
             )
 
         if self._connection_done_future:
