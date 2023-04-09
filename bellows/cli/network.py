@@ -63,9 +63,7 @@ async def join(ctx, channels, pan_id, extended_pan_id):
         extended_pan_id = network.extendedPanId
         channel = network.channel
 
-        click.echo(
-            "Found network %s %s on channel %s" % (pan_id, extended_pan_id, channel)
-        )
+        click.echo(f"Found network {pan_id} {extended_pan_id} on channel {channel}")
 
     if pan_id is None:
         pan_id = t.uint16_t(0)
@@ -81,12 +79,12 @@ async def join(ctx, channels, pan_id, extended_pan_id):
     if v[0] == t.EmberStatus.SUCCESS:
         LOGGER.debug("Network was up, leaving...")
         v = await s.leaveNetwork()
-        util.check(v[0], "Failure leaving network: %s" % (v[0],))
+        util.check(v[0], f"Failure leaving network: {v[0]}")
         await asyncio.sleep(1)  # TODO
 
     initial_security_state = zutil.zha_security(SCHEMA_NETWORK({}))
     v = await s.setInitialSecurityState(initial_security_state)
-    util.check(v[0], "Setting security state failed: %s" % (v[0],))
+    util.check(v[0], f"Setting security state failed: {v[0]}")
 
     parameters = t.EmberNetworkParameters()
     parameters.extendedPanId = extended_pan_id
@@ -102,7 +100,7 @@ async def join(ctx, channels, pan_id, extended_pan_id):
     fut = asyncio.Future()
     cbid = s.add_callback(functools.partial(cb, fut))
     v = await s.joinNetwork(t.EmberNodeType.END_DEVICE, parameters)
-    util.check(v[0], "Joining network failed: %s" % (v[0],))
+    util.check(v[0], f"Joining network failed: {v[0]}")
     v = await fut
     click.echo(v)
 
@@ -124,7 +122,7 @@ async def leave(ctx):
         v = await s.leaveNetwork()
         util.check(
             v[0],
-            "Failure leaving network: %s" % (v[0],),
+            f"Failure leaving network: {v[0]}",
             expected=t.EmberStatus.NETWORK_DOWN,
         )
 
@@ -142,7 +140,7 @@ async def scan(ctx, channels, duration_ms, energy_scan):
     s = await util.setup(ctx.obj["device"], ctx.obj["baudrate"])
 
     channel_mask = util.channel_mask(channels)
-    click.echo("Scanning channels %s" % (" ".join(map(str, channels)),))
+    click.echo("Scanning channels {}".format(" ".join(map(str, channels))))
 
     # TFM says:
     #   Sets the exponent of the number of scan periods, where a scan period is

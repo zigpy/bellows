@@ -88,7 +88,7 @@ def app(f, app_startup=True, extra_config=None):
 
 
 def print_cb(frame_name, response):
-    click.echo("Callback: %s %s" % (frame_name, response))
+    click.echo(f"Callback: {frame_name} {response}")
 
 
 def channel_mask(channels):
@@ -121,7 +121,7 @@ async def setup(dev, baudrate, cbh=None, configure=True):
 
     async def cfg(config_id, value):
         v = await s.setConfigurationValue(config_id, value)
-        check(v[0], "Setting config %s to %s: %s" % (config_id, value, v[0]))
+        check(v[0], f"Setting config {config_id} to {value}: {v[0]}")
 
     c = s.types.EzspConfigId
 
@@ -155,7 +155,7 @@ async def network_init(s):
     v = await s.networkInit()
     check(
         v[0],
-        "Failure initializing network: %s" % (v[0],),
+        f"Failure initializing network: {v[0]}",
         [0, t.EmberStatus.NOT_JOINED],
     )
     return v
@@ -170,7 +170,7 @@ def parse_epan(epan):
 async def basic_tc_permits(s):
     async def set_policy(policy, decision):
         v = await s.setPolicy(policy, decision)
-        check(v[0], "Failed to set policy %s to %s: %s" % (policy, decision, v[0]))
+        check(v[0], f"Failed to set policy {policy} to {decision}: {v[0]}")
 
     await set_policy(
         s.types.EzspPolicyId.TC_KEY_REQUEST_POLICY,
@@ -188,7 +188,7 @@ async def basic_tc_permits(s):
 
 def get_device(app, node):
     if node not in app.devices:
-        click.echo("Device %s is not in the device database" % (node,))
+        click.echo(f"Device {node} is not in the device database")
         return None
 
     return app.devices[node]

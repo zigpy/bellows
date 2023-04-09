@@ -167,7 +167,7 @@ async def restore(
     """Backup NCP config to stdio."""
     click.echo("Restoring NCP")
     try:
-        with open(backup_file, "r") as file:
+        with open(backup_file) as file:
             backup_data = json.load(file)
             LOGGER.debug("loaded: %s", backup_data)
             backup_data = SCHEMA_BAK(backup_data)

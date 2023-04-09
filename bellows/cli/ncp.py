@@ -29,7 +29,7 @@ async def config(ctx, config, all_):
             v = await s.getConfigurationValue(config)
             if v[0] == t.EzspStatus.ERROR_INVALID_ID:
                 continue
-            click.echo("%s=%s" % (config.name, v[1]))
+            click.echo(f"{config.name}={v[1]}")
         s.close()
         return
 
@@ -39,18 +39,18 @@ async def config(ctx, config, all_):
             try:
                 config = s.types.EzspConfigId(int(config))
             except ValueError:
-                raise click.BadArgumentUsage("Invalid config ID: %s" % (config,))
+                raise click.BadArgumentUsage(f"Invalid config ID: {config}")
         else:
             try:
                 config = s.types.EzspConfigId[config]
             except KeyError:
-                raise click.BadArgumentUsage("Invalid config name: %s" % (config,))
+                raise click.BadArgumentUsage(f"Invalid config name: {config}")
         try:
             value = t.uint16_t(value)
             if not (0 <= value <= 65535):
-                raise ValueError("%s out of allowed range 0..65535" % (value,))
+                raise ValueError(f"{value} out of allowed range 0..65535")
         except ValueError as e:
-            raise click.BadArgumentUsage("Invalid value: %s" % (e,))
+            raise click.BadArgumentUsage(f"Invalid value: {e}")
 
         v = await s.setConfigurationValue(config, value)
         click.echo(v)
@@ -109,10 +109,8 @@ async def bootloader(ctx):
         return
 
     click.echo(
-        (
-            f"bootloader version: 0x{version:04x}, nodePlat: 0x{plat:02x}, "
-            f"nodeMicro: 0x{micro:02x}, nodePhy: 0x{phy:02x}"
-        )
+        f"bootloader version: 0x{version:04x}, nodePlat: 0x{plat:02x}, "
+        f"nodeMicro: 0x{micro:02x}, nodePhy: 0x{phy:02x}"
     )
 
     res = await ezsp.launchStandaloneBootloader(0x00)

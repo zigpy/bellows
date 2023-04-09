@@ -62,9 +62,7 @@ class EZSPZDOEndpoint(zigpy.zdo.ZDO):
         return self.device.application
 
     def make_zdo_reply(self, cmd: zdo_t.ZDOCmd, **kwargs):
-        """
-        Provides a way to create ZDO commands with schemas. Currently does nothing.
-        """
+        """Provides a way to create ZDO commands with schemas. Currently does nothing."""
         return list(kwargs.values())
 
 

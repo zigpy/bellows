@@ -33,9 +33,7 @@ def dump(ctx, channel, outfile):
         start_time = ctx.obj.get("start_time", None)
         if start_time:
             duration = time.time() - start_time
-            click.echo(
-                "\nCaptured %s frames in %0.2fs" % (captured, duration), err=True
-            )
+            click.echo(f"\nCaptured {captured} frames in {duration:0.2f}s", err=True)
     finally:
         if "ezsp" in ctx.obj:
             loop.run_until_complete(ctx.obj["ezsp"].mfglibEnd())

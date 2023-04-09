@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 import zigpy.endpoint
 import zigpy.types as t

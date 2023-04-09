@@ -5,7 +5,6 @@ import logging
 import os
 import statistics
 import sys
-from typing import Dict, Optional
 
 if sys.version_info[:2] < (3, 11):
     from async_timeout import timeout as asyncio_timeout  # pragma: no cover
@@ -69,7 +68,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     SCHEMA = CONFIG_SCHEMA
     SCHEMA_DEVICE = SCHEMA_DEVICE
 
-    def __init__(self, config: Dict):
+    def __init__(self, config: dict):
         super().__init__(config)
         self._ctrl_event = asyncio.Event()
         self._ezsp = None
@@ -140,8 +139,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         LOGGER.info("EmberZNet version: %s", version)
 
     async def _ensure_network_running(self) -> bool:
-        """
-        Ensures the network is currently running and returns whether or not the network
+        """Ensures the network is currently running and returns whether or not the network
         was started.
         """
         (state,) = await self._ezsp.networkState()
@@ -933,7 +931,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self.state.counters[COUNTERS_CTRL][COUNTER_WATCHDOG].increment()
         self._handle_reset_request(f"Watchdog timeout. Heartbeat timeouts: {failures}")
 
-    async def _get_free_buffers(self) -> Optional[int]:
+    async def _get_free_buffers(self) -> int | None:
         status, value = await self._ezsp.getValue(
             self._ezsp.types.EzspValueId.VALUE_FREE_BUFFERS
         )
