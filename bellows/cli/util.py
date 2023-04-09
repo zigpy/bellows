@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import functools
 import logging
 
@@ -65,10 +66,8 @@ def app(f, app_startup=True, extra_config=None):
         await application.shutdown()
 
     def shutdown():
-        try:
+        with contextlib.suppress(Exception):
             application._ezsp.close()
-        except:  # noqa: E722
-            pass
 
     @functools.wraps(f)
     def inner(*args, **kwargs):
