@@ -604,7 +604,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             return
 
         if device_update_status == EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN:
-            asyncio.create_task(self.cleanup_tc_link_key(ieee))
+            self.create_task(self.cleanup_tc_link_key(ieee), "cleanup_tc_link_key")
 
         if decision == t.EmberJoinDecision.DENY_JOIN:
             # no point in handling the join if it was denied
@@ -830,7 +830,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def permit(self, time_s: int = 60, node: t.EmberNodeId = None) -> None:
         """Permit joining."""
-        asyncio.create_task(self._ezsp.pre_permit(time_s))
+        self.create_task(self._ezsp.pre_permit(time_s), "pre_permit")
         await super().permit(time_s, node)
 
     def permit_ncp(self, time_s=60):
