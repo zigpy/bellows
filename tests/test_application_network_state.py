@@ -1,5 +1,3 @@
-import logging
-
 import pytest
 import zigpy.state
 import zigpy.types as zigpy_t

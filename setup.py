@@ -19,7 +19,8 @@ setup(
         "click-log>=0.2.1",
         "pure_pcapy3==1.0.1",
         "voluptuous",
-        "zigpy>=0.54.0",
+        "zigpy>=0.54.1",
+        'async-timeout; python_version<"3.11"',
     ],
     dependency_links=[
         "https://codeload.github.com/rcloran/pure-pcapy-3/zip/master",

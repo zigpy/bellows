@@ -57,7 +57,7 @@ def permit(ctx, database, duration_s):
         app = ctx.obj["app"]
         await app.permit(duration_s)
 
-        click.echo("Joins are permitted for the next %ss..." % (duration_s,))
+        click.echo(f"Joins are permitted for the next {duration_s}s...")
         await asyncio.sleep(duration_s + 1)
         click.echo("Done")
 
@@ -80,7 +80,7 @@ def permit_with_key(ctx, database, duration_s, node, code):
         try:
             await app.permit_with_key(node, code, duration_s)
 
-            click.echo("Joins are permitted for the next %ss..." % (duration_s,))
+            click.echo(f"Joins are permitted for the next {duration_s}s...")
             await asyncio.sleep(duration_s + 1)
             click.echo("Done")
         except Exception as e:
@@ -96,11 +96,11 @@ def devices(ctx, database):
     """Show device database"""
 
     def print_clusters(title, clusters):
-        clusters = sorted(list(clusters.items()))
+        clusters = sorted(clusters.items())
         if clusters:
-            click.echo("      %s:" % (title,))
+            click.echo(f"      {title}:")
         for cluster_id, cluster in clusters:
-            click.echo("        %s (%s)" % (cluster.name, cluster_id))
+            click.echo(f"        {cluster.name} ({cluster_id})")
 
     loop = asyncio.get_event_loop()
     config = {
@@ -113,8 +113,8 @@ def devices(ctx, database):
     )
     for ieee, dev in app.devices.items():
         click.echo("Device:")
-        click.echo("  NWK: 0x%04x" % (dev.nwk,))
-        click.echo("  IEEE: %s" % (ieee,))
+        click.echo(f"  NWK: 0x{dev.nwk:04x}")
+        click.echo(f"  IEEE: {ieee}")
         click.echo("  Endpoints:")
         for epid, ep in dev.endpoints.items():
             if epid == 0:
@@ -155,7 +155,7 @@ async def endpoints(ctx):
     try:
         v = await dev.zdo.request(0x0005, dev.nwk)
         if v[0] != t.EmberStatus.SUCCESS:
-            click.echo("Non-success response: %s" % (v,))
+            click.echo(f"Non-success response: {v}")
         else:
             click.echo(v[2])
     except zigpy.exceptions.ZigbeeException as e:
@@ -178,7 +178,7 @@ async def get_endpoint(ctx, endpoint):
     try:
         v = await dev.zdo.request(0x0004, dev.nwk, endpoint)
         if v[0] != t.EmberStatus.SUCCESS:
-            click.echo("Non-success response: %s" % (v,))
+            click.echo(f"Non-success response: {v}")
         else:
             click.echo(v[2])
     except zigpy.exceptions.ZigbeeException as e:
@@ -278,10 +278,12 @@ async def read_attribute(ctx, attribute, manufacturer):
             click.echo("Received empty response")
         elif attribute not in v[0]:
             click.echo(
-                "Attribute %s not successful. Status=%s" % (attribute, v[1][attribute])
+                "Attribute {} not successful. Status={}".format(
+                    attribute, v[1][attribute]
+                )
             )
         else:
-            click.echo("%s=%s" % (attribute, v[0][attribute]))
+            click.echo(f"{attribute}={v[0][attribute]}")
     except zigpy.exceptions.ZigbeeException as e:
         click.echo(e)
 

@@ -1,6 +1,12 @@
 import asyncio
 import binascii
 import logging
+import sys
+
+if sys.version_info[:2] < (3, 11):
+    from async_timeout import timeout as asyncio_timeout  # pragma: no cover
+else:
+    from asyncio import timeout as asyncio_timeout  # pragma: no cover
 
 import zigpy.serial
 
@@ -201,7 +207,7 @@ class Gateway(asyncio.Protocol):
 
     def eof_received(self):
         """Server gracefully closed its side of the connection."""
-        self.connection_lost(OSError("Server closed connection"))
+        self.connection_lost(ConnectionResetError("Remote server closed connection"))
 
     def connection_lost(self, exc):
         """Port was closed unexpectedly."""
@@ -214,7 +220,7 @@ class Gateway(asyncio.Protocol):
         # `CancelledError` into the active event loop, breaking everything!
         if self._startup_reset_future:
             self._startup_reset_future.set_exception(
-                exc or OSError("Server closed connection")
+                exc or ConnectionResetError("Remote server closed connection")
             )
 
         if self._connection_done_future:
@@ -257,7 +263,9 @@ class Gateway(asyncio.Protocol):
         self._reset_future = asyncio.get_event_loop().create_future()
         self._reset_future.add_done_callback(self._reset_cleanup)
         self.write(self._rst_frame())
-        return await asyncio.wait_for(self._reset_future, timeout=RESET_TIMEOUT)
+
+        async with asyncio_timeout(RESET_TIMEOUT):
+            return await self._reset_future
 
     async def _send_loop(self):
         """Send queue handler"""

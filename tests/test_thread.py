@@ -3,6 +3,11 @@ import sys
 import threading
 from unittest import mock
 
+if sys.version_info[:2] < (3, 11):
+    from async_timeout import timeout as asyncio_timeout  # pragma: no cover
+else:
+    from asyncio import timeout as asyncio_timeout  # pragma: no cover
+
 import pytest
 
 from bellows.thread import EventLoopThread, ThreadsafeProxy
@@ -48,7 +53,8 @@ async def thread():
     yield thread
     thread.force_stop()
     if thread.thread_complete is not None:
-        await asyncio.wait_for(thread.thread_complete, 1)
+        async with asyncio_timeout(1):
+            await thread.thread_complete
     [t.join(1) for t in threading.enumerate() if "bellows" in t.name]
     threads = [t for t in threading.enumerate() if "bellows" in t.name]
     assert len(threads) == 0
@@ -178,4 +184,5 @@ async def test_thread_task_cancellation_after_stop(thread):
     # The cancellation should propagate to the outer event loop
     with pytest.raises(asyncio.CancelledError):
         # This will stall forever without the patch
-        await asyncio.wait_for(proxy.wait_forever(), 1)
+        async with asyncio_timeout(1):
+            await proxy.wait_forever()

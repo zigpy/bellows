@@ -675,10 +675,11 @@ class EmberEntropySource(basic.enum8):
 
 
 class EmberDutyCycleHectoPct(basic.uint16_t):
-    """ "The percent of duty cycle for a limit.
+    """The percent of duty cycle for a limit.
 
     Duty Cycle, Limits, and Thresholds are reported in units of Percent * 100
-    (i.e. 10000 = 100.00%, 1 = 0.01%)"""
+    (i.e. 10000 = 100.00%, 1 = 0.01%)
+    """
 
 
 class EmberGpProxyTableEntryStatus(basic.uint8_t):

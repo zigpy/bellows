@@ -60,7 +60,7 @@ def make_app(monkeypatch, event_loop, ezsp_mock):
         app = bellows.zigbee.application.ControllerApplication(app_cfg)
 
         app._ezsp = ezsp_mock
-        monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.01)
+        monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.05)
         app._ctrl_event.set()
         app._in_flight_msg = asyncio.Semaphore()
         app.handle_message = MagicMock()
@@ -95,7 +95,14 @@ def ieee(init=0):
 @patch("zigpy.device.Device._initialize", new=AsyncMock())
 @patch("bellows.zigbee.application.ControllerApplication._watchdog", new=AsyncMock())
 async def _test_startup(
-    app, nwk_type, ieee, auto_form=False, init=0, ezsp_version=4, board_info=True
+    app,
+    nwk_type,
+    ieee,
+    auto_form=False,
+    init=0,
+    ezsp_version=4,
+    board_info=True,
+    network_state=t.EmberNetworkStatus.JOINED_NETWORK,
 ):
     nwk_params = bellows.types.struct.EmberNetworkParameters(
         extendedPanId=t.ExtendedPanId.convert("aa:bb:cc:dd:ee:ff:aa:bb"),
@@ -144,9 +151,7 @@ async def _test_startup(
     ezsp_mock.version = AsyncMock()
     ezsp_mock.getConfigurationValue = AsyncMock(return_value=(0, 1))
     ezsp_mock.update_policies = AsyncMock()
-    ezsp_mock.networkState = AsyncMock(
-        return_value=[ezsp_mock.types.EmberNetworkStatus.JOINED_NETWORK]
-    )
+    ezsp_mock.networkState = AsyncMock(return_value=[network_state])
     ezsp_mock.getKey = AsyncMock(
         return_value=[
             t.EmberStatus.SUCCESS,
@@ -219,6 +224,32 @@ async def test_startup_no_status(app, ieee):
     with pytest.raises(zigpy.exceptions.NetworkNotFormed):
         await _test_startup(
             app, t.EmberNodeType.UNKNOWN_DEVICE, ieee, auto_form=False, init=1
+        )
+
+
+async def test_startup_status_not_joined(app, ieee):
+    """Test when NCP is a coordinator but isn't a part of a network."""
+    with pytest.raises(zigpy.exceptions.NetworkNotFormed):
+        await _test_startup(
+            app,
+            t.EmberNodeType.COORDINATOR,
+            ieee,
+            auto_form=False,
+            init=t.EmberStatus.NOT_JOINED,
+            network_state=t.EmberNetworkStatus.NO_NETWORK,
+        )
+
+
+async def test_startup_status_unknown(app, ieee):
+    """Test when NCP is a coordinator but stack init fails."""
+    with pytest.raises(zigpy.exceptions.ControllerException):
+        await _test_startup(
+            app,
+            t.EmberNodeType.COORDINATOR,
+            ieee,
+            auto_form=False,
+            init=t.EmberStatus.ERR_FATAL,
+            network_state=t.EmberNetworkStatus.NO_NETWORK,
         )
 
 
@@ -1568,7 +1599,7 @@ async def test_ensure_network_running_not_joined_failure(app):
     )
     ezsp.networkInit = AsyncMock(return_value=[ezsp.types.EmberStatus.INVALID_CALL])
 
-    with pytest.raises(zigpy.exceptions.NetworkNotFormed):
+    with pytest.raises(zigpy.exceptions.ControllerException):
         await app._ensure_network_running()
 
     ezsp.networkState.assert_called_once()

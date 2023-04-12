@@ -5,8 +5,14 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
-from typing import Any, Callable, Dict, List, Tuple, Union
+import sys
+from typing import Any, Callable
 import urllib.parse
+
+if sys.version_info[:2] < (3, 11):
+    from async_timeout import timeout as asyncio_timeout  # pragma: no cover
+else:
+    from asyncio import timeout as asyncio_timeout  # pragma: no cover
 
 import zigpy.config
 
@@ -41,7 +47,7 @@ class EZSP:
         v11.EZSP_VERSION: v11.EZSPv11,
     }
 
-    def __init__(self, device_config: Dict):
+    def __init__(self, device_config: dict):
         self._config = device_config
         self._callbacks = {}
         self._ezsp_event = asyncio.Event()
@@ -50,7 +56,7 @@ class EZSP:
         self._protocol = None
 
     @classmethod
-    async def probe(cls, device_config: Dict) -> bool | dict[str, int | str | bool]:
+    async def probe(cls, device_config: dict) -> bool | dict[str, int | str | bool]:
         """Probe port for the device presence."""
         for config in (
             {**device_config, conf.CONF_DEVICE_BAUDRATE: 115200},
@@ -58,7 +64,9 @@ class EZSP:
         ):
             ezsp = cls(conf.SCHEMA_DEVICE(config))
             try:
-                await asyncio.wait_for(ezsp._probe(), timeout=PROBE_TIMEOUT)
+                async with asyncio_timeout(PROBE_TIMEOUT):
+                    await ezsp._probe()
+
                 return config
             except Exception as exc:
                 LOGGER.debug(
@@ -83,10 +91,8 @@ class EZSP:
         parsed_path = urllib.parse.urlparse(self._config[conf.CONF_DEVICE_PATH])
         if parsed_path.scheme == "socket":
             try:
-                await asyncio.wait_for(
-                    self._gw.wait_for_startup_reset(),
-                    NETWORK_COORDINATOR_STARTUP_RESET_WAIT,
-                )
+                async with asyncio_timeout(NETWORK_COORDINATOR_STARTUP_RESET_WAIT):
+                    await self._gw.wait_for_startup_reset()
             except asyncio.TimeoutError:
                 pass
             else:
@@ -97,7 +103,7 @@ class EZSP:
             await self.reset()
 
     @classmethod
-    async def initialize(cls, zigpy_config: Dict) -> "EZSP":
+    async def initialize(cls, zigpy_config: dict) -> EZSP:
         """Return initialized EZSP instance."""
         ezsp = cls(zigpy_config[conf.CONF_DEVICE])
         await ezsp.connect(use_thread=zigpy_config[conf.CONF_USE_THREAD])
@@ -157,7 +163,7 @@ class EZSP:
             self._gw.close()
             self._gw = None
 
-    def _command(self, name: str, *args: Tuple[Any, ...]) -> asyncio.Future:
+    def _command(self, name: str, *args: tuple[Any, ...]) -> asyncio.Future:
         if not self.is_ezsp_running:
             LOGGER.debug(
                 "Couldn't send command %s(%s). EZSP is not running", name, args
@@ -215,13 +221,11 @@ class EZSP:
         0,
     )
 
-    async def leaveNetwork(
-        self, timeout: Union[float, int] = NETWORK_OPS_TIMEOUT
-    ) -> List:
+    async def leaveNetwork(self, timeout: float | int = NETWORK_OPS_TIMEOUT) -> list:
         """Send leaveNetwork command and wait for stackStatusHandler frame."""
         stack_status = asyncio.Future()
 
-        def cb(frame_name: str, response: List) -> None:
+        def cb(frame_name: str, response: list) -> None:
             if (
                 frame_name == "stackStatusHandler"
                 and response[0] == t.EmberStatus.NETWORK_DOWN
@@ -233,8 +237,9 @@ class EZSP:
             (status,) = await self._command("leaveNetwork")
             if status != t.EmberStatus.SUCCESS:
                 raise EzspError(f"failed to leave network: {status.name}")
-            result = await asyncio.wait_for(stack_status, timeout=timeout)
-            return result
+
+            async with asyncio_timeout(timeout):
+                return await stack_status
         finally:
             self.remove_callback(cb_id)
 
@@ -301,7 +306,7 @@ class EZSP:
 
         self._protocol(data)
 
-    async def get_board_info(self) -> Tuple[str, str, str]:
+    async def get_board_info(self) -> tuple[str, str, str]:
         """Return board info."""
 
         tokens = []
@@ -352,7 +357,7 @@ class EZSP:
         return self._callbacks.pop(id_)
 
     def handle_callback(self, *args):
-        for callback_id, handler in self._callbacks.items():
+        for _callback_id, handler in self._callbacks.items():
             try:
                 handler(*args)
             except Exception as e:

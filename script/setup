@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Setup the repository.
+
+# Stop on errors
+set -e
+
+cd "$(dirname "$0")/.."
+
+python3 -m venv venv
+source venv/bin/activate
+
+pip install -r requirements_test.txt
+pre-commit install
+
+python3 -m pip install -e .
