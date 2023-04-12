@@ -36,6 +36,13 @@ repos:
           - --skip="./.*"
           - --quiet-level=2
 
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.2.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - zigpy
+  
   - repo: https://github.com/charliermarsh/ruff-pre-commit
     rev: v0.0.261
     hooks:
