@@ -6,7 +6,7 @@ import asyncio
 import functools
 import logging
 import sys
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Any, Callable
 import urllib.parse
 
 if sys.version_info[:2] < (3, 11):
@@ -47,7 +47,7 @@ class EZSP:
         v11.EZSP_VERSION: v11.EZSPv11,
     }
 
-    def __init__(self, device_config: Dict):
+    def __init__(self, device_config: dict):
         self._config = device_config
         self._callbacks = {}
         self._ezsp_event = asyncio.Event()
@@ -56,7 +56,7 @@ class EZSP:
         self._protocol = None
 
     @classmethod
-    async def probe(cls, device_config: Dict) -> bool | dict[str, int | str | bool]:
+    async def probe(cls, device_config: dict) -> bool | dict[str, int | str | bool]:
         """Probe port for the device presence."""
         for config in (
             {**device_config, conf.CONF_DEVICE_BAUDRATE: 115200},
@@ -103,7 +103,7 @@ class EZSP:
             await self.reset()
 
     @classmethod
-    async def initialize(cls, zigpy_config: Dict) -> "EZSP":
+    async def initialize(cls, zigpy_config: dict) -> EZSP:
         """Return initialized EZSP instance."""
         ezsp = cls(zigpy_config[conf.CONF_DEVICE])
         await ezsp.connect(use_thread=zigpy_config[conf.CONF_USE_THREAD])
@@ -163,7 +163,7 @@ class EZSP:
             self._gw.close()
             self._gw = None
 
-    def _command(self, name: str, *args: Tuple[Any, ...]) -> asyncio.Future:
+    def _command(self, name: str, *args: tuple[Any, ...]) -> asyncio.Future:
         if not self.is_ezsp_running:
             LOGGER.debug(
                 "Couldn't send command %s(%s). EZSP is not running", name, args
@@ -221,13 +221,11 @@ class EZSP:
         0,
     )
 
-    async def leaveNetwork(
-        self, timeout: Union[float, int] = NETWORK_OPS_TIMEOUT
-    ) -> List:
+    async def leaveNetwork(self, timeout: float | int = NETWORK_OPS_TIMEOUT) -> list:
         """Send leaveNetwork command and wait for stackStatusHandler frame."""
         stack_status = asyncio.Future()
 
-        def cb(frame_name: str, response: List) -> None:
+        def cb(frame_name: str, response: list) -> None:
             if (
                 frame_name == "stackStatusHandler"
                 and response[0] == t.EmberStatus.NETWORK_DOWN
@@ -308,7 +306,7 @@ class EZSP:
 
         self._protocol(data)
 
-    async def get_board_info(self) -> Tuple[str, str, str]:
+    async def get_board_info(self) -> tuple[str, str, str]:
         """Return board info."""
 
         tokens = []
@@ -359,7 +357,7 @@ class EZSP:
         return self._callbacks.pop(id_)
 
     def handle_callback(self, *args):
-        for callback_id, handler in self._callbacks.items():
+        for _callback_id, handler in self._callbacks.items():
             try:
                 handler(*args)
             except Exception as e:

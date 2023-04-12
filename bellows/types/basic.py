@@ -123,7 +123,7 @@ class _LVList(_List):
     def deserialize(cls, data):
         r = cls()
         length, data = data[0], data[1:]
-        for i in range(length):
+        for _i in range(length):
             item, data = r._itemtype.deserialize(data)
             r.append(item)
         return r, data
@@ -147,7 +147,7 @@ class _FixedList(_List):
     @classmethod
     def deserialize(cls, data):
         r = cls()
-        for i in range(r._length):
+        for _i in range(r._length):
             item, data = r._itemtype.deserialize(data)
             r.append(item)
         return r, data
