@@ -177,9 +177,7 @@ class ProtocolHandler(abc.ABC):
 
         # Finally, set the config
         for cfg in ezsp_config.values():
-            (status, current_value) = await self.getConfigurationValue(
-                cfg.config_id, cfg.value
-            )
+            (status, current_value) = await self.getConfigurationValue(cfg.config_id)
 
             # Only grow some config entries, all others should be set
             if (
