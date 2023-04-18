@@ -1,14 +1,8 @@
 import voluptuous as vol
 
 from bellows.config import cv_optional_int, cv_uint16
-import bellows.multicast
 
-from .types import (
-    EmberZdoConfigurationFlags as zdo_flags,
-    EzspConfigId,
-    EzspDecisionId,
-    EzspPolicyId,
-)
+from .types import EzspConfigId, EzspDecisionId, EzspPolicyId
 
 EZSP_SCHEMA = {
     #
@@ -16,9 +10,9 @@ EZSP_SCHEMA = {
     # value 0xFF, the NCP will allocate all remaining configuration RAM towards
     # packet buffers, such that the resulting count will be the largest whole number
     # of packet buffers that can fit into the available memory
-    vol.Optional(
-        EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name, default=0xFF
-    ): cv_optional_int(min=1, max=255),
+    vol.Optional(EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name): cv_optional_int(
+        min=1, max=255
+    ),
     # The maximum number of router neighbors the stack can keep track of. A neighbor
     # is a node within radio range
     vol.Optional(EzspConfigId.CONFIG_NEIGHBOR_TABLE_SIZE.name): cv_optional_int(
@@ -40,15 +34,12 @@ EZSP_SCHEMA = {
     # maintain for the application. (Note: The total number of such address
     # associations maintained by the NCP is the sum of the value of this setting and
     # the value of EZSP_CONFIG_TRUST_CENTER_ADDRESS_CA CHE_SIZE)
-    vol.Optional(
-        EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE.name, default=16
-    ): cv_optional_int(min=0),
+    vol.Optional(EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE.name): cv_optional_int(min=0),
     #
     # The maximum number of multicast groups that the device may be a member of
-    vol.Optional(
-        EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE.name,
-        default=bellows.multicast.Multicast.TABLE_SIZE,
-    ): cv_optional_int(min=0, max=255),
+    vol.Optional(EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE.name): cv_optional_int(
+        min=0, max=255
+    ),
     #
     # The maximum number of destinations to which a node can route messages. This
     # includes both messages originating at this node and those relayed for others
@@ -72,14 +63,14 @@ EZSP_SCHEMA = {
     ),
     #
     # Specifies the stack profile
-    vol.Optional(EzspConfigId.CONFIG_STACK_PROFILE.name, default=2): cv_optional_int(
+    vol.Optional(EzspConfigId.CONFIG_STACK_PROFILE.name): cv_optional_int(
         min=0, max=255
     ),
     #
     # The security level used for security at the MAC and network layers. The
     # supported values are 0 (no security) and 5 (payload is encrypted and a
     # four-byte MIC is used for authentication)
-    vol.Optional(EzspConfigId.CONFIG_SECURITY_LEVEL.name, default=5): cv_optional_int(
+    vol.Optional(EzspConfigId.CONFIG_SECURITY_LEVEL.name): cv_optional_int(
         min=0, max=5
     ),
     #
@@ -87,14 +78,14 @@ EZSP_SCHEMA = {
     vol.Optional(EzspConfigId.CONFIG_MAX_HOPS.name): cv_optional_int(min=0, max=30),
     #
     # The maximum number of end device children that a router will support
-    vol.Optional(
-        EzspConfigId.CONFIG_MAX_END_DEVICE_CHILDREN.name, default=32
-    ): cv_optional_int(min=0, max=32),
+    vol.Optional(EzspConfigId.CONFIG_MAX_END_DEVICE_CHILDREN.name): cv_optional_int(
+        min=0, max=32
+    ),
     #
     # The maximum amount of time that the MAC will hold a message for indirect
     # transmission to a child
     vol.Optional(
-        EzspConfigId.CONFIG_INDIRECT_TRANSMISSION_TIMEOUT.name, default=7680
+        EzspConfigId.CONFIG_INDIRECT_TRANSMISSION_TIMEOUT.name
     ): cv_optional_int(min=0, max=30000),
     #
     # The maximum amount of time that an end device child can wait between polls.
@@ -102,9 +93,9 @@ EZSP_SCHEMA = {
     # device from its tables. The timeout corresponding to a value of zero is 10
     # seconds. The timeout corresponding to a nonzero value N is 2^N minutes,
     # ranging from 2^1 = 2 minutes to 2^14 = 16384 minutes
-    vol.Optional(
-        EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT.name, default=60
-    ): cv_optional_int(min=0, max=255),
+    vol.Optional(EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT.name): cv_optional_int(
+        min=0, max=255
+    ),
     #
     # The maximum amount of time that a mobile node can wait between polls. If no
     # poll is heard within this timeout, then the parent removes the mobile node
@@ -135,16 +126,16 @@ EZSP_SCHEMA = {
     # by the NCP is the sum of the value of this setting and the value of
     # EZSP_CONFIG_ADDRESS_TABLE_SIZE)
     vol.Optional(
-        EzspConfigId.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE.name, default=2
+        EzspConfigId.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE.name
     ): cv_optional_int(min=0),
     #
     # The size of the source route table
-    vol.Optional(
-        EzspConfigId.CONFIG_SOURCE_ROUTE_TABLE_SIZE.name, default=16
-    ): cv_optional_int(min=0),
+    vol.Optional(EzspConfigId.CONFIG_SOURCE_ROUTE_TABLE_SIZE.name): cv_optional_int(
+        min=0
+    ),
     # The units used for timing out end devices on their parent
     vol.Optional(
-        EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT.name, default=8
+        EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT.name
     ): cv_optional_int(min=0, max=10),
     #
     # The number of blocks of a fragmented message that can be sent in a single
@@ -159,9 +150,7 @@ EZSP_SCHEMA = {
     #
     # The size of the Key Table used for storing individual link keys (if the device
     # is a Trust Center) or Application Link Keys (if the device is a normal node)
-    vol.Optional(EzspConfigId.CONFIG_KEY_TABLE_SIZE.name, default=4): cv_optional_int(
-        min=0
-    ),
+    vol.Optional(EzspConfigId.CONFIG_KEY_TABLE_SIZE.name): cv_optional_int(min=0),
     #
     # The APS ACK timeout value (ms). The stack waits this amount of time between
     # resends of APS retried messages
@@ -182,7 +171,7 @@ EZSP_SCHEMA = {
     # The number of PAN id conflict reports that must be received by the network
     # manager within one minute to trigger a PAN id change
     vol.Optional(
-        EzspConfigId.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD.name, default=2
+        EzspConfigId.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD.name
     ): cv_optional_int(min=1, max=63),
     #
     # The timeout value in minutes for how long the Trust Center or a normal node
@@ -210,11 +199,9 @@ EZSP_SCHEMA = {
     # reply to an incoming message, the application must check the APS options
     # bitfield within the incomingMessageHandler callback to see if the
     # EMBER_APS_OPTION_ZDO_RESPONSE_REQUIRED flag is set
-    vol.Optional(
-        EzspConfigId.CONFIG_APPLICATION_ZDO_FLAGS.name,
-        default=zdo_flags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS
-        | zdo_flags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS,
-    ): cv_optional_int(min=0, max=255),
+    vol.Optional(EzspConfigId.CONFIG_APPLICATION_ZDO_FLAGS.name): cv_optional_int(
+        min=0, max=255
+    ),
     #
     # The maximum number of broadcasts during a single broadcast timeout period
     vol.Optional(EzspConfigId.CONFIG_BROADCAST_TABLE_SIZE.name): cv_optional_int(
@@ -227,9 +214,9 @@ EZSP_SCHEMA = {
     ),
     #
     # The number of supported networks
-    vol.Optional(
-        EzspConfigId.CONFIG_SUPPORTED_NETWORKS.name, default=1
-    ): cv_optional_int(min=1, max=2),
+    vol.Optional(EzspConfigId.CONFIG_SUPPORTED_NETWORKS.name): cv_optional_int(
+        min=1, max=2
+    ),
     #
     # Whether multicasts are sent to the RxOnWhenIdle=true address (0xFFFD) or the
     # sleepy broadcast address (0xFFFF). The RxOnWhenIdle=true address is the ZigBee
