@@ -1,12 +1,15 @@
 import abc
 import asyncio
 import binascii
+import dataclasses
 import functools
 import logging
 import sys
 from typing import Any, Callable, Dict, Optional, Tuple
 
-from bellows.types.named import EmberZdoConfigurationFlags
+import bellows.ezsp.v4.types as types_v4
+import bellows.ezsp.v6.types as types_v6
+import bellows.types as t
 
 if sys.version_info[:2] < (3, 11):
     from async_timeout import timeout as asyncio_timeout  # pragma: no cover
@@ -19,35 +22,76 @@ from bellows.typing import GatewayType
 
 LOGGER = logging.getLogger(__name__)
 
-EZSP_CMD_TIMEOUT = 5
 
-DEFAULT_CONFIG = {
-    "CONFIG_SOURCE_ROUTE_TABLE_SIZE": 200,
-    "CONFIG_END_DEVICE_POLL_TIMEOUT": 8,
-    "CONFIG_INDIRECT_TRANSMISSION_TIMEOUT": 7680,
-    "CONFIG_STACK_PROFILE": 2,
-    "CONFIG_SUPPORTED_NETWORKS": 1,
-    "CONFIG_MULTICAST_TABLE_SIZE": 16,
-    "CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE": 2,
-    "CONFIG_SECURITY_LEVEL": 5,
-    "CONFIG_ADDRESS_TABLE_SIZE": 16,
-    "CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S": 90,
-    "CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD": 2,
-    "CONFIG_APPLICATION_ZDO_FLAGS": (
-        EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS
-        | EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
+@dataclasses.dataclass(frozen=True)
+class RuntimeConfig:
+    config_id: t.enum8
+    value: int
+    minimum: bool = False
+
+
+DEFAULT_CONFIG = [
+    RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_SOURCE_ROUTE_TABLE_SIZE,
+        value=200,
+        minimum=True,
+    ),
+    RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT,
+        value=8,
+    ),
+    RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_INDIRECT_TRANSMISSION_TIMEOUT,
+        value=7680,
+    ),
+    RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_STACK_PROFILE,
+        value=2,
+    ),
+    RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_SUPPORTED_NETWORKS,
+        value=1,
+        minimum=True,
+    ),
+    RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE,
+        value=16,
+        minimum=True,
+    ),
+    RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE,
+        value=2,
+        minimum=True,
+    ),
+    RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_SECURITY_LEVEL,
+        value=5,
+    ),
+    RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE,
+        value=16,
+        minimum=True,
+    ),
+    RuntimeConfig(
+        config_id=types_v6.EzspConfigId.CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S,
+        value=90,
+    ),
+    RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD,
+        value=2,
+    ),
+    RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_APPLICATION_ZDO_FLAGS,
+        value=(
+            t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS
+            | t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
+        ),
     ),
     # Must be set last
-    "CONFIG_PACKET_BUFFER_COUNT": 0xFF,
-}
+    RuntimeConfig(types_v4.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT, value=0xFF),
+]
 
-DEFAULT_CONFIG_MINIMUMS = {
-    "CONFIG_SOURCE_ROUTE_TABLE_SIZE",
-    "CONFIG_SUPPORTED_NETWORKS",
-    "CONFIG_MULTICAST_TABLE_SIZE",
-    "CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE",
-    "CONFIG_ADDRESS_TABLE_SIZE",
-}
+EZSP_CMD_TIMEOUT = 5
 
 
 class ProtocolHandler(abc.ABC):
@@ -101,13 +145,15 @@ class ProtocolHandler(abc.ABC):
         # Not all config will be present in every EZSP version so only use valid keys
         ezsp_config = {}
 
-        for name, value in DEFAULT_CONFIG.items():
+        for cfg in DEFAULT_CONFIG:
             try:
-                self.types.EzspConfigId[name]
+                config_id = self.types.EzspConfigId[cfg.config_id.name]
             except KeyError:
                 pass
             else:
-                ezsp_config[name] = value
+                ezsp_config[cfg.config_id.name] = dataclasses.replace(
+                    cfg, config_id=config_id
+                )
 
         # Override the defaults with user-specified values (or `None` for deletions)
         for name, value in self.SCHEMAS[CONF_EZSP_CONFIG](
@@ -115,8 +161,10 @@ class ProtocolHandler(abc.ABC):
         ).items():
             if value is None:
                 ezsp_config.pop(name)
-            else:
-                ezsp_config[name] = value
+                continue
+
+            config_id = self.types.EzspConfigId[cfg.config_id.name]
+            ezsp_config[name] = RuntimeConfig(config_id=config_id, value=value)
 
         # Make sure CONFIG_PACKET_BUFFER_COUNT is always set last
         if self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name in ezsp_config:
@@ -128,32 +176,32 @@ class ProtocolHandler(abc.ABC):
             }
 
         # Finally, set the config
-        for name, value in ezsp_config.items():
-            config_id = self.types.EzspConfigId[name]
-
-            (status, current_value) = await self.getConfigurationValue(config_id, value)
+        for cfg in ezsp_config.values():
+            (status, current_value) = await self.getConfigurationValue(
+                cfg.config_id, cfg.value
+            )
 
             # Only grow some config entries, all others should be set
             if (
                 status == self.types.EmberStatus.SUCCESS
-                and name in DEFAULT_CONFIG_MINIMUMS
-                and current_value >= value
+                and cfg.minimum
+                and current_value >= cfg.value
             ):
                 LOGGER.debug(
                     "Current config %s = %s exceeds the default of %s, skipping",
                     name,
                     current_value,
-                    value,
+                    cfg.value,
                 )
                 continue
 
             LOGGER.debug(
                 "Setting config %s = %s (old value %s)",
                 name,
-                value,
+                cfg.value,
                 current_value,
             )
-            await self._cfg(config_id, value)
+            await self._cfg(cfg.config_id, cfg.value)
 
     async def get_free_buffers(self) -> Optional[int]:
         status, value = await self.getValue(self.types.EzspValueId.VALUE_FREE_BUFFERS)
