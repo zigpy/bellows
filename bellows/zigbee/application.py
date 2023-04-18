@@ -32,7 +32,7 @@ import bellows.ezsp
 from bellows.ezsp.v8.types.named import EmberDeviceUpdate
 import bellows.multicast
 import bellows.types as t
-from bellows.zigbee.device import EZSPCoordinator, EZSPEndpoint
+from bellows.zigbee.device import EZSPEndpoint
 import bellows.zigbee.util as util
 
 APS_ACK_TIMEOUT = 120
@@ -181,7 +181,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         except KeyError:
             db_device = None
 
-        ezsp_device = EZSPCoordinator(
+        ezsp_device = zigpy.device.Device(
             application=self,
             ieee=self.state.node_info.ieee,
             nwk=self.state.node_info.nwk,

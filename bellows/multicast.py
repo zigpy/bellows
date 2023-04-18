@@ -8,8 +8,6 @@ LOGGER = logging.getLogger(__name__)
 class Multicast:
     """Multicast table controller for EZSP."""
 
-    TABLE_SIZE = 16
-
     def __init__(self, ezsp):
         self._ezsp = ezsp
         self._multicast = {}

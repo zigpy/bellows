@@ -1,6 +1,7 @@
 import abc
 import asyncio
 import binascii
+import dataclasses
 import functools
 import logging
 import sys
@@ -16,7 +17,6 @@ from bellows.exception import EzspError
 from bellows.typing import GatewayType
 
 LOGGER = logging.getLogger(__name__)
-
 EZSP_CMD_TIMEOUT = 5
 
 
@@ -38,9 +38,6 @@ class ProtocolHandler(abc.ABC):
         self.tc_policy = 0
 
     async def _cfg(self, config_id: int, value: Any) -> None:
-        if value is None:
-            return
-
         (status,) = await self.setConfigurationValue(config_id, value)
         if status != self.types.EmberStatus.SUCCESS:
             LOGGER.warning(
@@ -68,45 +65,69 @@ class ProtocolHandler(abc.ABC):
     async def initialize(self, zigpy_config: Dict) -> None:
         """Initialize EmberZNet Stack."""
 
-        buffers = await self.get_free_buffers()
-        _, conf_buffers = await self.getConfigurationValue(
-            self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT
-        )
-        LOGGER.debug(
-            "Free/configured buffers before any configurations: %s/%s",
-            buffers,
-            conf_buffers,
-        )
-        ezsp_config = self.SCHEMAS[CONF_EZSP_CONFIG](zigpy_config[CONF_EZSP_CONFIG])
-        for config, value in ezsp_config.items():
-            if config in (self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name,):
-                # we want to set these last
-                continue
-            await self._cfg(self.types.EzspConfigId[config], value)
+        # Prevent circular import
+        from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig
 
-        buffers = await self.get_free_buffers()
-        _, conf_buffers = await self.getConfigurationValue(
-            self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT
-        )
-        LOGGER.debug(
-            "Free/configured buffers before all memory allocation: %s/%s",
-            buffers,
-            conf_buffers,
-        )
-        c = self.types.EzspConfigId
-        await self._cfg(
-            self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT,
-            ezsp_config[c.CONFIG_PACKET_BUFFER_COUNT.name],
-        )
-        buffers = await self.get_free_buffers()
-        _, conf_buffers = await self.getConfigurationValue(
-            self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT
-        )
-        LOGGER.debug(
-            "Free/configured buffers after all memory allocation: %s/%s",
-            buffers,
-            conf_buffers,
-        )
+        # Not all config will be present in every EZSP version so only use valid keys
+        ezsp_config = {}
+
+        for cfg in DEFAULT_CONFIG:
+            try:
+                config_id = self.types.EzspConfigId[cfg.config_id.name]
+            except KeyError:
+                pass
+            else:
+                ezsp_config[cfg.config_id.name] = dataclasses.replace(
+                    cfg, config_id=config_id
+                )
+
+        # Override the defaults with user-specified values (or `None` for deletions)
+        for name, value in self.SCHEMAS[CONF_EZSP_CONFIG](
+            zigpy_config[CONF_EZSP_CONFIG]
+        ).items():
+            if value is None:
+                ezsp_config.pop(name)
+                continue
+
+            ezsp_config[name] = RuntimeConfig(
+                config_id=self.types.EzspConfigId[name],
+                value=value,
+            )
+
+        # Make sure CONFIG_PACKET_BUFFER_COUNT is always set last
+        if self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name in ezsp_config:
+            ezsp_config = {
+                **ezsp_config,
+                self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name: ezsp_config[
+                    self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name
+                ],
+            }
+
+        # Finally, set the config
+        for cfg in ezsp_config.values():
+            (status, current_value) = await self.getConfigurationValue(cfg.config_id)
+
+            # Only grow some config entries, all others should be set
+            if (
+                status == self.types.EmberStatus.SUCCESS
+                and cfg.minimum
+                and current_value >= cfg.value
+            ):
+                LOGGER.debug(
+                    "Current config %s = %s exceeds the default of %s, skipping",
+                    cfg.config_id.name,
+                    current_value,
+                    cfg.value,
+                )
+                continue
+
+            LOGGER.debug(
+                "Setting config %s = %s (old value %s)",
+                cfg.config_id.name,
+                cfg.value,
+                current_value,
+            )
+            await self._cfg(cfg.config_id, cfg.value)
 
     async def get_free_buffers(self) -> Optional[int]:
         status, value = await self.getValue(self.types.EzspValueId.VALUE_FREE_BUFFERS)
