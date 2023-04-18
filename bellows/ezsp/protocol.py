@@ -92,8 +92,10 @@ class ProtocolHandler(abc.ABC):
                 ezsp_config.pop(name)
                 continue
 
-            config_id = self.types.EzspConfigId[cfg.config_id.name]
-            ezsp_config[name] = RuntimeConfig(config_id=config_id, value=value)
+            ezsp_config[name] = RuntimeConfig(
+                config_id=self.types.EzspConfigId[name],
+                value=value,
+            )
 
         # Make sure CONFIG_PACKET_BUFFER_COUNT is always set last
         if self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name in ezsp_config:
