@@ -7,10 +7,6 @@ import logging
 import sys
 from typing import Any, Callable, Dict, Optional, Tuple
 
-import bellows.ezsp.v4.types as types_v4
-import bellows.ezsp.v6.types as types_v6
-import bellows.types as t
-
 if sys.version_info[:2] < (3, 11):
     from async_timeout import timeout as asyncio_timeout  # pragma: no cover
 else:
@@ -21,76 +17,6 @@ from bellows.exception import EzspError
 from bellows.typing import GatewayType
 
 LOGGER = logging.getLogger(__name__)
-
-
-@dataclasses.dataclass(frozen=True)
-class RuntimeConfig:
-    config_id: t.enum8
-    value: int
-    minimum: bool = False
-
-
-DEFAULT_CONFIG = [
-    RuntimeConfig(
-        config_id=types_v4.EzspConfigId.CONFIG_SOURCE_ROUTE_TABLE_SIZE,
-        value=200,
-        minimum=True,
-    ),
-    RuntimeConfig(
-        config_id=types_v4.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT,
-        value=8,
-    ),
-    RuntimeConfig(
-        config_id=types_v4.EzspConfigId.CONFIG_INDIRECT_TRANSMISSION_TIMEOUT,
-        value=7680,
-    ),
-    RuntimeConfig(
-        config_id=types_v4.EzspConfigId.CONFIG_STACK_PROFILE,
-        value=2,
-    ),
-    RuntimeConfig(
-        config_id=types_v4.EzspConfigId.CONFIG_SUPPORTED_NETWORKS,
-        value=1,
-        minimum=True,
-    ),
-    RuntimeConfig(
-        config_id=types_v4.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE,
-        value=16,
-        minimum=True,
-    ),
-    RuntimeConfig(
-        config_id=types_v4.EzspConfigId.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE,
-        value=2,
-        minimum=True,
-    ),
-    RuntimeConfig(
-        config_id=types_v4.EzspConfigId.CONFIG_SECURITY_LEVEL,
-        value=5,
-    ),
-    RuntimeConfig(
-        config_id=types_v4.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE,
-        value=16,
-        minimum=True,
-    ),
-    RuntimeConfig(
-        config_id=types_v6.EzspConfigId.CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S,
-        value=90,
-    ),
-    RuntimeConfig(
-        config_id=types_v4.EzspConfigId.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD,
-        value=2,
-    ),
-    RuntimeConfig(
-        config_id=types_v4.EzspConfigId.CONFIG_APPLICATION_ZDO_FLAGS,
-        value=(
-            t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS
-            | t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
-        ),
-    ),
-    # Must be set last
-    RuntimeConfig(types_v4.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT, value=0xFF),
-]
-
 EZSP_CMD_TIMEOUT = 5
 
 
@@ -142,6 +68,9 @@ class ProtocolHandler(abc.ABC):
     async def initialize(self, zigpy_config: Dict) -> None:
         """Initialize EmberZNet Stack."""
 
+        # Prevent circular import
+        from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig
+
         # Not all config will be present in every EZSP version so only use valid keys
         ezsp_config = {}
 
@@ -187,7 +116,7 @@ class ProtocolHandler(abc.ABC):
             ):
                 LOGGER.debug(
                     "Current config %s = %s exceeds the default of %s, skipping",
-                    name,
+                    cfg.config_id.name,
                     current_value,
                     cfg.value,
                 )
@@ -195,7 +124,7 @@ class ProtocolHandler(abc.ABC):
 
             LOGGER.debug(
                 "Setting config %s = %s (old value %s)",
-                name,
+                cfg.config_id.name,
                 cfg.value,
                 current_value,
             )
