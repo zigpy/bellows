@@ -38,9 +38,6 @@ class ProtocolHandler(abc.ABC):
         self.tc_policy = 0
 
     async def _cfg(self, config_id: int, value: Any) -> None:
-        if value is None:
-            return
-
         (status,) = await self.setConfigurationValue(config_id, value)
         if status != self.types.EmberStatus.SUCCESS:
             LOGGER.warning(
