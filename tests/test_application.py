@@ -3,6 +3,7 @@ import logging
 
 import pytest
 import zigpy.config
+import zigpy.device
 import zigpy.exceptions
 import zigpy.types as zigpy_t
 import zigpy.zdo.types as zdo_t
@@ -1264,7 +1265,7 @@ async def test_shutdown(app):
 
 @pytest.fixture
 def coordinator(app, ieee):
-    dev = bellows.zigbee.device.EZSPCoordinator(app, ieee, 0x0000)
+    dev = zigpy.device.Device(app, ieee, 0x0000)
     dev.endpoints[1] = bellows.zigbee.device.EZSPEndpoint(dev, 1)
     dev.model = dev.endpoints[1].model
     dev.manufacturer = dev.endpoints[1].manufacturer

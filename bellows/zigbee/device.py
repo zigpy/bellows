@@ -7,7 +7,6 @@ import zigpy.device
 import zigpy.endpoint
 import zigpy.util
 import zigpy.zdo
-import zigpy.zdo.types as zdo_t
 
 import bellows.types as t
 
@@ -54,24 +53,3 @@ class EZSPEndpoint(zigpy.endpoint.Endpoint):
 
         app.groups[grp_id].remove_member(self)
         return status
-
-
-class EZSPZDOEndpoint(zigpy.zdo.ZDO):
-    @property
-    def app(self) -> zigpy.application.ControllerApplication:
-        return self.device.application
-
-    def make_zdo_reply(self, cmd: zdo_t.ZDOCmd, **kwargs):
-        """Provides a way to create ZDO commands with schemas. Currently does nothing."""
-        return list(kwargs.values())
-
-
-class EZSPCoordinator(zigpy.device.Device):
-    """Zigpy Device representing Coordinator."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        assert hasattr(self, "zdo")
-        self.zdo = EZSPZDOEndpoint(self)
-        self.endpoints[0] = self.zdo

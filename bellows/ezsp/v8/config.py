@@ -20,8 +20,7 @@ EZSP_SCHEMA = extend_vol_schema(
         ): cv_optional_int(min=0, max=14),
         vol.Optional(EzspConfigId.CONFIG_KEY_TABLE_SIZE.name): cv_optional_int(min=0),
         vol.Optional(
-            EzspConfigId.CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S.name,
-            default=90,
+            EzspConfigId.CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S.name
         ): cv_optional_int(min=0),
     },
 )

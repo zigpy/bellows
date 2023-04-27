@@ -119,6 +119,16 @@ async def test_cfg_initialize_skip(prot_hndl):
             )
 
     with p1, p2, p3:
+        await prot_hndl.initialize(
+            {"ezsp_config": {"CONFIG_MULTICAST_TABLE_SIZE": 123}}
+        )
+
+        # Config is overridden
+        prot_hndl.setConfigurationValue.assert_any_call(
+            t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, 123
+        )
+
+    with p1, p2, p3:
         await prot_hndl.initialize({"ezsp_config": {}})
 
         # Config is set by default
