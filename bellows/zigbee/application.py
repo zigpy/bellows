@@ -685,14 +685,19 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         all_results = {}
 
         for _ in range(count):
-            results = await self._ezsp.startScan(
-                t.EzspNetworkScanType.ENERGY_SCAN,
-                channels,
-                duration_exp,
-            )
+            channels_to_scan = set(channels)
 
-            for channel, rssi in results:
-                all_results.setdefault(channel, []).append(rssi)
+            # XXX: RCP firmware sometimes performs a partial scan and returns early
+            while channels_to_scan:
+                results = await self._ezsp.startScan(
+                    t.EzspNetworkScanType.ENERGY_SCAN,
+                    t.Channels.from_channel_list(channels_to_scan),
+                    duration_exp,
+                )
+
+                for channel, rssi in results:
+                    all_results.setdefault(channel, []).append(rssi)
+                    channels_to_scan.remove(channel)
 
         # Remap RSSI to Energy
         return {

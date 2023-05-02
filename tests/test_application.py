@@ -20,6 +20,7 @@ import bellows.types.struct
 import bellows.uart as uart
 import bellows.zigbee.application
 import bellows.zigbee.device
+from bellows.zigbee.util import map_rssi_to_energy
 
 from .async_mock import AsyncMock, MagicMock, PropertyMock, patch, sentinel
 
@@ -1733,5 +1734,29 @@ async def test_energy_scanning(app, scan_results):
         count=1,
     )
 
+    assert len(app._ezsp.startScan.mock_calls) == 1
+
     assert set(results.keys()) == set(t.Channels.ALL_CHANNELS)
     assert all(0 <= v <= 255 for v in results.values())
+
+
+async def test_energy_scanning_partial(app):
+    app._ezsp.startScan = AsyncMock(
+        side_effect=[
+            [(11, 11), (12, 12), (13, 13), (14, 14), (15, 15), (16, 16)],
+            [(17, 17)],
+            [],
+            [(18, 18), (19, 19), (20, 20)],
+            [(21, 21), (22, 22), (23, 23), (24, 24), (25, 25), (26, 26)],
+        ]
+    )
+
+    results = await app.energy_scan(
+        channels=t.Channels.ALL_CHANNELS,
+        duration_exp=2,
+        count=1,
+    )
+
+    assert len(app._ezsp.startScan.mock_calls) == 5
+    assert set(results.keys()) == set(t.Channels.ALL_CHANNELS)
+    assert results == {c: map_rssi_to_energy(c) for c in range(11, 26 + 1)}
