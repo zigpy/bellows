@@ -55,6 +55,11 @@ class EZSP:
         self._gw = None
         self._protocol = None
 
+    @property
+    def is_network_coordinator(self) -> bool:
+        parsed_path = urllib.parse.urlparse(self._config[conf.CONF_DEVICE_PATH])
+        return parsed_path.scheme == "socket"
+
     @classmethod
     async def probe(cls, device_config: dict) -> bool | dict[str, int | str | bool]:
         """Probe port for the device presence."""
@@ -88,8 +93,7 @@ class EZSP:
     async def _startup_reset(self):
         """Start EZSP and reset the stack."""
         # `zigbeed` resets on startup
-        parsed_path = urllib.parse.urlparse(self._config[conf.CONF_DEVICE_PATH])
-        if parsed_path.scheme == "socket":
+        if self.is_network_coordinator:
             try:
                 async with asyncio_timeout(NETWORK_COORDINATOR_STARTUP_RESET_WAIT):
                     await self._gw.wait_for_startup_reset()

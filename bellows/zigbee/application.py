@@ -54,6 +54,7 @@ EZSP_DEFAULT_RADIUS = 0
 EZSP_MULTICAST_NON_MEMBER_RADIUS = 3
 MFG_ID_RESET_DELAY = 180
 RESET_ATTEMPT_BACKOFF_TIME = 5
+RECONNECT_DELAY_TIME_S = 5
 WATCHDOG_WAKE_PERIOD = 10
 IEEE_PREFIX_MFG_ID = {
     "04:CF:8C": 0x115F,  # Xiaomi
@@ -429,7 +430,20 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         parameters.channels = t.Channels(network_info.channel_mask)
 
         await ezsp.formNetwork(parameters)
-        await ezsp.setValue(ezsp.types.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
+
+        (status,) = await ezsp.setValue(
+            ezsp.types.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1
+        )
+        assert status == t.EmberStatus.SUCCESS
+
+        # XXX: Zigbeed cannot have network settings written twice in a row without a
+        #      restart in between. The second write fails with the above `setValue` call
+        #      returning `EmberStatus.ASH_STARTED` (??), or the settings will just not
+        #      persist and will revert after a reconnect.
+        if self._ezsp.is_network_coordinator:
+            await self.disconnect()
+            await asyncio.sleep(RECONNECT_DELAY_TIME_S)
+            await self.connect()
 
     async def reset_network_info(self):
         # The network must be running before we can leave it
@@ -687,7 +701,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         for _ in range(count):
             channels_to_scan = set(channels)
 
-            # XXX: RCP firmware sometimes performs a partial scan and returns early
+            # XXX: Zigbeed sometimes performs a partial scan and returns early
             while channels_to_scan:
                 results = await self._ezsp.startScan(
                     t.EzspNetworkScanType.ENERGY_SCAN,
