@@ -70,7 +70,8 @@ def make_app(monkeypatch, event_loop, ezsp_mock):
 
         return app
 
-    return inner
+    with patch("bellows.zigbee.application.RECONNECT_DELAY_TIME_S", 0):
+        yield inner
 
 
 @pytest.fixture
