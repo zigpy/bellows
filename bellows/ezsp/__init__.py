@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import collections
+import contextlib
 import functools
 import logging
 import sys
@@ -54,6 +56,34 @@ class EZSP:
         self._ezsp_version = v4.EZSP_VERSION
         self._gw = None
         self._protocol = None
+
+        self._stack_status: t.EmberStatus | None = None
+        self._stack_status_listeners: collections.defaultdict[
+            t.EmberStatus, list[asyncio.Future]
+        ] = collections.defaultdict(list)
+
+        self.add_callback(self.stack_status_callback)
+
+    def stack_status_callback(self, frame_name: str, response: list) -> None:
+        if frame_name != "stackStatusHandler":
+            return
+
+        status = response[0]
+        self._stack_status = status
+
+        for listener in self._stack_status_listeners[status]:
+            listener.set_result(status)
+
+    @contextlib.asynccontextmanager
+    async def wait_for_stack_status(self, status: t.EmberStatus):
+        future = asyncio.get_running_loop().create_future()
+
+        self._stack_status_listeners[status].append(future)
+
+        try:
+            yield future
+        finally:
+            self._stack_status_listeners[status].remove(future)
 
     @classmethod
     async def probe(cls, device_config: dict) -> bool | dict[str, int | str | bool]:
@@ -221,27 +251,19 @@ class EZSP:
         0,
     )
 
-    async def leaveNetwork(self, timeout: float | int = NETWORK_OPS_TIMEOUT) -> list:
+    async def leaveNetwork(self, timeout: float | int = NETWORK_OPS_TIMEOUT) -> None:
         """Send leaveNetwork command and wait for stackStatusHandler frame."""
         stack_status = asyncio.Future()
 
-        def cb(frame_name: str, response: list) -> None:
-            if (
-                frame_name == "stackStatusHandler"
-                and response[0] == t.EmberStatus.NETWORK_DOWN
-            ):
-                stack_status.set_result(response)
-
-        cb_id = self.add_callback(cb)
-        try:
+        async with self.wait_for_stack_status(
+            t.EmberStatus.NETWORK_DOWN
+        ) as stack_status:
             (status,) = await self._command("leaveNetwork")
             if status != t.EmberStatus.SUCCESS:
                 raise EzspError(f"failed to leave network: {status.name}")
 
             async with asyncio_timeout(timeout):
-                return await stack_status
-        finally:
-            self.remove_callback(cb_id)
+                await stack_status
 
     def connection_lost(self, exc):
         """Lost serial connection."""
@@ -269,28 +291,15 @@ class EZSP:
 
         return functools.partial(self._command, name)
 
-    async def formNetwork(self, parameters):  # noqa: N802
-        fut = asyncio.Future()
-
-        def cb(frame_name, response):
-            nonlocal fut
-            if frame_name == "stackStatusHandler":
-                fut.set_result(response)
-
-        cb_id = self.add_callback(cb)
-
-        try:
+    async def formNetwork(self, parameters):
+        async with self.wait_for_stack_status(t.EmberStatus.NETWORK_UP) as stack_status:
             v = await self._command("formNetwork", parameters)
+
             if v[0] != self.types.EmberStatus.SUCCESS:
-                raise Exception(f"Failure forming network: {v}")
+                raise zigpy.exceptions.FormationFailure(f"Failure forming network: {v}")
 
-            v = await fut
-            if v[0] != self.types.EmberStatus.NETWORK_UP:
-                raise Exception(f"Failure forming network: {v}")
-
-            return v
-        finally:
-            self.remove_callback(cb_id)
+            async with asyncio_timeout(NETWORK_OPS_TIMEOUT):
+                await stack_status
 
     def frame_received(self, data: bytes) -> None:
         """Handle a received EZSP frame
