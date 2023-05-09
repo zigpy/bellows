@@ -161,6 +161,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             async with asyncio_timeout(NETWORK_UP_TIMEOUT_S):
                 await stack_status
 
+        return True
+
     async def start_network(self):
         ezsp = self._ezsp
 

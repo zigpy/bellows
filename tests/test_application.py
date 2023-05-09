@@ -47,6 +47,11 @@ def ezsp_mock():
     ezsp.get_board_info = AsyncMock(
         return_value=("Mock Manufacturer", "Mock board", "Mock version")
     )
+    ezsp.wait_for_stack_status = MagicMock()
+    ezsp.wait_for_stack_status.return_value.__aenter__.return_value = AsyncMock(
+        return_value=t.EmberStatus.NETWORK_UP
+    )()
+
     type(ezsp).types = ezsp_t7
     type(ezsp).is_ezsp_running = PropertyMock(return_value=True)
 

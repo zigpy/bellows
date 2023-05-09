@@ -8,7 +8,7 @@ import contextlib
 import functools
 import logging
 import sys
-from typing import Any, Callable
+from typing import Any, Callable, Generator
 import urllib.parse
 
 if sys.version_info[:2] < (3, 11):
@@ -57,33 +57,41 @@ class EZSP:
         self._gw = None
         self._protocol = None
 
-        self._stack_status: t.EmberStatus | None = None
         self._stack_status_listeners: collections.defaultdict[
             t.EmberStatus, list[asyncio.Future]
         ] = collections.defaultdict(list)
 
         self.add_callback(self.stack_status_callback)
 
-    def stack_status_callback(self, frame_name: str, response: list) -> None:
+    def stack_status_callback(self, frame_name: str, args: list[Any]) -> None:
+        """Callback for `stackStatusHandler` messages."""
         if frame_name != "stackStatusHandler":
             return
 
-        status = response[0]
-        self._stack_status = status
+        status = args[0]
 
         for listener in self._stack_status_listeners[status]:
             listener.set_result(status)
 
-    @contextlib.asynccontextmanager
-    async def wait_for_stack_status(self, status: t.EmberStatus):
+    @contextlib.contextmanager
+    def wait_for_stack_status(self, status: t.EmberStatus) -> Generator[asyncio.Future]:
+        """Waits for a `stackStatusHandler` to come in with the provided status."""
+        listeners = self._stack_status_listeners[status]
+
         future = asyncio.get_running_loop().create_future()
 
-        self._stack_status_listeners[status].append(future)
+        @future.add_done_callback
+        def maybe_remove(_):
+            with contextlib.suppress(ValueError):
+                listeners.remove(future)
+
+        listeners.append(future)
 
         try:
             yield future
         finally:
-            self._stack_status_listeners[status].remove(future)
+            with contextlib.suppress(ValueError):
+                listeners.remove(future)
 
     @classmethod
     async def probe(cls, device_config: dict) -> bool | dict[str, int | str | bool]:
@@ -255,9 +263,7 @@ class EZSP:
         """Send leaveNetwork command and wait for stackStatusHandler frame."""
         stack_status = asyncio.Future()
 
-        async with self.wait_for_stack_status(
-            t.EmberStatus.NETWORK_DOWN
-        ) as stack_status:
+        with self.wait_for_stack_status(t.EmberStatus.NETWORK_DOWN) as stack_status:
             (status,) = await self._command("leaveNetwork")
             if status != t.EmberStatus.SUCCESS:
                 raise EzspError(f"failed to leave network: {status.name}")
@@ -276,7 +282,7 @@ class EZSP:
 
     def enter_failed_state(self, error):
         """UART received error frame."""
-        if self._callbacks:
+        if len(self._callbacks) > 1:
             LOGGER.error("NCP entered failed state. Requesting APP controller restart")
             self.close()
             self.handle_callback("_reset_controller_application", (error,))
@@ -291,8 +297,8 @@ class EZSP:
 
         return functools.partial(self._command, name)
 
-    async def formNetwork(self, parameters):
-        async with self.wait_for_stack_status(t.EmberStatus.NETWORK_UP) as stack_status:
+    async def formNetwork(self, parameters: t.EmberNetworkParameters) -> None:
+        with self.wait_for_stack_status(t.EmberStatus.NETWORK_UP) as stack_status:
             v = await self._command("formNetwork", parameters)
 
             if v[0] != self.types.EmberStatus.SUCCESS:
