@@ -148,9 +148,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if state == self._ezsp.types.EmberNetworkStatus.JOINED_NETWORK:
             return False
 
-        async with self._ezsp.wait_for_stack_status(
-            t.EmberStatus.NETWORK_UP
-        ) as stack_status:
+        with self._ezsp.wait_for_stack_status(t.EmberStatus.NETWORK_UP) as stack_status:
             (init_status,) = await self._ezsp.networkInit()
 
             if init_status == t.EmberStatus.NOT_JOINED:
