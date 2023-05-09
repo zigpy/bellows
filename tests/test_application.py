@@ -36,26 +36,25 @@ APP_CONFIG = {
 @pytest.fixture
 def ezsp_mock():
     """EZSP fixture"""
-    ezsp = MagicMock()
-    ezsp.ezsp_version = 7
-    ezsp.setManufacturerCode = AsyncMock()
-    ezsp.set_source_route = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
-    ezsp.addTransientLinkKey = AsyncMock(return_value=[0])
-    ezsp.readCounters = AsyncMock(return_value=[[0] * 10])
-    ezsp.readAndClearCounters = AsyncMock(return_value=[[0] * 10])
-    ezsp.setPolicy = AsyncMock(return_value=[0])
-    ezsp.get_board_info = AsyncMock(
+    mock_ezsp = MagicMock(spec=ezsp.EZSP)
+    mock_ezsp.ezsp_version = 7
+    mock_ezsp.setManufacturerCode = AsyncMock()
+    mock_ezsp.set_source_route = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    mock_ezsp.addTransientLinkKey = AsyncMock(return_value=[0])
+    mock_ezsp.readCounters = AsyncMock(return_value=[[0] * 10])
+    mock_ezsp.readAndClearCounters = AsyncMock(return_value=[[0] * 10])
+    mock_ezsp.setPolicy = AsyncMock(return_value=[0])
+    mock_ezsp.get_board_info = AsyncMock(
         return_value=("Mock Manufacturer", "Mock board", "Mock version")
     )
-    ezsp.wait_for_stack_status = MagicMock()
-    ezsp.wait_for_stack_status.return_value.__aenter__.return_value = AsyncMock(
+    mock_ezsp.wait_for_stack_status.return_value.__enter__ = AsyncMock(
         return_value=t.EmberStatus.NETWORK_UP
-    )()
+    )
 
-    type(ezsp).types = ezsp_t7
-    type(ezsp).is_ezsp_running = PropertyMock(return_value=True)
+    type(mock_ezsp).types = ezsp_t7
+    type(mock_ezsp).is_ezsp_running = PropertyMock(return_value=True)
 
-    return ezsp
+    return mock_ezsp
 
 
 @pytest.fixture
@@ -565,6 +564,7 @@ def test_sequence(app):
 
 
 def test_permit_ncp(app):
+    app._ezsp.permitJoining = AsyncMock()
     app.permit_ncp(60)
     assert app._ezsp.permitJoining.call_count == 1
 
@@ -1480,6 +1480,8 @@ def test_handle_id_conflict(app, ieee):
 async def test_handle_no_such_device(app, ieee):
     """Test handling of an unknown device IEEE lookup."""
 
+    app._ezsp.lookupEui64ByNodeId = AsyncMock()
+
     p1 = patch.object(
         app._ezsp,
         "lookupEui64ByNodeId",
@@ -1588,6 +1590,11 @@ async def test_set_mfg_id(ieee, expected_mfg_id, app, ezsp_mock):
 
 async def test_ensure_network_running_joined(app):
     ezsp = app._ezsp
+
+    # Make initialization take two attempts
+    ezsp.networkInit = AsyncMock(
+        side_effect=[(t.EmberStatus.NETWORK_BUSY,), (t.EmberStatus.SUCCESS,)]
+    )
     ezsp.networkState = AsyncMock(
         return_value=[ezsp.types.EmberNetworkStatus.JOINED_NETWORK]
     )
