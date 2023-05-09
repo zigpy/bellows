@@ -20,6 +20,7 @@ import bellows.types.struct
 import bellows.uart as uart
 import bellows.zigbee.application
 import bellows.zigbee.device
+from bellows.zigbee.util import map_rssi_to_energy
 
 from .async_mock import AsyncMock, MagicMock, PropertyMock, patch, sentinel
 
@@ -35,21 +36,25 @@ APP_CONFIG = {
 @pytest.fixture
 def ezsp_mock():
     """EZSP fixture"""
-    ezsp = MagicMock()
-    ezsp.ezsp_version = 7
-    ezsp.setManufacturerCode = AsyncMock()
-    ezsp.set_source_route = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
-    ezsp.addTransientLinkKey = AsyncMock(return_value=[0])
-    ezsp.readCounters = AsyncMock(return_value=[[0] * 10])
-    ezsp.readAndClearCounters = AsyncMock(return_value=[[0] * 10])
-    ezsp.setPolicy = AsyncMock(return_value=[0])
-    ezsp.get_board_info = AsyncMock(
+    mock_ezsp = MagicMock(spec=ezsp.EZSP)
+    mock_ezsp.ezsp_version = 7
+    mock_ezsp.setManufacturerCode = AsyncMock()
+    mock_ezsp.set_source_route = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    mock_ezsp.addTransientLinkKey = AsyncMock(return_value=[0])
+    mock_ezsp.readCounters = AsyncMock(return_value=[[0] * 10])
+    mock_ezsp.readAndClearCounters = AsyncMock(return_value=[[0] * 10])
+    mock_ezsp.setPolicy = AsyncMock(return_value=[0])
+    mock_ezsp.get_board_info = AsyncMock(
         return_value=("Mock Manufacturer", "Mock board", "Mock version")
     )
-    type(ezsp).types = ezsp_t7
-    type(ezsp).is_ezsp_running = PropertyMock(return_value=True)
+    mock_ezsp.wait_for_stack_status.return_value.__enter__ = AsyncMock(
+        return_value=t.EmberStatus.NETWORK_UP
+    )
 
-    return ezsp
+    type(mock_ezsp).types = ezsp_t7
+    type(mock_ezsp).is_ezsp_running = PropertyMock(return_value=True)
+
+    return mock_ezsp
 
 
 @pytest.fixture
@@ -559,6 +564,7 @@ def test_sequence(app):
 
 
 def test_permit_ncp(app):
+    app._ezsp.permitJoining = AsyncMock()
     app.permit_ncp(60)
     assert app._ezsp.permitJoining.call_count == 1
 
@@ -1474,6 +1480,8 @@ def test_handle_id_conflict(app, ieee):
 async def test_handle_no_such_device(app, ieee):
     """Test handling of an unknown device IEEE lookup."""
 
+    app._ezsp.lookupEui64ByNodeId = AsyncMock()
+
     p1 = patch.object(
         app._ezsp,
         "lookupEui64ByNodeId",
@@ -1582,6 +1590,11 @@ async def test_set_mfg_id(ieee, expected_mfg_id, app, ezsp_mock):
 
 async def test_ensure_network_running_joined(app):
     ezsp = app._ezsp
+
+    # Make initialization take two attempts
+    ezsp.networkInit = AsyncMock(
+        side_effect=[(t.EmberStatus.NETWORK_BUSY,), (t.EmberStatus.SUCCESS,)]
+    )
     ezsp.networkState = AsyncMock(
         return_value=[ezsp.types.EmberNetworkStatus.JOINED_NETWORK]
     )
@@ -1733,5 +1746,29 @@ async def test_energy_scanning(app, scan_results):
         count=1,
     )
 
+    assert len(app._ezsp.startScan.mock_calls) == 1
+
     assert set(results.keys()) == set(t.Channels.ALL_CHANNELS)
     assert all(0 <= v <= 255 for v in results.values())
+
+
+async def test_energy_scanning_partial(app):
+    app._ezsp.startScan = AsyncMock(
+        side_effect=[
+            [(11, 11), (12, 12), (13, 13), (14, 14), (15, 15), (16, 16)],
+            [(17, 17)],
+            [],
+            [(18, 18), (19, 19), (20, 20)],
+            [(21, 21), (22, 22), (23, 23), (24, 24), (25, 25), (26, 26)],
+        ]
+    )
+
+    results = await app.energy_scan(
+        channels=t.Channels.ALL_CHANNELS,
+        duration_exp=2,
+        count=1,
+    )
+
+    assert len(app._ezsp.startScan.mock_calls) == 5
+    assert set(results.keys()) == set(t.Channels.ALL_CHANNELS)
+    assert results == {c: map_rssi_to_energy(c) for c in range(11, 26 + 1)}

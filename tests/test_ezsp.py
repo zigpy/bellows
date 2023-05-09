@@ -1,11 +1,17 @@
 import asyncio
 import functools
+import sys
 
 import pytest
 
 from bellows import config, ezsp, uart
 from bellows.exception import EzspError
 import bellows.ezsp.v4.types as t
+
+if sys.version_info[:2] < (3, 11):
+    from async_timeout import timeout as asyncio_timeout  # pragma: no cover
+else:
+    from asyncio import timeout as asyncio_timeout  # pragma: no cover
 
 from .async_mock import AsyncMock, MagicMock, call, patch, sentinel
 
@@ -48,7 +54,7 @@ async def test_reset(ezsp_f):
     assert ezsp_f._gw.reset.call_count == 1
     assert ezsp_f.start_ezsp.call_count == 1
     assert ezsp_f.stop_ezsp.call_count == 1
-    assert len(ezsp_f._callbacks) == 0
+    assert len(ezsp_f._callbacks) == 1
 
 
 def test_close(ezsp_f):
@@ -487,8 +493,7 @@ async def test_leave_network(ezsp_f):
 
     with patch.object(ezsp_f, "_command", new_callable=AsyncMock) as cmd_mock:
         cmd_mock.side_effect = _mock_cmd
-        (status,) = await ezsp_f.leaveNetwork(timeout=0.01)
-        assert status == t.EmberStatus.NETWORK_DOWN
+        await ezsp_f.leaveNetwork(timeout=0.01)
 
 
 @pytest.mark.parametrize(
@@ -571,3 +576,26 @@ async def test_ezsp_init_zigbeed_timeout(
     assert prot_handler_mock.await_count == 1
     assert src_mock.call_count == 0
     assert src_mock.await_count == 0
+
+
+async def test_wait_for_stack_status(ezsp_f):
+    assert not ezsp_f._stack_status_listeners[t.EmberStatus.NETWORK_DOWN]
+
+    # Cancellation clears handlers
+    with ezsp_f.wait_for_stack_status(t.EmberStatus.NETWORK_DOWN) as stack_status:
+        with pytest.raises(asyncio.TimeoutError):
+            async with asyncio_timeout(0.1):
+                assert ezsp_f._stack_status_listeners[t.EmberStatus.NETWORK_DOWN]
+                await stack_status
+
+    assert not ezsp_f._stack_status_listeners[t.EmberStatus.NETWORK_DOWN]
+
+    # Receiving multiple also works
+    with ezsp_f.wait_for_stack_status(t.EmberStatus.NETWORK_DOWN) as stack_status:
+        ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_UP])
+        ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_DOWN])
+        ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_DOWN])
+
+        await stack_status
+
+    assert not ezsp_f._stack_status_listeners[t.EmberStatus.NETWORK_DOWN]

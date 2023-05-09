@@ -372,23 +372,6 @@ def _mock_app_for_write(app, network_info, node_info, ezsp_ver=None):
     ezsp.can_write_custom_eui64 = AsyncMock(return_value=True)
 
 
-async def test_write_network_info_failed_leave1(app, network_info, node_info):
-    _mock_app_for_write(app, network_info, node_info)
-
-    app._ezsp.leaveNetwork.return_value = [t.EmberStatus.BAD_ARGUMENT]
-
-    with pytest.raises(zigpy.exceptions.FormationFailure):
-        await app.write_network_info(network_info=network_info, node_info=node_info)
-
-
-async def test_write_network_info_failed_leave2(app, network_info, node_info):
-    _mock_app_for_write(app, network_info, node_info)
-
-    app._ezsp.leaveNetwork.side_effect = EzspError("failed to leave network")
-
-    await app.write_network_info(network_info=network_info, node_info=node_info)
-
-
 @pytest.mark.parametrize("ezsp_ver", [4, 7])
 async def test_write_network_info(app, network_info, node_info, ezsp_ver):
     _mock_app_for_write(app, network_info, node_info, ezsp_ver)
