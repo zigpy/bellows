@@ -15,7 +15,7 @@ import zigpy.application
 import zigpy.config
 import zigpy.device
 import zigpy.endpoint
-from zigpy.exceptions import FormationFailure, NetworkNotFormed
+from zigpy.exceptions import NetworkNotFormed
 import zigpy.state
 import zigpy.types
 import zigpy.util
@@ -54,6 +54,7 @@ EZSP_DEFAULT_RADIUS = 0
 EZSP_MULTICAST_NON_MEMBER_RADIUS = 3
 MFG_ID_RESET_DELAY = 180
 RESET_ATTEMPT_BACKOFF_TIME = 5
+NETWORK_UP_TIMEOUT_S = 10
 WATCHDOG_WAKE_PERIOD = 10
 IEEE_PREFIX_MFG_ID = {
     "04:CF:8C": 0x115F,  # Xiaomi
@@ -147,13 +148,20 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if state == self._ezsp.types.EmberNetworkStatus.JOINED_NETWORK:
             return False
 
-        (init_status,) = await self._ezsp.networkInit()
-        if init_status == t.EmberStatus.SUCCESS:
-            return True
-        elif init_status == t.EmberStatus.NOT_JOINED:
-            raise NetworkNotFormed("Node is not part of a network")
-        else:
-            raise ControllerError(f"Failed to initialize network: {init_status!r}")
+        async with self._ezsp.wait_for_stack_status(
+            t.EmberStatus.NETWORK_UP
+        ) as stack_status:
+            (init_status,) = await self._ezsp.networkInit()
+
+            if init_status == t.EmberStatus.NOT_JOINED:
+                raise NetworkNotFormed("Node is not part of a network")
+            elif init_status != t.EmberStatus.SUCCESS:
+                raise ControllerError(f"Failed to initialize network: {init_status!r}")
+
+            async with asyncio_timeout(NETWORK_UP_TIMEOUT_S):
+                await stack_status
+
+        return True
 
     async def start_network(self):
         ezsp = self._ezsp
@@ -387,10 +395,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         (status,) = await ezsp.setInitialSecurityState(initial_security_state)
         assert status == t.EmberStatus.SUCCESS
 
-        # Clear the key table
-        (status,) = await ezsp.clearKeyTable()
-        assert status == t.EmberStatus.SUCCESS
-
         # Write APS link keys
         for key in network_info.key_table:
             ember_key = util.zigpy_key_to_ezsp_key(key, ezsp)
@@ -429,7 +433,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         parameters.channels = t.Channels(network_info.channel_mask)
 
         await ezsp.formNetwork(parameters)
-        await ezsp.setValue(ezsp.types.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
 
     async def reset_network_info(self):
         # The network must be running before we can leave it
@@ -438,13 +441,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         except zigpy.exceptions.NetworkNotFormed:
             return
 
-        try:
-            (status,) = await self._ezsp.leaveNetwork()
-        except bellows.exception.EzspError:
-            pass
-        else:
-            if status != t.EmberStatus.NETWORK_DOWN:
-                raise FormationFailure("Couldn't leave network")
+        await self._ezsp.leaveNetwork()
+
+        # Clear the key table
+        (status,) = await self._ezsp.clearKeyTable()
+        assert status == t.EmberStatus.SUCCESS
 
     async def disconnect(self):
         # TODO: how do you shut down the stack?
