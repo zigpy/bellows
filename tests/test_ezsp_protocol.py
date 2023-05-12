@@ -6,7 +6,7 @@ import pytest
 import bellows.ezsp.v4
 import bellows.ezsp.v4.types as t
 
-from .async_mock import ANY, AsyncMock, MagicMock, patch
+from .async_mock import ANY, AsyncMock, MagicMock, call, patch
 
 
 class _DummyProtocolHandler(bellows.ezsp.v4.EZSPv4):
@@ -91,6 +91,21 @@ async def test_cfg_initialize(prot_hndl, caplog):
         with caplog.at_level(logging.WARNING):
             await prot_hndl.initialize({"ezsp_config": {}, "source_routing": False})
             assert "Couldn't set" in caplog.text
+
+
+async def test_config_initialize_husbzb1(prot_hndl):
+    """Test timeouts are properly set for HUSBZB-1."""
+
+    prot_hndl.getConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, 22))
+    prot_hndl.setConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
+
+    await prot_hndl.initialize({"ezsp_config": {}})
+    prot_hndl.setConfigurationValue.assert_has_calls(
+        [
+            call(t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, 60),
+            call(t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8),
+        ]
+    )
 
 
 async def test_cfg_initialize_skip(prot_hndl):
