@@ -24,7 +24,7 @@ class ProtocolHandler(abc.ABC):
     """EZSP protocol specific handler."""
 
     COMMANDS = {}
-    EZSP_VERSION = 4
+    VERSION = None
 
     def __init__(self, cb_handler: Callable, gateway: GatewayType) -> None:
         self._handle_callback = cb_handler
@@ -71,7 +71,7 @@ class ProtocolHandler(abc.ABC):
         # Not all config will be present in every EZSP version so only use valid keys
         ezsp_config = {}
 
-        for cfg in DEFAULT_CONFIG[self.EZSP_VERSION]:
+        for cfg in DEFAULT_CONFIG[self.VERSION]:
             config_id = self.types.EzspConfigId[cfg.config_id.name]
             ezsp_config[cfg.config_id.name] = dataclasses.replace(
                 cfg, config_id=config_id

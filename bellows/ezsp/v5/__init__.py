@@ -9,13 +9,13 @@ import bellows.config
 from . import commands, config, types as v5_types
 from ..v4 import EZSPv4
 
-EZSP_VERSION = 5
 LOGGER = logging.getLogger(__name__)
 
 
 class EZSPv5(EZSPv4):
     """EZSP Version 5 Protocol version handler."""
 
+    VERSION = 5
     COMMANDS = commands.COMMANDS
     SCHEMAS = {
         bellows.config.CONF_EZSP_CONFIG: voluptuous.Schema(config.EZSP_SCHEMA),
