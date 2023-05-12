@@ -71,15 +71,11 @@ class ProtocolHandler(abc.ABC):
         # Not all config will be present in every EZSP version so only use valid keys
         ezsp_config = {}
 
-        for cfg in DEFAULT_CONFIG:
-            try:
-                config_id = self.types.EzspConfigId[cfg.config_id.name]
-            except KeyError:
-                pass
-            else:
-                ezsp_config[cfg.config_id.name] = dataclasses.replace(
-                    cfg, config_id=config_id
-                )
+        for cfg in DEFAULT_CONFIG[self.EZSP_VERSION]:
+            config_id = self.types.EzspConfigId[cfg.config_id.name]
+            ezsp_config[cfg.config_id.name] = dataclasses.replace(
+                cfg, config_id=config_id
+            )
 
         # Override the defaults with user-specified values (or `None` for deletions)
         for name, value in self.SCHEMAS[CONF_EZSP_CONFIG](
