@@ -52,6 +52,16 @@ DEFAULT_CONFIG_COMMON = [
         value=2,
     ),
     RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_KEY_TABLE_SIZE,
+        value=4,
+        minimum=True,
+    ),
+    RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_MAX_END_DEVICE_CHILDREN,
+        value=32,
+        minimum=True,
+    ),
+    RuntimeConfig(
         config_id=types_v4.EzspConfigId.CONFIG_APPLICATION_ZDO_FLAGS,
         value=(
             t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS

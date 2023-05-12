@@ -96,14 +96,33 @@ async def test_cfg_initialize(prot_hndl, caplog):
 async def test_config_initialize_husbzb1(prot_hndl):
     """Test timeouts are properly set for HUSBZB-1."""
 
-    prot_hndl.getConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, 22))
+    prot_hndl.getConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, 0))
     prot_hndl.setConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
 
     await prot_hndl.initialize({"ezsp_config": {}})
     prot_hndl.setConfigurationValue.assert_has_calls(
         [
+            call(t.EzspConfigId.CONFIG_SOURCE_ROUTE_TABLE_SIZE, 16),
             call(t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, 60),
             call(t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8),
+            call(t.EzspConfigId.CONFIG_INDIRECT_TRANSMISSION_TIMEOUT, 7680),
+            call(t.EzspConfigId.CONFIG_STACK_PROFILE, 2),
+            call(t.EzspConfigId.CONFIG_SUPPORTED_NETWORKS, 1),
+            call(t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, 16),
+            call(t.EzspConfigId.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2),
+            call(t.EzspConfigId.CONFIG_SECURITY_LEVEL, 5),
+            call(t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE, 16),
+            call(t.EzspConfigId.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD, 2),
+            call(t.EzspConfigId.CONFIG_KEY_TABLE_SIZE, 4),
+            call(t.EzspConfigId.CONFIG_MAX_END_DEVICE_CHILDREN, 32),
+            call(
+                t.EzspConfigId.CONFIG_APPLICATION_ZDO_FLAGS,
+                (
+                    t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
+                    | t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS
+                ),
+            ),
+            call(t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT, 255),
         ]
     )
 
