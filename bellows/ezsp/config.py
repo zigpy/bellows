@@ -22,6 +22,10 @@ DEFAULT_CONFIG = [
     ),
     RuntimeConfig(
         config_id=types_v4.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT,
+        value=60,
+    ),
+    RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT,
         value=8,
     ),
     RuntimeConfig(
