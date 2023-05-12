@@ -599,3 +599,10 @@ async def test_wait_for_stack_status(ezsp_f):
         await stack_status
 
     assert not ezsp_f._stack_status_listeners[t.EmberStatus.NETWORK_DOWN]
+
+
+def test_ezsp_versions(ezsp_f):
+    for version in range(4, ezsp.EZSP_LATEST + 1):
+        assert version in ezsp_f._BY_VERSION
+        assert ezsp_f._BY_VERSION[version].__name__ == f"EZSPv{version}"
+        assert ezsp_f._BY_VERSION[version].VERSION == version
