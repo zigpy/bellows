@@ -3,28 +3,17 @@ import logging
 
 import pytest
 
+from bellows.ezsp import EZSP
 import bellows.ezsp.v4
 import bellows.ezsp.v4.types as t
 
 from .async_mock import ANY, AsyncMock, MagicMock, call, patch
 
 
-class _DummyProtocolHandler(bellows.ezsp.v4.EZSPv4):
-    """Protocol handler mock."""
-
-    @property
-    def gw_mock(self):
-        return self._gw
-
-    @property
-    def cb_mock(self):
-        return self._handle_callback
-
-
 @pytest.fixture
 def prot_hndl():
     """Protocol handler mock."""
-    return _DummyProtocolHandler(MagicMock(), MagicMock())
+    return bellows.ezsp.v4.EZSPv4(MagicMock(), MagicMock())
 
 
 async def test_command(prot_hndl):
@@ -46,7 +35,7 @@ def test_receive_reply(prot_hndl):
     assert callback_mock.set_exception.call_count == 0
     assert callback_mock.set_result.call_count == 1
     callback_mock.set_result.assert_called_once_with([4, 5, 6])
-    assert prot_hndl.cb_mock.call_count == 0
+    assert prot_hndl._handle_callback.call_count == 0
 
 
 def test_receive_reply_after_timeout(prot_hndl):
@@ -59,7 +48,7 @@ def test_receive_reply_after_timeout(prot_hndl):
     assert callback_mock.set_exception.call_count == 0
     assert callback_mock.set_result.call_count == 1
     callback_mock.set_result.assert_called_once_with([4, 5, 6])
-    assert prot_hndl.cb_mock.call_count == 0
+    assert prot_hndl._handle_callback.call_count == 0
 
 
 def test_receive_reply_invalid_command(prot_hndl):
@@ -70,7 +59,7 @@ def test_receive_reply_invalid_command(prot_hndl):
     assert 0 not in prot_hndl._awaiting
     assert callback_mock.set_exception.call_count == 1
     assert callback_mock.set_result.call_count == 0
-    assert prot_hndl.cb_mock.call_count == 0
+    assert prot_hndl._handle_callback.call_count == 0
 
 
 async def test_cfg_initialize(prot_hndl, caplog):
@@ -125,6 +114,17 @@ async def test_config_initialize_husbzb1(prot_hndl):
             call(t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT, 255),
         ]
     )
+
+
+@pytest.mark.parametrize("prot_hndl_cls", EZSP._BY_VERSION.values())
+async def test_config_initialize(prot_hndl_cls):
+    """Test config initialization for all protocol versions."""
+
+    prot_hndl = prot_hndl_cls(MagicMock(), MagicMock())
+    prot_hndl.getConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, 0))
+    prot_hndl.setConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
+
+    await prot_hndl.initialize({"ezsp_config": {}})
 
 
 async def test_cfg_initialize_skip(prot_hndl):

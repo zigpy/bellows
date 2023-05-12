@@ -25,7 +25,7 @@ import bellows.uart
 
 from . import v4, v5, v6, v7, v8, v9, v10, v11
 
-EZSP_LATEST = v11.EZSP_VERSION
+EZSP_LATEST = v11.EZSPv11.VERSION
 PROBE_TIMEOUT = 3
 NETWORK_OPS_TIMEOUT = 10
 LOGGER = logging.getLogger(__name__)
@@ -39,21 +39,21 @@ NETWORK_COORDINATOR_STARTUP_RESET_WAIT = 1
 
 class EZSP:
     _BY_VERSION = {
-        v4.EZSP_VERSION: v4.EZSPv4,
-        v5.EZSP_VERSION: v5.EZSPv5,
-        v6.EZSP_VERSION: v6.EZSPv6,
-        v7.EZSP_VERSION: v7.EZSPv7,
-        v8.EZSP_VERSION: v8.EZSPv8,
-        v9.EZSP_VERSION: v9.EZSPv9,
-        v10.EZSP_VERSION: v10.EZSPv10,
-        v11.EZSP_VERSION: v11.EZSPv11,
+        v4.EZSPv4.VERSION: v4.EZSPv4,
+        v5.EZSPv5.VERSION: v5.EZSPv5,
+        v6.EZSPv6.VERSION: v6.EZSPv6,
+        v7.EZSPv7.VERSION: v7.EZSPv7,
+        v8.EZSPv8.VERSION: v8.EZSPv8,
+        v9.EZSPv9.VERSION: v9.EZSPv9,
+        v10.EZSPv10.VERSION: v10.EZSPv10,
+        v11.EZSPv11.VERSION: v11.EZSPv11,
     }
 
     def __init__(self, device_config: dict):
         self._config = device_config
         self._callbacks = {}
         self._ezsp_event = asyncio.Event()
-        self._ezsp_version = v4.EZSP_VERSION
+        self._ezsp_version = v4.EZSPv4.VERSION
         self._gw = None
         self._protocol = None
 
