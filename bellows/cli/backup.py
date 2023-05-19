@@ -208,10 +208,7 @@ async def _restore(
             click.echo("Network is up, not forcing restore")
             return
         try:
-            (status,) = await ezsp.leaveNetwork()
-            if status != t.EmberStatus.NETWORK_DOWN:
-                LOGGER.error("Couldn't leave network")
-                return
+            await ezsp.leaveNetwork()
         except asyncio.TimeoutError:
             LOGGER.error("Didn't not receive stack changed status callback")
             return
@@ -309,9 +306,7 @@ async def _form_network(ezsp, backup_data):
         nwkUpdateId=backup_data[ATTR_NWK_UPDATE_ID],
         channels=backup_data[ATTR_CHANNELS],
     )
-    (status,) = await ezsp.formNetwork(network)
-    LOGGER.debug("Form network: %s", status)
-    assert status == t.EmberStatus.NETWORK_UP
+    await ezsp.formNetwork(network)
 
     await _update_nwk_id(ezsp, backup_data[ATTR_NWK_UPDATE_ID])
 
