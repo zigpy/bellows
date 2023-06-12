@@ -26,14 +26,15 @@ import bellows.uart
 from . import v4, v5, v6, v7, v8, v9, v10, v11
 
 EZSP_LATEST = v11.EZSPv11.VERSION
-PROBE_TIMEOUT = 3
-NETWORK_OPS_TIMEOUT = 10
 LOGGER = logging.getLogger(__name__)
 MTOR_MIN_INTERVAL = 60
 MTOR_MAX_INTERVAL = 3600
 MTOR_ROUTE_ERROR_THRESHOLD = 8
 MTOR_DELIVERY_FAIL_THRESHOLD = 8
 
+UART_PROBE_TIMEOUT = 3
+NETWORK_PROBE_TIMEOUT = 7
+NETWORK_OPS_TIMEOUT = 10
 NETWORK_COORDINATOR_STARTUP_RESET_WAIT = 1
 
 
@@ -96,13 +97,24 @@ class EZSP:
     @classmethod
     async def probe(cls, device_config: dict) -> bool | dict[str, int | str | bool]:
         """Probe port for the device presence."""
-        for config in (
-            {**device_config, conf.CONF_DEVICE_BAUDRATE: 115200},
-            device_config,
-        ):
-            ezsp = cls(conf.SCHEMA_DEVICE(config))
+        device_config = conf.SCHEMA_DEVICE(device_config)
+        probe_configs = [device_config]
+
+        # Try probing with 115200 baud rate first, as it is the most common
+        if device_config[conf.CONF_DEVICE_BAUDRATE] != 115200:
+            probe_configs.insert(
+                0, {**device_config, conf.CONF_DEVICE_BAUDRATE: 115200}
+            )
+
+        for config in probe_configs:
+            ezsp = cls(config)
+
             try:
-                async with asyncio_timeout(PROBE_TIMEOUT):
+                async with asyncio_timeout(
+                    UART_PROBE_TIMEOUT
+                    if not ezsp.is_tcp_serial_port
+                    else NETWORK_PROBE_TIMEOUT
+                ):
                     await ezsp._probe()
 
                 return config
@@ -123,11 +135,15 @@ class EZSP:
         await self._startup_reset()
         await self.version()
 
+    @property
+    def is_tcp_serial_port(self) -> bool:
+        parsed_path = urllib.parse.urlparse(self._config[conf.CONF_DEVICE_PATH])
+        return parsed_path.scheme == "socket"
+
     async def _startup_reset(self):
         """Start EZSP and reset the stack."""
         # `zigbeed` resets on startup
-        parsed_path = urllib.parse.urlparse(self._config[conf.CONF_DEVICE_PATH])
-        if parsed_path.scheme == "socket":
+        if self.is_tcp_serial_port:
             try:
                 async with asyncio_timeout(NETWORK_COORDINATOR_STARTUP_RESET_WAIT):
                     await self._gw.wait_for_startup_reset()
