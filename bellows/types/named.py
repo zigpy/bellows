@@ -1893,3 +1893,115 @@ class EmberStackError(basic.enum16):
     ZIGBEE_NETWORK_STATUS_BAD_FRAME_COUNTER = 0x11
     ZIGBEE_NETWORK_STATUS_BAD_KEY_SEQUENCE_NUMBER = 0x12
     ZIGBEE_NETWORK_STATUS_UNKNOWN_COMMAND = 0x13
+
+
+class NV3KeyId(basic.enum32):
+    """NV3 key IDs."""
+
+    # Creator keys
+    CREATOR_STACK_NVDATA_VERSION = 0x0000_FF01
+    CREATOR_STACK_BOOT_COUNTER = 0x0000_E263
+    CREATOR_STACK_NONCE_COUNTER = 0x0000_E563
+    CREATOR_STACK_ANALYSIS_REBOOT = 0x0000_E162
+    CREATOR_STACK_KEYS = 0x0000_EB79
+    CREATOR_STACK_NODE_DATA = 0x0000_EE64
+    CREATOR_STACK_CLASSIC_DATA = 0x0000_E364
+    CREATOR_STACK_ALTERNATE_KEY = 0x0000_E475
+    CREATOR_STACK_APS_FRAME_COUNTER = 0x0000_E123
+    CREATOR_STACK_TRUST_CENTER = 0x0000_E124
+    CREATOR_STACK_NETWORK_MANAGEMENT = 0x0000_E125
+    CREATOR_STACK_PARENT_INFO = 0x0000_E126
+    CREATOR_STACK_PARENT_ADDITIONAL_INFO = 0x0000_E127
+    CREATOR_STACK_MULTI_PHY_NWK_INFO = 0x0000_E128
+    CREATOR_STACK_MIN_RECEIVED_RSSI = 0x0000_E129
+    CREATOR_STACK_RESTORED_EUI64 = 0x0000_E12A
+
+    CREATOR_MULTI_NETWORK_STACK_KEYS = 0x0000_E210
+    CREATOR_MULTI_NETWORK_STACK_NODE_DATA = 0x0000_E211
+    CREATOR_MULTI_NETWORK_STACK_ALTERNATE_KEY = 0x0000_E212
+    CREATOR_MULTI_NETWORK_STACK_TRUST_CENTER = 0x0000_E213
+    CREATOR_MULTI_NETWORK_STACK_NETWORK_MANAGEMENT = 0x0000_E214
+    CREATOR_MULTI_NETWORK_STACK_PARENT_INFO = 0x0000_E215
+
+    # A temporary solution for multi-network nwk counters:
+    # This counter will be used on the network with index 1.
+    CREATOR_MULTI_NETWORK_STACK_NONCE_COUNTER = 0x0000_E220
+    CREATOR_MULTI_NETWORK_STACK_PARENT_ADDITIONAL_INFO = 0x0000_E221
+
+    CREATOR_STACK_GP_DATA = 0x0000_E258
+    CREATOR_STACK_GP_PROXY_TABLE = 0x0000_E259
+    CREATOR_STACK_GP_SINK_TABLE = 0x0000_E25A
+    CREATOR_STACK_GP_INCOMING_FC = 0x0000_E25B
+    CREATOR_STACK_GP_INCOMING_FC_IN_SINK = 0x0000_E25C
+
+    CREATOR_STACK_BINDING_TABLE = 0x0000_E274
+    CREATOR_STACK_CHILD_TABLE = 0x0000_FF0D
+    CREATOR_STACK_KEY_TABLE = 0x0000_E456
+    CREATOR_STACK_CERTIFICATE_TABLE = 0x0000_E500
+    CREATOR_STACK_ZLL_DATA = 0x0000_E501
+    CREATOR_STACK_ZLL_SECURITY = 0x0000_E502
+    CREATOR_STACK_ADDITIONAL_CHILD_DATA = 0x0000_E503
+
+    # Stack keys
+    NVM3KEY_STACK_NVDATA_VERSION = 0x0001_FF01
+    NVM3KEY_STACK_BOOT_COUNTER = 0x0001_E263
+    NVM3KEY_STACK_NONCE_COUNTER = 0x0001_E563
+    NVM3KEY_STACK_ANALYSIS_REBOOT = 0x0001_E162
+    NVM3KEY_STACK_KEYS = 0x0001_EB79
+    NVM3KEY_STACK_NODE_DATA = 0x0001_EE64
+    NVM3KEY_STACK_CLASSIC_DATA = 0x0001_E364
+    NVM3KEY_STACK_ALTERNATE_KEY = 0x0001_E475
+    NVM3KEY_STACK_APS_FRAME_COUNTER = 0x0001_E123
+    NVM3KEY_STACK_TRUST_CENTER = 0x0001_E124
+    NVM3KEY_STACK_NETWORK_MANAGEMENT = 0x0001_E125
+    NVM3KEY_STACK_PARENT_INFO = 0x0001_E126
+    NVM3KEY_STACK_PARENT_ADDITIONAL_INFO = 0x0001_E127
+    NVM3KEY_STACK_MULTI_PHY_NWK_INFO = 0x0001_E128
+    NVM3KEY_STACK_MIN_RECEIVED_RSSI = 0x0001_E129
+    NVM3KEY_STACK_RESTORED_EUI64 = 0x0001_E12A
+
+    # MULTI-NETWORK STACK KEYS
+    # This key is used for an indexed token and the subsequent 0x7F keys are also reserved.
+    NVM3KEY_MULTI_NETWORK_STACK_KEYS = 0x0001_0000
+    # This key is used for an indexed token and the subsequent 0x7F keys are also reserved.
+    NVM3KEY_MULTI_NETWORK_STACK_NODE_DATA = 0x0001_0080
+    # This key is used for an indexed token and the subsequent 0x7F keys are also reserved.
+    NVM3KEY_MULTI_NETWORK_STACK_ALTERNATE_KEY = 0x0001_0100
+    # This key is used for an indexed token and the subsequent 0x7F keys are also reserved.
+    NVM3KEY_MULTI_NETWORK_STACK_TRUST_CENTER = 0x0001_0180
+    # This key is used for an indexed token and the subsequent 0x7F keys are also reserved.
+    NVM3KEY_MULTI_NETWORK_STACK_NETWORK_MANAGEMENT = 0x0001_0200
+    # This key is used for an indexed token and the subsequent 0x7F keys are also reserved.
+    NVM3KEY_MULTI_NETWORK_STACK_PARENT_INFO = 0x0001_0280
+
+    # Temporary solution for multi-network nwk counters:
+    # This counter will be used on the network with index 1.
+    NVM3KEY_MULTI_NETWORK_STACK_NONCE_COUNTER = 0x0001_E220
+    # This key is used for an indexed token and the subsequent 0x7F keys are also reserved
+    NVM3KEY_MULTI_NETWORK_STACK_PARENT_ADDITIONAL_INFO = 0x0001_0300
+
+    # GP stack tokens.
+    NVM3KEY_STACK_GP_DATA = 0x0001_E258
+    # This key is used for an indexed token and the subsequent 0x7F keys are also reserved.
+    NVM3KEY_STACK_GP_PROXY_TABLE = 0x0001_0380
+    # This key is used for an indexed token and the subsequent 0x7F keys are also reserved.
+    NVM3KEY_STACK_GP_SINK_TABLE = 0x0001_0400
+    # This key is used for an indexed token and the subsequent 0x7F keys are also reserved
+    NVM3KEY_STACK_GP_INCOMING_FC = 0x0001_0480
+
+    # APP KEYS
+    # This key is used for an indexed token and the subsequent 0x7F keys are also reserved.
+    NVM3KEY_STACK_BINDING_TABLE = 0x0001_0500
+    # This key is used for an indexed token and the subsequent 0x7F keys are also reserved.
+    NVM3KEY_STACK_CHILD_TABLE = 0x0001_0580
+    # This key is used for an indexed token and the subsequent 0x7F keys are also reserved.
+    NVM3KEY_STACK_KEY_TABLE = 0x0001_0600
+    # This key is used for an indexed token and the subsequent 0x7F keys are also reserved.
+    NVM3KEY_STACK_CERTIFICATE_TABLE = 0x0001_0680
+    NVM3KEY_STACK_ZLL_DATA = 0x0001_E501
+    NVM3KEY_STACK_ZLL_SECURITY = 0x0001_E502
+    # This key is used for an indexed token and the subsequent 0x7F keys are also reserved.
+    NVM3KEY_STACK_ADDITIONAL_CHILD_DATA = 0x0001_0700
+
+    # This key is used for an indexed token and the subsequent 0x7F keys are also reserved
+    NVM3KEY_STACK_GP_INCOMING_FC_IN_SINK = 0x0001_0780

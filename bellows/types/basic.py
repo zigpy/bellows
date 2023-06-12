@@ -97,6 +97,20 @@ class LVBytes(bytes):
         return s, data[bytes + 1 :]
 
 
+class LVBytes32(LVBytes):
+    def serialize(self):
+        return uint32_t(len(self)).serialize() + self
+
+    @classmethod
+    def deserialize(cls, data):
+        length, data = uint32_t.deserialize(data)
+
+        if len(data) < length:
+            raise ValueError(f"Data is too short: expected {length}, got {len(data)}")
+
+        return data[:length], data[length:]
+
+
 class _List(list):
     _length = None
 
