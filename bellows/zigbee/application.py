@@ -347,7 +347,19 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         await self.reset_network_info()
 
-        can_write_custom_eui64 = await ezsp.can_write_custom_eui64()
+        # A custom EUI64 can be stored in NV3 storage (rewritable)
+        nv3_restored_eui64 = None
+        status, data = await self._ezsp.getTokenData(
+            t.NV3KeyId.CREATOR_STACK_RESTORED_EUI64, 0
+        )
+
+        if status == t.EmberStatus.SUCCESS:
+            nv3_restored_eui64, _ = t.EmberEUI64.deserialize(data)
+
+        LOGGER.debug("NV3 restored EUI64: %s", nv3_restored_eui64)
+
+        # Or in USERDATA (one-time)
+        can_write_userdata_eui64 = await ezsp.can_write_custom_eui64()
         stack_specific = network_info.stack_specific.get("ezsp", {})
         (current_eui64,) = await ezsp.getEui64()
 
@@ -355,27 +367,36 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             node_info.ieee != zigpy.types.EUI64.UNKNOWN
             and node_info.ieee != current_eui64
         ):
-            should_update_eui64 = stack_specific.get(
+            write_userdata_eui64 = stack_specific.get(
                 "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it"
             )
 
-            if should_update_eui64 and not can_write_custom_eui64:
-                LOGGER.error(
-                    "Current node's IEEE address has already been written once. It"
-                    " cannot be written again without fully erasing the chip with JTAG."
-                )
-            elif should_update_eui64:
-                new_ncp_eui64 = t.EmberEUI64(node_info.ieee)
-                (status,) = await ezsp.setMfgToken(
-                    t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, new_ncp_eui64.serialize()
+            new_ncp_eui64 = t.EmberEUI64(node_info.ieee)
+
+            if nv3_restored_eui64 is not None:
+                # Prefer NV3 storage if possible
+                status = await self._ezsp.setTokenData(
+                    t.NV3KeyId.CREATOR_STACK_RESTORED_EUI64,
+                    0,
+                    t.LVBytes32(new_ncp_eui64.serialize()),
                 )
                 assert status == t.EmberStatus.SUCCESS
-            else:
+            elif not write_userdata_eui64:
                 LOGGER.warning(
                     "Current node's IEEE address (%s) does not match the backup's (%s)",
                     current_eui64,
                     node_info.ieee,
                 )
+            elif not can_write_userdata_eui64:
+                LOGGER.error(
+                    "Current node's IEEE address has already been written once. It"
+                    " cannot be written again without fully erasing the chip with JTAG."
+                )
+            else:
+                (status,) = await ezsp.setMfgToken(
+                    t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, new_ncp_eui64.serialize()
+                )
+                assert status == t.EmberStatus.SUCCESS
 
         use_hashed_tclk = ezsp.ezsp_version > 4
 
