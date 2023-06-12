@@ -267,7 +267,9 @@ async def test_probe_success(mock_connect):
         "bellows.ezsp.protocol.ProtocolHandler.command",
         AsyncMock(return_value=(4, 0, 0)),
     ):
-        res = await ezsp.EZSP.probe(DEVICE_CONFIG)
+        res = await ezsp.EZSP.probe(
+            {**DEVICE_CONFIG, config.CONF_DEVICE_BAUDRATE: 57600}
+        )
 
     assert type(res) is dict
     assert mock_connect.call_count == 1
@@ -280,7 +282,9 @@ async def test_probe_success(mock_connect):
         "bellows.ezsp.protocol.ProtocolHandler.command",
         AsyncMock(side_effect=[asyncio.TimeoutError(), (4, 0, 0)]),
     ):
-        res = await ezsp.EZSP.probe(DEVICE_CONFIG)
+        res = await ezsp.EZSP.probe(
+            {**DEVICE_CONFIG, config.CONF_DEVICE_BAUDRATE: 57600}
+        )
 
     assert type(res) is dict
     assert mock_connect.call_count == 2
@@ -297,7 +301,9 @@ async def test_probe_fail(exception):
 
     with p1 as mock_version, p2 as mock_connect:
         mock_version.side_effect = exception
-        res = await ezsp.EZSP.probe(DEVICE_CONFIG)
+        res = await ezsp.EZSP.probe(
+            {**DEVICE_CONFIG, config.CONF_DEVICE_BAUDRATE: 57600}
+        )
 
     assert res is False
     assert mock_connect.call_count == 2
