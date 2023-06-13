@@ -348,35 +348,40 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self.reset_network_info()
 
         # A custom EUI64 can be stored in NV3 storage (rewritable)
-        nv3_restored_eui64 = None
-        status, data = await self._ezsp.getTokenData(
-            t.NV3KeyId.CREATOR_STACK_RESTORED_EUI64, 0
-        )
+        nv3_eui64_key = None
 
-        if status == t.EmberStatus.SUCCESS:
-            nv3_restored_eui64, _ = t.EmberEUI64.deserialize(data)
+        # The specific key depends on whether or not the firmware is NCP or RCP
+        for key in (
+            t.NV3KeyId.CREATOR_STACK_RESTORED_EUI64,
+            t.NV3KeyId.NVM3KEY_STACK_RESTORED_EUI64,
+        ):
+            status, data = await self._ezsp.getTokenData(key, 0)
 
-        LOGGER.debug("NV3 restored EUI64: %s", nv3_restored_eui64)
+            if status == t.EmberStatus.SUCCESS:
+                nv3_eui64_key = key
+                nv3_restored_eui64, _ = t.EmberEUI64.deserialize(data)
+                LOGGER.debug("NV3 restored EUI64: %s=%s", key, nv3_restored_eui64)
+                break
 
-        # Or in USERDATA (one-time)
+        # It can also be stored in USERDATA (one-time)
         can_write_userdata_eui64 = await ezsp.can_write_custom_eui64()
         stack_specific = network_info.stack_specific.get("ezsp", {})
         (current_eui64,) = await ezsp.getEui64()
+        new_ncp_eui64 = t.EmberEUI64(node_info.ieee)
 
         if (
             node_info.ieee != zigpy.types.EUI64.UNKNOWN
-            and node_info.ieee != current_eui64
+            and new_ncp_eui64 != current_eui64
         ):
+            # We only care about this option if the NV3 interface is not available
             write_userdata_eui64 = stack_specific.get(
                 "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it"
             )
 
-            new_ncp_eui64 = t.EmberEUI64(node_info.ieee)
-
-            if nv3_restored_eui64 is not None:
+            if nv3_eui64_key is not None:
                 # Prefer NV3 storage if possible
-                status = await self._ezsp.setTokenData(
-                    t.NV3KeyId.CREATOR_STACK_RESTORED_EUI64,
+                (status,) = await self._ezsp.setTokenData(
+                    nv3_eui64_key,
                     0,
                     t.LVBytes32(new_ncp_eui64.serialize()),
                 )
