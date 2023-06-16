@@ -260,7 +260,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             tc_link_key.partner_ieee = self.state.node_info.ieee
 
         brd_manuf, brd_name, version = await self._get_board_info()
-        can_write_custom_eui64 = await ezsp.can_write_custom_eui64()
+        can_burn_userdata_custom_eui64 = await ezsp.can_burn_userdata_custom_eui64()
+        can_rewrite_custom_eui64 = await ezsp.can_rewrite_custom_eui64()
 
         self.state.network_info = zigpy.state.NetworkInfo(
             source=f"bellows@{bellows.__version__}",
@@ -283,7 +284,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     "board": brd_name,
                     "version": version,
                     "stack_version": ezsp.ezsp_version,
-                    "can_write_custom_eui64": can_write_custom_eui64,
+                    "can_burn_userdata_custom_eui64": can_burn_userdata_custom_eui64,
+                    "can_rewrite_custom_eui64": can_rewrite_custom_eui64,
                 }
             },
         )
@@ -347,7 +349,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         await self.reset_network_info()
 
-        can_write_custom_eui64 = await ezsp.can_write_custom_eui64()
         stack_specific = network_info.stack_specific.get("ezsp", {})
         (current_eui64,) = await ezsp.getEui64()
 
@@ -355,27 +356,23 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             node_info.ieee != zigpy.types.EUI64.UNKNOWN
             and node_info.ieee != current_eui64
         ):
-            should_update_eui64 = stack_specific.get(
+            if await ezsp.can_rewrite_custom_eui64():
+                await ezsp.write_custom_eui64(node_info.ieee)
+            elif not stack_specific.get(
                 "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it"
-            )
-
-            if should_update_eui64 and not can_write_custom_eui64:
-                LOGGER.error(
-                    "Current node's IEEE address has already been written once. It"
-                    " cannot be written again without fully erasing the chip with JTAG."
-                )
-            elif should_update_eui64:
-                new_ncp_eui64 = t.EmberEUI64(node_info.ieee)
-                (status,) = await ezsp.setMfgToken(
-                    t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, new_ncp_eui64.serialize()
-                )
-                assert status == t.EmberStatus.SUCCESS
-            else:
+            ):
                 LOGGER.warning(
                     "Current node's IEEE address (%s) does not match the backup's (%s)",
                     current_eui64,
                     node_info.ieee,
                 )
+            elif not await ezsp.can_burn_userdata_custom_eui64():
+                LOGGER.error(
+                    "Current node's IEEE address has already been written once. It"
+                    " cannot be written again without fully erasing the chip with JTAG."
+                )
+            else:
+                await ezsp.write_custom_eui64(node_info.ieee, burn_into_userdata=True)
 
         use_hashed_tclk = ezsp.ezsp_version > 4
 

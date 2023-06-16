@@ -298,7 +298,7 @@ class EmberTokenData(EzspStruct):
 class EmberTokenInfo(EzspStruct):
     # Information of a token in the token table
     # NVM3 key of the token
-    nvm3Key: basic.uint32_t
+    nvm3Key: named.NV3KeyId
     # Token is a counter type
     isCnt: named.Bool
     # Token is an indexed token
@@ -306,7 +306,7 @@ class EmberTokenInfo(EzspStruct):
     # Size of the token
     size: basic.uint8_t
     # Array size of the token
-    arraSize: basic.uint8_t
+    arraySize: basic.uint8_t
 
 
 class EmberTokTypeStackZllData(EzspStruct):

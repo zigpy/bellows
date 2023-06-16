@@ -675,16 +675,16 @@ COMMANDS = {
     "getSecurityKeyStatus": (0x00CD, (), (t.EzspStatus, t.SecureEzspSecurityType)),
     # 18 Token Interface Frames
     "getTokenCount": (0x0100, (), (t.uint8_t,)),
-    "getTokenInfo": (0x0101, (t.uint8_t,), (t.EmberStatus)),
+    "getTokenInfo": (0x0101, (t.uint8_t,), (t.EmberStatus, t.EmberTokenInfo)),
     "getTokenData": (
         0x0102,
         (t.uint32_t, t.uint32_t),
-        (t.EmberStatus, t.EmberTokenData),
+        (t.EmberStatus, t.LVBytes32),
     ),
     "setTokenData": (
         0x0103,
-        (t.uint32_t, t.uint32_t, t.EmberTokenData),
-        (t.EmberStatus),
+        (t.uint32_t, t.uint32_t, t.LVBytes32),
+        (t.EmberStatus,),
     ),
     "resetNode": (0x0104, (), ()),
 }

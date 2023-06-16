@@ -371,11 +371,83 @@ class EZSP:
             version = "unknown stack version"
         return tokens[0], tokens[1], version
 
-    async def can_write_custom_eui64(self) -> bool:
-        """Checks if the write-once custom EUI64 token has been written."""
-        (custom_eui_64,) = await self.getMfgToken(t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
+    async def _get_nv3_restored_eui64_key(self) -> t.NV3KeyId | None:
+        """Get the NV3 key for the device's restored EUI64, if one exists."""
+        try:
+            # If the EZSP version doesn't have `getTokenData`, it doesn't implement NV3
+            self.getTokenData
+        except AttributeError:
+            return None
 
-        return custom_eui_64 == b"\xFF" * 8
+        for key in (
+            t.NV3KeyId.CREATOR_STACK_RESTORED_EUI64,  # NCP firmware
+            t.NV3KeyId.NVM3KEY_STACK_RESTORED_EUI64,  # RCP firmware
+        ):
+            status, data = await self.getTokenData(key, 0)
+
+            if status == t.EmberStatus.SUCCESS:
+                nv3_restored_eui64, _ = t.EmberEUI64.deserialize(data)
+                LOGGER.debug("NV3 restored EUI64: %s=%s", key, nv3_restored_eui64)
+
+                return key
+
+        return None
+
+    async def _get_mfg_custom_eui_64(self) -> t.EmberEUI64 | None:
+        """Get the custom EUI 64 manufacturing token, if it has a valid value."""
+        (data,) = await self.getMfgToken(t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
+        mfg_custom_eui64, _ = t.EmberEUI64.deserialize(data)
+
+        if mfg_custom_eui64 == t.EmberEUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF"):
+            return None
+
+        return mfg_custom_eui64
+
+    async def can_burn_userdata_custom_eui64(self) -> bool:
+        """Checks if the device EUI64 can be burned into USERDATA."""
+        return await self._get_mfg_custom_eui_64() is None
+
+    async def can_rewrite_custom_eui64(self) -> bool:
+        """Checks if the device EUI64 can be written any number of times."""
+        return await self._get_nv3_restored_eui64_key() is not None
+
+    async def write_custom_eui64(
+        self, ieee: t.EUI64, *, burn_into_userdata: bool = False
+    ) -> None:
+        """Sets the device's IEEE address."""
+
+        (current_eui64,) = await self.getEui64()
+        if current_eui64 == ieee:
+            return
+
+        # A custom EUI64 can be stored in NV3 storage (rewritable)
+        nv3_eui64_key = await self._get_nv3_restored_eui64_key()
+        mfg_custom_eui64 = await self._get_mfg_custom_eui_64()
+
+        if nv3_eui64_key is not None:
+            # Prefer NV3 storage over MFG_CUSTOM_EUI_64, as it can be rewritten
+            (status,) = await self.setTokenData(
+                nv3_eui64_key,
+                0,
+                t.LVBytes32(ieee.serialize()),
+            )
+            assert status == t.EmberStatus.SUCCESS
+        elif mfg_custom_eui64 is None and burn_into_userdata:
+            (status,) = await self.setMfgToken(
+                t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, ieee.serialize()
+            )
+            assert status == t.EmberStatus.SUCCESS
+        elif mfg_custom_eui64 is None and not burn_into_userdata:
+            raise EzspError(
+                f"Firmware does not support NV3 tokens. Custom IEEE {ieee} will not be"
+                f" written unless `burn_into_userdata` is passed."
+            )
+        else:
+            raise EzspError(
+                f"Firmware does not support NV3 tokens. Custom device IEEE address has"
+                f" already been written once and is set to {mfg_custom_eui64}, it"
+                f" cannot be written again without erasing flash."
+            )
 
     def add_callback(self, cb):
         id_ = hash(cb)

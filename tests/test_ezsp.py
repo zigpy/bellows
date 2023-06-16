@@ -6,7 +6,7 @@ import pytest
 
 from bellows import config, ezsp, uart
 from bellows.exception import EzspError
-import bellows.ezsp.v4.types as t
+import bellows.types as t
 
 if sys.version_info[:2] < (3, 11):
     from async_timeout import timeout as asyncio_timeout  # pragma: no cover
@@ -506,14 +506,121 @@ async def test_leave_network(ezsp_f):
     "value, expected_result",
     [(b"\xFF" * 8, True), (bytes.fromhex("0846b8a11c004b1200"), False)],
 )
-async def test_can_write_custom_eui64(ezsp_f, value, expected_result):
-    """Test detecting whether or not the EUI64 can be written again."""
+async def test_can_burn_userdata_custom_eui64(ezsp_f, value, expected_result):
+    """Test detecting if a custom EUI64 has been written."""
     ezsp_f.getMfgToken = AsyncMock(return_value=[value])
 
-    result = await ezsp_f.can_write_custom_eui64()
-    assert result == expected_result
+    assert await ezsp_f.can_burn_userdata_custom_eui64() == expected_result
 
     ezsp_f.getMfgToken.assert_called_once_with(t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
+
+
+@pytest.mark.parametrize(
+    "tokens, expected_key, expected_result",
+    [
+        ({}, None, False),
+        (
+            {t.NV3KeyId.CREATOR_STACK_RESTORED_EUI64: b"\xAA" * 8},
+            t.NV3KeyId.CREATOR_STACK_RESTORED_EUI64,
+            True,
+        ),
+        (
+            {t.NV3KeyId.NVM3KEY_STACK_RESTORED_EUI64: b"\xAA" * 8},
+            t.NV3KeyId.NVM3KEY_STACK_RESTORED_EUI64,
+            True,
+        ),
+    ],
+)
+async def test_can_rewrite_custom_eui64(ezsp_f, tokens, expected_key, expected_result):
+    """Test detecting if a custom EUI64 can be rewritten in NV3."""
+
+    def get_token_data(key, index):
+        if key not in tokens or index != 0:
+            return [t.EmberStatus.ERR_FATAL, b""]
+
+        return [t.EmberStatus.SUCCESS, tokens[key]]
+
+    ezsp_f.getTokenData = AsyncMock(side_effect=get_token_data)
+
+    key = await ezsp_f._get_nv3_restored_eui64_key()
+    assert key == expected_key
+    assert await ezsp_f.can_rewrite_custom_eui64() == expected_result
+
+
+async def test_can_rewrite_custom_eui64_old_ezsp(ezsp_f):
+    """Test detecting if a custom EUI64 can be rewritten in NV3, but with old EZSP."""
+
+    assert await ezsp_f._get_nv3_restored_eui64_key() is None
+    assert not await ezsp_f.can_rewrite_custom_eui64()
+
+
+async def test_write_custom_eui64(ezsp_f):
+    """Test writing a custom EUI64."""
+
+    old_eui64 = t.EmberEUI64.convert("AA" * 8)
+    new_eui64 = t.EmberEUI64.convert("BB" * 8)
+
+    ezsp_f.getEui64 = AsyncMock(return_value=[old_eui64])
+    ezsp_f.setMfgToken = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    ezsp_f.setTokenData = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    ezsp_f._get_mfg_custom_eui_64 = AsyncMock(return_value=old_eui64)
+    ezsp_f._get_nv3_restored_eui64_key = AsyncMock(return_value=None)
+
+    # Nothing is done when the EUI64 write is a no-op
+    await ezsp_f.write_custom_eui64(old_eui64)
+
+    ezsp_f.setMfgToken.assert_not_called()
+    ezsp_f.setTokenData.assert_not_called()
+
+    # If NV3 exists, all writes succeed
+    ezsp_f._get_nv3_restored_eui64_key.return_value = (
+        t.NV3KeyId.NVM3KEY_STACK_RESTORED_EUI64
+    )
+    await ezsp_f.write_custom_eui64(new_eui64)
+    await ezsp_f.write_custom_eui64(new_eui64, burn_into_userdata=True)
+
+    ezsp_f.setMfgToken.assert_not_called()
+    ezsp_f.setTokenData.mock_calls == 2 * [
+        call(
+            t.NV3KeyId.NVM3KEY_STACK_RESTORED_EUI64,
+            0,
+            new_eui64.serialize(),
+        )
+    ]
+
+    ezsp_f.setTokenData.reset_mock()
+
+    # If NV3 does not and the MFG token does not, we conditionally write
+    ezsp_f._get_mfg_custom_eui_64.return_value = None
+    ezsp_f._get_nv3_restored_eui64_key.return_value = None
+
+    with pytest.raises(EzspError):
+        await ezsp_f.write_custom_eui64(new_eui64)
+
+    # Burn kwarg not passed, so nothing is done
+    ezsp_f.setMfgToken.assert_not_called()
+    ezsp_f.setTokenData.assert_not_called()
+
+    await ezsp_f.write_custom_eui64(new_eui64, burn_into_userdata=True)
+
+    ezsp_f.setMfgToken.assert_called_once_with(
+        t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, new_eui64.serialize()
+    )
+    ezsp_f.setTokenData.assert_not_called()
+
+    ezsp_f.setMfgToken.reset_mock()
+
+    # If no method is viable, throw an error
+    ezsp_f._get_mfg_custom_eui_64.return_value = old_eui64
+
+    with pytest.raises(EzspError):
+        await ezsp_f.write_custom_eui64(new_eui64)
+
+    with pytest.raises(EzspError):
+        await ezsp_f.write_custom_eui64(new_eui64, burn_into_userdata=True)
+
+    ezsp_f.setMfgToken.assert_not_called()
+    ezsp_f.setTokenData.assert_not_called()
 
 
 @patch.object(ezsp.EZSP, "set_source_routing", new_callable=AsyncMock)
