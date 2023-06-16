@@ -370,6 +370,7 @@ def _mock_app_for_write(app, network_info, node_info, ezsp_ver=None):
     ezsp.setValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp.setMfgToken = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp.can_write_custom_eui64 = AsyncMock(return_value=True)
+    ezsp.getTokenData = AsyncMock(return_value=[t.EmberStatus.LIBRARY_NOT_PRESENT, b""])
 
 
 @pytest.mark.parametrize("ezsp_ver", [4, 7])
