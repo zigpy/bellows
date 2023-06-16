@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import enum
 from typing import Callable, TypeVar
 
@@ -87,28 +89,23 @@ class uint64_t(uint_t):  # noqa: N801
 
 
 class LVBytes(bytes):
-    def serialize(self):
-        return bytes([len(self)]) + self
+    _length_type = uint8_t
+
+    def serialize(self) -> LVBytes:
+        return self._length_type(len(self)).serialize() + self
 
     @classmethod
-    def deserialize(cls, data):
-        bytes = int.from_bytes(data[:1], "little")
-        s = data[1 : bytes + 1]
-        return s, data[bytes + 1 :]
-
-
-class LVBytes32(LVBytes):
-    def serialize(self):
-        return uint32_t(len(self)).serialize() + self
-
-    @classmethod
-    def deserialize(cls, data):
-        length, data = uint32_t.deserialize(data)
+    def deserialize(cls, data: bytes) -> tuple[LVBytes, bytes]:
+        length, data = cls._length_type.deserialize(data)
 
         if len(data) < length:
             raise ValueError(f"Data is too short: expected {length}, got {len(data)}")
 
-        return data[:length], data[length:]
+        return cls(data[:length]), data[length:]
+
+
+class LVBytes32(LVBytes):
+    _length_type = uint32_t
 
 
 class _List(list):

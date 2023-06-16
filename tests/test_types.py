@@ -23,6 +23,17 @@ def test_lvbytes():
 
     assert t.LVBytes.serialize(d) == b"\x041234"
 
+    with pytest.raises(ValueError):
+        t.LVBytes.deserialize(b"\x04123")
+
+
+def test_lvbytes32():
+    d, r = t.LVBytes32.deserialize(b"\x04\x00\x00\x0012345")
+    assert r == b"5"
+    assert d == b"1234"
+
+    assert t.LVBytes32.serialize(d) == b"\x04\x00\x00\x001234"
+
 
 def test_lvlist():
     d, r = t.LVList(t.uint8_t).deserialize(b"\x0412345")
