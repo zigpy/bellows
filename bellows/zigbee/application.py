@@ -260,7 +260,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             tc_link_key.partner_ieee = self.state.node_info.ieee
 
         brd_manuf, brd_name, version = await self._get_board_info()
-        can_write_custom_eui64 = await ezsp.can_write_custom_eui64()
+        can_burn_userdata_custom_eui64 = await ezsp.can_burn_userdata_custom_eui64()
+        can_rewrite_custom_eui64 = await ezsp.can_rewrite_custom_eui64()
 
         self.state.network_info = zigpy.state.NetworkInfo(
             source=f"bellows@{bellows.__version__}",
@@ -283,7 +284,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     "board": brd_name,
                     "version": version,
                     "stack_version": ezsp.ezsp_version,
-                    "can_write_custom_eui64": can_write_custom_eui64,
+                    "can_burn_userdata_custom_eui64": can_burn_userdata_custom_eui64,
+                    "can_rewrite_custom_eui64": can_rewrite_custom_eui64,
                 }
             },
         )
@@ -347,61 +349,30 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         await self.reset_network_info()
 
-        # A custom EUI64 can be stored in NV3 storage (rewritable)
-        nv3_eui64_key = None
-
-        # The specific key depends on whether or not the firmware is NCP or RCP
-        for key in (
-            t.NV3KeyId.CREATOR_STACK_RESTORED_EUI64,
-            t.NV3KeyId.NVM3KEY_STACK_RESTORED_EUI64,
-        ):
-            status, data = await self._ezsp.getTokenData(key, 0)
-
-            if status == t.EmberStatus.SUCCESS:
-                nv3_eui64_key = key
-                nv3_restored_eui64, _ = t.EmberEUI64.deserialize(data)
-                LOGGER.debug("NV3 restored EUI64: %s=%s", key, nv3_restored_eui64)
-                break
-
-        # It can also be stored in USERDATA (one-time)
-        can_write_userdata_eui64 = await ezsp.can_write_custom_eui64()
         stack_specific = network_info.stack_specific.get("ezsp", {})
         (current_eui64,) = await ezsp.getEui64()
-        new_ncp_eui64 = t.EmberEUI64(node_info.ieee)
 
         if (
             node_info.ieee != zigpy.types.EUI64.UNKNOWN
-            and new_ncp_eui64 != current_eui64
+            and node_info.ieee != current_eui64
         ):
-            # We only care about this option if the NV3 interface is not available
-            write_userdata_eui64 = stack_specific.get(
+            if await ezsp.can_rewrite_custom_eui64():
+                await ezsp.write_custom_eui64(node_info.ieee)
+            elif not stack_specific.get(
                 "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it"
-            )
-
-            if nv3_eui64_key is not None:
-                # Prefer NV3 storage if possible
-                (status,) = await self._ezsp.setTokenData(
-                    nv3_eui64_key,
-                    0,
-                    t.LVBytes32(new_ncp_eui64.serialize()),
-                )
-                assert status == t.EmberStatus.SUCCESS
-            elif not write_userdata_eui64:
+            ):
                 LOGGER.warning(
                     "Current node's IEEE address (%s) does not match the backup's (%s)",
                     current_eui64,
                     node_info.ieee,
                 )
-            elif not can_write_userdata_eui64:
+            elif not await ezsp.can_burn_userdata_custom_eui64():
                 LOGGER.error(
                     "Current node's IEEE address has already been written once. It"
                     " cannot be written again without fully erasing the chip with JTAG."
                 )
             else:
-                (status,) = await ezsp.setMfgToken(
-                    t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, new_ncp_eui64.serialize()
-                )
-                assert status == t.EmberStatus.SUCCESS
+                await ezsp.write_custom_eui64(node_info.ieee, burn_into_userdata=True)
 
         use_hashed_tclk = ezsp.ezsp_version > 4
 

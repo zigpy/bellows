@@ -79,7 +79,6 @@ def _mock_app_for_load(app):
     ezsp = app._ezsp
 
     app._ensure_network_running = AsyncMock()
-    ezsp.can_write_custom_eui64 = AsyncMock(return_value=True)
     ezsp.getNetworkParameters = AsyncMock(
         return_value=[
             t.EmberStatus.SUCCESS,
@@ -369,7 +368,6 @@ def _mock_app_for_write(app, network_info, node_info, ezsp_ver=None):
     ezsp.formNetwork = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp.setValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp.setMfgToken = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
-    ezsp.can_write_custom_eui64 = AsyncMock(return_value=True)
     ezsp.getTokenData = AsyncMock(return_value=[t.EmberStatus.LIBRARY_NOT_PRESENT, b""])
 
 
@@ -380,46 +378,24 @@ async def test_write_network_info(app, network_info, node_info, ezsp_ver):
     await app.write_network_info(network_info=network_info, node_info=node_info)
 
 
-async def test_write_network_info_write_new_eui64(app, network_info, node_info):
-    _mock_app_for_write(app, network_info, node_info)
-
-    # Differs from what is in `node_info`
-    app._ezsp.getEui64.return_value = [t.EmberEUI64.convert("AA:AA:AA:AA:AA:AA:AA:AA")]
-
-    await app.write_network_info(
-        network_info=network_info.replace(
-            stack_specific={
-                "ezsp": {
-                    "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it": True,
-                    **network_info.stack_specific["ezsp"],
-                }
-            }
-        ),
-        node_info=node_info,
-    )
-
-    # The EUI64 is written
-    expected_eui64 = t.EmberEUI64(node_info.ieee).serialize()
-    app._ezsp.setMfgToken.assert_called_once_with(
-        t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, expected_eui64
-    )
-
-
-async def test_write_network_info_write_new_eui64_failure(
-    caplog, app, network_info, node_info
+@pytest.mark.parametrize("can_burn", [True, False])
+@pytest.mark.parametrize("can_rewrite", [True, False])
+@pytest.mark.parametrize("force_write", [True, False])
+async def test_write_network_info_write_eui64(
+    caplog, app, network_info, node_info, can_burn, can_rewrite, force_write
 ):
     _mock_app_for_write(app, network_info, node_info)
 
-    app._ezsp.can_write_custom_eui64.return_value = False
-
     # Differs from what is in `node_info`
     app._ezsp.getEui64.return_value = [t.EmberEUI64.convert("AA:AA:AA:AA:AA:AA:AA:AA")]
+    app._ezsp.can_burn_userdata_custom_eui64 = AsyncMock(return_value=can_burn)
+    app._ezsp.can_rewrite_custom_eui64 = AsyncMock(return_value=can_rewrite)
 
     await app.write_network_info(
         network_info=network_info.replace(
             stack_specific={
                 "ezsp": {
-                    "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it": True,
+                    "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it": force_write,
                     **network_info.stack_specific["ezsp"],
                 }
             }
@@ -427,26 +403,26 @@ async def test_write_network_info_write_new_eui64_failure(
         node_info=node_info,
     )
 
-    assert "cannot be written" in caplog.text
+    if can_rewrite:
+        # Everything else is always ignored
+        app._ezsp.write_custom_eui64.assert_called_once_with(node_info.ieee)
+    elif can_burn and force_write:
+        # Can only be forced
+        app._ezsp.write_custom_eui64.assert_called_once_with(
+            node_info.ieee, burn_into_userdata=True
+        )
+    else:
+        # It is not written otherwise
+        app._ezsp.write_custom_eui64.assert_not_called()
 
-    # The EUI64 is not written
-    app._ezsp.setMfgToken.assert_not_called()
-
-
-async def test_write_network_info_dont_write_new_eui64(app, network_info, node_info):
-    _mock_app_for_write(app, network_info, node_info)
-
-    # Differs from what is in `node_info`
-    app._ezsp.getEui64.return_value = [t.EmberEUI64.convert("AA:AA:AA:AA:AA:AA:AA:AA")]
-
-    await app.write_network_info(
-        # We don't provide the magic key so nothing is written
-        network_info=network_info,
-        node_info=node_info,
-    )
-
-    # The EUI64 is *not* written
-    app._ezsp.setMfgToken.assert_not_called()
+        if can_burn and not force_write:
+            assert "does not match" in caplog.text
+        elif not can_burn and force_write:
+            assert "has already been written" in caplog.text
+        elif not can_burn and not force_write:
+            assert "does not match" in caplog.text
+        else:
+            assert False
 
 
 async def test_write_network_info_generate_hashed_tclk(app, network_info, node_info):
