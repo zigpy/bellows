@@ -1,9 +1,10 @@
+import importlib.metadata
+
 import pytest
 import zigpy.state
 import zigpy.types as zigpy_t
 import zigpy.zdo.types as zdo_t
 
-import bellows
 from bellows.exception import EzspError
 import bellows.types as t
 
@@ -70,7 +71,7 @@ def network_info(node_info):
             zigpy_t.EUI64.convert("00:0b:57:ff:fe:2b:d4:57"): zigpy_t.NWK(0xC06B),
         },
         stack_specific={"ezsp": {"hashed_tclk": "abcdabcdabcdabcdabcdabcdabcdabcd"}},
-        source=f"bellows@{bellows.__version__}",
+        source=f"bellows@{importlib.metadata.version('bellows')}",
     )
 
 
