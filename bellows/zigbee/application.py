@@ -684,6 +684,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             channels_to_scan = set(channels)
 
             # XXX: RCP firmware sometimes performs a partial scan and returns early
+            # XXX: NCP firmware sometimes returns scan results twice
             while channels_to_scan:
                 results = await self._ezsp.startScan(
                     t.EzspNetworkScanType.ENERGY_SCAN,
@@ -693,12 +694,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
                 for channel, rssi in results:
                     all_results.setdefault(channel, []).append(rssi)
-                    channels_to_scan.remove(channel)
+                    channels_to_scan.discard(channel)
 
         # Remap RSSI to Energy
         return {
-            channel: util.map_rssi_to_energy(statistics.mean(rssis))
-            for channel, rssis in all_results.items()
+            channel: util.map_rssi_to_energy(statistics.mean(all_results[channel]))
+            for channel in list(channels)
         }
 
     async def send_packet(self, packet: zigpy.types.ZigbeePacket) -> None:

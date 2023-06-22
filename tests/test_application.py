@@ -1757,19 +1757,20 @@ async def test_energy_scanning_partial(app):
     app._ezsp.startScan = AsyncMock(
         side_effect=[
             [(11, 11), (12, 12), (13, 13), (14, 14), (15, 15), (16, 16)],
-            [(17, 17)],
+            [(17, 17)],  # Channel that doesn't exist
             [],
             [(18, 18), (19, 19), (20, 20)],
+            [(18, 18), (19, 19), (20, 20)],  # Duplicate results
             [(21, 21), (22, 22), (23, 23), (24, 24), (25, 25), (26, 26)],
         ]
     )
 
     results = await app.energy_scan(
-        channels=t.Channels.ALL_CHANNELS,
+        channels=t.Channels.from_channel_list([11, 13, 14, 15, 20, 25, 26]),
         duration_exp=2,
         count=1,
     )
 
-    assert len(app._ezsp.startScan.mock_calls) == 5
-    assert set(results.keys()) == set(t.Channels.ALL_CHANNELS)
-    assert results == {c: map_rssi_to_energy(c) for c in range(11, 26 + 1)}
+    assert len(app._ezsp.startScan.mock_calls) == 6
+    assert set(results.keys()) == {11, 13, 14, 15, 20, 25, 26}
+    assert results == {c: map_rssi_to_energy(c) for c in [11, 13, 14, 15, 20, 25, 26]}
