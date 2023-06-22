@@ -1238,8 +1238,7 @@ class EzspSourceRouteOverheadInformation(basic.enum8):
     SOURCE_ROUTE_OVERHEAD_UNKNOWN = 0xFF
 
 
-class EmberKeyData(basic.fixed_list(16, basic.uint8_t)):
-    """A 128-bit key."""
+EmberKeyData = ztypes.KeyData
 
 
 class EmberCertificateData(basic.fixed_list(48, basic.uint8_t)):

@@ -23,9 +23,9 @@ from bellows.exception import EzspError
 import bellows.types as t
 import bellows.uart
 
-from . import v4, v5, v6, v7, v8, v9, v10, v11
+from . import v4, v5, v6, v7, v8, v9, v10, v11, v12
 
-EZSP_LATEST = v11.EZSPv11.VERSION
+EZSP_LATEST = v12.EZSPv12.VERSION
 LOGGER = logging.getLogger(__name__)
 MTOR_MIN_INTERVAL = 60
 MTOR_MAX_INTERVAL = 3600
@@ -48,6 +48,7 @@ class EZSP:
         v9.EZSPv9.VERSION: v9.EZSPv9,
         v10.EZSPv10.VERSION: v10.EZSPv10,
         v11.EZSPv11.VERSION: v11.EZSPv11,
+        v12.EZSPv12.VERSION: v12.EZSPv12,
     }
 
     def __init__(self, device_config: dict):
