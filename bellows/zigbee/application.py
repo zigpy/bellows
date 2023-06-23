@@ -11,6 +11,8 @@ if sys.version_info[:2] < (3, 11):
 else:
     from asyncio import timeout as asyncio_timeout  # pragma: no cover
 
+import importlib.metadata
+
 import zigpy.application
 import zigpy.config
 import zigpy.device
@@ -264,7 +266,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         can_rewrite_custom_eui64 = await ezsp.can_rewrite_custom_eui64()
 
         self.state.network_info = zigpy.state.NetworkInfo(
-            source=f"bellows@{bellows.__version__}",
+            source=f"bellows@{importlib.metadata.version('bellows')}",
             extended_pan_id=zigpy.types.ExtendedPanId(nwk_params.extendedPanId),
             pan_id=zigpy.types.PanId(nwk_params.panId),
             nwk_update_id=zigpy.types.uint8_t(nwk_params.nwkUpdateId),
