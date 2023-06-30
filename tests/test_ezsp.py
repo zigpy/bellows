@@ -504,7 +504,11 @@ async def test_leave_network(ezsp_f):
 
 @pytest.mark.parametrize(
     "value, expected_result",
-    [(b"\xFF" * 8, True), (bytes.fromhex("0846b8a11c004b1200"), False), (b"", False)],
+    [
+        (b"\xFF" * 8, True),
+        (bytes.fromhex("0846b8a11c004b1200"), False),
+        (b"", False),
+    ],
 )
 async def test_can_burn_userdata_custom_eui64(ezsp_f, value, expected_result):
     """Test detecting if a custom EUI64 has been written."""
