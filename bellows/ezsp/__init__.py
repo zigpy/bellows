@@ -19,7 +19,7 @@ else:
 import zigpy.config
 
 import bellows.config as conf
-from bellows.exception import EzspError
+from bellows.exception import EzspError, InvalidCommandError
 import bellows.types as t
 import bellows.uart
 
@@ -374,17 +374,16 @@ class EZSP:
 
     async def _get_nv3_restored_eui64_key(self) -> t.NV3KeyId | None:
         """Get the NV3 key for the device's restored EUI64, if one exists."""
-        try:
-            # If the EZSP version doesn't have `getTokenData`, it doesn't implement NV3
-            self.getTokenData
-        except AttributeError:
-            return None
-
         for key in (
             t.NV3KeyId.CREATOR_STACK_RESTORED_EUI64,  # NCP firmware
             t.NV3KeyId.NVM3KEY_STACK_RESTORED_EUI64,  # RCP firmware
         ):
-            status, data = await self.getTokenData(key, 0)
+            try:
+                status, data = await self.getTokenData(key, 0)
+            except (InvalidCommandError, AttributeError):
+                # Either the command doesn't exist in the EZSP version, or the command
+                # is not implemented in the firmware
+                return None
 
             if status == t.EmberStatus.SUCCESS:
                 nv3_restored_eui64, _ = t.EmberEUI64.deserialize(data)

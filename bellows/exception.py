@@ -5,5 +5,9 @@ class EzspError(APIException):
     pass
 
 
+class InvalidCommandError(EzspError):
+    pass
+
+
 class ControllerError(ControllerException):
     pass

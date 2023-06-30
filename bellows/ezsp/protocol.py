@@ -13,7 +13,7 @@ else:
     from asyncio import timeout as asyncio_timeout  # pragma: no cover
 
 from bellows.config import CONF_EZSP_CONFIG, CONF_EZSP_POLICIES
-from bellows.exception import EzspError
+from bellows.exception import InvalidCommandError
 from bellows.typing import GatewayType
 
 LOGGER = logging.getLogger(__name__)
@@ -192,7 +192,7 @@ class ProtocolHandler(abc.ABC):
                 if frame_name == "invalidCommand":
                     sent_cmd_name = self.COMMANDS_BY_ID[expected_id][0]
                     future.set_exception(
-                        EzspError(
+                        InvalidCommandError(
                             f"{sent_cmd_name} command is an {frame_name}, was sent "
                             f"under {sequence} sequence number: {result[0].name}"
                         )
