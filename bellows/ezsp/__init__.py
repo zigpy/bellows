@@ -397,6 +397,11 @@ class EZSP:
     async def _get_mfg_custom_eui_64(self) -> t.EmberEUI64 | None:
         """Get the custom EUI 64 manufacturing token, if it has a valid value."""
         (data,) = await self.getMfgToken(t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
+
+        # Manufacturing tokens do not exist in RCP firmware: all reads are empty
+        if not data:
+            raise EzspError("Firmware does not support MFG_CUSTOM_EUI_64 token")
+
         mfg_custom_eui64, _ = t.EmberEUI64.deserialize(data)
 
         if mfg_custom_eui64 == t.EmberEUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF"):
@@ -406,7 +411,10 @@ class EZSP:
 
     async def can_burn_userdata_custom_eui64(self) -> bool:
         """Checks if the device EUI64 can be burned into USERDATA."""
-        return await self._get_mfg_custom_eui_64() is None
+        try:
+            return await self._get_mfg_custom_eui_64() is None
+        except EzspError:
+            return False
 
     async def can_rewrite_custom_eui64(self) -> bool:
         """Checks if the device EUI64 can be written any number of times."""
