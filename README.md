@@ -13,11 +13,11 @@ bellows interacts with the Zigbee Network Coprocessor (NCP) with EmberZNet PRO Z
 
 ### Hardware requirement
 
-This [bellows](https://github.com/zigpy/bellows) radio library for zigpy should be compatible with all EmberZNet based Zigbee radio adapters and modules with a firmware that support EZSP (EmberZNet Serial Protocol).
+This [bellows](https://github.com/zigpy/bellows) radio library for zigpy should be compatible with all EmberZNet based Zigbee radio adapters and modules with firmware that supports EZSP (EmberZNet Serial Protocol).
 
-This tecnically includes the newer EFR32MG24, EFR32MG21/MGM210, EFR32MG13, EFR32MG12/MGM12 from Silicon Labs, as well as Silabs older EM35x/EM35xx (EM357, EM3581, EM3585, EM3587, EM3588) "Ember" family of chips.
+This technically includes the newer EFR32MG24, EFR32MG21/MGM210, EFR32MG13, EFR32MG12/MGM12 from Silicon Labs, as well as Silabs older EM35x/EM35xx (EM357, EM3581, EM3585, EM3587, EM3588) "Ember" family of chips.
 
-Newer series of radio adapters and modules are generally recommended as Silicon Labs still maintains SDK for them so it is possible to get new firmware with bug-fixes and new features.
+Newer series of radio adapters and modules are generally recommended as Silicon Labs still maintains SDK for them so it is possible to get new firmware with bug fixes and new features.
 
 ### Recommended EZSP radio adapters and modules for bellows
 
@@ -26,7 +26,7 @@ Newer series of radio adapters and modules are generally recommended as Silicon 
 - [Elelabs Zigbee USB Adapter ELU013](https://elelabs.com/products/elelabs_usb_adapter.html) (USB dongle based on EFR32MG13P)
 - [Easyiot Zigbee dongle model ZB-GW04](https://zigbee.blakadder.com/easyiot_ZB-GW04.html) (USB stick based on EFR32MG21 "SM-011 v1.0" Zigbee module from CoolKit-Technologies)
 - [Zvidar Z-DG-Z01](https://zigbee.blakadder.com/Zvidar_Z-DG-Z01.html) (USB dongle based on EFR32MG21)
-- [Tube's Zigbee Gateways (Silabs EFR32 variant)](https://github.com/tube0013/tube_gateways) Note! ESP32 based Ethernet bridge available as pre-assembed or as a DIY project.
+- [Tube's Zigbee Gateways (Silabs EFR32 variant)](https://github.com/tube0013/tube_gateways) Note! ESP32 based Ethernet bridge available as pre-assembled or as a DIY project.
 
 #### Other supported but not recommended EZSP adapters and modules for bellows
  
@@ -40,17 +40,17 @@ Newer series of radio adapters and modules are generally recommended as Silicon 
 
 ##### Warning about Zigbee to WiFi bridges
 
-zigpy requires a robust connection between the zigpy radio library and the serial port of the Zigbee radio. With solutions such as _ITEAD Sonoff ZBBridge_ or a Ser2Net serial proxy connection over a WiFi network it is expected to see `NCP entered failed state. Requesting APP controller restart` in the logs. This is a normal part of the operation and indicates there was a drop in communication which caused packet loss to occurred between the zigpy radio library and the Zigbee radio. The use of serial network proxies/bridges/servers over WiFi is therefore not recommended when wanting a stable Zigbee environment with zigpy.
+zigpy requires a robust connection between the zigpy radio library and the serial port of the Zigbee radio. With solutions such as _ITEAD Sonoff ZBBridge_ or a Ser2Net serial proxy connection over a WiFi network, it is expected to see `NCP entered failed state. Requesting APP controller restart` in the logs. This is a normal part of the operation and indicates there was a drop in communication which caused packet loss to occur between the zigpy radio library and the Zigbee radio. The use of serial network proxies/bridges/servers over WiFi is therefore not recommended when wanting a stable Zigbee environment with zigpy.
 
 ## Firmware requirement
 
-bellows requires that the Zigbee adapter/board/module is pre-flashed/flashed with compatible firmware with EmberZNet PRO Zigbee Stack that uses the standard Silicon Labs EZSP (EmberZNet Serial Protocol) APIs for ASH protocol over a serial interface.
+bellows require that the Zigbee adapter/board/module is pre-flashed/flashed with compatible firmware with EmberZNet PRO Zigbee Stack that uses the standard Silicon Labs EZSP (EmberZNet Serial Protocol) APIs for ASH protocol over a serial interface.
 
 Currently, EmberZNet Zigbee NCP 6.7.8 firmware or newer is recommended.
 
 Silabs used to provide two main NCP images pre-build with firmware for EM35x, one image supported hardware flow control with a baud rate of 115200 and the other image supported software flow control with a rate of 57600.
 
-Silicon Labs no longer provide pre-build firmware images, so now you have to build and compile firmware with their Simplicity Studio SDK for EmberZNet PRO Zigbee Protocol Stack Software. Simplicity Studio is a free download but building and compiling EmberZNet PRO Zigbee firmware images required that you have the serialnumber of an official Zigbee devkit registered to your Silicon Labs user account.
+Silicon Labs no longer provide pre-build firmware images, so now you have to build and compile firmware with their Simplicity Studio SDK for EmberZNet PRO Zigbee Protocol Stack Software. Simplicity Studio is a free download but building and compiling EmberZNet PRO Zigbee firmware images required that you have the serial number of an official Zigbee devkit registered to your Silicon Labs user account.
 
 ### Firmware upgrade resources
 
@@ -62,8 +62,8 @@ Firmware updates to Zigbee EmberZNet (EZSP) adapter based on EFR32, EM358x, and 
 
 - [Universal Silicon Labs Flasher (by Nabu Casa)](https://github.com/NabuCasa/universal-silabs-flasher) (multi platform Python based command line tool)
   - Manufacturers of SiLabs dongles can also offer [SL Web Tools](https://github.com/NabuCasa/sl-web-tools) (web browser flasher).
-- [Elelabs Firmware Update Utility](https://github.com/Elelabs/elelabs-zigbee-ezsp-utility/) (multi platform Python based command line tool)
-- [walthowd husbzb-firmware script](https://github.com/walthowd/husbzb-firmware) (community maintained multi platform bash script)
+- [Elelabs Firmware Update Utility](https://github.com/Elelabs/elelabs-zigbee-ezsp-utility/) (multi-platform Python-based command line tool)
+- [walthowd husbzb-firmware script](https://github.com/walthowd/husbzb-firmware) (community maintained multi-platform bash script)
 - [Manual Xmodem sending commands over a terminal console](https://sonoff.tech/wp-content/uploads/2022/08/SONOFF-Zigbee-3.0-USB-dongle-plus-firmware-flashing-.pdf) (note that any terminal application with "Xmodem(N)" send can be used)
 - Silicon Labs [Simplicity Studio](https://www.silabs.com/developers/simplicity-studio) included "Flash Programmer" ([instructions](https://docs.silabs.com/simplicity-studio-5-users-guide/latest/ss-5-users-guide-building-and-flashing/flashing#flash-programmer)) (can't find your device? read below!)
 - [Additional programming options for Silicon Labs MCU based devices](https://www.silabs.com/developers/mcu-programming-options) (info and links about other tools for developers or advanced users)
