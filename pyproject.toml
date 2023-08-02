@@ -64,3 +64,10 @@ max-line-length = 88
 # D202 No blank lines allowed after function docstring
 ignore = ["W503", "E203", "E501", "D202"]
 per-file-ignores = ["tests/*:F811,F401,F403"]
+
+[tool.coverage.run]
+source = ["bellows"]
+omit = [
+    "bellows/cli/*.py",
+    "bellows/typing.py",
+]

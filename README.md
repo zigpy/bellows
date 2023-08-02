@@ -1,7 +1,7 @@
 # bellows
 
 [![Build](https://github.com/zigpy/bellows/workflows/CI/badge.svg?branch=dev)](https://github.com/zigpy/bellows/workflows/CI/badge.svg?branch=dev)
-[![Coverage](https://coveralls.io/repos/github/zigpy/bellows/badge.svg?branch=dev)](https://coveralls.io/github/zigpy/bellows?branch=dev)
+[![Coverage Status](https://codecov.io/gh/zigpy/bellows/branch/dev/graph/badge.svg?token=Y1994N9D74)](https://codecov.io/gh/zigpy/bellows)
 
 `bellows` is a Python 3 library implementation for the [zigpy](https://github.com/zigpy/zigpy) project to add Zigbee radio support for Silicon Labs EM35x ("Ember") and EFR32 ("Mighty Gecko") based Zigbee coordinator devices using the EZSP (EmberZNet Serial Protocol) interface.
 
