@@ -66,16 +66,21 @@ class ProtocolHandler(abc.ABC):
         """Initialize EmberZNet Stack."""
 
         # Prevent circular import
-        from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig
+        from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig, ValueConfig
 
         # Not all config will be present in every EZSP version so only use valid keys
         ezsp_config = {}
+        ezsp_values = {}
 
         for cfg in DEFAULT_CONFIG[self.VERSION]:
-            config_id = self.types.EzspConfigId[cfg.config_id.name]
-            ezsp_config[cfg.config_id.name] = dataclasses.replace(
-                cfg, config_id=config_id
-            )
+            if isinstance(cfg, RuntimeConfig):
+                ezsp_config[cfg.config_id.name] = dataclasses.replace(
+                    cfg, config_id=self.types.EzspConfigId[cfg.config_id.name]
+                )
+            elif isinstance(cfg, ValueConfig):
+                ezsp_values[cfg.value_id.name] = dataclasses.replace(
+                    cfg, value_id=self.types.EzspValueId[cfg.value_id.name]
+                )
 
         # Override the defaults with user-specified values (or `None` for deletions)
         for name, value in self.SCHEMAS[CONF_EZSP_CONFIG](
@@ -98,6 +103,33 @@ class ProtocolHandler(abc.ABC):
                     self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name
                 ],
             }
+
+        # First, set the values
+        for cfg in ezsp_values.values():
+            status, current_value = await self.getValue(cfg.value_id)
+
+            if status != self.types.EmberStatus.SUCCESS:
+                LOGGER.debug("Could not read value %s, ignoring", cfg.value_id.name)
+                continue
+
+            LOGGER.debug(
+                "Setting value %s = %s (old value %s)",
+                cfg.value_id.name,
+                cfg.value,
+                current_value,
+            )
+
+            current_value, _ = type(cfg.value).deserialize(current_value)
+            (status,) = await self.setValue(cfg.value_id, cfg.value.serialize())
+
+            if status != self.types.EmberStatus.SUCCESS:
+                LOGGER.debug(
+                    "Could not set value %s = %s: %s",
+                    cfg.value_id.name,
+                    cfg.value,
+                    status,
+                )
+                continue
 
         # Finally, set the config
         for cfg in ezsp_config.values():
