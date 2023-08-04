@@ -123,11 +123,11 @@ async def test_config_initialize(prot_hndl_cls, caplog):
     if prot_hndl_cls.VERSION < 7:
         return
 
-    with caplog.at_level(logging.DEBUG):
-        prot_hndl.getValue.return_value = (t.EzspStatus.ERROR_INVALID_ID, b"")
-        await prot_hndl.initialize({"ezsp_config": {}})
+    prot_hndl.setValue.reset_mock()
+    prot_hndl.getValue.return_value = (t.EzspStatus.ERROR_INVALID_ID, b"")
+    await prot_hndl.initialize({"ezsp_config": {}})
+    assert len(prot_hndl.setValue.mock_calls) == 1
 
-    assert "Could not read value" in caplog.text
     prot_hndl.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\xFF"))
     caplog.clear()
 
