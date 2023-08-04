@@ -65,21 +65,19 @@ def test_receive_reply_invalid_command(prot_hndl):
 async def test_cfg_initialize(prot_hndl, caplog):
     """Test initialization."""
 
-    p1 = patch.object(prot_hndl, "setConfigurationValue", new=AsyncMock())
-    p2 = patch.object(
-        prot_hndl,
-        "getConfigurationValue",
-        new=AsyncMock(return_value=(t.EzspStatus.SUCCESS, 22)),
-    )
-    p3 = patch.object(prot_hndl, "get_free_buffers", new=AsyncMock(22))
-    with p1 as cfg_mock, p2, p3:
-        cfg_mock.return_value = (t.EzspStatus.SUCCESS,)
-        await prot_hndl.initialize({"ezsp_config": {}, "source_routing": True})
+    prot_hndl.setConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
+    prot_hndl.getConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, 22))
+    prot_hndl.get_free_buffers = AsyncMock(return_value=22)
 
-        cfg_mock.return_value = (t.EzspStatus.ERROR_OUT_OF_MEMORY,)
-        with caplog.at_level(logging.WARNING):
-            await prot_hndl.initialize({"ezsp_config": {}, "source_routing": False})
-            assert "Couldn't set" in caplog.text
+    await prot_hndl.initialize({"ezsp_config": {}, "source_routing": True})
+
+    with caplog.at_level(logging.DEBUG):
+        prot_hndl.setConfigurationValue.return_value = (
+            t.EzspStatus.ERROR_OUT_OF_MEMORY,
+        )
+        await prot_hndl.initialize({"ezsp_config": {}, "source_routing": False})
+
+    assert "Could not set config" in caplog.text
 
 
 async def test_config_initialize_husbzb1(prot_hndl):
@@ -123,6 +121,9 @@ async def test_config_initialize(prot_hndl_cls):
     prot_hndl = prot_hndl_cls(MagicMock(), MagicMock())
     prot_hndl.getConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, 0))
     prot_hndl.setConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
+
+    prot_hndl.setValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
+    prot_hndl.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\xFF"))
 
     await prot_hndl.initialize({"ezsp_config": {}})
 
