@@ -99,13 +99,13 @@ class ProtocolHandler(abc.ABC):
 
         # First, set the values
         for cfg in ezsp_values.values():
+            # XXX: A read failure does not mean the value is not writeable!
             status, current_value = await self.getValue(cfg.value_id)
 
-            if status != self.types.EmberStatus.SUCCESS:
-                LOGGER.debug("Could not read value %s, ignoring", cfg.value_id.name)
-                continue
-
-            current_value, _ = type(cfg.value).deserialize(current_value)
+            if status == self.types.EmberStatus.SUCCESS:
+                current_value, _ = type(cfg.value).deserialize(current_value)
+            else:
+                current_value = None
 
             LOGGER.debug(
                 "Setting value %s = %s (old value %s)",
