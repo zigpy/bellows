@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import dataclasses
+import typing
 
 import bellows.ezsp.v4.types as types_v4
 import bellows.ezsp.v6.types as types_v6
+import bellows.ezsp.v7.types as types_v7
 import bellows.types as t
 
 
@@ -12,6 +14,12 @@ class RuntimeConfig:
     config_id: t.enum8
     value: int
     minimum: bool = False
+
+
+@dataclasses.dataclass(frozen=True)
+class ValueConfig:
+    value_id: t.enum8
+    value: typing.Any
 
 
 DEFAULT_CONFIG_COMMON = [
@@ -104,6 +112,10 @@ DEFAULT_CONFIG_NEW = [
             types_v6.EzspConfigId.CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S
         ),
         value=90,
+    ),
+    ValueConfig(
+        value_id=types_v7.EzspValueId.VALUE_FORCE_TX_AFTER_FAILED_CCA_ATTEMPTS,
+        value=t.uint8_t(1),
     ),
 ] + DEFAULT_CONFIG_COMMON
 
