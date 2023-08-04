@@ -37,13 +37,6 @@ class ProtocolHandler(abc.ABC):
         }
         self.tc_policy = 0
 
-    async def _cfg(self, config_id: int, value: Any) -> None:
-        (status,) = await self.setConfigurationValue(config_id, value)
-        if status != self.types.EmberStatus.SUCCESS:
-            LOGGER.warning(
-                "Couldn't set %s=%s configuration value: %s", config_id, value, status
-            )
-
     def _ezsp_frame(self, name: str, *args: Tuple[Any, ...]) -> bytes:
         """Serialize the named frame and data."""
         c = self.COMMANDS[name]
@@ -112,6 +105,8 @@ class ProtocolHandler(abc.ABC):
                 LOGGER.debug("Could not read value %s, ignoring", cfg.value_id.name)
                 continue
 
+            current_value, _ = type(cfg.value).deserialize(current_value)
+
             LOGGER.debug(
                 "Setting value %s = %s (old value %s)",
                 cfg.value_id.name,
@@ -119,7 +114,6 @@ class ProtocolHandler(abc.ABC):
                 current_value,
             )
 
-            current_value, _ = type(cfg.value).deserialize(current_value)
             (status,) = await self.setValue(cfg.value_id, cfg.value.serialize())
 
             if status != self.types.EmberStatus.SUCCESS:
@@ -155,7 +149,16 @@ class ProtocolHandler(abc.ABC):
                 cfg.value,
                 current_value,
             )
-            await self._cfg(cfg.config_id, cfg.value)
+
+            (status,) = await self.setConfigurationValue(cfg.config_id, cfg.value)
+            if status != self.types.EmberStatus.SUCCESS:
+                LOGGER.debug(
+                    "Could not set config %s = %s: %s",
+                    cfg.config_id,
+                    cfg.value,
+                    status,
+                )
+                continue
 
     async def get_free_buffers(self) -> Optional[int]:
         status, value = await self.getValue(self.types.EzspValueId.VALUE_FREE_BUFFERS)
