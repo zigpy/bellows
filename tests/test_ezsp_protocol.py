@@ -62,24 +62,6 @@ def test_receive_reply_invalid_command(prot_hndl):
     assert prot_hndl._handle_callback.call_count == 0
 
 
-async def test_cfg_initialize(prot_hndl, caplog):
-    """Test initialization."""
-
-    prot_hndl.setConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
-    prot_hndl.getConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, 22))
-    prot_hndl.get_free_buffers = AsyncMock(return_value=22)
-
-    await prot_hndl.initialize({"ezsp_config": {}, "source_routing": True})
-
-    with caplog.at_level(logging.DEBUG):
-        prot_hndl.setConfigurationValue.return_value = (
-            t.EzspStatus.ERROR_OUT_OF_MEMORY,
-        )
-        await prot_hndl.initialize({"ezsp_config": {}, "source_routing": False})
-
-    assert "Could not set config" in caplog.text
-
-
 async def test_config_initialize_husbzb1(prot_hndl):
     """Test timeouts are properly set for HUSBZB-1."""
 
@@ -115,7 +97,7 @@ async def test_config_initialize_husbzb1(prot_hndl):
 
 
 @pytest.mark.parametrize("prot_hndl_cls", EZSP._BY_VERSION.values())
-async def test_config_initialize(prot_hndl_cls):
+async def test_config_initialize(prot_hndl_cls, caplog):
     """Test config initialization for all protocol versions."""
 
     prot_hndl = prot_hndl_cls(MagicMock(), MagicMock())
@@ -126,6 +108,36 @@ async def test_config_initialize(prot_hndl_cls):
     prot_hndl.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\xFF"))
 
     await prot_hndl.initialize({"ezsp_config": {}})
+
+    with caplog.at_level(logging.DEBUG):
+        prot_hndl.setConfigurationValue.return_value = (
+            t.EzspStatus.ERROR_OUT_OF_MEMORY,
+        )
+        await prot_hndl.initialize({"ezsp_config": {}})
+
+    assert "Could not set config" in caplog.text
+    prot_hndl.setConfigurationValue.return_value = (t.EzspStatus.SUCCESS,)
+    caplog.clear()
+
+    # EZSPv6 does not set any values on startup
+    if prot_hndl_cls.VERSION < 7:
+        return
+
+    with caplog.at_level(logging.DEBUG):
+        prot_hndl.getValue.return_value = (t.EzspStatus.ERROR_INVALID_ID, b"")
+        await prot_hndl.initialize({"ezsp_config": {}})
+
+    assert "Could not read value" in caplog.text
+    prot_hndl.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\xFF"))
+    caplog.clear()
+
+    with caplog.at_level(logging.DEBUG):
+        prot_hndl.setValue.return_value = (t.EzspStatus.ERROR_INVALID_ID,)
+        await prot_hndl.initialize({"ezsp_config": {}})
+
+    assert "Could not set value" in caplog.text
+    prot_hndl.setValue.return_value = (t.EzspStatus.SUCCESS,)
+    caplog.clear()
 
 
 async def test_cfg_initialize_skip(prot_hndl):
