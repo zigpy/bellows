@@ -34,6 +34,7 @@ import bellows.ezsp
 from bellows.ezsp.v8.types.named import EmberDeviceUpdate
 import bellows.multicast
 import bellows.types as t
+from bellows.zigbee import repairs
 from bellows.zigbee.device import EZSPEndpoint
 import bellows.zigbee.util as util
 
@@ -131,7 +132,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def connect(self):
         self._ezsp = await bellows.ezsp.EZSP.initialize(self.config)
+        await self._connect()
+
+    async def _connect(self):
         ezsp = self._ezsp
+        if self.config[zigpy.config.CONF_SOURCE_ROUTING]:
+            await ezsp.set_source_routing()
 
         self._multicast = bellows.multicast.Multicast(ezsp)
         await self.register_endpoints()
@@ -167,6 +173,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         ezsp = self._ezsp
 
         await self._ensure_network_running()
+
+        if await repairs.fix_invalid_tclk_partner_ieee(ezsp):
+            await ezsp.reset()
+            await ezsp.version()
+            await ezsp._protocol.initialize(self.config)
+            await self._connect()
+            await self._ensure_network_running()
 
         await ezsp.update_policies(self.config)
         await self.load_network_info(load_devices=False)
