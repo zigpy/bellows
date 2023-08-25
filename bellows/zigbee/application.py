@@ -353,6 +353,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         stack_specific = network_info.stack_specific.get("ezsp", {})
         (current_eui64,) = await ezsp.getEui64()
+        failed_to_write_eui64 = False
 
         if (
             node_info.ieee != zigpy.types.EUI64.UNKNOWN
@@ -368,13 +369,21 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     current_eui64,
                     node_info.ieee,
                 )
+                failed_to_write_eui64 = True
             elif not await ezsp.can_burn_userdata_custom_eui64():
                 LOGGER.error(
                     "Current node's IEEE address has already been written once. It"
                     " cannot be written again without fully erasing the chip with JTAG."
                 )
+                failed_to_write_eui64 = True
             else:
                 await ezsp.write_custom_eui64(node_info.ieee, burn_into_userdata=True)
+
+        # If we cannot write the new EUI64, don't mess up key entries with the unwritten
+        # EUI64 address
+        if failed_to_write_eui64:
+            node_info.ieee = current_eui64
+            network_info.tc_link_key.partner_ieee = current_eui64
 
         use_hashed_tclk = ezsp.ezsp_version > 4
 
