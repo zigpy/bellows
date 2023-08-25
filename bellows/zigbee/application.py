@@ -453,6 +453,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         (status,) = await self._ezsp.clearKeyTable()
         assert status == t.EmberStatus.SUCCESS
 
+        # Reset the custom EUI64
+        await self._ezsp.reset_custom_eui64()
+
     async def disconnect(self):
         # TODO: how do you shut down the stack?
         self.controller_event.clear()

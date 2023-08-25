@@ -419,6 +419,20 @@ class EZSP:
         """Checks if the device EUI64 can be written any number of times."""
         return await self._get_nv3_restored_eui64_key() is not None
 
+    async def reset_custom_eui64(self) -> None:
+        """Reset the custom EUI64, if possible."""
+
+        nv3_eui64_key = await self._get_nv3_restored_eui64_key()
+        if nv3_eui64_key is None:
+            return
+
+        (status,) = await self.setTokenData(
+            nv3_eui64_key,
+            0,
+            t.LVBytes32(t.EmberEUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF").serialize()),
+        )
+        assert status == t.EmberStatus.SUCCESS
+
     async def write_custom_eui64(
         self, ieee: t.EUI64, *, burn_into_userdata: bool = False
     ) -> None:
