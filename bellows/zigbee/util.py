@@ -20,7 +20,6 @@ RSSI_MIN = -92
 def zha_security(
     *,
     network_info: zigpy.state.NetworkInfo,
-    node_info: zigpy.state.NodeInfo,
     use_hashed_tclk: bool,
 ) -> t.EmberInitialSecurityState:
     """Construct an `EmberInitialSecurityState` out of zigpy network state."""
