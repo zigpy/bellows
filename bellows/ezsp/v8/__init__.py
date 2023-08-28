@@ -8,12 +8,12 @@ import voluptuous
 import bellows.config
 
 from . import commands, config, types as v8_types
-from .. import protocol
+from ..v7 import EZSPv7
 
 LOGGER = logging.getLogger(__name__)
 
 
-class EZSPv8(protocol.ProtocolHandler):
+class EZSPv8(EZSPv7):
     """EZSP Version 8 Protocol version handler."""
 
     VERSION = 8
@@ -39,9 +39,7 @@ class EZSPv8(protocol.ProtocolHandler):
 
     async def pre_permit(self, time_s: int) -> None:
         """Temporarily change TC policy while allowing new joins."""
-        wild_card_ieee = v8_types.EmberEUI64([0xFF] * 8)
-        tc_link_key = v8_types.EmberKeyData(b"ZigBeeAlliance09")
-        await self.addTransientLinkKey(wild_card_ieee, tc_link_key)
+        await super().pre_permit(time_s)
         await self.setPolicy(
             v8_types.EzspPolicyId.TRUST_CENTER_POLICY,
             v8_types.EzspDecisionBitmask.ALLOW_JOINS
@@ -52,7 +50,3 @@ class EZSPv8(protocol.ProtocolHandler):
             v8_types.EzspPolicyId.TRUST_CENTER_POLICY,
             self.tc_policy,
         )
-
-    async def set_source_routing(self) -> None:
-        """Enable source routing on NCP."""
-        await self.setSourceRouteDiscoveryMode(1)
