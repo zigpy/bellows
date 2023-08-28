@@ -26,6 +26,7 @@ import zigpy.zdo.types as zdo_t
 import bellows
 from bellows.config import (
     CONF_PARAM_MAX_WATCHDOG_FAILURES,
+    CONF_USE_THREAD,
     CONFIG_SCHEMA,
     SCHEMA_DEVICE,
 )
@@ -130,22 +131,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         return None, None, None
 
-    async def connect(self):
-        self._ezsp = await bellows.ezsp.EZSP.initialize(self.config)
-        await self._connect()
+    async def connect(self) -> None:
+        ezsp = bellows.ezsp.EZSP(self.config[zigpy.config.CONF_DEVICE])
+        await ezsp.connect(use_thread=self.config[CONF_USE_THREAD])
 
-    async def _connect(self):
-        ezsp = self._ezsp
-        if self.config[zigpy.config.CONF_SOURCE_ROUTING]:
-            await ezsp.set_source_routing()
+        try:
+            await ezsp.startup_reset()
+        except Exception:
+            ezsp.close()
+            raise
 
-        self._multicast = bellows.multicast.Multicast(ezsp)
-        await self.register_endpoints()
-
-        brd_manuf, brd_name, version = await self._get_board_info()
-        LOGGER.info("EZSP Radio manufacturer: %s", brd_manuf)
-        LOGGER.info("EZSP Radio board name: %s", brd_name)
-        LOGGER.info("EmberZNet version: %s", version)
+        self._ezsp = ezsp
 
     async def _ensure_network_running(self) -> bool:
         """Ensures the network is currently running and returns whether or not the network
@@ -175,11 +171,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._ensure_network_running()
 
         if await repairs.fix_invalid_tclk_partner_ieee(ezsp):
-            await ezsp.reset()
-            await ezsp.version()
-            await ezsp._protocol.initialize(self.config)
-            await self._connect()
+            # Reboot the stack after modifying NV3
+            ezsp.stop_ezsp()
+            await ezsp.startup_reset()
             await self._ensure_network_running()
+
+        if self.config[zigpy.config.CONF_SOURCE_ROUTING]:
+            await ezsp.set_source_routing()
 
         await ezsp.update_policies(self.config)
         await self.load_network_info(load_devices=False)
@@ -219,7 +217,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if db_device is not None and 1 in db_device.endpoints:
             ezsp_device.endpoints[1].member_of.update(db_device.endpoints[1].member_of)
 
-        await self.multicast.startup(ezsp_device)
+        self._multicast = bellows.multicast.Multicast(ezsp)
+        await self._multicast.startup(ezsp_device)
 
     async def load_network_info(self, *, load_devices=False) -> None:
         ezsp = self._ezsp

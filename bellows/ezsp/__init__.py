@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import collections
 import contextlib
+import dataclasses
 import functools
 import logging
 import sys
@@ -20,6 +21,7 @@ import zigpy.config
 
 import bellows.config as conf
 from bellows.exception import EzspError, InvalidCommandError
+from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig, ValueConfig
 import bellows.types as t
 import bellows.uart
 
@@ -133,15 +135,14 @@ class EZSP:
     async def _probe(self) -> None:
         """Open port and try sending a command"""
         await self.connect(use_thread=False)
-        await self._startup_reset()
-        await self.version()
+        await self.startup_reset()
 
     @property
     def is_tcp_serial_port(self) -> bool:
         parsed_path = urllib.parse.urlparse(self._config[conf.CONF_DEVICE_PATH])
         return parsed_path.scheme == "socket"
 
-    async def _startup_reset(self):
+    async def startup_reset(self) -> None:
         """Start EZSP and reset the stack."""
         # `zigbeed` resets on startup
         if self.is_tcp_serial_port:
@@ -157,6 +158,8 @@ class EZSP:
         if not self.is_ezsp_running:
             await self.reset()
 
+        await self.version()
+
     @classmethod
     async def initialize(cls, zigpy_config: dict) -> EZSP:
         """Return initialized EZSP instance."""
@@ -164,12 +167,7 @@ class EZSP:
         await ezsp.connect(use_thread=zigpy_config[conf.CONF_USE_THREAD])
 
         try:
-            await ezsp._startup_reset()
-            await ezsp.version()
-            await ezsp._protocol.initialize(zigpy_config)
-
-            if zigpy_config[zigpy.config.CONF_SOURCE_ROUTING]:
-                await ezsp.set_source_routing()
+            await ezsp.startup_reset()
         except Exception:
             ezsp.close()
             raise
@@ -526,3 +524,105 @@ class EZSP:
     def types(self):
         """Return EZSP types for this specific version."""
         return self._protocol.types
+
+    async def write_config(self, config: dict) -> None:
+        """Initialize EmberZNet Stack."""
+
+        # Not all config will be present in every EZSP version so only use valid keys
+        ezsp_config = {}
+        ezsp_values = {}
+
+        for cfg in DEFAULT_CONFIG[self.VERSION]:
+            if isinstance(cfg, RuntimeConfig):
+                ezsp_config[cfg.config_id.name] = dataclasses.replace(
+                    cfg, config_id=self.types.EzspConfigId[cfg.config_id.name]
+                )
+            elif isinstance(cfg, ValueConfig):
+                ezsp_values[cfg.value_id.name] = dataclasses.replace(
+                    cfg, value_id=self.types.EzspValueId[cfg.value_id.name]
+                )
+
+        # Override the defaults with user-specified values (or `None` for deletions)
+        for name, value in self._protocol.SCHEMAS[conf.CONF_EZSP_CONFIG](
+            config
+        ).items():
+            if value is None:
+                ezsp_config.pop(name)
+                continue
+
+            ezsp_config[name] = RuntimeConfig(
+                config_id=self.types.EzspConfigId[name],
+                value=value,
+            )
+
+        # Make sure CONFIG_PACKET_BUFFER_COUNT is always set last
+        if self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name in ezsp_config:
+            ezsp_config = {
+                **ezsp_config,
+                self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name: ezsp_config[
+                    self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name
+                ],
+            }
+
+        # First, set the values
+        for cfg in ezsp_values.values():
+            # XXX: A read failure does not mean the value is not writeable!
+            status, current_value = await self.getValue(cfg.value_id)
+
+            if status == self.types.EmberStatus.SUCCESS:
+                current_value, _ = type(cfg.value).deserialize(current_value)
+            else:
+                current_value = None
+
+            LOGGER.debug(
+                "Setting value %s = %s (old value %s)",
+                cfg.value_id.name,
+                cfg.value,
+                current_value,
+            )
+
+            (status,) = await self.setValue(cfg.value_id, cfg.value.serialize())
+
+            if status != self.types.EmberStatus.SUCCESS:
+                LOGGER.debug(
+                    "Could not set value %s = %s: %s",
+                    cfg.value_id.name,
+                    cfg.value,
+                    status,
+                )
+                continue
+
+        # Finally, set the config
+        for cfg in ezsp_config.values():
+            (status, current_value) = await self.getConfigurationValue(cfg.config_id)
+
+            # Only grow some config entries, all others should be set
+            if (
+                status == self.types.EmberStatus.SUCCESS
+                and cfg.minimum
+                and current_value >= cfg.value
+            ):
+                LOGGER.debug(
+                    "Current config %s = %s exceeds the default of %s, skipping",
+                    cfg.config_id.name,
+                    current_value,
+                    cfg.value,
+                )
+                continue
+
+            LOGGER.debug(
+                "Setting config %s = %s (old value %s)",
+                cfg.config_id.name,
+                cfg.value,
+                current_value,
+            )
+
+            (status,) = await self.setConfigurationValue(cfg.config_id, cfg.value)
+            if status != self.types.EmberStatus.SUCCESS:
+                LOGGER.debug(
+                    "Could not set config %s = %s: %s",
+                    cfg.config_id,
+                    cfg.value,
+                    status,
+                )
+                continue
