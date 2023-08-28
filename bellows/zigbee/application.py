@@ -25,6 +25,7 @@ import zigpy.zdo.types as zdo_t
 
 import bellows
 from bellows.config import (
+    CONF_EZSP_POLICIES,
     CONF_PARAM_MAX_WATCHDOG_FAILURES,
     CONF_USE_THREAD,
     CONFIG_SCHEMA,
@@ -179,7 +180,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if self.config[zigpy.config.CONF_SOURCE_ROUTING]:
             await ezsp.set_source_routing()
 
-        await ezsp.update_policies(self.config)
+        await ezsp._protocol.update_policies(self.config[CONF_EZSP_POLICIES])
         await self.load_network_info(load_devices=False)
 
         for cnt_group in self.state.counters:

@@ -500,7 +500,9 @@ class EZSP:
         LOGGER.debug("Set concentrator type: %s", res)
         if res[0] != self.types.EmberStatus.SUCCESS:
             LOGGER.warning("Couldn't set concentrator type %s: %s", True, res)
-        await self._protocol.set_source_routing()
+
+        if self._ezsp_version >= 8:
+            await self.setSourceRouteDiscoveryMode(1)
 
     def start_ezsp(self):
         """Mark EZSP as running."""

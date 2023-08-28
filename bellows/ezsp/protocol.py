@@ -4,7 +4,7 @@ import binascii
 import functools
 import logging
 import sys
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, Tuple
 
 if sys.version_info[:2] < (3, 11):
     from async_timeout import timeout as asyncio_timeout  # pragma: no cover
@@ -54,15 +54,6 @@ class ProtocolHandler(abc.ABC):
     async def pre_permit(self, time_s: int) -> None:
         """Schedule task before allowing new joins."""
 
-    async def get_free_buffers(self) -> Optional[int]:
-        status, value = await self.getValue(self.types.EzspValueId.VALUE_FREE_BUFFERS)
-
-        if status != self.types.EzspStatus.SUCCESS:
-            LOGGER.debug("Couldn't get free buffers: %s", status)
-            return None
-
-        return int.from_bytes(value, byteorder="little")
-
     async def command(self, name, *args) -> Any:
         """Serialize command and send it."""
         LOGGER.debug("Send command %s: %s", name, args)
@@ -76,13 +67,10 @@ class ProtocolHandler(abc.ABC):
         async with asyncio_timeout(EZSP_CMD_TIMEOUT):
             return await future
 
-    async def set_source_routing(self) -> None:
-        """Enable source routing on NCP."""
-
-    async def update_policies(self, zigpy_config: dict) -> None:
+    async def update_policies(self, policy_config: dict) -> None:
         """Set up the policies for what the NCP should do."""
 
-        policies = self.SCHEMAS[CONF_EZSP_POLICIES](zigpy_config[CONF_EZSP_POLICIES])
+        policies = self.SCHEMAS[CONF_EZSP_POLICIES](policy_config)
         self.tc_policy = policies[self.types.EzspPolicyId.TRUST_CENTER_POLICY.name]
 
         for policy, value in policies.items():
