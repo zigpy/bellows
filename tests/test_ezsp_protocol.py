@@ -62,159 +62,17 @@ def test_receive_reply_invalid_command(prot_hndl):
     assert prot_hndl._handle_callback.call_count == 0
 
 
-async def test_config_initialize_husbzb1(prot_hndl):
-    """Test timeouts are properly set for HUSBZB-1."""
-
-    prot_hndl.getConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, 0))
-    prot_hndl.setConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
-
-    await prot_hndl.initialize({"ezsp_config": {}})
-    prot_hndl.setConfigurationValue.assert_has_calls(
-        [
-            call(t.EzspConfigId.CONFIG_SOURCE_ROUTE_TABLE_SIZE, 16),
-            call(t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, 60),
-            call(t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8),
-            call(t.EzspConfigId.CONFIG_INDIRECT_TRANSMISSION_TIMEOUT, 7680),
-            call(t.EzspConfigId.CONFIG_STACK_PROFILE, 2),
-            call(t.EzspConfigId.CONFIG_SUPPORTED_NETWORKS, 1),
-            call(t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, 16),
-            call(t.EzspConfigId.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2),
-            call(t.EzspConfigId.CONFIG_SECURITY_LEVEL, 5),
-            call(t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE, 16),
-            call(t.EzspConfigId.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD, 2),
-            call(t.EzspConfigId.CONFIG_KEY_TABLE_SIZE, 4),
-            call(t.EzspConfigId.CONFIG_MAX_END_DEVICE_CHILDREN, 32),
-            call(
-                t.EzspConfigId.CONFIG_APPLICATION_ZDO_FLAGS,
-                (
-                    t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
-                    | t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS
-                ),
-            ),
-            call(t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT, 255),
-        ]
-    )
-
-
-@pytest.mark.parametrize("prot_hndl_cls", EZSP._BY_VERSION.values())
-async def test_config_initialize(prot_hndl_cls, caplog):
-    """Test config initialization for all protocol versions."""
-
-    prot_hndl = prot_hndl_cls(MagicMock(), MagicMock())
-    prot_hndl.getConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, 0))
-    prot_hndl.setConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
-
-    prot_hndl.setValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
-    prot_hndl.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\xFF"))
-
-    await prot_hndl.initialize({"ezsp_config": {}})
-
-    with caplog.at_level(logging.DEBUG):
-        prot_hndl.setConfigurationValue.return_value = (
-            t.EzspStatus.ERROR_OUT_OF_MEMORY,
-        )
-        await prot_hndl.initialize({"ezsp_config": {}})
-
-    assert "Could not set config" in caplog.text
-    prot_hndl.setConfigurationValue.return_value = (t.EzspStatus.SUCCESS,)
-    caplog.clear()
-
-    # EZSPv6 does not set any values on startup
-    if prot_hndl_cls.VERSION < 7:
-        return
-
-    prot_hndl.setValue.reset_mock()
-    prot_hndl.getValue.return_value = (t.EzspStatus.ERROR_INVALID_ID, b"")
-    await prot_hndl.initialize({"ezsp_config": {}})
-    assert len(prot_hndl.setValue.mock_calls) == 1
-
-    prot_hndl.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\xFF"))
-    caplog.clear()
-
-    with caplog.at_level(logging.DEBUG):
-        prot_hndl.setValue.return_value = (t.EzspStatus.ERROR_INVALID_ID,)
-        await prot_hndl.initialize({"ezsp_config": {}})
-
-    assert "Could not set value" in caplog.text
-    prot_hndl.setValue.return_value = (t.EzspStatus.SUCCESS,)
-    caplog.clear()
-
-
-async def test_cfg_initialize_skip(prot_hndl):
-    """Test initialization."""
-
-    p1 = patch.object(
-        prot_hndl,
-        "setConfigurationValue",
-        new=AsyncMock(return_value=(t.EzspStatus.SUCCESS,)),
-    )
-    p2 = patch.object(
-        prot_hndl,
-        "getConfigurationValue",
-        new=AsyncMock(return_value=(t.EzspStatus.SUCCESS, 22)),
-    )
-    p3 = patch.object(prot_hndl, "get_free_buffers", new=AsyncMock(22))
-    with p1, p2, p3:
-        await prot_hndl.initialize(
-            {"ezsp_config": {"CONFIG_END_DEVICE_POLL_TIMEOUT": None}}
-        )
-
-        # Config not set when it is explicitly disabled
-        with pytest.raises(AssertionError):
-            prot_hndl.setConfigurationValue.assert_called_with(
-                t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, ANY
-            )
-
-    with p1, p2, p3:
-        await prot_hndl.initialize(
-            {"ezsp_config": {"CONFIG_MULTICAST_TABLE_SIZE": 123}}
-        )
-
-        # Config is overridden
-        prot_hndl.setConfigurationValue.assert_any_call(
-            t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, 123
-        )
-
-    with p1, p2, p3:
-        await prot_hndl.initialize({"ezsp_config": {}})
-
-        # Config is set by default
-        prot_hndl.setConfigurationValue.assert_any_call(
-            t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, ANY
-        )
-
-
 async def test_update_policies(prot_hndl):
     """Test update_policies."""
 
     with patch.object(prot_hndl, "setPolicy", new=AsyncMock()) as pol_mock:
         pol_mock.return_value = (t.EzspStatus.SUCCESS,)
-        await prot_hndl.update_policies({"ezsp_policies": {}})
+        await prot_hndl.update_policies({})
 
+    with patch.object(prot_hndl, "setPolicy", new=AsyncMock()) as pol_mock:
         pol_mock.return_value = (t.EzspStatus.ERROR_OUT_OF_MEMORY,)
         with pytest.raises(AssertionError):
-            await prot_hndl.update_policies({"ezsp_policies": {}})
-
-
-@pytest.mark.parametrize(
-    "status, raw, expected_value",
-    (
-        (t.EzspStatus.ERROR_OUT_OF_MEMORY, b"", None),
-        (t.EzspStatus.ERROR_OUT_OF_MEMORY, b"\x02\x02", None),
-        (t.EzspStatus.SUCCESS, b"\x02\x02", 514),
-    ),
-)
-async def test_get_free_buffers(prot_hndl, status, raw, expected_value):
-    """Test getting free buffers."""
-
-    p1 = patch.object(prot_hndl, "getValue", new=AsyncMock())
-    with p1 as value_mock:
-        value_mock.return_value = (status, raw)
-        free_buffers = await prot_hndl.get_free_buffers()
-        if expected_value is None:
-            assert free_buffers is expected_value
-        else:
-            assert free_buffers == expected_value
+            await prot_hndl.update_policies({})
 
 
 async def test_unknown_command(prot_hndl, caplog):

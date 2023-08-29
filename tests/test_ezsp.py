@@ -1,11 +1,13 @@
 import asyncio
 import functools
+import logging
 import sys
 
 import pytest
 
 from bellows import config, ezsp, uart
 from bellows.exception import EzspError
+import bellows.ezsp.v4.types as v4_t
 import bellows.types as t
 
 if sys.version_info[:2] < (3, 11):
@@ -13,7 +15,7 @@ if sys.version_info[:2] < (3, 11):
 else:
     from asyncio import timeout as asyncio_timeout  # pragma: no cover
 
-from .async_mock import AsyncMock, MagicMock, call, patch, sentinel
+from unittest.mock import ANY, AsyncMock, MagicMock, call, patch, sentinel
 
 DEVICE_CONFIG = {
     config.CONF_DEVICE_PATH: "/dev/null",
@@ -312,29 +314,16 @@ async def test_probe_fail(exception):
     assert mock_connect.return_value.close.call_count == 2
 
 
-@patch.object(ezsp.EZSP, "set_source_routing", new_callable=AsyncMock)
-@patch("bellows.ezsp.v4.EZSPv4.initialize", new_callable=AsyncMock)
 @patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
 @patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
 @patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
-async def test_ezsp_init(
-    conn_mock, reset_mock, version_mock, prot_handler_mock, src_mock
-):
+async def test_ezsp_init(conn_mock, reset_mock, version_mock):
     """Test initialize method."""
     zigpy_config = config.CONFIG_SCHEMA({"device": DEVICE_CONFIG})
     await ezsp.EZSP.initialize(zigpy_config)
     assert conn_mock.await_count == 1
     assert reset_mock.await_count == 1
     assert version_mock.await_count == 1
-    assert prot_handler_mock.await_count == 1
-    assert src_mock.call_count == 0
-    assert src_mock.await_count == 0
-
-    zigpy_config = config.CONFIG_SCHEMA(
-        {"device": DEVICE_CONFIG, "source_routing": "yes"}
-    )
-    await ezsp.EZSP.initialize(zigpy_config)
-    assert src_mock.await_count == 1
 
 
 @patch.object(ezsp.EZSP, "version", side_effect=RuntimeError("Uh oh"))
@@ -627,14 +616,10 @@ async def test_write_custom_eui64(ezsp_f):
     ezsp_f.setTokenData.assert_not_called()
 
 
-@patch.object(ezsp.EZSP, "set_source_routing", new_callable=AsyncMock)
-@patch("bellows.ezsp.v4.EZSPv4.initialize", new_callable=AsyncMock)
 @patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
 @patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
 @patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
-async def test_ezsp_init_zigbeed(
-    conn_mock, reset_mock, version_mock, prot_handler_mock, src_mock
-):
+async def test_ezsp_init_zigbeed(conn_mock, reset_mock, version_mock):
     """Test initialize method with a received startup reset frame."""
     zigpy_config = config.CONFIG_SCHEMA(
         {
@@ -653,20 +638,13 @@ async def test_ezsp_init_zigbeed(
     assert reset_mock.await_count == 0  # Reset is not called
     assert gw_wait_reset_mock.await_count == 1
     assert version_mock.await_count == 1
-    assert prot_handler_mock.await_count == 1
-    assert src_mock.call_count == 0
-    assert src_mock.await_count == 0
 
 
-@patch.object(ezsp.EZSP, "set_source_routing", new_callable=AsyncMock)
-@patch("bellows.ezsp.v4.EZSPv4.initialize", new_callable=AsyncMock)
 @patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
 @patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
 @patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
 @patch("bellows.ezsp.NETWORK_COORDINATOR_STARTUP_RESET_WAIT", 0.01)
-async def test_ezsp_init_zigbeed_timeout(
-    conn_mock, reset_mock, version_mock, prot_handler_mock, src_mock
-):
+async def test_ezsp_init_zigbeed_timeout(conn_mock, reset_mock, version_mock):
     """Test initialize method with a received startup reset frame."""
     zigpy_config = config.CONFIG_SCHEMA(
         {
@@ -690,9 +668,6 @@ async def test_ezsp_init_zigbeed_timeout(
     assert reset_mock.await_count == 1  # Reset will be called
     assert gw_wait_reset_mock.await_count == 1
     assert version_mock.await_count == 1
-    assert prot_handler_mock.await_count == 1
-    assert src_mock.call_count == 0
-    assert src_mock.await_count == 0
 
 
 async def test_wait_for_stack_status(ezsp_f):
@@ -723,3 +698,126 @@ def test_ezsp_versions(ezsp_f):
         assert version in ezsp_f._BY_VERSION
         assert ezsp_f._BY_VERSION[version].__name__ == f"EZSPv{version}"
         assert ezsp_f._BY_VERSION[version].VERSION == version
+
+
+async def test_config_initialize_husbzb1(ezsp_f):
+    """Test timeouts are properly set for HUSBZB-1."""
+
+    ezsp_f._ezsp_version = 4
+
+    ezsp_f.getConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, 0))
+    ezsp_f.setConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
+
+    await ezsp_f.write_config({})
+    ezsp_f.setConfigurationValue.assert_has_calls(
+        [
+            call(v4_t.EzspConfigId.CONFIG_SOURCE_ROUTE_TABLE_SIZE, 16),
+            call(v4_t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, 60),
+            call(v4_t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8),
+            call(v4_t.EzspConfigId.CONFIG_INDIRECT_TRANSMISSION_TIMEOUT, 7680),
+            call(v4_t.EzspConfigId.CONFIG_STACK_PROFILE, 2),
+            call(v4_t.EzspConfigId.CONFIG_SUPPORTED_NETWORKS, 1),
+            call(v4_t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, 16),
+            call(v4_t.EzspConfigId.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2),
+            call(v4_t.EzspConfigId.CONFIG_SECURITY_LEVEL, 5),
+            call(v4_t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE, 16),
+            call(v4_t.EzspConfigId.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD, 2),
+            call(v4_t.EzspConfigId.CONFIG_KEY_TABLE_SIZE, 4),
+            call(v4_t.EzspConfigId.CONFIG_MAX_END_DEVICE_CHILDREN, 32),
+            call(
+                v4_t.EzspConfigId.CONFIG_APPLICATION_ZDO_FLAGS,
+                (
+                    v4_t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
+                    | v4_t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS
+                ),
+            ),
+            call(v4_t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT, 255),
+        ]
+    )
+
+
+@pytest.mark.parametrize("version", ezsp.EZSP._BY_VERSION)
+async def test_config_initialize(version: int, ezsp_f, caplog):
+    """Test config initialization for all protocol versions."""
+
+    assert ezsp_f.ezsp_version == 4
+
+    with patch.object(ezsp_f, "_command", AsyncMock(return_value=[version, 2, 2046])):
+        await ezsp_f.version()
+
+    assert ezsp_f.ezsp_version == version
+
+    ezsp_f.getConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, 0))
+    ezsp_f.setConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
+
+    ezsp_f.setValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
+    ezsp_f.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\xFF"))
+
+    await ezsp_f.write_config({})
+
+    with caplog.at_level(logging.DEBUG):
+        ezsp_f.setConfigurationValue.return_value = (t.EzspStatus.ERROR_OUT_OF_MEMORY,)
+        await ezsp_f.write_config({})
+
+    assert "Could not set config" in caplog.text
+    ezsp_f.setConfigurationValue.return_value = (t.EzspStatus.SUCCESS,)
+    caplog.clear()
+
+    # EZSPv6 does not set any values on startup
+    if version < 7:
+        return
+
+    ezsp_f.setValue.reset_mock()
+    ezsp_f.getValue.return_value = (t.EzspStatus.ERROR_INVALID_ID, b"")
+    await ezsp_f.write_config({})
+    assert len(ezsp_f.setValue.mock_calls) == 1
+
+    ezsp_f.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\xFF"))
+    caplog.clear()
+
+    with caplog.at_level(logging.DEBUG):
+        ezsp_f.setValue.return_value = (t.EzspStatus.ERROR_INVALID_ID,)
+        await ezsp_f.write_config({})
+
+    assert "Could not set value" in caplog.text
+    ezsp_f.setValue.return_value = (t.EzspStatus.SUCCESS,)
+    caplog.clear()
+
+
+async def test_cfg_initialize_skip(ezsp_f):
+    """Test initialization."""
+
+    p1 = patch.object(
+        ezsp_f,
+        "setConfigurationValue",
+        new=AsyncMock(return_value=(t.EzspStatus.SUCCESS,)),
+    )
+    p2 = patch.object(
+        ezsp_f,
+        "getConfigurationValue",
+        new=AsyncMock(return_value=(t.EzspStatus.SUCCESS, 22)),
+    )
+    with p1, p2:
+        await ezsp_f.write_config({"CONFIG_END_DEVICE_POLL_TIMEOUT": None})
+
+        # Config not set when it is explicitly disabled
+        with pytest.raises(AssertionError):
+            ezsp_f.setConfigurationValue.assert_called_with(
+                v4_t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, ANY
+            )
+
+    with p1, p2:
+        await ezsp_f.write_config({"CONFIG_MULTICAST_TABLE_SIZE": 123})
+
+        # Config is overridden
+        ezsp_f.setConfigurationValue.assert_any_call(
+            v4_t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, 123
+        )
+
+    with p1, p2:
+        await ezsp_f.write_config({})
+
+        # Config is set by default
+        ezsp_f.setConfigurationValue.assert_any_call(
+            v4_t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, ANY
+        )

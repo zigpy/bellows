@@ -529,12 +529,13 @@ class EZSP:
 
     async def write_config(self, config: dict) -> None:
         """Initialize EmberZNet Stack."""
+        config = self._protocol.SCHEMAS[conf.CONF_EZSP_CONFIG](config)
 
         # Not all config will be present in every EZSP version so only use valid keys
         ezsp_config = {}
         ezsp_values = {}
 
-        for cfg in DEFAULT_CONFIG[self.VERSION]:
+        for cfg in DEFAULT_CONFIG[self._ezsp_version]:
             if isinstance(cfg, RuntimeConfig):
                 ezsp_config[cfg.config_id.name] = dataclasses.replace(
                     cfg, config_id=self.types.EzspConfigId[cfg.config_id.name]
@@ -545,9 +546,7 @@ class EZSP:
                 )
 
         # Override the defaults with user-specified values (or `None` for deletions)
-        for name, value in self._protocol.SCHEMAS[conf.CONF_EZSP_CONFIG](
-            config
-        ).items():
+        for name, value in config.items():
             if value is None:
                 ezsp_config.pop(name)
                 continue
