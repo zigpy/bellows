@@ -6,7 +6,7 @@ import sys
 import pytest
 
 from bellows import config, ezsp, uart
-from bellows.exception import EzspError
+from bellows.exception import EzspError, InvalidCommandError
 import bellows.ezsp.v4.types as v4_t
 import bellows.types as t
 
@@ -832,3 +832,20 @@ async def test_cfg_initialize_skip(ezsp_f):
         ezsp_f.setConfigurationValue.assert_any_call(
             v4_t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, ANY
         )
+
+
+async def test_reset_custom_eui64(ezsp_f):
+    """Test resetting custom EUI64."""
+    # No NV3 interface
+    ezsp_f.getTokenData = AsyncMock(side_effect=InvalidCommandError)
+    ezsp_f.setTokenData = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    await ezsp_f.reset_custom_eui64()
+
+    assert len(ezsp_f.setTokenData.mock_calls) == 0
+
+    # With NV3 interface
+    ezsp_f.getTokenData = AsyncMock(return_value=[t.EmberStatus.SUCCESS, b"\xAB" * 8])
+    await ezsp_f.reset_custom_eui64()
+    assert ezsp_f.setTokenData.mock_calls == [
+        call(t.NV3KeyId.CREATOR_STACK_RESTORED_EUI64, 0, t.LVBytes32(b"\xFF" * 8))
+    ]
