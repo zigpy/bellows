@@ -25,7 +25,9 @@ import zigpy.zdo.types as zdo_t
 
 import bellows
 from bellows.config import (
+    CONF_EZSP_POLICIES,
     CONF_PARAM_MAX_WATCHDOG_FAILURES,
+    CONF_USE_THREAD,
     CONFIG_SCHEMA,
     SCHEMA_DEVICE,
 )
@@ -34,6 +36,7 @@ import bellows.ezsp
 from bellows.ezsp.v8.types.named import EmberDeviceUpdate
 import bellows.multicast
 import bellows.types as t
+from bellows.zigbee import repairs
 from bellows.zigbee.device import EZSPEndpoint
 import bellows.zigbee.util as util
 
@@ -129,17 +132,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         return None, None, None
 
-    async def connect(self):
-        self._ezsp = await bellows.ezsp.EZSP.initialize(self.config)
-        ezsp = self._ezsp
+    async def connect(self) -> None:
+        ezsp = bellows.ezsp.EZSP(self.config[zigpy.config.CONF_DEVICE])
+        await ezsp.connect(use_thread=self.config[CONF_USE_THREAD])
 
-        self._multicast = bellows.multicast.Multicast(ezsp)
-        await self.register_endpoints()
+        try:
+            await ezsp.startup_reset()
+        except Exception:
+            ezsp.close()
+            raise
 
-        brd_manuf, brd_name, version = await self._get_board_info()
-        LOGGER.info("EZSP Radio manufacturer: %s", brd_manuf)
-        LOGGER.info("EZSP Radio board name: %s", brd_name)
-        LOGGER.info("EmberZNet version: %s", version)
+        self._ezsp = ezsp
 
     async def _ensure_network_running(self) -> bool:
         """Ensures the network is currently running and returns whether or not the network
@@ -168,7 +171,16 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         await self._ensure_network_running()
 
-        await ezsp.update_policies(self.config)
+        if await repairs.fix_invalid_tclk_partner_ieee(ezsp):
+            # Reboot the stack after modifying NV3
+            ezsp.stop_ezsp()
+            await ezsp.startup_reset()
+            await self._ensure_network_running()
+
+        if self.config[zigpy.config.CONF_SOURCE_ROUTING]:
+            await ezsp.set_source_routing()
+
+        await ezsp._protocol.update_policies(self.config[CONF_EZSP_POLICIES])
         await self.load_network_info(load_devices=False)
 
         for cnt_group in self.state.counters:
@@ -206,7 +218,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if db_device is not None and 1 in db_device.endpoints:
             ezsp_device.endpoints[1].member_of.update(db_device.endpoints[1].member_of)
 
-        await self.multicast.startup(ezsp_device)
+        self._multicast = bellows.multicast.Multicast(ezsp)
+        await self._multicast.startup(ezsp_device)
 
     async def load_network_info(self, *, load_devices=False) -> None:
         ezsp = self._ezsp
@@ -353,6 +366,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         stack_specific = network_info.stack_specific.get("ezsp", {})
         (current_eui64,) = await ezsp.getEui64()
+        wrote_eui64 = False
 
         if (
             node_info.ieee != zigpy.types.EUI64.UNKNOWN
@@ -360,6 +374,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         ):
             if await ezsp.can_rewrite_custom_eui64():
                 await ezsp.write_custom_eui64(node_info.ieee)
+                wrote_eui64 = True
             elif not stack_specific.get(
                 "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it"
             ):
@@ -375,6 +390,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 )
             else:
                 await ezsp.write_custom_eui64(node_info.ieee, burn_into_userdata=True)
+                wrote_eui64 = True
+
+        # If we cannot write the new EUI64, don't mess up key entries with the unwritten
+        # EUI64 address
+        if not wrote_eui64:
+            node_info.ieee = current_eui64
+            network_info.tc_link_key.partner_ieee = current_eui64
 
         use_hashed_tclk = ezsp.ezsp_version > 4
 
@@ -386,7 +408,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         initial_security_state = util.zha_security(
             network_info=network_info,
-            node_info=node_info,
             use_hashed_tclk=use_hashed_tclk,
         )
         (status,) = await ezsp.setInitialSecurityState(initial_security_state)
@@ -443,6 +464,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         # Clear the key table
         (status,) = await self._ezsp.clearKeyTable()
         assert status == t.EmberStatus.SUCCESS
+
+        # Reset the custom EUI64
+        await self._ezsp.reset_custom_eui64()
 
     async def disconnect(self):
         # TODO: how do you shut down the stack?

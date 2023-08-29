@@ -31,3 +31,6 @@ class EZSPv4(protocol.ProtocolHandler):
     def _ezsp_frame_rx(self, data: bytes) -> Tuple[int, int, bytes]:
         """Handler for received data frame."""
         return data[0], data[2], data[3:]
+
+    async def pre_permit(self, time_s: int) -> None:
+        pass

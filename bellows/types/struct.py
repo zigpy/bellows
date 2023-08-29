@@ -349,3 +349,11 @@ class EmberGpAddress(EzspStruct):
     applicationId: basic.uint8_t
     # The GPD endpoint.
     endpoint: basic.uint8_t
+
+
+class NV3StackTrustCenterToken(EzspStruct):
+    """NV3 stack trust center token value."""
+
+    mode: basic.uint16_t
+    eui64: named.EmberEUI64
+    key: named.EmberKeyData

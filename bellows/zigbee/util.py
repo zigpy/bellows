@@ -3,7 +3,6 @@ import math
 
 import zigpy.state
 import zigpy.types as zigpy_t
-import zigpy.zdo.types as zdo_t
 
 import bellows.types as t
 
@@ -21,7 +20,6 @@ RSSI_MIN = -92
 def zha_security(
     *,
     network_info: zigpy.state.NetworkInfo,
-    node_info: zigpy.state.NodeInfo,
     use_hashed_tclk: bool,
 ) -> t.EmberInitialSecurityState:
     """Construct an `EmberInitialSecurityState` out of zigpy network state."""
@@ -35,16 +33,15 @@ def zha_security(
     isc.networkKey = t.EmberKeyData(network_info.network_key.key)
     isc.networkKeySequenceNumber = t.uint8_t(network_info.network_key.seq)
 
-    if (
-        node_info.logical_type != zdo_t.LogicalType.Coordinator
-        and network_info.tc_link_key.partner_ieee != zigpy_t.EUI64.UNKNOWN
-    ):
+    if network_info.tc_link_key.partner_ieee != zigpy_t.EUI64.UNKNOWN:
         isc.bitmask |= t.EmberInitialSecurityBitmask.HAVE_TRUST_CENTER_EUI64
         isc.preconfiguredTrustCenterEui64 = t.EmberEUI64(
             network_info.tc_link_key.partner_ieee
         )
     else:
-        isc.preconfiguredTrustCenterEui64 = t.EmberEUI64([0x00] * 8)
+        isc.preconfiguredTrustCenterEui64 = t.EmberEUI64.convert(
+            "00:00:00:00:00:00:00:00"
+        )
 
     if use_hashed_tclk:
         if network_info.tc_link_key.key != zigpy_t.KeyData(b"ZigBeeAlliance09"):

@@ -1,18 +1,17 @@
 import abc
 import asyncio
 import binascii
-import dataclasses
 import functools
 import logging
 import sys
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Tuple
 
 if sys.version_info[:2] < (3, 11):
     from async_timeout import timeout as asyncio_timeout  # pragma: no cover
 else:
     from asyncio import timeout as asyncio_timeout  # pragma: no cover
 
-from bellows.config import CONF_EZSP_CONFIG, CONF_EZSP_POLICIES
+from bellows.config import CONF_EZSP_POLICIES
 from bellows.exception import InvalidCommandError
 from bellows.typing import GatewayType
 
@@ -55,120 +54,6 @@ class ProtocolHandler(abc.ABC):
     async def pre_permit(self, time_s: int) -> None:
         """Schedule task before allowing new joins."""
 
-    async def initialize(self, zigpy_config: Dict) -> None:
-        """Initialize EmberZNet Stack."""
-
-        # Prevent circular import
-        from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig, ValueConfig
-
-        # Not all config will be present in every EZSP version so only use valid keys
-        ezsp_config = {}
-        ezsp_values = {}
-
-        for cfg in DEFAULT_CONFIG[self.VERSION]:
-            if isinstance(cfg, RuntimeConfig):
-                ezsp_config[cfg.config_id.name] = dataclasses.replace(
-                    cfg, config_id=self.types.EzspConfigId[cfg.config_id.name]
-                )
-            elif isinstance(cfg, ValueConfig):
-                ezsp_values[cfg.value_id.name] = dataclasses.replace(
-                    cfg, value_id=self.types.EzspValueId[cfg.value_id.name]
-                )
-
-        # Override the defaults with user-specified values (or `None` for deletions)
-        for name, value in self.SCHEMAS[CONF_EZSP_CONFIG](
-            zigpy_config[CONF_EZSP_CONFIG]
-        ).items():
-            if value is None:
-                ezsp_config.pop(name)
-                continue
-
-            ezsp_config[name] = RuntimeConfig(
-                config_id=self.types.EzspConfigId[name],
-                value=value,
-            )
-
-        # Make sure CONFIG_PACKET_BUFFER_COUNT is always set last
-        if self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name in ezsp_config:
-            ezsp_config = {
-                **ezsp_config,
-                self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name: ezsp_config[
-                    self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name
-                ],
-            }
-
-        # First, set the values
-        for cfg in ezsp_values.values():
-            # XXX: A read failure does not mean the value is not writeable!
-            status, current_value = await self.getValue(cfg.value_id)
-
-            if status == self.types.EmberStatus.SUCCESS:
-                current_value, _ = type(cfg.value).deserialize(current_value)
-            else:
-                current_value = None
-
-            LOGGER.debug(
-                "Setting value %s = %s (old value %s)",
-                cfg.value_id.name,
-                cfg.value,
-                current_value,
-            )
-
-            (status,) = await self.setValue(cfg.value_id, cfg.value.serialize())
-
-            if status != self.types.EmberStatus.SUCCESS:
-                LOGGER.debug(
-                    "Could not set value %s = %s: %s",
-                    cfg.value_id.name,
-                    cfg.value,
-                    status,
-                )
-                continue
-
-        # Finally, set the config
-        for cfg in ezsp_config.values():
-            (status, current_value) = await self.getConfigurationValue(cfg.config_id)
-
-            # Only grow some config entries, all others should be set
-            if (
-                status == self.types.EmberStatus.SUCCESS
-                and cfg.minimum
-                and current_value >= cfg.value
-            ):
-                LOGGER.debug(
-                    "Current config %s = %s exceeds the default of %s, skipping",
-                    cfg.config_id.name,
-                    current_value,
-                    cfg.value,
-                )
-                continue
-
-            LOGGER.debug(
-                "Setting config %s = %s (old value %s)",
-                cfg.config_id.name,
-                cfg.value,
-                current_value,
-            )
-
-            (status,) = await self.setConfigurationValue(cfg.config_id, cfg.value)
-            if status != self.types.EmberStatus.SUCCESS:
-                LOGGER.debug(
-                    "Could not set config %s = %s: %s",
-                    cfg.config_id,
-                    cfg.value,
-                    status,
-                )
-                continue
-
-    async def get_free_buffers(self) -> Optional[int]:
-        status, value = await self.getValue(self.types.EzspValueId.VALUE_FREE_BUFFERS)
-
-        if status != self.types.EzspStatus.SUCCESS:
-            LOGGER.debug("Couldn't get free buffers: %s", status)
-            return None
-
-        return int.from_bytes(value, byteorder="little")
-
     async def command(self, name, *args) -> Any:
         """Serialize command and send it."""
         LOGGER.debug("Send command %s: %s", name, args)
@@ -182,13 +67,10 @@ class ProtocolHandler(abc.ABC):
         async with asyncio_timeout(EZSP_CMD_TIMEOUT):
             return await future
 
-    async def set_source_routing(self) -> None:
-        """Enable source routing on NCP."""
-
-    async def update_policies(self, zigpy_config: dict) -> None:
+    async def update_policies(self, policy_config: dict) -> None:
         """Set up the policies for what the NCP should do."""
 
-        policies = self.SCHEMAS[CONF_EZSP_POLICIES](zigpy_config[CONF_EZSP_POLICIES])
+        policies = self.SCHEMAS[CONF_EZSP_POLICIES](policy_config)
         self.tc_policy = policies[self.types.EzspPolicyId.TRUST_CENTER_POLICY.name]
 
         for policy, value in policies.items():

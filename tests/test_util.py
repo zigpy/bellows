@@ -8,7 +8,7 @@ import zigpy.zdo.types as zdo_t
 import bellows.types as bellows_t
 import bellows.zigbee.util as util
 
-from tests.test_application import ezsp_mock
+from tests.test_application import ezsp_mock, ieee
 from tests.test_application_network_state import network_info, node_info
 
 
@@ -39,14 +39,12 @@ def ezsp_key(ezsp_mock, network_info, node_info, zigpy_key):
 
 
 def test_zha_security_normal(network_info, node_info):
-    security = util.zha_security(
-        network_info=network_info, node_info=node_info, use_hashed_tclk=True
-    )
+    security = util.zha_security(network_info=network_info, use_hashed_tclk=True)
 
-    assert security.preconfiguredTrustCenterEui64 == bellows_t.EmberEUI64([0x00] * 8)
+    assert security.preconfiguredTrustCenterEui64 == node_info.ieee
     assert (
         bellows_t.EmberInitialSecurityBitmask.HAVE_TRUST_CENTER_EUI64
-        not in security.bitmask
+        in security.bitmask
     )
 
     assert (
@@ -59,34 +57,11 @@ def test_zha_security_normal(network_info, node_info):
     )
 
 
-def test_zha_security_router(network_info, node_info):
-    security = util.zha_security(
-        network_info=network_info,
-        node_info=node_info.replace(logical_type=zdo_t.LogicalType.Router),
-        use_hashed_tclk=False,
-    )
-
-    assert security.preconfiguredTrustCenterEui64 == bellows_t.EmberEUI64(
-        network_info.tc_link_key.partner_ieee
-    )
-    assert (
-        bellows_t.EmberInitialSecurityBitmask.HAVE_TRUST_CENTER_EUI64
-        in security.bitmask
-    )
-
-    assert security.preconfiguredKey == network_info.tc_link_key.key
-    assert (
-        bellows_t.EmberInitialSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
-        not in security.bitmask
-    )
-
-
-def test_zha_security_router_unknown_tclk_partner_ieee(network_info, node_info):
+def test_zha_security_router_unknown_tclk_partner_ieee(network_info):
     security = util.zha_security(
         network_info=network_info.replace(
             tc_link_key=network_info.tc_link_key.replace(partner_ieee=t.EUI64.UNKNOWN)
         ),
-        node_info=node_info.replace(logical_type=zdo_t.LogicalType.Router),
         use_hashed_tclk=False,
     )
 
@@ -98,25 +73,11 @@ def test_zha_security_router_unknown_tclk_partner_ieee(network_info, node_info):
     )
 
 
-def test_zha_security_replace_missing_tc_partner_addr(network_info, node_info):
-    security = util.zha_security(
-        network_info=network_info.replace(
-            tc_link_key=network_info.tc_link_key.replace(partner_ieee=t.EUI64.UNKNOWN)
-        ),
-        node_info=node_info,
-        use_hashed_tclk=True,
-    )
-
-    assert node_info.ieee != t.EUI64.UNKNOWN
-    assert security.preconfiguredTrustCenterEui64 == bellows_t.EmberEUI64([0x00] * 8)
-
-
-def test_zha_security_hashed_nonstandard_tclk_warning(network_info, node_info, caplog):
+def test_zha_security_hashed_nonstandard_tclk_warning(network_info, caplog):
     # Nothing should be logged normally
     with caplog.at_level(logging.WARNING):
         util.zha_security(
             network_info=network_info,
-            node_info=node_info,
             use_hashed_tclk=True,
         )
 
@@ -130,7 +91,6 @@ def test_zha_security_hashed_nonstandard_tclk_warning(network_info, node_info, c
                     key=t.KeyData(b"ANonstandardTCLK")
                 )
             ),
-            node_info=node_info,
             use_hashed_tclk=True,
         )
 
