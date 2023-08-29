@@ -447,7 +447,7 @@ async def test_update_policies(ezsp_f):
         assert pol_mock.await_count == 1
 
 
-async def test_set_concentrator(ezsp_f):
+async def test_set_source_routing_set_concentrator(ezsp_f):
     """Test enabling source routing."""
     with patch.object(ezsp_f, "setConcentrator", new=AsyncMock()) as cnc_mock:
         cnc_mock.return_value = (ezsp_f.types.EmberStatus.SUCCESS,)
@@ -457,6 +457,17 @@ async def test_set_concentrator(ezsp_f):
         cnc_mock.return_value = (ezsp_f.types.EmberStatus.ERR_FATAL,)
         await ezsp_f.set_source_routing()
         assert cnc_mock.await_count == 2
+
+
+async def test_set_source_routing_ezsp_v8(ezsp_f):
+    """Test enabling source routing on EZSPv8."""
+
+    ezsp_f._ezsp_version = 8
+    ezsp_f.setConcentrator = AsyncMock(return_value=(ezsp_f.types.EmberStatus.SUCCESS,))
+    ezsp_f.setSourceRouteDiscoveryMode = AsyncMock()
+
+    await ezsp_f.set_source_routing()
+    assert len(ezsp_f.setSourceRouteDiscoveryMode.mock_calls) == 1
 
 
 async def test_leave_network_error(ezsp_f):

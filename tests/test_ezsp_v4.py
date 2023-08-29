@@ -25,6 +25,11 @@ def test_ezsp_frame_rx(ezsp_f):
     assert ezsp_f._handle_callback.call_args[0][1] == [0x01, 0x02, 0x1234]
 
 
+async def test_pre_permit(ezsp_f):
+    """Test pre permit."""
+    await ezsp_f.pre_permit(1.9)
+
+
 command_frames = {
     "addEndpoint": 0x02,
     "addOrUpdateKeyTableEntry": 0x66,
