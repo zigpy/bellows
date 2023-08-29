@@ -84,3 +84,13 @@ async def test_unknown_command(prot_hndl, caplog):
         prot_hndl(bytes([0x00, 0x00, unregistered_command, 0xAB, 0xCD]))
 
         assert "0x0004 received: b'abcd' (b'000004abcd')" in caplog.text
+
+
+async def test_logging_frame_parsing_failure(prot_hndl, caplog) -> None:
+    """Test logging when frame parsing fails."""
+
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(ValueError):
+            prot_hndl(b"\xAA\xAA\x71\x22")
+
+        assert "Failed to parse frame getKeyTableEntry: b'22'" in caplog.text
