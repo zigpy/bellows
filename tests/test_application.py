@@ -1803,3 +1803,17 @@ async def test_connect_failure(
     assert app._ezsp is None
 
     assert len(ezsp_mock.close.mock_calls) == 1
+
+
+async def test_repair_tclk_partner_ieee(app: ControllerApplication) -> None:
+    """Test that EZSP is reset after repairing TCLK."""
+    app._ensure_network_running = AsyncMock()
+    app.load_network_info = AsyncMock()
+
+    with patch(
+        "bellows.zigbee.repairs.fix_invalid_tclk_partner_ieee",
+        AsyncMock(return_value=True),
+    ):
+        await app.start_network()
+
+    assert len(app._ensure_network_running.mock_calls) == 2
