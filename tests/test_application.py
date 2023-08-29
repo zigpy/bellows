@@ -20,6 +20,7 @@ import bellows.ezsp.v8.types as ezsp_t8
 import bellows.types.struct
 import bellows.uart as uart
 import bellows.zigbee.application
+from bellows.zigbee.application import ControllerApplication
 import bellows.zigbee.device
 from bellows.zigbee.util import map_rssi_to_energy
 
@@ -80,10 +81,8 @@ def ezsp_mock(ieee):
 @pytest.fixture
 def make_app(monkeypatch, event_loop, ezsp_mock):
     def inner(config):
-        app_cfg = bellows.zigbee.application.ControllerApplication.SCHEMA(
-            {**APP_CONFIG, **config}
-        )
-        app = bellows.zigbee.application.ControllerApplication(app_cfg)
+        app_cfg = ControllerApplication.SCHEMA({**APP_CONFIG, **config})
+        app = ControllerApplication(app_cfg)
 
         app._ezsp = ezsp_mock
         monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.05)
@@ -1787,3 +1786,20 @@ async def test_energy_scanning_partial(app):
     assert len(app._ezsp.startScan.mock_calls) == 6
     assert set(results.keys()) == {11, 13, 14, 15, 20, 25, 26}
     assert results == {c: map_rssi_to_energy(c) for c in [11, 13, 14, 15, 20, 25, 26]}
+
+
+async def test_connect_failure(
+    app: ControllerApplication, ezsp_mock: ezsp.EZSP
+) -> None:
+    """Test that a failure to connect propagates."""
+    ezsp_mock.startup_reset = AsyncMock(side_effect=OSError())
+    ezsp_mock.connect = AsyncMock()
+    app._ezsp = None
+
+    with patch("bellows.ezsp.EZSP", return_value=ezsp_mock):
+        with pytest.raises(OSError):
+            await app.connect()
+
+    assert app._ezsp is None
+
+    assert len(ezsp_mock.close.mock_calls) == 1
