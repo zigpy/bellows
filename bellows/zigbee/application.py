@@ -25,6 +25,7 @@ import zigpy.zdo.types as zdo_t
 
 import bellows
 from bellows.config import (
+    CONF_EZSP_CONFIG,
     CONF_EZSP_POLICIES,
     CONF_PARAM_MAX_WATCHDOG_FAILURES,
     CONF_USE_THREAD,
@@ -142,6 +143,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             ezsp.close()
             raise
 
+        # Writing config is required here because network info can't be loaded otherwise
+        await ezsp.write_config(self.config[CONF_EZSP_CONFIG])
         self._ezsp = ezsp
 
     async def _ensure_network_running(self) -> bool:
@@ -169,6 +172,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def start_network(self):
         ezsp = self._ezsp
 
+        await self.register_endpoints()
         await self._ensure_network_running()
 
         if await repairs.fix_invalid_tclk_partner_ieee(ezsp):
