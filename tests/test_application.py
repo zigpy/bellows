@@ -64,6 +64,7 @@ def ezsp_mock(ieee):
     mock_ezsp.readCounters = AsyncMock(return_value=[[0] * 10])
     mock_ezsp.readAndClearCounters = AsyncMock(return_value=[[0] * 10])
     mock_ezsp.setPolicy = AsyncMock(return_value=[0])
+    mock_ezsp.addEndpoint = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     mock_ezsp.get_board_info = AsyncMock(
         return_value=("Mock Manufacturer", "Mock board", "Mock version")
     )
@@ -220,6 +221,9 @@ async def _test_startup(
 
     with p1, p2 as multicast_mock:
         await app.startup(auto_form=auto_form)
+
+    assert ezsp_mock.write_config.call_count == 1
+    assert ezsp_mock.addEndpoint.call_count >= 2
     assert multicast_mock.await_count == 1
 
 
