@@ -718,33 +718,40 @@ async def test_config_initialize_husbzb1(ezsp_f):
 
     ezsp_f.getConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, 0))
     ezsp_f.setConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
+    ezsp_f.networkState = AsyncMock(return_value=(t.EmberNetworkStatus.JOINED_NETWORK,))
+
+    expected_calls = [
+        call(v4_t.EzspConfigId.CONFIG_SOURCE_ROUTE_TABLE_SIZE, 16),
+        call(v4_t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, 60),
+        call(v4_t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8),
+        call(v4_t.EzspConfigId.CONFIG_INDIRECT_TRANSMISSION_TIMEOUT, 7680),
+        call(v4_t.EzspConfigId.CONFIG_STACK_PROFILE, 2),
+        call(v4_t.EzspConfigId.CONFIG_SUPPORTED_NETWORKS, 1),
+        call(v4_t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, 16),
+        call(v4_t.EzspConfigId.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2),
+        call(v4_t.EzspConfigId.CONFIG_SECURITY_LEVEL, 5),
+        call(v4_t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE, 16),
+        call(v4_t.EzspConfigId.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD, 2),
+        call(v4_t.EzspConfigId.CONFIG_KEY_TABLE_SIZE, 4),
+        call(v4_t.EzspConfigId.CONFIG_MAX_END_DEVICE_CHILDREN, 32),
+        call(
+            v4_t.EzspConfigId.CONFIG_APPLICATION_ZDO_FLAGS,
+            (
+                v4_t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
+                | v4_t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS
+            ),
+        ),
+        call(v4_t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT, 255),
+    ]
 
     await ezsp_f.write_config({})
-    ezsp_f.setConfigurationValue.assert_has_calls(
-        [
-            call(v4_t.EzspConfigId.CONFIG_SOURCE_ROUTE_TABLE_SIZE, 16),
-            call(v4_t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, 60),
-            call(v4_t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8),
-            call(v4_t.EzspConfigId.CONFIG_INDIRECT_TRANSMISSION_TIMEOUT, 7680),
-            call(v4_t.EzspConfigId.CONFIG_STACK_PROFILE, 2),
-            call(v4_t.EzspConfigId.CONFIG_SUPPORTED_NETWORKS, 1),
-            call(v4_t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, 16),
-            call(v4_t.EzspConfigId.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2),
-            call(v4_t.EzspConfigId.CONFIG_SECURITY_LEVEL, 5),
-            call(v4_t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE, 16),
-            call(v4_t.EzspConfigId.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD, 2),
-            call(v4_t.EzspConfigId.CONFIG_KEY_TABLE_SIZE, 4),
-            call(v4_t.EzspConfigId.CONFIG_MAX_END_DEVICE_CHILDREN, 32),
-            call(
-                v4_t.EzspConfigId.CONFIG_APPLICATION_ZDO_FLAGS,
-                (
-                    v4_t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
-                    | v4_t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS
-                ),
-            ),
-            call(v4_t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT, 255),
-        ]
-    )
+    assert ezsp_f.setConfigurationValue.mock_calls == expected_calls
+
+    # If there is no network, `CONFIG_PACKET_BUFFER_COUNT` won't be set
+    ezsp_f.setConfigurationValue.reset_mock()
+    ezsp_f.networkState = AsyncMock(return_value=(t.EmberNetworkStatus.NO_NETWORK,))
+    await ezsp_f.write_config({})
+    assert ezsp_f.setConfigurationValue.mock_calls == expected_calls[:-1]
 
 
 @pytest.mark.parametrize("version", ezsp.EZSP._BY_VERSION)
@@ -760,6 +767,7 @@ async def test_config_initialize(version: int, ezsp_f, caplog):
 
     ezsp_f.getConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, 0))
     ezsp_f.setConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
+    ezsp_f.networkState = AsyncMock(return_value=(t.EmberNetworkStatus.JOINED_NETWORK,))
 
     ezsp_f.setValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
     ezsp_f.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\xFF"))
@@ -797,6 +805,8 @@ async def test_config_initialize(version: int, ezsp_f, caplog):
 
 async def test_cfg_initialize_skip(ezsp_f):
     """Test initialization."""
+
+    ezsp_f.networkState = AsyncMock(return_value=(t.EmberNetworkStatus.JOINED_NETWORK,))
 
     p1 = patch.object(
         ezsp_f,
