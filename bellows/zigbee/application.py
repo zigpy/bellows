@@ -172,12 +172,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def start_network(self):
         ezsp = self._ezsp
 
-        await self.register_endpoints()
         await self._ensure_network_running()
 
         if await repairs.fix_invalid_tclk_partner_ieee(ezsp):
             await self._reset()
             await self._ensure_network_running()
+
+        await self.register_endpoints()
 
         if self.config[zigpy.config.CONF_SOURCE_ROUTING]:
             await ezsp.set_source_routing()
