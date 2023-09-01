@@ -176,9 +176,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._ensure_network_running()
 
         if await repairs.fix_invalid_tclk_partner_ieee(ezsp):
-            # Reboot the stack after modifying NV3
-            ezsp.stop_ezsp()
-            await ezsp.startup_reset()
+            await self._reset()
             await self._ensure_network_running()
 
         if self.config[zigpy.config.CONF_SOURCE_ROUTING]:
@@ -396,9 +394,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 await ezsp.write_custom_eui64(node_info.ieee, burn_into_userdata=True)
                 wrote_eui64 = True
 
-        # If we cannot write the new EUI64, don't mess up key entries with the unwritten
-        # EUI64 address
-        if not wrote_eui64:
+        if wrote_eui64:
+            # Reset after writing the EUI64, as it touches NVRAM
+            await self._reset()
+        else:
+            # If we cannot write the new EUI64, don't mess up key entries with the
+            # unwritten EUI64 address
             node_info.ieee = current_eui64
             network_info.tc_link_key.partner_ieee = current_eui64
 
@@ -455,6 +456,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         parameters.channels = t.Channels(network_info.channel_mask)
 
         await ezsp.formNetwork(parameters)
+        await self._ensure_network_running()
 
     async def reset_network_info(self):
         # The network must be running before we can leave it
@@ -471,6 +473,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         # Reset the custom EUI64
         await self._ezsp.reset_custom_eui64()
+
+        # We must reset when NV3 has changed
+        await self._reset()
+
+    async def _reset(self):
+        self._ezsp.stop_ezsp()
+        await self._ezsp.startup_reset()
+        await self._ezsp.write_config(self.config[CONF_EZSP_CONFIG])
 
     async def disconnect(self):
         # TODO: how do you shut down the stack?
