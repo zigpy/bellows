@@ -32,6 +32,23 @@ async def ezsp_f():
         yield api
 
 
+async def make_ezsp(version=4) -> ezsp.EZSP:
+    api = ezsp.EZSP(DEVICE_CONFIG)
+    gw = MagicMock(spec_set=uart.Gateway)
+
+    with patch("bellows.uart.connect", new=AsyncMock(return_value=gw)):
+        await api.connect()
+
+    assert api._ezsp_version == 4
+
+    with patch.object(api, "_command", new=AsyncMock(return_value=[version, 0, 0])):
+        await api.version()
+
+    assert api._ezsp_version == version
+
+    return api
+
+
 async def test_connect(ezsp_f, monkeypatch):
     connected = False
 
