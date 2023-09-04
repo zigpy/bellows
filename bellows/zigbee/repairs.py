@@ -33,7 +33,7 @@ async def fix_invalid_tclk_partner_ieee(ezsp: EZSP) -> bool:
             t.NV3KeyId.NVM3KEY_STACK_TRUST_CENTER, 0
         )
         assert status == t.EmberStatus.SUCCESS
-    except InvalidCommandError:
+    except (InvalidCommandError, AttributeError):
         LOGGER.warning("NV3 interface not available in this firmware, please upgrade!")
         return False
 

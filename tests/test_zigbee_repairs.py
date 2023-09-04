@@ -10,7 +10,7 @@ from bellows.ezsp import EZSP
 import bellows.types as t
 from bellows.zigbee import repairs
 
-from tests.test_ezsp import ezsp_f
+from tests.test_ezsp import ezsp_f, make_ezsp
 
 
 @pytest.fixture
@@ -112,3 +112,62 @@ async def test_fix_invalid_tclk(ezsp_tclk_f: EZSP, caplog) -> None:
             ).serialize(),
         )
     ]
+
+
+@pytest.mark.parametrize("version", EZSP._BY_VERSION)
+async def test_fix_invalid_tclk_all_versions(
+    version: int, ezsp_tclk_f: EZSP, caplog
+) -> None:
+    """Test that the TCLK is fixed (or not) on all versions."""
+
+    ezsp = await make_ezsp(version)
+    fw_has_token_interface = hasattr(ezsp, "setTokenData")
+
+    if fw_has_token_interface:
+        ezsp.setTokenData = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+        ezsp.getTokenData = AsyncMock(
+            return_value=[
+                t.EmberStatus.SUCCESS,
+                t.NV3StackTrustCenterToken(
+                    mode=228,
+                    eui64=t.EmberEUI64.convert("BB:BB:BB:BB:BB:BB:BB:BB"),
+                    key=t.EmberKeyData.convert(
+                        "21:8e:df:b8:50:a0:4a:b6:8b:c6:10:25:bc:4e:93:6a"
+                    ),
+                ).serialize(),
+            ]
+        )
+
+    ezsp.getEui64 = ezsp_tclk_f.getEui64
+    ezsp.getCurrentSecurityState = ezsp_tclk_f.getCurrentSecurityState
+
+    ezsp.getEui64.return_value[0] = t.EmberEUI64.convert("AA:AA:AA:AA:AA:AA:AA:AA")
+    ezsp.getCurrentSecurityState.return_value[
+        1
+    ].trustCenterLongAddress = t.EmberEUI64.convert("BB:BB:BB:BB:BB:BB:BB:BB")
+
+    with caplog.at_level(logging.WARNING):
+        assert (
+            await repairs.fix_invalid_tclk_partner_ieee(ezsp) is fw_has_token_interface
+        )
+
+    assert "Fixing invalid TCLK" in caplog.text
+
+    if fw_has_token_interface:
+        assert "NV3 interface not available in this firmware" not in caplog.text
+
+        assert ezsp.setTokenData.mock_calls == [
+            call(
+                t.NV3KeyId.NVM3KEY_STACK_TRUST_CENTER,
+                0,
+                t.NV3StackTrustCenterToken(
+                    mode=228,
+                    eui64=t.EmberEUI64.convert("AA:AA:AA:AA:AA:AA:AA:AA"),
+                    key=t.EmberKeyData.convert(
+                        "21:8e:df:b8:50:a0:4a:b6:8b:c6:10:25:bc:4e:93:6a"
+                    ),
+                ).serialize(),
+            )
+        ]
+    else:
+        assert "NV3 interface not available in this firmware" in caplog.text
