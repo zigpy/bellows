@@ -153,6 +153,7 @@ async def _test_startup(
     ezsp_mock.addEndpoint = AsyncMock(return_value=t.EmberStatus.SUCCESS)
     ezsp_mock.setConfigurationValue = AsyncMock(return_value=t.EmberStatus.SUCCESS)
     ezsp_mock.networkInit = AsyncMock(return_value=[init])
+    ezsp_mock.networkInitExtended = AsyncMock(return_value=[init])
     ezsp_mock.getNetworkParameters = AsyncMock(return_value=[0, nwk_type, nwk_params])
     ezsp_mock.can_burn_userdata_custom_eui64 = AsyncMock(return_value=True)
     ezsp_mock.can_rewrite_custom_eui64 = AsyncMock(return_value=True)
@@ -221,6 +222,11 @@ async def _test_startup(
 
     with p1, p2 as multicast_mock:
         await app.startup(auto_form=auto_form)
+
+    if ezsp_version > 6:
+        assert ezsp_mock.networkInitExtended.call_count == 0
+    else:
+        assert ezsp_mock.networkInit.call_count == 0
 
     assert ezsp_mock.write_config.call_count == 1
     assert ezsp_mock.addEndpoint.call_count >= 2
