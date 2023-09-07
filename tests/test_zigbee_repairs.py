@@ -115,8 +115,9 @@ async def test_fix_invalid_tclk(ezsp_tclk_f: EZSP, caplog) -> None:
 
 
 @pytest.mark.parametrize("version", EZSP._BY_VERSION)
+@pytest.mark.parametrize("has_library", [(True, False)])
 async def test_fix_invalid_tclk_all_versions(
-    version: int, ezsp_tclk_f: EZSP, caplog
+    version: int, has_library: bool, ezsp_tclk_f: EZSP, caplog
 ) -> None:
     """Test that the TCLK is fixed (or not) on all versions."""
 
@@ -138,6 +139,10 @@ async def test_fix_invalid_tclk_all_versions(
             ]
         )
 
+    if not has_library:
+        ezsp.setTokenData = AsyncMock(return_value=[t.EmberStatus.LIBRARY_NOT_LOADED])
+        ezsp.getTokenData = AsyncMock(return_value=[t.EmberStatus.LIBRARY_NOT_LOADED])
+
     ezsp.getEui64 = ezsp_tclk_f.getEui64
     ezsp.getCurrentSecurityState = ezsp_tclk_f.getCurrentSecurityState
 
@@ -153,7 +158,7 @@ async def test_fix_invalid_tclk_all_versions(
 
     assert "Fixing invalid TCLK" in caplog.text
 
-    if fw_has_token_interface:
+    if fw_has_token_interface and has_library:
         assert "NV3 interface not available in this firmware" not in caplog.text
 
         assert ezsp.setTokenData.mock_calls == [
