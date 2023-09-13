@@ -110,7 +110,7 @@ async def setup(dev, baudrate, cbh=None, configure=True):
         s.add_callback(cbh)
     try:
         await s.connect()
-        await s._startup_reset()
+        await s.startup_reset()
     except Exception as e:
         LOGGER.error(e)
         s.close()
