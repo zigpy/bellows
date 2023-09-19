@@ -397,7 +397,7 @@ class EZSP:
 
         # Manufacturing tokens do not exist in RCP firmware: all reads are empty
         if not data:
-            raise EzspError("Firmware does not support MFG_CUSTOM_EUI_64 token")
+            raise ValueError("Firmware does not support MFG_CUSTOM_EUI_64 token")
 
         mfg_custom_eui64, _ = t.EmberEUI64.deserialize(data)
 
@@ -410,7 +410,7 @@ class EZSP:
         """Checks if the device EUI64 can be burned into USERDATA."""
         try:
             return await self._get_mfg_custom_eui_64() is None
-        except EzspError:
+        except ValueError:
             return False
 
     async def can_rewrite_custom_eui64(self) -> bool:
@@ -442,7 +442,11 @@ class EZSP:
 
         # A custom EUI64 can be stored in NV3 storage (rewritable)
         nv3_eui64_key = await self._get_nv3_restored_eui64_key()
-        mfg_custom_eui64 = await self._get_mfg_custom_eui_64()
+
+        try:
+            mfg_custom_eui64 = await self._get_mfg_custom_eui_64()
+        except ValueError:
+            mfg_custom_eui64 = None
 
         if nv3_eui64_key is not None:
             # Prefer NV3 storage over MFG_CUSTOM_EUI_64, as it can be rewritten

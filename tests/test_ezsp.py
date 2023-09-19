@@ -644,6 +644,32 @@ async def test_write_custom_eui64(ezsp_f):
     ezsp_f.setTokenData.assert_not_called()
 
 
+async def test_write_custom_eui64_rcp(ezsp_f):
+    """Test writing a custom EUI64 with RPC firmware."""
+
+    old_eui64 = t.EmberEUI64.convert("AA" * 8)
+    new_eui64 = t.EmberEUI64.convert("BB" * 8)
+
+    ezsp_f.getEui64 = AsyncMock(return_value=[old_eui64])
+    ezsp_f.setMfgToken = AsyncMock(return_value=[t.EmberStatus.INVALID_CALL])
+    ezsp_f.setTokenData = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+
+    # RCP firmware does not support manufacturing tokens
+    ezsp_f.getMfgToken = AsyncMock(return_value=[b""])
+    ezsp_f.getTokenData = AsyncMock(return_value=[t.EmberStatus.SUCCESS, b"\xFF" * 8])
+
+    await ezsp_f.write_custom_eui64(new_eui64)
+
+    ezsp_f.setMfgToken.assert_not_called()
+    ezsp_f.setTokenData.mock_calls == [
+        call(
+            t.NV3KeyId.NVM3KEY_STACK_RESTORED_EUI64,
+            0,
+            new_eui64.serialize(),
+        )
+    ]
+
+
 @patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
 @patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
 @patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
