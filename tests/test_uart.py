@@ -388,7 +388,7 @@ async def test_connection_lost_reset_error_propagation(monkeypatch):
 
     asyncio.get_running_loop().call_later(0.1, gw.connection_lost, ValueError())
 
-    with pytest.raises(asyncio.CancelledError):
+    with pytest.raises(ValueError):
         await gw.reset()
 
     # Need to close to release thread

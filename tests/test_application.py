@@ -1802,7 +1802,7 @@ async def test_connect_failure(
     app: ControllerApplication, ezsp_mock: ezsp.EZSP
 ) -> None:
     """Test that a failure to connect propagates."""
-    ezsp_mock.startup_reset = AsyncMock(side_effect=OSError())
+    ezsp_mock.write_config = AsyncMock(side_effect=OSError())
     ezsp_mock.connect = AsyncMock()
     app._ezsp = None
 

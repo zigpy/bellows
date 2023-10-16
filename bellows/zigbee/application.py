@@ -139,12 +139,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         try:
             await ezsp.startup_reset()
+
+            # Writing config is required here because network info can't be loaded
+            await ezsp.write_config(self.config[CONF_EZSP_CONFIG])
         except Exception:
             ezsp.close()
             raise
 
-        # Writing config is required here because network info can't be loaded otherwise
-        await ezsp.write_config(self.config[CONF_EZSP_CONFIG])
         self._ezsp = ezsp
 
     async def _ensure_network_running(self) -> bool:
