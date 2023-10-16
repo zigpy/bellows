@@ -1134,22 +1134,31 @@ async def test_watchdog(app, monkeypatch, ezsp_version):
 
     monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.01)
     monkeypatch.setattr(application, "EZSP_COUNTERS_CLEAR_IN_WATCHDOG_PERIODS", 2)
+    nop_success = 7
     app._ezsp.ezsp_version = ezsp_version
 
-    app._ezsp.nop = AsyncMock(side_effect=EzspError())
-    app._ezsp.readCounters = AsyncMock(side_effect=EzspError())
-    app._ezsp.readAndClearCounters = AsyncMock(side_effect=EzspError())
+    async def nop_mock():
+        nonlocal nop_success
+        if nop_success:
+            nop_success -= 1
+            if nop_success % 3:
+                raise EzspError
+            else:
+                return ([0] * 10,)
+        raise asyncio.TimeoutError
+
+    app._ezsp.nop = AsyncMock(side_effect=nop_mock)
+    app._ezsp.readCounters = AsyncMock(side_effect=nop_mock)
+    app._ezsp.readAndClearCounters = AsyncMock(side_effect=nop_mock)
     app._handle_reset_request = MagicMock()
     app._ctrl_event.set()
 
     await app._watchdog()
 
     if ezsp_version == 4:
-        assert app._ezsp.nop.await_count == 1
-        assert app._ezsp.readCounters.await_count == 0
+        assert app._ezsp.nop.await_count > 4
     else:
-        assert app._ezsp.nop.await_count == 0
-        assert app._ezsp.readCounters.await_count == 1
+        assert app._ezsp.readCounters.await_count >= 4
 
     assert app._handle_reset_request.call_count == 1
 

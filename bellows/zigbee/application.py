@@ -27,6 +27,7 @@ import bellows
 from bellows.config import (
     CONF_EZSP_CONFIG,
     CONF_EZSP_POLICIES,
+    CONF_PARAM_MAX_WATCHDOG_FAILURES,
     CONF_USE_THREAD,
     CONFIG_SCHEMA,
     SCHEMA_DEVICE,
@@ -921,9 +922,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def _watchdog(self):
         """Watchdog handler."""
         LOGGER.debug("Starting EZSP watchdog")
+        failures = 0
         read_counter = 0
         await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
-
         while True:
             try:
                 async with asyncio_timeout(WATCHDOG_WAKE_PERIOD * 2):
@@ -954,9 +955,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                         cnt._last_reset_value = 0
 
                     LOGGER.debug("%s", counters)
+
+                failures = 0
             except (asyncio.TimeoutError, EzspError) as exc:
                 LOGGER.warning("Watchdog heartbeat timeout: %s", repr(exc))
-                break
+                failures += 1
+                if failures > self.config[CONF_PARAM_MAX_WATCHDOG_FAILURES]:
+                    break
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -968,7 +973,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
 
         self.state.counters[COUNTERS_CTRL][COUNTER_WATCHDOG].increment()
-        self._handle_reset_request("Watchdog timeout")
+        self._handle_reset_request(f"Watchdog timeout. Heartbeat timeouts: {failures}")
 
     async def _get_free_buffers(self) -> int | None:
         status, value = await self._ezsp.getValue(
