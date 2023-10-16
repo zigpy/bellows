@@ -213,22 +213,21 @@ class Gateway(asyncio.Protocol):
         """Port was closed unexpectedly."""
 
         LOGGER.debug("Connection lost: %r", exc)
+        reason = exc or ConnectionResetError("Remote server closed connection")
 
         # XXX: The startup reset future must be resolved with an error *before* the
         # "connection done" future is completed: the secondary thread has an attached
         # callback to stop itself, which will cause the a future to propagate a
         # `CancelledError` into the active event loop, breaking everything!
         if self._startup_reset_future:
-            self._startup_reset_future.set_exception(
-                exc or ConnectionResetError("Remote server closed connection")
-            )
+            self._startup_reset_future.set_exception(reason)
 
         if self._connection_done_future:
             self._connection_done_future.set_result(exc)
             self._connection_done_future = None
 
         if self._reset_future:
-            self._reset_future.cancel()
+            self._reset_future.set_exception(reason)
             self._reset_future = None
 
         if self._send_task:
