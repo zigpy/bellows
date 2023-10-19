@@ -32,7 +32,7 @@ from bellows.config import (
     CONFIG_SCHEMA,
     SCHEMA_DEVICE,
 )
-from bellows.exception import ControllerError, EzspError
+from bellows.exception import ControllerError, EzspError, StackAlreadyRunning
 import bellows.ezsp
 from bellows.ezsp.v8.types.named import EmberDeviceUpdate
 import bellows.multicast
@@ -104,7 +104,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def add_endpoint(self, descriptor: zdo_t.SimpleDescriptor) -> None:
         """Add endpoint."""
-        res = await self._ezsp.addEndpoint(
+        (status,) = await self._ezsp.addEndpoint(
             descriptor.endpoint,
             descriptor.profile,
             descriptor.device_type,
@@ -114,7 +114,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             descriptor.input_clusters,
             descriptor.output_clusters,
         )
-        LOGGER.debug("Ezsp adding endpoint: %s", res)
+        if status != t.EmberStatus.SUCCESS:
+            raise StackAlreadyRunning()
 
     async def cleanup_tc_link_key(self, ieee: t.EmberEUI64) -> None:
         """Remove tc link_key for the given device."""
@@ -176,13 +177,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def start_network(self):
         ezsp = self._ezsp
 
-        await self._ensure_network_running()
-
         if await repairs.fix_invalid_tclk_partner_ieee(ezsp):
             await self._reset()
-            await self._ensure_network_running()
 
-        await self.register_endpoints()
+        try:
+            await self.register_endpoints()
+        except StackAlreadyRunning:
+            # Endpoints can only be registered before the network is up
+            await self._reset()
+            await self.register_endpoints()
+
+        await self._ensure_network_running()
 
         if self.config[zigpy.config.CONF_SOURCE_ROUTING]:
             await ezsp.set_source_routing()

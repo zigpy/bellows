@@ -150,8 +150,8 @@ async def _test_startup(
     ezsp_mock.setConcentrator = AsyncMock()
     ezsp_mock.getTokenData = AsyncMock(return_value=[t.EmberStatus.ERR_FATAL, b""])
     ezsp_mock._command = AsyncMock(return_value=t.EmberStatus.SUCCESS)
-    ezsp_mock.addEndpoint = AsyncMock(return_value=t.EmberStatus.SUCCESS)
-    ezsp_mock.setConfigurationValue = AsyncMock(return_value=t.EmberStatus.SUCCESS)
+    ezsp_mock.addEndpoint = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    ezsp_mock.setConfigurationValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp_mock.networkInit = AsyncMock(return_value=[init])
     ezsp_mock.networkInitExtended = AsyncMock(return_value=[init])
     ezsp_mock.getNetworkParameters = AsyncMock(return_value=[0, nwk_type, nwk_params])
@@ -1818,7 +1818,17 @@ async def test_connect_failure(
 async def test_repair_tclk_partner_ieee(app: ControllerApplication) -> None:
     """Test that EZSP is reset after repairing TCLK."""
     app._ensure_network_running = AsyncMock()
+    app._reset = AsyncMock()
     app.load_network_info = AsyncMock()
+
+    with patch(
+        "bellows.zigbee.repairs.fix_invalid_tclk_partner_ieee",
+        AsyncMock(return_value=False),
+    ):
+        await app.start_network()
+
+    assert len(app._reset.mock_calls) == 0
+    app._reset.reset_mock()
 
     with patch(
         "bellows.zigbee.repairs.fix_invalid_tclk_partner_ieee",
@@ -1826,4 +1836,4 @@ async def test_repair_tclk_partner_ieee(app: ControllerApplication) -> None:
     ):
         await app.start_network()
 
-    assert len(app._ensure_network_running.mock_calls) == 2
+    assert len(app._reset.mock_calls) == 1

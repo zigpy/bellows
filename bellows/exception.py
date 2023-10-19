@@ -11,3 +11,7 @@ class InvalidCommandError(EzspError):
 
 class ControllerError(ControllerException):
     pass
+
+
+class StackAlreadyRunning(EzspError):
+    pass
