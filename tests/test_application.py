@@ -593,9 +593,9 @@ def test_sequence(app):
         assert seq < 256
 
 
-def test_permit_ncp(app):
+async def test_permit_ncp(app):
     app._ezsp.permitJoining = AsyncMock()
-    app.permit_ncp(60)
+    await app.permit_ncp(60)
     assert app._ezsp.permitJoining.call_count == 1
 
 
