@@ -115,7 +115,7 @@ def aps():
 
 @patch("zigpy.device.Device._initialize", new=AsyncMock())
 @patch("bellows.zigbee.application.ControllerApplication._watchdog", new=AsyncMock())
-async def _test_startup(
+def _create_app_for_startup(
     app,
     nwk_type,
     ieee,
@@ -216,6 +216,23 @@ async def _test_startup(
         ]
 
     app.form_network = AsyncMock(side_effect=form_network)
+
+    return ezsp_mock
+
+
+async def _test_startup(
+    app,
+    nwk_type,
+    ieee,
+    auto_form=False,
+    init=0,
+    ezsp_version=4,
+    board_info=True,
+    network_state=t.EmberNetworkStatus.JOINED_NETWORK,
+):
+    ezsp_mock = _create_app_for_startup(
+        app, nwk_type, ieee, auto_form, init, ezsp_version, board_info, network_state
+    )
 
     p1 = patch("bellows.ezsp.EZSP", return_value=ezsp_mock)
     p2 = patch.object(bellows.multicast.Multicast, "startup")
@@ -1837,3 +1854,28 @@ async def test_repair_tclk_partner_ieee(app: ControllerApplication) -> None:
         await app.start_network()
 
     assert len(app._reset.mock_calls) == 1
+
+
+async def test_startup_endpoint_register_already_running(
+    app: ControllerApplication, ieee: t.EmberEUI64
+) -> None:
+    """Test that the host is reset before endpoint registration if it is running."""
+
+    app._ezsp = _create_app_for_startup(app, t.EmberNodeType.COORDINATOR, ieee)
+    app._ezsp.addEndpoint = AsyncMock(
+        side_effect=[
+            [t.EmberStatus.INVALID_CALL],  # Fail the first time
+            [t.EmberStatus.SUCCESS],
+            [t.EmberStatus.SUCCESS],
+            [t.EmberStatus.SUCCESS],
+        ]
+    )
+
+    app._reset = AsyncMock()
+
+    with patch.object(bellows.multicast.Multicast, "startup"):
+        await app.start_network()
+
+    assert len(app._reset.mock_calls) == 1
+
+    assert app._ezsp.addEndpoint.call_count >= 3
