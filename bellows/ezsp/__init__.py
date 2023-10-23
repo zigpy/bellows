@@ -183,25 +183,33 @@ class EZSP:
         LOGGER.debug("Resetting EZSP")
         self.stop_ezsp()
         await self._gw.reset()
+
+        # Always switch back to protocol v4 after a reset
+        self._switch_protocol_version(v4.EZSPv4.VERSION)
         self.start_ezsp()
+
+    def _switch_protocol_version(self, version: int) -> None:
+        self._ezsp_version = version
+        LOGGER.debug("Switching to EZSP protocol version %d", self.ezsp_version)
+
+        try:
+            protcol_cls = self._BY_VERSION[version]
+        except KeyError:
+            LOGGER.warning(
+                "Protocol version %s is not supported, using version %s instead",
+                version,
+                EZSP_LATEST,
+            )
+            protcol_cls = self._BY_VERSION[EZSP_LATEST]
+
+        self._protocol = protcol_cls(self.handle_callback, self._gw)
 
     async def version(self):
         ver, stack_type, stack_version = await self._command(
             "version", self.ezsp_version
         )
         if ver != self.ezsp_version:
-            self._ezsp_version = ver
-            LOGGER.debug("Switching to EZSP protocol version %d", self.ezsp_version)
-            try:
-                protcol_cls = self._BY_VERSION[ver]
-            except KeyError:
-                LOGGER.warning(
-                    "Protocol version %s is not supported, using version %s instead",
-                    ver,
-                    EZSP_LATEST,
-                )
-                protcol_cls = self._BY_VERSION[EZSP_LATEST]
-            self._protocol = protcol_cls(self.handle_callback, self._gw)
+            self._switch_protocol_version(ver)
             await self._command("version", ver)
         LOGGER.debug(
             "EZSP Stack Type: %s, Stack Version: %04x, Protocol version: %s",
