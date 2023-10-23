@@ -142,7 +142,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             await ezsp.startup_reset()
 
             # Writing config is required here because network info can't be loaded
-            await ezsp.write_config(*ezsp._merge_config(self.config[CONF_EZSP_CONFIG]))
+            await ezsp.write_config(self.config[CONF_EZSP_CONFIG])
         except Exception:
             ezsp.close()
             raise
@@ -486,10 +486,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def _reset(self):
         self._ezsp.stop_ezsp()
         await self._ezsp.startup_reset()
-        await self._ezsp.write_config(
-            *self._ezsp._merge_config(self.config[CONF_EZSP_CONFIG])
-        )
-        await self.register_endpoints()
+        await self._ezsp.write_config(self.config[CONF_EZSP_CONFIG])
 
     async def disconnect(self):
         # TODO: how do you shut down the stack?

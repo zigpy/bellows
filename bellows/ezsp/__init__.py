@@ -539,7 +539,8 @@ class EZSP:
         """Return EZSP types for this specific version."""
         return self._protocol.types
 
-    def _merge_config(self, config: dict) -> tuple[dict, dict]:
+    async def write_config(self, config: dict) -> None:
+        """Initialize EmberZNet Stack."""
         config = self._protocol.SCHEMAS[conf.CONF_EZSP_CONFIG](config)
 
         # Not all config will be present in every EZSP version so only use valid keys
@@ -567,21 +568,17 @@ class EZSP:
                 value=value,
             )
 
-        return ezsp_config, ezsp_values
-
-    async def write_config(self, config: dict, values: dict) -> None:
-        """Initialize EmberZNet Stack."""
         # Make sure CONFIG_PACKET_BUFFER_COUNT is always set last
-        if self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name in config:
-            config = {
-                **config,
-                self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name: config[
+        if self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name in ezsp_config:
+            ezsp_config = {
+                **ezsp_config,
+                self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name: ezsp_config[
                     self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name
                 ],
             }
 
         # First, set the values
-        for cfg in values.values():
+        for cfg in ezsp_values.values():
             # XXX: A read failure does not mean the value is not writeable!
             status, current_value = await self.getValue(cfg.value_id)
 
@@ -609,7 +606,7 @@ class EZSP:
                 continue
 
         # Finally, set the config
-        for cfg in config.values():
+        for cfg in ezsp_config.values():
             (status, current_value) = await self.getConfigurationValue(cfg.config_id)
 
             # Only grow some config entries, all others should be set
