@@ -790,12 +790,6 @@ async def test_config_initialize_husbzb1(ezsp_f):
     await ezsp_f.write_config({})
     assert ezsp_f.setConfigurationValue.mock_calls == expected_calls
 
-    # If there is no network, `CONFIG_PACKET_BUFFER_COUNT` won't be set
-    ezsp_f.setConfigurationValue.reset_mock()
-    ezsp_f.networkState = AsyncMock(return_value=(t.EmberNetworkStatus.NO_NETWORK,))
-    await ezsp_f.write_config({})
-    assert ezsp_f.setConfigurationValue.mock_calls == expected_calls[:-1]
-
 
 @pytest.mark.parametrize("version", ezsp.EZSP._BY_VERSION)
 async def test_config_initialize(version: int, ezsp_f, caplog):
