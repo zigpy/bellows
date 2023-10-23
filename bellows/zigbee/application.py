@@ -148,6 +148,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             raise
 
         self._ezsp = ezsp
+        await self.register_endpoints()
 
     async def _ensure_network_running(self) -> bool:
         """Ensures the network is currently running and returns whether or not the network
@@ -173,32 +174,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             async with asyncio_timeout(NETWORK_UP_TIMEOUT_S):
                 await stack_status
 
-        # Packet buffers can only be grown after the network is running
-        buffer_count = ezsp.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name
-        ezsp_config, ezsp_values = ezsp._merge_config(self.config[CONF_EZSP_CONFIG])
-
-        if buffer_count in ezsp_config:
-            await ezsp.write_config(
-                config={buffer_count: ezsp_config[buffer_count]}, values={}
-            )
-
         return True
 
     async def start_network(self):
         ezsp = self._ezsp
 
-        try:
-            await self.register_endpoints()
-        except StackAlreadyRunning:
-            # Endpoints can only be registered before the network is up
-            await self._reset()
-            await self.register_endpoints()
-
         await self._ensure_network_running()
 
         if await repairs.fix_invalid_tclk_partner_ieee(ezsp):
             await self._reset()
-            await self.register_endpoints()
             await self._ensure_network_running()
 
         if self.config[zigpy.config.CONF_SOURCE_ROUTING]:
@@ -505,6 +489,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._ezsp.write_config(
             *self._ezsp._merge_config(self.config[CONF_EZSP_CONFIG])
         )
+        await self.register_endpoints()
 
     async def disconnect(self):
         # TODO: how do you shut down the stack?
