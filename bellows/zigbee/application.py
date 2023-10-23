@@ -153,16 +153,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         """Ensures the network is currently running and returns whether or not the network
         was started.
         """
-        (state,) = await self._ezsp.networkState()
+        ezsp = self._ezsp
+        (state,) = await ezsp.networkState()
 
-        if state == self._ezsp.types.EmberNetworkStatus.JOINED_NETWORK:
+        if state == ezsp.types.EmberNetworkStatus.JOINED_NETWORK:
             return False
 
-        with self._ezsp.wait_for_stack_status(t.EmberStatus.NETWORK_UP) as stack_status:
-            if self._ezsp.ezsp_version >= 6:
-                (init_status,) = await self._ezsp.networkInit(0x0000)
+        with ezsp.wait_for_stack_status(t.EmberStatus.NETWORK_UP) as stack_status:
+            if ezsp.ezsp_version >= 6:
+                (init_status,) = await ezsp.networkInit(0x0000)
             else:
-                (init_status,) = await self._ezsp.networkInitExtended(0x0000)
+                (init_status,) = await ezsp.networkInitExtended(0x0000)
 
             if init_status == t.EmberStatus.NOT_JOINED:
                 raise NetworkNotFormed("Node is not part of a network")
@@ -171,6 +172,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
             async with asyncio_timeout(NETWORK_UP_TIMEOUT_S):
                 await stack_status
+
+        # Packet buffers can only be grown after the network is running
+        buffer_count = ezsp.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name
+        ezsp_config, ezsp_values = ezsp._merge_config(self.config[CONF_EZSP_CONFIG])
+
+        if buffer_count in ezsp_config:
+            await ezsp.write_config(
+                config={buffer_count: ezsp_config[buffer_count]}, values={}
+            )
 
         return True
 
