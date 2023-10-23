@@ -569,15 +569,12 @@ class EZSP:
                 ],
             }
 
-            # If we are not joined to a network, old FWs crash if we grow the buffer
-            if self._ezsp_version < 7:
-                (state,) = await self.networkState()
+            # Growing the buffer without being joined to network crashes v8 and earlier
+            (state,) = await self.networkState()
 
-                if state != self.types.EmberNetworkStatus.JOINED_NETWORK:
-                    LOGGER.debug("Skipping growing packet buffer, not on a network")
-                    del ezsp_config[
-                        self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name
-                    ]
+            if state != self.types.EmberNetworkStatus.JOINED_NETWORK:
+                LOGGER.debug("Skipping growing packet buffer, not on a network")
+                del ezsp_config[self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name]
 
         # First, set the values
         for cfg in ezsp_values.values():
