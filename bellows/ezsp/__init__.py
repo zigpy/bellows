@@ -580,13 +580,6 @@ class EZSP:
                 ],
             }
 
-            # Growing the buffer without being joined to network crashes v8 and earlier
-            (state,) = await self.networkState()
-
-            if state != self.types.EmberNetworkStatus.JOINED_NETWORK:
-                LOGGER.debug("Skipping growing packet buffer, not on a network")
-                del config[self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name]
-
         # First, set the values
         for cfg in values.values():
             # XXX: A read failure does not mean the value is not writeable!
