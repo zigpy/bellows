@@ -154,17 +154,16 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         """Ensures the network is currently running and returns whether or not the network
         was started.
         """
-        ezsp = self._ezsp
-        (state,) = await ezsp.networkState()
+        (state,) = await self._ezsp.networkState()
 
-        if state == ezsp.types.EmberNetworkStatus.JOINED_NETWORK:
+        if state == self._ezsp.types.EmberNetworkStatus.JOINED_NETWORK:
             return False
 
-        with ezsp.wait_for_stack_status(t.EmberStatus.NETWORK_UP) as stack_status:
-            if ezsp.ezsp_version >= 6:
-                (init_status,) = await ezsp.networkInit(0x0000)
+        with self._ezsp.wait_for_stack_status(t.EmberStatus.NETWORK_UP) as stack_status:
+            if self._ezsp.ezsp_version >= 6:
+                (init_status,) = await self._ezsp.networkInit(0x0000)
             else:
-                (init_status,) = await ezsp.networkInitExtended(0x0000)
+                (init_status,) = await self._ezsp.networkInitExtended(0x0000)
 
             if init_status == t.EmberStatus.NOT_JOINED:
                 raise NetworkNotFormed("Node is not part of a network")
