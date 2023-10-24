@@ -1854,28 +1854,3 @@ async def test_repair_tclk_partner_ieee(app: ControllerApplication) -> None:
         await app.start_network()
 
     assert len(app._reset.mock_calls) == 1
-
-
-async def test_startup_endpoint_register_already_running(
-    app: ControllerApplication, ieee: t.EmberEUI64
-) -> None:
-    """Test that the host is reset before endpoint registration if it is running."""
-
-    app._ezsp = _create_app_for_startup(app, t.EmberNodeType.COORDINATOR, ieee)
-    app._ezsp.addEndpoint = AsyncMock(
-        side_effect=[
-            [t.EmberStatus.INVALID_CALL],  # Fail the first time
-            [t.EmberStatus.SUCCESS],
-            [t.EmberStatus.SUCCESS],
-            [t.EmberStatus.SUCCESS],
-        ]
-    )
-
-    app._reset = AsyncMock()
-
-    with patch.object(bellows.multicast.Multicast, "startup"):
-        await app.start_network()
-
-    assert len(app._reset.mock_calls) == 1
-
-    assert app._ezsp.addEndpoint.call_count >= 3

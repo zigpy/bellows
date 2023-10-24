@@ -148,6 +148,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             raise
 
         self._ezsp = ezsp
+        await self.register_endpoints()
 
     async def _ensure_network_running(self) -> bool:
         """Ensures the network is currently running and returns whether or not the network
@@ -177,18 +178,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def start_network(self):
         ezsp = self._ezsp
 
-        try:
-            await self.register_endpoints()
-        except StackAlreadyRunning:
-            # Endpoints can only be registered before the network is up
-            await self._reset()
-            await self.register_endpoints()
-
         await self._ensure_network_running()
 
         if await repairs.fix_invalid_tclk_partner_ieee(ezsp):
             await self._reset()
-            await self.register_endpoints()
             await self._ensure_network_running()
 
         if self.config[zigpy.config.CONF_SOURCE_ROUTING]:
