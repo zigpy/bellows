@@ -18,7 +18,7 @@ dependencies = [
     "click-log>=0.2.1",
     "pure_pcapy3==1.0.1",
     "voluptuous",
-    "zigpy>=0.54.1",
+    "zigpy>=0.60.0",
     'async-timeout; python_version<"3.11"',
 ]
 

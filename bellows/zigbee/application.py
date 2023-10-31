@@ -125,7 +125,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             status = await self._ezsp.eraseKeyTableEntry(index)
             LOGGER.debug("Cleaned up TC link key for %s device: %s", ieee, status)
 
-    async def _get_board_info(self) -> tuple[str, str, str] | tuple[None, None, None]:
+    async def _get_board_info(
+        self,
+    ) -> tuple[str, str, str | None] | tuple[None, None, None]:
         """Get the board info, handling errors when `getMfgToken` is not supported."""
         try:
             return await self._ezsp.get_board_info()
@@ -241,11 +243,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         (nwk,) = await ezsp.getNodeId()
         (ieee,) = await ezsp.getEui64()
+        (manufacturer, model, version) = await self._get_board_info()
 
         self.state.node_info = zigpy.state.NodeInfo(
             nwk=zigpy.types.NWK(nwk),
             ieee=zigpy.types.EUI64(ieee),
             logical_type=node_type.zdo_logical_type,
+            manufacturer=manufacturer,
+            model=model,
+            version=version,
         )
 
         (status, security_level) = await ezsp.getConfigurationValue(
@@ -281,7 +287,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if self.state.node_info.logical_type == zdo_t.LogicalType.Coordinator:
             tc_link_key.partner_ieee = self.state.node_info.ieee
 
-        brd_manuf, brd_name, version = await self._get_board_info()
         can_burn_userdata_custom_eui64 = await ezsp.can_burn_userdata_custom_eui64()
         can_rewrite_custom_eui64 = await ezsp.can_rewrite_custom_eui64()
 
@@ -302,9 +307,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             stack_specific=stack_specific,
             metadata={
                 "ezsp": {
-                    "manufacturer": brd_manuf,
-                    "board": brd_name,
-                    "version": version,
                     "stack_version": ezsp.ezsp_version,
                     "can_burn_userdata_custom_eui64": can_burn_userdata_custom_eui64,
                     "can_rewrite_custom_eui64": can_rewrite_custom_eui64,

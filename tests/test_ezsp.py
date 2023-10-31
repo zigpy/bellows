@@ -423,7 +423,7 @@ async def test_board_info(ezsp_f):
 
     assert mfg == "Manufacturer"
     assert brd == "0xFE"
-    assert ver == "unknown stack version"
+    assert ver is None
 
     with patch.object(
         ezsp_f,
