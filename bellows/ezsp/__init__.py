@@ -304,10 +304,12 @@ class EZSP:
 
         self._protocol(data)
 
-    async def get_board_info(self) -> tuple[str, str, str]:
+    async def get_board_info(
+        self,
+    ) -> tuple[str, str, str | None] | tuple[None, None, str | None]:
         """Return board info."""
 
-        tokens = []
+        tokens = {}
 
         for token in (t.EzspMfgTokenId.MFG_STRING, t.EzspMfgTokenId.MFG_BOARD_NAME):
             (value,) = await self.getMfgToken(token)
@@ -321,11 +323,15 @@ class EZSP:
             except UnicodeDecodeError:
                 result = "0x" + result.hex().upper()
 
-            tokens.append(result)
+            if not result:
+                result = None
+
+            tokens[token] = result
 
         (status, ver_info_bytes) = await self.getValue(
             self.types.EzspValueId.VALUE_VERSION_INFO
         )
+        version = None
 
         if status == t.EmberStatus.SUCCESS:
             build, ver_info_bytes = t.uint16_t.deserialize(ver_info_bytes)
@@ -334,9 +340,12 @@ class EZSP:
             patch, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
             special, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
             version = f"{major}.{minor}.{patch}.{special} build {build}"
-        else:
-            version = "unknown stack version"
-        return tokens[0], tokens[1], version
+
+        return (
+            tokens[t.EzspMfgTokenId.MFG_STRING],
+            tokens[t.EzspMfgTokenId.MFG_BOARD_NAME],
+            version,
+        )
 
     async def _get_nv3_restored_eui64_key(self) -> t.NV3KeyId | None:
         """Get the NV3 key for the device's restored EUI64, if one exists."""

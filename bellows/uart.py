@@ -371,7 +371,7 @@ async def _connect(config, application):
     connection_done_future = loop.create_future()
     protocol = Gateway(application, connection_future, connection_done_future)
 
-    if config[zigpy.config.CONF_FLOW_CONTROL] is None:
+    if config[zigpy.config.CONF_DEVICE_FLOW_CONTROL] is None:
         xon_xoff, rtscts = True, False
     else:
         xon_xoff, rtscts = False, True

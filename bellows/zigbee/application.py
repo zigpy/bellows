@@ -203,7 +203,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         ezsp.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
-        self._watchdog_task = asyncio.create_task(self._watchdog())
 
         try:
             db_device = self.get_device(ieee=self.state.node_info.ieee)
