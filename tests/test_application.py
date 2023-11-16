@@ -1049,13 +1049,11 @@ def test_reset_frame(app):
 async def test_handle_reset_req(app):
     # no active reset task, no reset task preemption
     app._ctrl_event.set()
-    assert app._reset_task is None
     reset_ctrl_mock = AsyncMock()
     app._reset_controller_loop = MagicMock(side_effect=reset_ctrl_mock)
 
     app._handle_reset_request(sentinel.error)
 
-    assert asyncio.isfuture(app._reset_task)
     assert app._ctrl_event.is_set() is False
     await app._reset_task
     assert app._reset_controller_loop.call_count == 1
@@ -1080,31 +1078,6 @@ async def test_handle_reset_req_existing_preempt(app):
     assert old_reset.cancelled() is True
 
 
-async def test_reset_controller_loop(app, monkeypatch):
-    from bellows.zigbee import application
-
-    monkeypatch.setattr(application, "RESET_ATTEMPT_BACKOFF_TIME", 0.1)
-    app._watchdog_task = asyncio.Future()
-
-    reset_succ_on_try = reset_call_count = 2
-
-    async def reset_controller_mock():
-        nonlocal reset_succ_on_try
-        if reset_succ_on_try:
-            reset_succ_on_try -= 1
-            if reset_succ_on_try > 0:
-                raise asyncio.TimeoutError
-        return
-
-    app._reset_controller = AsyncMock(side_effect=reset_controller_mock)
-
-    await app._reset_controller_loop()
-
-    assert app._watchdog_task.cancelled() is True
-    assert app._reset_controller.call_count == reset_call_count
-    assert app._reset_task is None
-
-
 async def test_reset_controller_routine(app, monkeypatch):
     from bellows.zigbee import application
 
@@ -1124,7 +1097,7 @@ async def test_reset_controller_routine(app, monkeypatch):
 async def test_watchdog(app, monkeypatch, ezsp_version):
     from bellows.zigbee import application
 
-    monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.01)
+    monkeypatch.setattr(application.ControllerApplication, "_watchdog_period", 0.01)
     monkeypatch.setattr(application, "EZSP_COUNTERS_CLEAR_IN_WATCHDOG_PERIODS", 2)
     nop_success = 7
     app._ezsp.ezsp_version = ezsp_version
@@ -1158,7 +1131,7 @@ async def test_watchdog(app, monkeypatch, ezsp_version):
 async def test_watchdog_counters(app, monkeypatch, caplog):
     from bellows.zigbee import application
 
-    monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.01)
+    monkeypatch.setattr(application.ControllerApplication, "_watchdog_period", 0.01)
     nop_success = 3
 
     async def counters_mock():
@@ -1192,7 +1165,7 @@ async def test_watchdog_counters(app, monkeypatch, caplog):
 async def test_ezsp_value_counter(app, monkeypatch):
     from bellows.zigbee import application
 
-    monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.01)
+    monkeypatch.setattr(application.ControllerApplication, "_watchdog_period", 0.01)
     nop_success = 3
 
     async def counters_mock():
@@ -1267,7 +1240,7 @@ async def test_watchdog_cancel(app, monkeypatch):
 
     from bellows.zigbee import application
 
-    monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.01)
+    monkeypatch.setattr(application.ControllerApplication, "_watchdog_period", 0.01)
 
     app._ezsp.readCounters = AsyncMock(side_effect=asyncio.CancelledError)
 
