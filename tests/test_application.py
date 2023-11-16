@@ -620,34 +620,16 @@ async def test_permit_ncp(app):
     "version, tc_policy_count, ezsp_types",
     ((4, 0, t), (5, 0, ezsp_t5), (6, 0, ezsp_t6), (7, 0, ezsp_t7), (8, 1, ezsp_t8)),
 )
-async def test_permit_with_key(app, version, tc_policy_count, ezsp_types):
+async def test_permit_with_link_key_ieee(
+    app, ieee, version, tc_policy_count, ezsp_types
+):
     p1 = patch("zigpy.application.ControllerApplication.permit")
     p2 = patch.object(app._ezsp, "types", ezsp_types)
 
     with patch.object(app._ezsp, "ezsp_version", version), p1 as permit_mock, p2:
-        await app.permit_with_key(
-            bytes([1, 2, 3, 4, 5, 6, 7, 8]),
-            bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
-            60,
-        )
-
-    assert app._ezsp.addTransientLinkKey.await_count == 1
-    assert permit_mock.await_count == 1
-    assert app._ezsp.setPolicy.await_count == tc_policy_count
-
-
-@pytest.mark.parametrize(
-    "version, tc_policy_count, ezsp_types",
-    ((4, 0, t), (5, 0, ezsp_t5), (6, 0, ezsp_t6), (7, 0, ezsp_t7), (8, 1, ezsp_t8)),
-)
-async def test_permit_with_key_ieee(app, ieee, version, tc_policy_count, ezsp_types):
-    p1 = patch("zigpy.application.ControllerApplication.permit")
-    p2 = patch.object(app._ezsp, "types", ezsp_types)
-
-    with patch.object(app._ezsp, "ezsp_version", version), p1 as permit_mock, p2:
-        await app.permit_with_key(
+        await app.permit_with_link_key(
             ieee,
-            bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
+            zigpy_t.KeyData.convert("11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88:"),
             60,
         )
 
@@ -656,32 +638,25 @@ async def test_permit_with_key_ieee(app, ieee, version, tc_policy_count, ezsp_ty
     assert app._ezsp.setPolicy.await_count == tc_policy_count
 
 
-async def test_permit_with_key_invalid_install_code(app, ieee):
-    with pytest.raises(Exception):
-        await app.permit_with_key(
-            ieee, bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]), 60
-        )
-
-
-async def test_permit_with_key_failed_add_key(app, ieee):
+async def test_permit_with_link_key_failed_add_key(app, ieee):
     app._ezsp.addTransientLinkKey = AsyncMock(return_value=[1, 1])
 
     with pytest.raises(Exception):
-        await app.permit_with_key(
+        await app.permit_with_link_key(
             ieee,
-            bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
+            zigpy_t.KeyData.convert("11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88:"),
             60,
         )
 
 
-async def test_permit_with_key_failed_set_policy(app, ieee):
+async def test_permit_with_link_key_failed_set_policy(app, ieee):
     app._ezsp.addTransientLinkKey = AsyncMock(return_value=[0])
     app._ezsp.setPolicy = AsyncMock(return_value=[1])
 
     with pytest.raises(Exception):
-        await app.permit_with_key(
+        await app.permit_with_link_key(
             ieee,
-            bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
+            zigpy_t.KeyData.convert("11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88:"),
             60,
         )
 

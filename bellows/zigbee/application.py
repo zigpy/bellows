@@ -882,25 +882,23 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         assert 0 <= time_s <= 254
         return self._ezsp.permitJoining(time_s)
 
-    async def permit_with_key(self, node, code, time_s=60):
-        if type(node) is not t.EmberEUI64:
-            node = t.EmberEUI64([t.uint8_t(p) for p in node])
+    async def permit_with_link_key(
+        self, node: t.EUI64, link_key: t.KeyData, time_s: int = 60
+    ) -> None:
+        """Permits a new device to join with the given IEEE and link key."""
 
-        key = zigpy.util.convert_install_code(code)
-        if key is None:
-            raise Exception("Invalid install code")
-
-        link_key = t.EmberKeyData(key)
         v = await self._ezsp.addTransientLinkKey(node, link_key)
 
         if v[0] != t.EmberStatus.SUCCESS:
             raise Exception("Failed to set link key")
 
         if self._ezsp.ezsp_version >= 8:
-            mask_type = self._ezsp.types.EzspDecisionBitmask.ALLOW_JOINS
-            bitmask = mask_type.ALLOW_JOINS | mask_type.JOINS_USE_INSTALL_CODE_KEY
             await self._ezsp.setPolicy(
-                self._ezsp.types.EzspPolicyId.TRUST_CENTER_POLICY, bitmask
+                self._ezsp.types.EzspPolicyId.TRUST_CENTER_POLICY,
+                (
+                    self._ezsp.types.EzspDecisionBitmask.ALLOW_JOINS
+                    | self._ezsp.types.EzspDecisionBitmask.JOINS_USE_INSTALL_CODE_KEY
+                ),
             )
 
         return await super().permit(time_s)
