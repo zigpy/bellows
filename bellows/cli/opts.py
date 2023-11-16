@@ -1,8 +1,7 @@
 import os
 
 import click
-
-from bellows.config import CONF_FLOW_CONTROL_DEFAULT
+from zigpy.config import CONF_DEVICE_FLOW_CONTROL
 
 from . import util
 
@@ -61,8 +60,8 @@ extended_pan = click.option("-E", "--extended-pan-id", type=click.STRING)
 
 flow_control = click.option(
     "--flow-control",
-    default=CONF_FLOW_CONTROL_DEFAULT,
-    type=click.Choice((CONF_FLOW_CONTROL_DEFAULT, "hardware")),
+    default="software",
+    type=click.Choice(CONF_DEVICE_FLOW_CONTROL),
     envvar="EZSP_FLOW_CONTROL",
     help="use hardware flow control",
 )

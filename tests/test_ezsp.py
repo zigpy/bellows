@@ -4,6 +4,7 @@ import logging
 import sys
 
 import pytest
+import zigpy.config
 
 from bellows import config, ezsp, uart
 from bellows.exception import EzspError, InvalidCommandError
@@ -18,8 +19,8 @@ else:
 from unittest.mock import ANY, AsyncMock, MagicMock, call, patch, sentinel
 
 DEVICE_CONFIG = {
-    config.CONF_DEVICE_PATH: "/dev/null",
-    config.CONF_DEVICE_BAUDRATE: 115200,
+    zigpy.config.CONF_DEVICE_PATH: "/dev/null",
+    zigpy.config.CONF_DEVICE_BAUDRATE: 115200,
 }
 
 
@@ -625,7 +626,7 @@ async def test_ezsp_init_zigbeed(conn_mock, reset_mock, version_mock):
         {
             "device": {
                 **DEVICE_CONFIG,
-                config.CONF_DEVICE_PATH: "socket://localhost:1234",
+                zigpy.config.CONF_DEVICE_PATH: "socket://localhost:1234",
             }
         }
     )
@@ -650,7 +651,7 @@ async def test_ezsp_init_zigbeed_timeout(conn_mock, reset_mock, version_mock):
         {
             "device": {
                 **DEVICE_CONFIG,
-                config.CONF_DEVICE_PATH: "socket://localhost:1234",
+                zigpy.config.CONF_DEVICE_PATH: "socket://localhost:1234",
             }
         }
     )

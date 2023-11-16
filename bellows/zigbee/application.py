@@ -30,7 +30,6 @@ from bellows.config import (
     CONF_PARAM_MAX_WATCHDOG_FAILURES,
     CONF_USE_THREAD,
     CONFIG_SCHEMA,
-    SCHEMA_DEVICE,
 )
 from bellows.exception import ControllerError, EzspError, StackAlreadyRunning
 import bellows.ezsp
@@ -72,7 +71,6 @@ LOGGER = logging.getLogger(__name__)
 
 class ControllerApplication(zigpy.application.ControllerApplication):
     SCHEMA = CONFIG_SCHEMA
-    SCHEMA_DEVICE = SCHEMA_DEVICE
 
     _probe_configs = [
         {zigpy.config.CONF_DEVICE_BAUDRATE: 115200},

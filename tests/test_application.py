@@ -26,8 +26,8 @@ from bellows.zigbee.util import map_rssi_to_energy
 
 APP_CONFIG = {
     config.CONF_DEVICE: {
-        config.CONF_DEVICE_PATH: "/dev/null",
-        config.CONF_DEVICE_BAUDRATE: 115200,
+        zigpy.config.CONF_DEVICE_PATH: "/dev/null",
+        zigpy.config.CONF_DEVICE_BAUDRATE: 115200,
     },
     zigpy.config.CONF_DATABASE: None,
 }
