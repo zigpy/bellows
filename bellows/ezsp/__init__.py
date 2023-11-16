@@ -97,46 +97,6 @@ class EZSP:
             with contextlib.suppress(ValueError):
                 listeners.remove(future)
 
-    @classmethod
-    async def probe(cls, device_config: dict) -> bool | dict[str, int | str | bool]:
-        """Probe port for the device presence."""
-        device_config = conf.SCHEMA_DEVICE(device_config)
-        probe_configs = [device_config]
-
-        # Try probing with 115200 baud rate first, as it is the most common
-        if device_config[conf.CONF_DEVICE_BAUDRATE] != 115200:
-            probe_configs.insert(
-                0, {**device_config, conf.CONF_DEVICE_BAUDRATE: 115200}
-            )
-
-        for config in probe_configs:
-            ezsp = cls(config)
-
-            try:
-                async with asyncio_timeout(
-                    UART_PROBE_TIMEOUT
-                    if not ezsp.is_tcp_serial_port
-                    else NETWORK_PROBE_TIMEOUT
-                ):
-                    await ezsp._probe()
-
-                return config
-            except Exception as exc:
-                LOGGER.debug(
-                    "Unsuccessful radio probe of '%s' port",
-                    device_config[conf.CONF_DEVICE_PATH],
-                    exc_info=exc,
-                )
-            finally:
-                ezsp.close()
-
-        return False
-
-    async def _probe(self) -> None:
-        """Open port and try sending a command"""
-        await self.connect(use_thread=False)
-        await self.startup_reset()
-
     @property
     def is_tcp_serial_port(self) -> bool:
         parsed_path = urllib.parse.urlparse(self._config[conf.CONF_DEVICE_PATH])
@@ -344,10 +304,12 @@ class EZSP:
 
         self._protocol(data)
 
-    async def get_board_info(self) -> tuple[str, str, str]:
+    async def get_board_info(
+        self,
+    ) -> tuple[str, str, str | None] | tuple[None, None, str | None]:
         """Return board info."""
 
-        tokens = []
+        tokens = {}
 
         for token in (t.EzspMfgTokenId.MFG_STRING, t.EzspMfgTokenId.MFG_BOARD_NAME):
             (value,) = await self.getMfgToken(token)
@@ -361,11 +323,15 @@ class EZSP:
             except UnicodeDecodeError:
                 result = "0x" + result.hex().upper()
 
-            tokens.append(result)
+            if not result:
+                result = None
+
+            tokens[token] = result
 
         (status, ver_info_bytes) = await self.getValue(
             self.types.EzspValueId.VALUE_VERSION_INFO
         )
+        version = None
 
         if status == t.EmberStatus.SUCCESS:
             build, ver_info_bytes = t.uint16_t.deserialize(ver_info_bytes)
@@ -374,9 +340,12 @@ class EZSP:
             patch, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
             special, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
             version = f"{major}.{minor}.{patch}.{special} build {build}"
-        else:
-            version = "unknown stack version"
-        return tokens[0], tokens[1], version
+
+        return (
+            tokens[t.EzspMfgTokenId.MFG_STRING],
+            tokens[t.EzspMfgTokenId.MFG_BOARD_NAME],
+            version,
+        )
 
     async def _get_nv3_restored_eui64_key(self) -> t.NV3KeyId | None:
         """Get the NV3 key for the device's restored EUI64, if one exists."""

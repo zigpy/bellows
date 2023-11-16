@@ -4,6 +4,7 @@ import logging
 import sys
 
 import pytest
+import zigpy.config
 
 from bellows import config, ezsp, uart
 from bellows.exception import EzspError, InvalidCommandError
@@ -18,8 +19,8 @@ else:
 from unittest.mock import ANY, AsyncMock, MagicMock, call, patch, sentinel
 
 DEVICE_CONFIG = {
-    config.CONF_DEVICE_PATH: "/dev/null",
-    config.CONF_DEVICE_BAUDRATE: 115200,
+    zigpy.config.CONF_DEVICE_PATH: "/dev/null",
+    zigpy.config.CONF_DEVICE_BAUDRATE: 115200,
 }
 
 
@@ -277,60 +278,6 @@ async def test_no_close_without_callback(ezsp_f):
     assert ezsp_f.close.call_count == 0
 
 
-@patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
-async def test_probe_success(mock_connect):
-    """Test device probing."""
-
-    # Probe works with default baud
-    with patch(
-        "bellows.ezsp.protocol.ProtocolHandler.command",
-        AsyncMock(return_value=(4, 0, 0)),
-    ):
-        res = await ezsp.EZSP.probe(
-            {**DEVICE_CONFIG, config.CONF_DEVICE_BAUDRATE: 57600}
-        )
-
-    assert type(res) is dict
-    assert mock_connect.call_count == 1
-    assert mock_connect.await_count == 1
-    assert mock_connect.return_value.close.call_count == 1
-    mock_connect.reset_mock()
-
-    # Probe first fails with default baud but then works with alternate baud
-    with patch(
-        "bellows.ezsp.protocol.ProtocolHandler.command",
-        AsyncMock(side_effect=[asyncio.TimeoutError(), (4, 0, 0)]),
-    ):
-        res = await ezsp.EZSP.probe(
-            {**DEVICE_CONFIG, config.CONF_DEVICE_BAUDRATE: 57600}
-        )
-
-    assert type(res) is dict
-    assert mock_connect.call_count == 2
-    assert mock_connect.await_count == 2
-    assert mock_connect.return_value.close.call_count == 2
-
-
-@pytest.mark.parametrize("exception", (asyncio.TimeoutError, EzspError, RuntimeError))
-async def test_probe_fail(exception):
-    """Test device probing fails."""
-
-    p1 = patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
-    p2 = patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
-
-    with p1 as mock_version, p2 as mock_connect:
-        mock_version.side_effect = exception
-        res = await ezsp.EZSP.probe(
-            {**DEVICE_CONFIG, config.CONF_DEVICE_BAUDRATE: 57600}
-        )
-
-    assert res is False
-    assert mock_connect.call_count == 2
-    assert mock_connect.await_count == 2
-    assert mock_version.call_count == 2
-    assert mock_connect.return_value.close.call_count == 2
-
-
 @patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
 @patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
 @patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
@@ -423,7 +370,7 @@ async def test_board_info(ezsp_f):
 
     assert mfg == "Manufacturer"
     assert brd == "0xFE"
-    assert ver == "unknown stack version"
+    assert ver is None
 
     with patch.object(
         ezsp_f,
@@ -447,6 +394,26 @@ async def test_board_info(ezsp_f):
 
     assert mfg == "Nabu Casa"
     assert brd == "SkyBlue v0.1"
+    assert ver == "7.1.0.0 build 191"
+
+    with patch.object(
+        ezsp_f,
+        "_command",
+        new=cmd_mock(
+            {
+                ("getMfgToken", t.EzspMfgTokenId.MFG_BOARD_NAME): (b"\xff" * 16,),
+                ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (b"\xff" * 16,),
+                ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
+                    0x00,
+                    b"\xbf\x00\x07\x01\x00\x00\xaa",
+                ),
+            }
+        ),
+    ):
+        mfg, brd, ver = await ezsp_f.get_board_info()
+
+    assert mfg is None
+    assert brd is None
     assert ver == "7.1.0.0 build 191"
 
 
@@ -679,7 +646,7 @@ async def test_ezsp_init_zigbeed(conn_mock, reset_mock, version_mock):
         {
             "device": {
                 **DEVICE_CONFIG,
-                config.CONF_DEVICE_PATH: "socket://localhost:1234",
+                zigpy.config.CONF_DEVICE_PATH: "socket://localhost:1234",
             }
         }
     )
@@ -704,7 +671,7 @@ async def test_ezsp_init_zigbeed_timeout(conn_mock, reset_mock, version_mock):
         {
             "device": {
                 **DEVICE_CONFIG,
-                config.CONF_DEVICE_PATH: "socket://localhost:1234",
+                zigpy.config.CONF_DEVICE_PATH: "socket://localhost:1234",
             }
         }
     )

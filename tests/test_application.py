@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch, sentinel
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, call, patch, sentinel
 
 import pytest
 import zigpy.config
@@ -26,8 +26,8 @@ from bellows.zigbee.util import map_rssi_to_energy
 
 APP_CONFIG = {
     config.CONF_DEVICE: {
-        config.CONF_DEVICE_PATH: "/dev/null",
-        config.CONF_DEVICE_BAUDRATE: 115200,
+        zigpy.config.CONF_DEVICE_PATH: "/dev/null",
+        zigpy.config.CONF_DEVICE_BAUDRATE: 115200,
     },
     zigpy.config.CONF_DATABASE: None,
 }
@@ -114,7 +114,6 @@ def aps():
 
 
 @patch("zigpy.device.Device._initialize", new=AsyncMock())
-@patch("bellows.zigbee.application.ControllerApplication._watchdog", new=AsyncMock())
 def _create_app_for_startup(
     app,
     nwk_type,
@@ -620,34 +619,16 @@ async def test_permit_ncp(app):
     "version, tc_policy_count, ezsp_types",
     ((4, 0, t), (5, 0, ezsp_t5), (6, 0, ezsp_t6), (7, 0, ezsp_t7), (8, 1, ezsp_t8)),
 )
-async def test_permit_with_key(app, version, tc_policy_count, ezsp_types):
+async def test_permit_with_link_key_ieee(
+    app, ieee, version, tc_policy_count, ezsp_types
+):
     p1 = patch("zigpy.application.ControllerApplication.permit")
     p2 = patch.object(app._ezsp, "types", ezsp_types)
 
     with patch.object(app._ezsp, "ezsp_version", version), p1 as permit_mock, p2:
-        await app.permit_with_key(
-            bytes([1, 2, 3, 4, 5, 6, 7, 8]),
-            bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
-            60,
-        )
-
-    assert app._ezsp.addTransientLinkKey.await_count == 1
-    assert permit_mock.await_count == 1
-    assert app._ezsp.setPolicy.await_count == tc_policy_count
-
-
-@pytest.mark.parametrize(
-    "version, tc_policy_count, ezsp_types",
-    ((4, 0, t), (5, 0, ezsp_t5), (6, 0, ezsp_t6), (7, 0, ezsp_t7), (8, 1, ezsp_t8)),
-)
-async def test_permit_with_key_ieee(app, ieee, version, tc_policy_count, ezsp_types):
-    p1 = patch("zigpy.application.ControllerApplication.permit")
-    p2 = patch.object(app._ezsp, "types", ezsp_types)
-
-    with patch.object(app._ezsp, "ezsp_version", version), p1 as permit_mock, p2:
-        await app.permit_with_key(
+        await app.permit_with_link_key(
             ieee,
-            bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
+            zigpy_t.KeyData.convert("11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88:"),
             60,
         )
 
@@ -656,32 +637,25 @@ async def test_permit_with_key_ieee(app, ieee, version, tc_policy_count, ezsp_ty
     assert app._ezsp.setPolicy.await_count == tc_policy_count
 
 
-async def test_permit_with_key_invalid_install_code(app, ieee):
-    with pytest.raises(Exception):
-        await app.permit_with_key(
-            ieee, bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]), 60
-        )
-
-
-async def test_permit_with_key_failed_add_key(app, ieee):
+async def test_permit_with_link_key_failed_add_key(app, ieee):
     app._ezsp.addTransientLinkKey = AsyncMock(return_value=[1, 1])
 
     with pytest.raises(Exception):
-        await app.permit_with_key(
+        await app.permit_with_link_key(
             ieee,
-            bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
+            zigpy_t.KeyData.convert("11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88:"),
             60,
         )
 
 
-async def test_permit_with_key_failed_set_policy(app, ieee):
+async def test_permit_with_link_key_failed_set_policy(app, ieee):
     app._ezsp.addTransientLinkKey = AsyncMock(return_value=[0])
     app._ezsp.setPolicy = AsyncMock(return_value=[1])
 
     with pytest.raises(Exception):
-        await app.permit_with_key(
+        await app.permit_with_link_key(
             ieee,
-            bytes([0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x4A, 0xF7]),
+            zigpy_t.KeyData.convert("11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88:"),
             60,
         )
 
@@ -1065,91 +1039,16 @@ def test_is_controller_running(app):
 
 
 def test_reset_frame(app):
-    app._handle_reset_request = MagicMock(spec_set=app._handle_reset_request)
+    app.connection_lost = MagicMock(spec_set=app.connection_lost)
     app.ezsp_callback_handler("_reset_controller_application", (sentinel.error,))
-    assert app._handle_reset_request.call_count == 1
-    assert app._handle_reset_request.call_args[0][0] is sentinel.error
-
-
-async def test_handle_reset_req(app):
-    # no active reset task, no reset task preemption
-    app._ctrl_event.set()
-    assert app._reset_task is None
-    reset_ctrl_mock = AsyncMock()
-    app._reset_controller_loop = MagicMock(side_effect=reset_ctrl_mock)
-
-    app._handle_reset_request(sentinel.error)
-
-    assert asyncio.isfuture(app._reset_task)
-    assert app._ctrl_event.is_set() is False
-    await app._reset_task
-    assert app._reset_controller_loop.call_count == 1
-
-
-async def test_handle_reset_req_existing_preempt(app):
-    # active reset task, preempt reset task
-    app._ctrl_event.set()
-    assert app._reset_task is None
-    old_reset = asyncio.Future()
-    app._reset_task = old_reset
-    reset_ctrl_mock = AsyncMock()
-    app._reset_controller_loop = MagicMock(side_effect=reset_ctrl_mock)
-
-    app._handle_reset_request(sentinel.error)
-
-    assert asyncio.isfuture(app._reset_task)
-    await app._reset_task
-    assert app._ctrl_event.is_set() is False
-    assert app._reset_controller_loop.call_count == 1
-    assert old_reset.done() is True
-    assert old_reset.cancelled() is True
-
-
-async def test_reset_controller_loop(app, monkeypatch):
-    from bellows.zigbee import application
-
-    monkeypatch.setattr(application, "RESET_ATTEMPT_BACKOFF_TIME", 0.1)
-    app._watchdog_task = asyncio.Future()
-
-    reset_succ_on_try = reset_call_count = 2
-
-    async def reset_controller_mock():
-        nonlocal reset_succ_on_try
-        if reset_succ_on_try:
-            reset_succ_on_try -= 1
-            if reset_succ_on_try > 0:
-                raise asyncio.TimeoutError
-        return
-
-    app._reset_controller = AsyncMock(side_effect=reset_controller_mock)
-
-    await app._reset_controller_loop()
-
-    assert app._watchdog_task.cancelled() is True
-    assert app._reset_controller.call_count == reset_call_count
-    assert app._reset_task is None
-
-
-async def test_reset_controller_routine(app, monkeypatch):
-    from bellows.zigbee import application
-
-    monkeypatch.setattr(application, "RESET_ATTEMPT_BACKOFF_TIME", 0.01)
-
-    # Fails to connect, then connects but fails to start network, then finally works
-    app.connect = AsyncMock(side_effect=[RuntimeError("broken"), None, None])
-    app.initialize = AsyncMock(side_effect=[asyncio.TimeoutError(), None])
-    app._watchdog_task = MagicMock()
-
-    await app._reset_controller_loop()
-    assert app.connect.call_count == 3
-    assert app.initialize.call_count == 2
+    assert app.connection_lost.mock_calls == [call(sentinel.error)]
 
 
 @pytest.mark.parametrize("ezsp_version", (4, 7))
 async def test_watchdog(app, monkeypatch, ezsp_version):
     from bellows.zigbee import application
 
-    monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.01)
+    monkeypatch.setattr(application.ControllerApplication, "_watchdog_period", 0.01)
     monkeypatch.setattr(application, "EZSP_COUNTERS_CLEAR_IN_WATCHDOG_PERIODS", 2)
     nop_success = 7
     app._ezsp.ezsp_version = ezsp_version
@@ -1164,26 +1063,36 @@ async def test_watchdog(app, monkeypatch, ezsp_version):
                 return ([0] * 10,)
         raise asyncio.TimeoutError
 
+    app._ezsp.getValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS, b"\xFE"])
     app._ezsp.nop = AsyncMock(side_effect=nop_mock)
     app._ezsp.readCounters = AsyncMock(side_effect=nop_mock)
     app._ezsp.readAndClearCounters = AsyncMock(side_effect=nop_mock)
-    app._handle_reset_request = MagicMock()
     app._ctrl_event.set()
+    app.connection_lost = MagicMock()
 
-    await app._watchdog()
+    for i in range(nop_success):
+        await app._watchdog_feed()
+
+    # Fail four times in a row to exhaust the watchdog buffer
+    await app._watchdog_feed()
+    await app._watchdog_feed()
+    await app._watchdog_feed()
+    await app._watchdog_feed()
+
+    # The last time will throw a real error
+    with pytest.raises(asyncio.TimeoutError):
+        await app._watchdog_feed()
 
     if ezsp_version == 4:
         assert app._ezsp.nop.await_count > 4
     else:
         assert app._ezsp.readCounters.await_count >= 4
 
-    assert app._handle_reset_request.call_count == 1
-
 
 async def test_watchdog_counters(app, monkeypatch, caplog):
     from bellows.zigbee import application
 
-    monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.01)
+    monkeypatch.setattr(application.ControllerApplication, "_watchdog_period", 0.01)
     nop_success = 3
 
     async def counters_mock():
@@ -1196,20 +1105,21 @@ async def test_watchdog_counters(app, monkeypatch, caplog):
                 return ([0, 1, 2, 3],)
         raise asyncio.TimeoutError
 
+    app._ezsp.getValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS, b"\xFE"])
     app._ezsp.readCounters = AsyncMock(side_effect=counters_mock)
     app._ezsp.nop = AsyncMock(side_effect=EzspError)
     app._handle_reset_request = MagicMock()
     app._ctrl_event.set()
 
     caplog.set_level(logging.DEBUG, "bellows.zigbee.application")
-    await app._watchdog()
+    await app._watchdog_feed()
     assert app._ezsp.readCounters.await_count != 0
     assert app._ezsp.nop.await_count == 0
 
     # don't do counters on older firmwares
     app._ezsp.ezsp_version = 4
     app._ezsp.readCounters.reset_mock()
-    await app._watchdog()
+    await app._watchdog_feed()
     assert app._ezsp.readCounters.await_count == 0
     assert app._ezsp.nop.await_count != 0
 
@@ -1217,7 +1127,7 @@ async def test_watchdog_counters(app, monkeypatch, caplog):
 async def test_ezsp_value_counter(app, monkeypatch):
     from bellows.zigbee import application
 
-    monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.01)
+    monkeypatch.setattr(application.ControllerApplication, "_watchdog_period", 0.01)
     nop_success = 3
 
     async def counters_mock():
@@ -1238,7 +1148,7 @@ async def test_ezsp_value_counter(app, monkeypatch):
     app._handle_reset_request = MagicMock()
     app._ctrl_event.set()
 
-    await app._watchdog()
+    await app._watchdog_feed()
     assert app._ezsp.readCounters.await_count != 0
     assert app._ezsp.nop.await_count == 0
 
@@ -1280,39 +1190,18 @@ async def test_ezsp_value_counter(app, monkeypatch):
     # Ezsp Value success
     app._ezsp.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\x20"))
     nop_success = 3
-    await app._watchdog()
+    await app._watchdog_feed()
     assert (
         app.state.counters[application.COUNTERS_EZSP][application.COUNTER_EZSP_BUFFERS]
         == 0x20
     )
 
 
-async def test_watchdog_cancel(app, monkeypatch):
-    """Coverage for watchdog cancellation."""
-
-    from bellows.zigbee import application
-
-    monkeypatch.setattr(application, "WATCHDOG_WAKE_PERIOD", 0.01)
-
-    app._ezsp.readCounters = AsyncMock(side_effect=asyncio.CancelledError)
-
-    with pytest.raises(asyncio.CancelledError):
-        await app._watchdog()
-
-
 async def test_shutdown(app):
-    reset_f = asyncio.Future()
-    watchdog_f = asyncio.Future()
-    app._reset_task = reset_f
-    app._watchdog_task = watchdog_f
     ezsp = app._ezsp
 
     await app.shutdown()
     assert app.controller_event.is_set() is False
-    assert reset_f.done() is True
-    assert reset_f.cancelled() is True
-    assert watchdog_f.done() is True
-    assert watchdog_f.cancelled() is True
     assert ezsp.close.call_count == 1
 
 
@@ -1483,31 +1372,6 @@ def test_handle_route_error(app):
         "incomingRouteErrorHandler", [sentinel.status, sentinel.nwk]
     )
     app.handle_relays.assert_called_once_with(nwk=sentinel.nwk, relays=None)
-
-
-@patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
-@patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
-async def test_probe_success(mock_connect, mock_version):
-    """Test device probing."""
-
-    res = await ezsp.EZSP.probe(APP_CONFIG[config.CONF_DEVICE])
-    assert res
-    assert type(res) is dict
-    assert mock_connect.call_count == 1
-    assert mock_connect.await_count == 1
-    assert mock_version.call_count == 1
-    assert mock_connect.return_value.close.call_count == 1
-
-    mock_connect.reset_mock()
-    mock_version.reset_mock()
-    mock_connect.reset_mock()
-    res = await ezsp.EZSP.probe(APP_CONFIG[config.CONF_DEVICE])
-    assert res
-    assert type(res) is dict
-    assert mock_connect.call_count == 1
-    assert mock_connect.await_count == 1
-    assert mock_version.call_count == 1
-    assert mock_connect.return_value.close.call_count == 1
 
 
 def test_handle_id_conflict(app, ieee):

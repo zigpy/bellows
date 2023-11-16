@@ -18,6 +18,9 @@ def node_info():
         nwk=zigpy_t.NWK(0x0000),
         ieee=zigpy_t.EUI64.convert("00:12:4b:00:1c:a1:b8:46"),
         logical_type=zdo_t.LogicalType.Coordinator,
+        model="Mock board",
+        manufacturer="Mock Manufacturer",
+        version="Mock version",
     )
 
 

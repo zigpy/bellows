@@ -2,8 +2,7 @@ import logging
 
 import click
 import click_log
-
-from bellows.config import CONF_DEVICE, CONF_DEVICE_BAUDRATE, CONF_FLOW_CONTROL
+import zigpy.config
 
 from . import opts
 
@@ -16,9 +15,9 @@ from . import opts
 @click.pass_context
 def main(ctx, device, baudrate, flow_control):
     ctx.obj = {
-        CONF_DEVICE: device,
-        CONF_DEVICE_BAUDRATE: baudrate,
-        CONF_FLOW_CONTROL: flow_control,
+        zigpy.config.CONF_DEVICE_PATH: device,
+        zigpy.config.CONF_DEVICE_BAUDRATE: baudrate,
+        zigpy.config.CONF_DEVICE_FLOW_CONTROL: flow_control,
     }
     click_log.basic_config()
 

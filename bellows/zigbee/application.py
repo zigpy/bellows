@@ -27,10 +27,8 @@ import bellows
 from bellows.config import (
     CONF_EZSP_CONFIG,
     CONF_EZSP_POLICIES,
-    CONF_PARAM_MAX_WATCHDOG_FAILURES,
     CONF_USE_THREAD,
     CONFIG_SCHEMA,
-    SCHEMA_DEVICE,
 )
 from bellows.exception import ControllerError, EzspError, StackAlreadyRunning
 import bellows.ezsp
@@ -61,7 +59,7 @@ EZSP_MULTICAST_NON_MEMBER_RADIUS = 3
 MFG_ID_RESET_DELAY = 180
 RESET_ATTEMPT_BACKOFF_TIME = 5
 NETWORK_UP_TIMEOUT_S = 10
-WATCHDOG_WAKE_PERIOD = 10
+MAX_WATCHDOG_FAILURES = 4
 IEEE_PREFIX_MFG_ID = {
     "04:CF:8C": 0x115F,  # Xiaomi
     "54:EF:44": 0x115F,  # Lumi
@@ -71,9 +69,13 @@ LOGGER = logging.getLogger(__name__)
 
 
 class ControllerApplication(zigpy.application.ControllerApplication):
-    probe = bellows.ezsp.EZSP.probe
     SCHEMA = CONFIG_SCHEMA
-    SCHEMA_DEVICE = SCHEMA_DEVICE
+
+    _watchdog_period = 10
+    _probe_configs = [
+        {zigpy.config.CONF_DEVICE_BAUDRATE: 115200},
+        {zigpy.config.CONF_DEVICE_BAUDRATE: 57600},
+    ]
 
     def __init__(self, config: dict):
         super().__init__(config)
@@ -82,8 +84,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._multicast = None
         self._mfg_id_task: asyncio.Task | None = None
         self._pending = zigpy.util.Requests()
-        self._watchdog_task = None
-        self._reset_task = None
+        self._watchdog_failures = 0
+        self._watchdog_feed_counter = 0
 
         self._req_lock = asyncio.Lock()
 
@@ -201,7 +203,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         ezsp.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
-        self._watchdog_task = asyncio.create_task(self._watchdog())
 
         try:
             db_device = self.get_device(ieee=self.state.node_info.ieee)
@@ -242,10 +243,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         (nwk,) = await ezsp.getNodeId()
         (ieee,) = await ezsp.getEui64()
 
+        brd_manuf, brd_name, version = await self._get_board_info()
+
         self.state.node_info = zigpy.state.NodeInfo(
             nwk=zigpy.types.NWK(nwk),
             ieee=zigpy.types.EUI64(ieee),
             logical_type=node_type.zdo_logical_type,
+            manufacturer=brd_manuf,
+            model=brd_name,
+            version=version,
         )
 
         (status, security_level) = await ezsp.getConfigurationValue(
@@ -281,7 +287,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if self.state.node_info.logical_type == zdo_t.LogicalType.Coordinator:
             tc_link_key.partner_ieee = self.state.node_info.ieee
 
-        brd_manuf, brd_name, version = await self._get_board_info()
         can_burn_userdata_custom_eui64 = await ezsp.can_burn_userdata_custom_eui64()
         can_rewrite_custom_eui64 = await ezsp.can_rewrite_custom_eui64()
 
@@ -302,9 +307,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             stack_specific=stack_specific,
             metadata={
                 "ezsp": {
-                    "manufacturer": brd_manuf,
-                    "board": brd_name,
-                    "version": version,
                     "stack_version": ezsp.ezsp_version,
                     "can_burn_userdata_custom_eui64": can_burn_userdata_custom_eui64,
                     "can_rewrite_custom_eui64": can_rewrite_custom_eui64,
@@ -490,11 +492,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def disconnect(self):
         # TODO: how do you shut down the stack?
         self.controller_event.clear()
-        if self._watchdog_task and not self._watchdog_task.done():
-            LOGGER.debug("Cancelling watchdog")
-            self._watchdog_task.cancel()
-        if self._reset_task and not self._reset_task.done():
-            self._reset_task.cancel()
         if self._ezsp is not None:
             self._ezsp.close()
             self._ezsp = None
@@ -517,7 +514,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         elif frame_name == "incomingRouteErrorHandler":
             self.handle_route_error(*args)
         elif frame_name == "_reset_controller_application":
-            self._handle_reset_request(*args)
+            self.connection_lost(args[0])
         elif frame_name == "idConflictHandler":
             self._handle_id_conflict(*args)
 
@@ -664,45 +661,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._ezsp.setManufacturerCode(mfg_id)
         await asyncio.sleep(MFG_ID_RESET_DELAY)
         await self._ezsp.setManufacturerCode(DEFAULT_MFG_ID)
-
-    def _handle_reset_request(self, error):
-        """Reinitialize application controller."""
-        LOGGER.debug("Resetting ControllerApplication. Cause: %r", error)
-        self.controller_event.clear()
-        if self._reset_task:
-            LOGGER.debug("Preempting ControllerApplication reset")
-            self._reset_task.cancel()
-
-        self._reset_task = asyncio.create_task(self._reset_controller_loop())
-
-    async def _reset_controller_loop(self):
-        """Keep trying to reset controller until we succeed."""
-        self._watchdog_task.cancel()
-        while True:
-            try:
-                await self._reset_controller()
-                break
-            except Exception as exc:
-                LOGGER.warning(
-                    "ControllerApplication reset unsuccessful: %r",
-                    exc,
-                    exc_info=exc,
-                )
-            await asyncio.sleep(RESET_ATTEMPT_BACKOFF_TIME)
-
-        self._reset_task = None
-        self.state.counters[COUNTERS_CTRL][COUNTER_RESET_SUCCESS].increment()
-        LOGGER.debug("ControllerApplication successfully reset")
-
-    async def _reset_controller(self):
-        """Reset Controller."""
-        if self._ezsp is not None:
-            self._ezsp.close()
-            self._ezsp = None
-
-        await asyncio.sleep(0.5)
-        await self.connect()
-        await self.initialize()
 
     async def _set_source_route(
         self, nwk: zigpy.types.NWK, relays: list[zigpy.types.NWK]
@@ -882,25 +840,23 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         assert 0 <= time_s <= 254
         return self._ezsp.permitJoining(time_s)
 
-    async def permit_with_key(self, node, code, time_s=60):
-        if type(node) is not t.EmberEUI64:
-            node = t.EmberEUI64([t.uint8_t(p) for p in node])
+    async def permit_with_link_key(
+        self, node: t.EUI64, link_key: t.KeyData, time_s: int = 60
+    ) -> None:
+        """Permits a new device to join with the given IEEE and link key."""
 
-        key = zigpy.util.convert_install_code(code)
-        if key is None:
-            raise Exception("Invalid install code")
-
-        link_key = t.EmberKeyData(key)
         v = await self._ezsp.addTransientLinkKey(node, link_key)
 
         if v[0] != t.EmberStatus.SUCCESS:
             raise Exception("Failed to set link key")
 
         if self._ezsp.ezsp_version >= 8:
-            mask_type = self._ezsp.types.EzspDecisionBitmask.ALLOW_JOINS
-            bitmask = mask_type.ALLOW_JOINS | mask_type.JOINS_USE_INSTALL_CODE_KEY
             await self._ezsp.setPolicy(
-                self._ezsp.types.EzspPolicyId.TRUST_CENTER_POLICY, bitmask
+                self._ezsp.types.EzspPolicyId.TRUST_CENTER_POLICY,
+                (
+                    self._ezsp.types.EzspDecisionBitmask.ALLOW_JOINS
+                    | self._ezsp.types.EzspDecisionBitmask.JOINS_USE_INSTALL_CODE_KEY
+                ),
             )
 
         return await super().permit(time_s)
@@ -920,61 +876,51 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             )
             self.handle_leave(nwk, device.ieee)
 
-    async def _watchdog(self):
-        """Watchdog handler."""
-        LOGGER.debug("Starting EZSP watchdog")
-        failures = 0
-        read_counter = 0
-        await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
-        while True:
-            try:
-                async with asyncio_timeout(WATCHDOG_WAKE_PERIOD * 2):
-                    await self.controller_event.wait()
+    async def _watchdog_loop(self):
+        self._watchdog_failures = 0
+        self._watchdog_feed_counter = 0
+        await super()._watchdog_loop()
 
-                if self._ezsp.ezsp_version == 4:
-                    await self._ezsp.nop()
-                else:
-                    counters = self.state.counters[COUNTERS_EZSP]
-                    read_counter = (
-                        read_counter + 1
-                    ) % EZSP_COUNTERS_CLEAR_IN_WATCHDOG_PERIODS
-                    if read_counter:
-                        (res,) = await self._ezsp.readCounters()
-                    else:
-                        (res,) = await self._ezsp.readAndClearCounters()
+    async def _watchdog_feed(self):
+        try:
+            if self._ezsp.ezsp_version == 4:
+                await self._ezsp.nop()
+            else:
+                counters = self.state.counters[COUNTERS_EZSP]
+                self._watchdog_feed_counter += 1
 
-                    for cnt_type, value in zip(self._ezsp.types.EmberCounterType, res):
-                        counters[cnt_type.name[8:]].update(value)
-
-                    if not read_counter:
-                        counters.reset()
-
-                    free_buffers = await self._get_free_buffers()
-                    if free_buffers is not None:
-                        cnt = counters[COUNTER_EZSP_BUFFERS]
-                        cnt._raw_value = free_buffers
-                        cnt._last_reset_value = 0
-
-                    LOGGER.debug("%s", counters)
-
-                failures = 0
-            except (asyncio.TimeoutError, EzspError) as exc:
-                LOGGER.warning("Watchdog heartbeat timeout: %s", repr(exc))
-                failures += 1
-                if failures > self.config[CONF_PARAM_MAX_WATCHDOG_FAILURES]:
-                    break
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:
-                LOGGER.error(
-                    "Watchdog got an unexpected exception. Please report this issue: %s",
-                    exc,
+                remainder = (
+                    self._watchdog_feed_counter
+                    % EZSP_COUNTERS_CLEAR_IN_WATCHDOG_PERIODS
                 )
 
-            await asyncio.sleep(WATCHDOG_WAKE_PERIOD)
+                if remainder > 0:
+                    (res,) = await self._ezsp.readCounters()
+                else:
+                    (res,) = await self._ezsp.readAndClearCounters()
 
-        self.state.counters[COUNTERS_CTRL][COUNTER_WATCHDOG].increment()
-        self._handle_reset_request(f"Watchdog timeout. Heartbeat timeouts: {failures}")
+                for cnt_type, value in zip(self._ezsp.types.EmberCounterType, res):
+                    counters[cnt_type.name[8:]].update(value)
+
+                if remainder == 0:
+                    counters.reset()
+
+                free_buffers = await self._get_free_buffers()
+                if free_buffers is not None:
+                    cnt = counters[COUNTER_EZSP_BUFFERS]
+                    cnt._raw_value = free_buffers
+                    cnt._last_reset_value = 0
+
+                LOGGER.debug("%s", counters)
+        except (asyncio.TimeoutError, EzspError) as exc:
+            # TODO: converted Silvercrest gateways break without this
+            LOGGER.warning("Watchdog heartbeat timeout: %s", repr(exc))
+            self._watchdog_failures += 1
+            if self._watchdog_failures > MAX_WATCHDOG_FAILURES:
+                raise
+        else:
+            self._watchdog_failures = 0
+            self.state.counters[COUNTERS_CTRL][COUNTER_WATCHDOG].increment()
 
     async def _get_free_buffers(self) -> int | None:
         status, value = await self._ezsp.getValue(

@@ -3,14 +3,14 @@ import threading
 
 import pytest
 import serial_asyncio
+import zigpy.config as conf
 
 from bellows import uart
-import bellows.config as conf
 
 from .async_mock import AsyncMock, MagicMock, patch, sentinel
 
 
-@pytest.mark.parametrize("flow_control", [conf.CONF_FLOW_CONTROL_DEFAULT, "hardware"])
+@pytest.mark.parametrize("flow_control", ["software", "hardware"])
 async def test_connect(flow_control, monkeypatch):
     appmock = MagicMock()
     transport = MagicMock()
@@ -26,7 +26,7 @@ async def test_connect(flow_control, monkeypatch):
             {
                 conf.CONF_DEVICE_PATH: "/dev/serial",
                 conf.CONF_DEVICE_BAUDRATE: 115200,
-                conf.CONF_FLOW_CONTROL: flow_control,
+                conf.CONF_DEVICE_FLOW_CONTROL: flow_control,
             }
         ),
         appmock,
