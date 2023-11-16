@@ -396,6 +396,26 @@ async def test_board_info(ezsp_f):
     assert brd == "SkyBlue v0.1"
     assert ver == "7.1.0.0 build 191"
 
+    with patch.object(
+        ezsp_f,
+        "_command",
+        new=cmd_mock(
+            {
+                ("getMfgToken", t.EzspMfgTokenId.MFG_BOARD_NAME): (b"\xff" * 16,),
+                ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (b"\xff" * 16,),
+                ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
+                    0x00,
+                    b"\xbf\x00\x07\x01\x00\x00\xaa",
+                ),
+            }
+        ),
+    ):
+        mfg, brd, ver = await ezsp_f.get_board_info()
+
+    assert mfg is None
+    assert brd is None
+    assert ver == "7.1.0.0 build 191"
+
 
 async def test_pre_permit(ezsp_f):
     with patch("bellows.ezsp.v4.EZSPv4.pre_permit") as pre_mock:
