@@ -1460,31 +1460,6 @@ def test_handle_route_error(app):
     app.handle_relays.assert_called_once_with(nwk=sentinel.nwk, relays=None)
 
 
-@patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
-@patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
-async def test_probe_success(mock_connect, mock_version):
-    """Test device probing."""
-
-    res = await ezsp.EZSP.probe(APP_CONFIG[config.CONF_DEVICE])
-    assert res
-    assert type(res) is dict
-    assert mock_connect.call_count == 1
-    assert mock_connect.await_count == 1
-    assert mock_version.call_count == 1
-    assert mock_connect.return_value.close.call_count == 1
-
-    mock_connect.reset_mock()
-    mock_version.reset_mock()
-    mock_connect.reset_mock()
-    res = await ezsp.EZSP.probe(APP_CONFIG[config.CONF_DEVICE])
-    assert res
-    assert type(res) is dict
-    assert mock_connect.call_count == 1
-    assert mock_connect.await_count == 1
-    assert mock_version.call_count == 1
-    assert mock_connect.return_value.close.call_count == 1
-
-
 def test_handle_id_conflict(app, ieee):
     """Test handling of an ID conflict report."""
     nwk = t.EmberNodeId(0x1234)

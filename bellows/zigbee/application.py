@@ -71,9 +71,13 @@ LOGGER = logging.getLogger(__name__)
 
 
 class ControllerApplication(zigpy.application.ControllerApplication):
-    probe = bellows.ezsp.EZSP.probe
     SCHEMA = CONFIG_SCHEMA
     SCHEMA_DEVICE = SCHEMA_DEVICE
+
+    _probe_configs = [
+        {zigpy.config.CONF_DEVICE_BAUDRATE: 115200},
+        {zigpy.config.CONF_DEVICE_BAUDRATE: 57600},
+    ]
 
     def __init__(self, config: dict):
         super().__init__(config)

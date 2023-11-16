@@ -97,46 +97,6 @@ class EZSP:
             with contextlib.suppress(ValueError):
                 listeners.remove(future)
 
-    @classmethod
-    async def probe(cls, device_config: dict) -> bool | dict[str, int | str | bool]:
-        """Probe port for the device presence."""
-        device_config = conf.SCHEMA_DEVICE(device_config)
-        probe_configs = [device_config]
-
-        # Try probing with 115200 baud rate first, as it is the most common
-        if device_config[conf.CONF_DEVICE_BAUDRATE] != 115200:
-            probe_configs.insert(
-                0, {**device_config, conf.CONF_DEVICE_BAUDRATE: 115200}
-            )
-
-        for config in probe_configs:
-            ezsp = cls(config)
-
-            try:
-                async with asyncio_timeout(
-                    UART_PROBE_TIMEOUT
-                    if not ezsp.is_tcp_serial_port
-                    else NETWORK_PROBE_TIMEOUT
-                ):
-                    await ezsp._probe()
-
-                return config
-            except Exception as exc:
-                LOGGER.debug(
-                    "Unsuccessful radio probe of '%s' port",
-                    device_config[conf.CONF_DEVICE_PATH],
-                    exc_info=exc,
-                )
-            finally:
-                ezsp.close()
-
-        return False
-
-    async def _probe(self) -> None:
-        """Open port and try sending a command"""
-        await self.connect(use_thread=False)
-        await self.startup_reset()
-
     @property
     def is_tcp_serial_port(self) -> bool:
         parsed_path = urllib.parse.urlparse(self._config[conf.CONF_DEVICE_PATH])

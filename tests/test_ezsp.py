@@ -277,60 +277,6 @@ async def test_no_close_without_callback(ezsp_f):
     assert ezsp_f.close.call_count == 0
 
 
-@patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
-async def test_probe_success(mock_connect):
-    """Test device probing."""
-
-    # Probe works with default baud
-    with patch(
-        "bellows.ezsp.protocol.ProtocolHandler.command",
-        AsyncMock(return_value=(4, 0, 0)),
-    ):
-        res = await ezsp.EZSP.probe(
-            {**DEVICE_CONFIG, config.CONF_DEVICE_BAUDRATE: 57600}
-        )
-
-    assert type(res) is dict
-    assert mock_connect.call_count == 1
-    assert mock_connect.await_count == 1
-    assert mock_connect.return_value.close.call_count == 1
-    mock_connect.reset_mock()
-
-    # Probe first fails with default baud but then works with alternate baud
-    with patch(
-        "bellows.ezsp.protocol.ProtocolHandler.command",
-        AsyncMock(side_effect=[asyncio.TimeoutError(), (4, 0, 0)]),
-    ):
-        res = await ezsp.EZSP.probe(
-            {**DEVICE_CONFIG, config.CONF_DEVICE_BAUDRATE: 57600}
-        )
-
-    assert type(res) is dict
-    assert mock_connect.call_count == 2
-    assert mock_connect.await_count == 2
-    assert mock_connect.return_value.close.call_count == 2
-
-
-@pytest.mark.parametrize("exception", (asyncio.TimeoutError, EzspError, RuntimeError))
-async def test_probe_fail(exception):
-    """Test device probing fails."""
-
-    p1 = patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
-    p2 = patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
-
-    with p1 as mock_version, p2 as mock_connect:
-        mock_version.side_effect = exception
-        res = await ezsp.EZSP.probe(
-            {**DEVICE_CONFIG, config.CONF_DEVICE_BAUDRATE: 57600}
-        )
-
-    assert res is False
-    assert mock_connect.call_count == 2
-    assert mock_connect.await_count == 2
-    assert mock_version.call_count == 2
-    assert mock_connect.return_value.close.call_count == 2
-
-
 @patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
 @patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
 @patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
