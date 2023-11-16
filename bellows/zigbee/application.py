@@ -662,16 +662,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await asyncio.sleep(MFG_ID_RESET_DELAY)
         await self._ezsp.setManufacturerCode(DEFAULT_MFG_ID)
 
-    async def _reset_controller(self):
-        """Reset Controller."""
-        if self._ezsp is not None:
-            self._ezsp.close()
-            self._ezsp = None
-
-        await asyncio.sleep(0.5)
-        await self.connect()
-        await self.initialize()
-
     async def _set_source_route(
         self, nwk: zigpy.types.NWK, relays: list[zigpy.types.NWK]
     ) -> bool:
