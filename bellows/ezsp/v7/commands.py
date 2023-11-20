@@ -605,22 +605,22 @@ COMMANDS = {
         0x00C5,
         (),
         (
-            t.EmberStatus,           # status
-            t.uint8_t,               # gpd link
-            t.uint8_t,               # sequence number
-            t.uint8_t,               # addrType
-            t.uint32_t,              # address
-            t.uint32_t,              # src ID
-            t.uint8_t,               # endpoint
+            t.EmberStatus,  # status
+            t.uint8_t,  # gpd link
+            t.uint8_t,  # sequence number
+            t.uint8_t,  # addrType
+            t.uint32_t,  # address
+            t.uint32_t,  # src ID
+            t.uint8_t,  # endpoint
             t.EmberGpSecurityLevel,
             t.EmberGpKeyType,
-            t.Bool,                  # auto commissioning
-            t.Bool,                  # rx capable?
-            t.uint32_t,              # security frame counter
-            t.uint8_t,               # gpd command id
-            t.uint32_t,              # MIC
-            t.uint8_t,               # proxy table index
-            t.LVBytes,               # optional payload
+            t.Bool,  # auto commissioning
+            t.Bool,  # rx capable?
+            t.uint32_t,  # security frame counter
+            t.uint8_t,  # gpd command id
+            t.uint32_t,  # MIC
+            t.uint8_t,  # proxy table index
+            t.LVBytes,  # optional payload
         ),
     ),
     "gpProxyTableGetEntry": (
