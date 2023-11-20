@@ -6,7 +6,6 @@ import logging
 import click
 import zigpy.config as zigpy_conf
 
-import bellows.config as config
 import bellows.ezsp
 import bellows.types as t
 
@@ -50,10 +49,10 @@ def app(f, app_startup=True, extra_config=None):
         nonlocal database_file
         nonlocal application
         app_config = {
-            config.CONF_DEVICE: {
-                config.CONF_DEVICE_PATH: ctx.obj[config.CONF_DEVICE],
-                config.CONF_DEVICE_BAUDRATE: ctx.obj[config.CONF_DEVICE_BAUDRATE],
-                config.CONF_FLOW_CONTROL: ctx.obj[config.CONF_FLOW_CONTROL],
+            zigpy_conf.CONF_DEVICE: {
+                zigpy_conf.CONF_DEVICE_PATH: ctx.obj["device"],
+                zigpy_conf.CONF_DEVICE_BAUDRATE: ctx.obj["baudrate"],
+                zigpy_conf.CONF_FLOW_CONTROL: ctx.obj["flow_control"],
             },
             zigpy_conf.CONF_DATABASE: ctx.obj["database_file"],
         }
@@ -100,38 +99,23 @@ def channel_mask(channels):
 
 
 async def setup(dev, baudrate, cbh=None, configure=True):
-    device_config = {
-        config.CONF_DEVICE_PATH: dev,
-        config.CONF_DEVICE_BAUDRATE: baudrate,
-        config.CONF_FLOW_CONTROL: config.CONF_FLOW_CONTROL_DEFAULT,
-    }
-    s = bellows.ezsp.EZSP(device_config)
+    app_config = bellows.zigbee.application.ControllerApplication.SCHEMA(
+        {
+            zigpy_conf.CONF_DEVICE: {
+                zigpy_conf.CONF_DEVICE_PATH: dev,
+                zigpy_conf.CONF_DEVICE_BAUDRATE: baudrate,
+                zigpy_conf.CONF_DEVICE_FLOW_CONTROL: zigpy_conf.CONF_DEVICE_FLOW_CONTROL_DEFAULT,
+            }
+        }
+    )
+
+    app = bellows.zigbee.application.ControllerApplication(app_config)
+    await app.connect()
+
     if cbh:
-        s.add_callback(cbh)
-    try:
-        await s.connect()
-        await s.startup_reset()
-    except Exception as e:
-        LOGGER.error(e)
-        s.close()
-        raise click.Abort()
-    LOGGER.debug("Connected")
-    await s.version()
+        app._ezsp.add_callback(cbh)
 
-    async def cfg(config_id, value):
-        v = await s.setConfigurationValue(config_id, value)
-        check(v[0], f"Setting config {config_id} to {value}: {v[0]}")
-
-    c = s.types.EzspConfigId
-
-    if configure:
-        LOGGER.debug("Configuring...")
-        await cfg(c.CONFIG_STACK_PROFILE, 2)
-        await cfg(c.CONFIG_SECURITY_LEVEL, 5)
-        await cfg(c.CONFIG_SUPPORTED_NETWORKS, 1)
-        await cfg(c.CONFIG_PACKET_BUFFER_COUNT, 64)
-
-    return s
+    return app._ezsp
 
 
 async def setup_application(app_config, startup=True):

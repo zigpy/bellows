@@ -2,7 +2,6 @@ import logging
 
 import click
 import click_log
-import zigpy.config
 
 from . import opts
 
@@ -15,9 +14,9 @@ from . import opts
 @click.pass_context
 def main(ctx, device, baudrate, flow_control):
     ctx.obj = {
-        zigpy.config.CONF_DEVICE_PATH: device,
-        zigpy.config.CONF_DEVICE_BAUDRATE: baudrate,
-        zigpy.config.CONF_DEVICE_FLOW_CONTROL: flow_control,
+        "device": device,
+        "baudrate": baudrate,
+        "flow_control": flow_control,
     }
     click_log.basic_config()
 
