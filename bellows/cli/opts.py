@@ -1,7 +1,6 @@
 import os
 
 import click
-from zigpy.config import CONF_DEVICE_FLOW_CONTROL
 
 from . import util
 
@@ -61,7 +60,7 @@ extended_pan = click.option("-E", "--extended-pan-id", type=click.STRING)
 flow_control = click.option(
     "--flow-control",
     default="software",
-    type=click.Choice(CONF_DEVICE_FLOW_CONTROL),
+    type=click.Choice(["hardware", "software", "None"]),
     envvar="EZSP_FLOW_CONTROL",
     help="use hardware flow control",
 )
