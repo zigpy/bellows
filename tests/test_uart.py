@@ -1,5 +1,4 @@
 import asyncio
-import threading
 
 import pytest
 import serial_asyncio
@@ -30,112 +29,8 @@ async def test_connect(flow_control, monkeypatch):
             }
         ),
         appmock,
-        use_thread=False,
     )
-
-    threads = [t for t in threading.enumerate() if "bellows" in t.name]
-    assert len(threads) == 0
     gw.close()
-
-
-async def test_connect_threaded(monkeypatch):
-    appmock = MagicMock()
-    transport = MagicMock()
-
-    async def mockconnect(loop, protocol_factory, **kwargs):
-        protocol = protocol_factory()
-        loop.call_soon(protocol.connection_made, transport)
-        return None, protocol
-
-    monkeypatch.setattr(serial_asyncio, "create_serial_connection", mockconnect)
-
-    def on_transport_close():
-        gw.connection_lost(None)
-
-    transport.close.side_effect = on_transport_close
-    gw = await uart.connect(
-        conf.SCHEMA_DEVICE(
-            {conf.CONF_DEVICE_PATH: "/dev/serial", conf.CONF_DEVICE_BAUDRATE: 115200}
-        ),
-        appmock,
-    )
-
-    # Need to close to release thread
-    gw.close()
-
-    # Ensure all threads are cleaned up
-    [t.join(1) for t in threading.enumerate() if "bellows" in t.name]
-    threads = [t for t in threading.enumerate() if "bellows" in t.name]
-    assert len(threads) == 0
-
-
-async def test_connect_threaded_failure(monkeypatch):
-    appmock = MagicMock()
-    transport = MagicMock()
-
-    mockconnect = AsyncMock()
-    mockconnect.side_effect = OSError
-
-    monkeypatch.setattr(serial_asyncio, "create_serial_connection", mockconnect)
-
-    def on_transport_close():
-        gw.connection_lost(None)
-
-    transport.close.side_effect = on_transport_close
-    with pytest.raises(OSError):
-        gw = await uart.connect(
-            conf.SCHEMA_DEVICE(
-                {
-                    conf.CONF_DEVICE_PATH: "/dev/serial",
-                    conf.CONF_DEVICE_BAUDRATE: 115200,
-                }
-            ),
-            appmock,
-        )
-
-    # Ensure all threads are cleaned up
-    [t.join(1) for t in threading.enumerate() if "bellows" in t.name]
-    threads = [t for t in threading.enumerate() if "bellows" in t.name]
-    assert len(threads) == 0
-
-
-async def test_connect_threaded_failure_cancellation_propagation(monkeypatch):
-    appmock = MagicMock()
-
-    async def mock_connect(loop, protocol_factory, *args, **kwargs):
-        protocol = protocol_factory()
-        transport = AsyncMock()
-
-        protocol.connection_made(transport)
-
-        return transport, protocol
-
-    with patch("bellows.uart.zigpy.serial.create_serial_connection", mock_connect):
-        gw = await uart.connect(
-            conf.SCHEMA_DEVICE(
-                {
-                    conf.CONF_DEVICE_PATH: "/dev/serial",
-                    conf.CONF_DEVICE_BAUDRATE: 115200,
-                }
-            ),
-            appmock,
-            use_thread=True,
-        )
-
-    # Begin waiting for the startup reset
-    wait_for_reset = gw.wait_for_startup_reset()
-
-    # But lose connection halfway through
-    asyncio.get_running_loop().call_later(0.1, gw.connection_lost, RuntimeError())
-
-    # Cancellation should propagate to the outer loop
-    with pytest.raises(RuntimeError):
-        await wait_for_reset
-
-    # Ensure all threads are cleaned up
-    [t.join(1) for t in threading.enumerate() if "bellows" in t.name]
-    threads = [t for t in threading.enumerate() if "bellows" in t.name]
-    assert len(threads) == 0
 
 
 @pytest.fixture
@@ -383,7 +278,6 @@ async def test_connection_lost_reset_error_propagation(monkeypatch):
             {conf.CONF_DEVICE_PATH: "/dev/serial", conf.CONF_DEVICE_BAUDRATE: 115200}
         ),
         app,
-        use_thread=False,  # required until #484 is merged
     )
 
     asyncio.get_running_loop().call_later(0.1, gw.connection_lost, ValueError())
@@ -391,13 +285,7 @@ async def test_connection_lost_reset_error_propagation(monkeypatch):
     with pytest.raises(ValueError):
         await gw.reset()
 
-    # Need to close to release thread
     gw.close()
-
-    # Ensure all threads are cleaned up
-    [t.join(1) for t in threading.enumerate() if "bellows" in t.name]
-    threads = [t for t in threading.enumerate() if "bellows" in t.name]
-    assert len(threads) == 0
 
 
 async def test_wait_for_startup_reset(gw):

@@ -24,12 +24,7 @@ import zigpy.util
 import zigpy.zdo.types as zdo_t
 
 import bellows
-from bellows.config import (
-    CONF_EZSP_CONFIG,
-    CONF_EZSP_POLICIES,
-    CONF_USE_THREAD,
-    CONFIG_SCHEMA,
-)
+from bellows.config import CONF_EZSP_CONFIG, CONF_EZSP_POLICIES, CONFIG_SCHEMA
 from bellows.exception import ControllerError, EzspError, StackAlreadyRunning
 import bellows.ezsp
 from bellows.ezsp.v8.types.named import EmberDeviceUpdate
@@ -138,7 +133,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def connect(self) -> None:
         ezsp = bellows.ezsp.EZSP(self.config[zigpy.config.CONF_DEVICE])
-        await ezsp.connect(use_thread=self.config[CONF_USE_THREAD])
+        await ezsp.connect()
 
         try:
             await ezsp.startup_reset()
