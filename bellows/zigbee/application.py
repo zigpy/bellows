@@ -5,7 +5,6 @@ import logging
 import os
 import statistics
 import sys
-import typing
 
 if sys.version_info[:2] < (3, 11):
     from async_timeout import timeout as asyncio_timeout  # pragma: no cover
@@ -32,7 +31,7 @@ from bellows.ezsp.v8.types.named import EmberDeviceUpdate
 import bellows.multicast
 import bellows.types as t
 from bellows.zigbee import repairs
-from bellows.zigbee.device import EZSPEndpoint
+from bellows.zigbee.device import EZSPEndpoint, EZSPTestEndpoint
 import bellows.zigbee.util as util
 
 APS_ACK_TIMEOUT = 120
@@ -76,7 +75,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     def __init__(self, config: dict):
         super().__init__(config)
         self._ctrl_event = asyncio.Event()
-        self._created_device_endpoints: typing.List[zdo_t.SimpleDescriptor] = []
+        self._created_device_endpoints: list[zdo_t.SimpleDescriptor] = []
         self._ezsp = None
         self._multicast = None
         self._mfg_id_task: asyncio.Task | None = None
@@ -217,10 +216,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self.devices[self.state.node_info.ieee] = ezsp_device
 
         # The coordinator device does not respond to attribute reads
-        for zdo_desc in self._created_device_endpoints:
-            ep = EZSPEndpoint(ezsp_device, zdo_desc)
-            ezsp_device.endpoints[zdo_desc.endpoint] = ep
-            
+        if len(self._created_device_endpoints) > 0:
+            for zdo_desc in self._created_device_endpoints:
+                ep = EZSPEndpoint(ezsp_device, zdo_desc)
+                ezsp_device.endpoints[zdo_desc.endpoint] = ep
+        else:
+            ezsp_device.endpoints[1] = EZSPTestEndpoint(ezsp_device, 1)
+
         ezsp_device.model = ezsp_device.endpoints[1].model
         ezsp_device.manufacturer = ezsp_device.endpoints[1].manufacturer
         await ezsp_device.schedule_initialize()
