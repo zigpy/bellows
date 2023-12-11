@@ -302,6 +302,10 @@ class EZSP:
             LOGGER.debug("Ignoring frame, protocol is not configured: %r", data)
             return
 
+        if not data:
+            LOGGER.debug("Ignoring empty frame")
+            return
+
         self._protocol(data)
 
     async def get_board_info(
