@@ -863,3 +863,12 @@ async def test_reset_custom_eui64(ezsp_f):
     assert ezsp_f.setTokenData.mock_calls == [
         call(t.NV3KeyId.CREATOR_STACK_RESTORED_EUI64, 0, t.LVBytes32(b"\xFF" * 8))
     ]
+
+
+def test_empty_frame_received(ezsp_f):
+    """Test dropping of invalid, empty frames."""
+    ezsp_f._protocol = MagicMock(spec_set=ezsp_f._protocol)
+    ezsp_f._protocol.__call__ = MagicMock()
+    ezsp_f.frame_received(b"")
+
+    assert ezsp_f._protocol.__call__.mock_calls == []
