@@ -1208,7 +1208,7 @@ async def test_shutdown(app):
 @pytest.fixture
 def coordinator(app, ieee):
     dev = zigpy.device.Device(app, ieee, 0x0000)
-    dev.endpoints[1] = bellows.zigbee.device.EZSPTestEndpoint(dev, 1)
+    dev.endpoints[1] = bellows.zigbee.device.EZSPSimpleEndpoint(dev, 1)
     dev.model = dev.endpoints[1].model
     dev.manufacturer = dev.endpoints[1].manufacturer
 

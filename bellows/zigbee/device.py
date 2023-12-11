@@ -20,7 +20,7 @@ if typing.TYPE_CHECKING:
 LOGGER = logging.getLogger(__name__)
 
 
-class BaseEZSPEndpoint(zigpy.endpoint.Endpoint):
+class EZSPSimpleEndpoint(zigpy.endpoint.Endpoint):
     @property
     def manufacturer(self) -> str:
         """Manufacturer."""
@@ -59,7 +59,7 @@ class BaseEZSPEndpoint(zigpy.endpoint.Endpoint):
         return status
 
 
-class EZSPEndpoint(BaseEZSPEndpoint):
+class EZSPComplexEndpoint(EZSPSimpleEndpoint):
     def __init__(self, device, descriptor: zdo_t.SimpleDescriptor) -> None:
         self._desc = descriptor
         super().__init__(device, descriptor.endpoint)
@@ -90,7 +90,3 @@ class EZSPEndpoint(BaseEZSPEndpoint):
                 self.add_output_cluster(cluster)
 
         self.status = zigpy.endpoint.Status.ENDPOINT_INACTIVE
-
-
-class EZSPTestEndpoint(BaseEZSPEndpoint):
-    pass
