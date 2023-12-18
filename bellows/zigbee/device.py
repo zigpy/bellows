@@ -27,8 +27,24 @@ class EZSPEndpoint(zigpy.endpoint.Endpoint):
         endpoint_id: int,
         descriptor: zdo_t.SimpleDescriptor,
     ) -> None:
-        self._descriptor = descriptor
         super().__init__(device, endpoint_id)
+
+        self.profile_id = descriptor.profile
+
+        if self.profile_id in PROFILE_TO_DEVICE_TYPE:
+            self.device_type = PROFILE_TO_DEVICE_TYPE[self.profile_id](
+                descriptor.device_type
+            )
+        else:
+            self.device_type = descriptor.device_type
+
+        for cluster in descriptor.input_clusters:
+            self.add_input_cluster(cluster)
+
+        for cluster in descriptor.output_clusters:
+            self.add_output_cluster(cluster)
+
+        self.status = zigpy.endpoint.Status.ZDO_INIT
 
     @property
     def manufacturer(self) -> str:
@@ -39,22 +55,6 @@ class EZSPEndpoint(zigpy.endpoint.Endpoint):
     def model(self) -> str:
         """Model."""
         return "EZSP"
-
-    async def initialize(self) -> None:
-        self.profile_id = self._descriptor.profile_id
-
-        if self.profile_id in PROFILE_TO_DEVICE_TYPE:
-            self.device_type = PROFILE_TO_DEVICE_TYPE[self.profile_id](self.device_type)
-        else:
-            self.device_type = self._descriptor.profile_id
-
-        for cluster in self._descriptor.input_clusters:
-            self.add_input_cluster(cluster)
-
-        for cluster in self._descriptor.output_clusters:
-            self.add_output_cluster(cluster)
-
-        self.status = zigpy.endpoint.Status.ZDO_INIT
 
     async def add_to_group(self, grp_id: int, name: str = None) -> t.EmberStatus:
         if grp_id in self.member_of:
