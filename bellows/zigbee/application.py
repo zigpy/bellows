@@ -31,7 +31,7 @@ from bellows.ezsp.v8.types.named import EmberDeviceUpdate
 import bellows.multicast
 import bellows.types as t
 from bellows.zigbee import repairs
-from bellows.zigbee.device import EZSPComplexEndpoint, EZSPSimpleEndpoint
+from bellows.zigbee.device import EZSPEndpoint
 import bellows.zigbee.util as util
 
 APS_ACK_TIMEOUT = 120
@@ -149,6 +149,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             raise
 
         self._ezsp = ezsp
+
+        self._created_device_endpoints.clear()
         await self.register_endpoints()
 
     async def _ensure_network_running(self) -> bool:
@@ -215,19 +217,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         )
         self.devices[self.state.node_info.ieee] = ezsp_device
 
-        # The coordinator device does not respond to attribute reads, so we
-        # have to divine the internal NCP state. If endpoints were explicitly
-        # given, create complex endpoints from the ZDO descriptors, otherwise
-        # assume a single endpoint at index 1
-        if len(self._created_device_endpoints) > 0:
-            for zdo_desc in self._created_device_endpoints:
-                ep = EZSPComplexEndpoint(ezsp_device, zdo_desc)
-                ezsp_device.endpoints[zdo_desc.endpoint] = ep
-        else:
-            ezsp_device.endpoints[1] = EZSPSimpleEndpoint(ezsp_device, 1)
+        # The coordinator device does not respond to attribute reads so we have to
+        # divine the internal NCP state.
+        for zdo_desc in self._created_device_endpoints:
+            ep = EZSPEndpoint(ezsp_device, zdo_desc.endpoint, zdo_desc)
+            ezsp_device.endpoints[zdo_desc.endpoint] = ep
 
-        ezsp_device.model = ezsp_device.endpoints[1].model
-        ezsp_device.manufacturer = ezsp_device.endpoints[1].manufacturer
+        ezsp_device.model = ep.model
+        ezsp_device.manufacturer = ep.manufacturer
         await ezsp_device.schedule_initialize()
 
         # Group membership is stored in the database for EZSP coordinators
