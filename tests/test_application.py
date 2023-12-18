@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, call, patch, sentinel
 
@@ -113,7 +114,6 @@ def aps():
     return f
 
 
-@patch("zigpy.device.Device._initialize", new=AsyncMock())
 def _create_app_for_startup(
     app,
     nwk_type,
@@ -205,6 +205,14 @@ def _create_app_for_startup(
             ),
         ]
     )
+    ezsp_mock.getMulticastTableEntry = AsyncMock(
+        return_value=[
+            t.EmberStatus.SUCCESS,
+            t.EmberMulticastTableEntry(multicastId=0x0000, endpoint=0, networkIndex=0),
+        ]
+    )
+    ezsp_mock.setMulticastTableEntry = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+
     app.permit = AsyncMock()
 
     def form_network():
@@ -219,10 +227,11 @@ def _create_app_for_startup(
     return ezsp_mock
 
 
-async def _test_startup(
+@contextlib.contextmanager
+def mock_for_startup(
     app,
-    nwk_type,
     ieee,
+    nwk_type=t.EmberNodeType.COORDINATOR,
     auto_form=False,
     init=0,
     ezsp_version=4,
@@ -233,10 +242,25 @@ async def _test_startup(
         app, nwk_type, ieee, auto_form, init, ezsp_version, board_info, network_state
     )
 
-    p1 = patch("bellows.ezsp.EZSP", return_value=ezsp_mock)
-    p2 = patch.object(bellows.multicast.Multicast, "startup")
+    with patch("bellows.ezsp.EZSP", return_value=ezsp_mock), patch(
+        "zigpy.device.Device._initialize", new=AsyncMock()
+    ):
+        yield ezsp_mock
 
-    with p1, p2 as multicast_mock:
+
+async def _test_startup(
+    app,
+    nwk_type,
+    ieee,
+    auto_form=False,
+    init=0,
+    ezsp_version=4,
+    board_info=True,
+    network_state=t.EmberNetworkStatus.JOINED_NETWORK,
+):
+    with mock_for_startup(
+        app, ieee, nwk_type, auto_form, init, ezsp_version, board_info, network_state
+    ) as ezsp_mock:
         await app.startup(auto_form=auto_form)
 
     if ezsp_version > 6:
@@ -246,7 +270,6 @@ async def _test_startup(
 
     assert ezsp_mock.write_config.call_count == 1
     assert ezsp_mock.addEndpoint.call_count >= 2
-    assert multicast_mock.await_count == 1
 
 
 async def test_startup(app, ieee):
@@ -1208,7 +1231,7 @@ async def test_shutdown(app):
 @pytest.fixture
 def coordinator(app, ieee):
     dev = zigpy.device.Device(app, ieee, 0x0000)
-    dev.endpoints[1] = bellows.zigbee.device.EZSPSimpleEndpoint(dev, 1)
+    dev.endpoints[1] = bellows.zigbee.device.EZSPEndpoint(dev, 1, MagicMock())
     dev.model = dev.endpoints[1].model
     dev.manufacturer = dev.endpoints[1].manufacturer
 
@@ -1547,42 +1570,32 @@ async def test_ensure_network_running_not_joined_success(app):
 
 async def test_startup_coordinator_existing_groups_joined(app, ieee):
     """Coordinator joins groups loaded from the database."""
+    with mock_for_startup(app, ieee) as ezsp_mock:
+        await app.connect()
 
-    app._ensure_network_running = AsyncMock()
-    app._ezsp.update_policies = AsyncMock()
-    app.load_network_info = AsyncMock()
-    app.state.node_info.ieee = ieee
+        db_device = app.add_device(ieee, 0x0000)
+        db_ep = db_device.add_endpoint(1)
 
-    db_device = app.add_device(ieee, 0x0000)
-    db_ep = db_device.add_endpoint(1)
+        app.groups.add_group(0x1234, "Group Name", suppress_event=True)
+        app.groups[0x1234].add_member(db_ep, suppress_event=True)
 
-    app.groups.add_group(0x1234, "Group Name", suppress_event=True)
-    app.groups[0x1234].add_member(db_ep, suppress_event=True)
-
-    p1 = patch.object(bellows.multicast.Multicast, "_initialize")
-    p2 = patch.object(bellows.multicast.Multicast, "subscribe")
-
-    with p1 as p1, p2 as p2:
         await app.start_network()
 
-    p2.assert_called_once_with(0x1234)
+    assert ezsp_mock.setMulticastTableEntry.mock_calls == [
+        call(
+            0,
+            t.EmberMulticastTableEntry(multicastId=0x1234, endpoint=1, networkIndex=0),
+        )
+    ]
 
 
 async def test_startup_new_coordinator_no_groups_joined(app, ieee):
     """Coordinator freshy added to the database has no groups to join."""
-
-    app._ensure_network_running = AsyncMock()
-    app._ezsp.update_policies = AsyncMock()
-    app.load_network_info = AsyncMock()
-    app.state.node_info.ieee = ieee
-
-    p1 = patch.object(bellows.multicast.Multicast, "_initialize")
-    p2 = patch.object(bellows.multicast.Multicast, "subscribe")
-
-    with p1 as p1, p2 as p2:
+    with mock_for_startup(app, ieee) as ezsp_mock:
+        await app.connect()
         await app.start_network()
 
-    p2.assert_not_called()
+    assert ezsp_mock.setMulticastTableEntry.mock_calls == []
 
 
 @pytest.mark.parametrize("enable_source_routing", [True, False])
@@ -1591,12 +1604,8 @@ async def test_startup_source_routing(make_app, ieee, enable_source_routing):
 
     app = make_app({zigpy.config.CONF_SOURCE_ROUTING: enable_source_routing})
 
-    app._ezsp.ezsp_version = 9
-    app._ezsp.update_policies = AsyncMock()
-
-    app._ensure_network_running = AsyncMock()
-    app.load_network_info = AsyncMock()
-    app.state.node_info.ieee = ieee
+    with mock_for_startup(app, ieee, ezsp_version=9):
+        await app.connect()
 
     mock_device = MagicMock()
     mock_device.relays = sentinel.relays
@@ -1696,22 +1705,23 @@ async def test_connect_failure(
     assert len(ezsp_mock.close.mock_calls) == 1
 
 
-async def test_repair_tclk_partner_ieee(app: ControllerApplication) -> None:
+async def test_repair_tclk_partner_ieee(
+    app: ControllerApplication, ieee: zigpy_t.EUI64
+) -> None:
     """Test that EZSP is reset after repairing TCLK."""
-    app._ensure_network_running = AsyncMock()
     app._reset = AsyncMock()
-    app.load_network_info = AsyncMock()
 
-    with patch(
+    with mock_for_startup(app, ieee), patch(
         "bellows.zigbee.repairs.fix_invalid_tclk_partner_ieee",
         AsyncMock(return_value=False),
     ):
+        await app.connect()
         await app.start_network()
 
     assert len(app._reset.mock_calls) == 0
     app._reset.reset_mock()
 
-    with patch(
+    with mock_for_startup(app, ieee), patch(
         "bellows.zigbee.repairs.fix_invalid_tclk_partner_ieee",
         AsyncMock(return_value=True),
     ):

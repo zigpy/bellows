@@ -205,10 +205,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         ezsp.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
 
+        group_membership = {}
+
         try:
             db_device = self.get_device(ieee=self.state.node_info.ieee)
         except KeyError:
-            db_device = None
+            pass
+        else:
+            if 1 in db_device.endpoints:
+                group_membership = db_device.endpoints[1].member_of
 
         ezsp_device = zigpy.device.Device(
             application=self,
@@ -222,14 +227,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         for zdo_desc in self._created_device_endpoints:
             ep = EZSPEndpoint(ezsp_device, zdo_desc.endpoint, zdo_desc)
             ezsp_device.endpoints[zdo_desc.endpoint] = ep
+            ezsp_device.model = ep.model
+            ezsp_device.manufacturer = ep.manufacturer
 
-        ezsp_device.model = ep.model
-        ezsp_device.manufacturer = ep.manufacturer
         await ezsp_device.schedule_initialize()
 
         # Group membership is stored in the database for EZSP coordinators
-        if db_device is not None and 1 in db_device.endpoints:
-            ezsp_device.endpoints[1].member_of.update(db_device.endpoints[1].member_of)
+        ezsp_device.endpoints[1].member_of.update(group_membership)
 
         self._multicast = bellows.multicast.Multicast(ezsp)
         await self._multicast.startup(ezsp_device)
