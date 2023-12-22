@@ -255,16 +255,58 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         assert status == t.EmberStatus.SUCCESS
         security_level = zigpy.types.uint8_t(security_level)
 
-        (status, network_key) = await ezsp.getKey(
-            ezsp.types.EmberKeyType.CURRENT_NETWORK_KEY
-        )
-        assert status == t.EmberStatus.SUCCESS
+        if ezsp.ezsp_version < 13:
+            (status, ezsp_network_key) = await ezsp.getKey(
+                ezsp.types.EmberKeyType.CURRENT_NETWORK_KEY
+            )
+            assert status == t.EmberStatus.SUCCESS
+            network_key = util.ezsp_key_to_zigpy_key(ezsp_network_key, ezsp)
 
-        (status, ezsp_tc_link_key) = await ezsp.getKey(
-            ezsp.types.EmberKeyType.TRUST_CENTER_LINK_KEY
-        )
-        assert status == t.EmberStatus.SUCCESS
-        tc_link_key = util.ezsp_key_to_zigpy_key(ezsp_tc_link_key, ezsp)
+            (status, ezsp_tc_link_key) = await ezsp.getKey(
+                ezsp.types.EmberKeyType.TRUST_CENTER_LINK_KEY
+            )
+            assert status == t.EmberStatus.SUCCESS
+            tc_link_key = util.ezsp_key_to_zigpy_key(ezsp_tc_link_key, ezsp)
+        else:
+            (network_key_data, status) = await ezsp.exportKey(
+                ezsp.types.sl_zb_sec_man_context_t(
+                    core_key_type=ezsp.types.sl_zb_sec_man_key_type_t.NETWORK,
+                    key_index=0,
+                    derived_type=ezsp.types.sl_zb_sec_man_derived_key_type_t.NONE,
+                    eui64=t.EmberEUI64.convert("00:00:00:00:00:00:00:00"),
+                    multi_network_index=0,
+                    flags=ezsp.types.sl_zb_sec_man_flags_t.NONE,
+                    psa_key_alg_permission=0,
+                )
+            )
+            assert status == t.EmberStatus.SUCCESS
+
+            (status, network_key_info) = await ezsp.getNetworkKeyInfo()
+            assert status == t.EmberStatus.SUCCESS
+
+            if not network_key_info.network_key_set:
+                raise NetworkNotFormed("Network key is not set")
+
+            network_key = zigpy.state.Key(
+                key=network_key_data,
+                tx_counter=network_key_info.network_key_frame_counter,
+                seq=network_key_info.network_key_sequence_number,
+            )
+
+            (tc_link_key_data, status) = await ezsp.exportKey(
+                ezsp.types.sl_zb_sec_man_context_t(
+                    core_key_type=ezsp.types.sl_zb_sec_man_key_type_t.TC_LINK,
+                    key_index=0,
+                    derived_type=ezsp.types.sl_zb_sec_man_derived_key_type_t.NONE,
+                    eui64=t.EmberEUI64.convert("00:00:00:00:00:00:00:00"),
+                    multi_network_index=0,
+                    flags=ezsp.types.sl_zb_sec_man_flags_t.NONE,
+                    psa_key_alg_permission=0,
+                )
+            )
+            assert status == t.EmberStatus.SUCCESS
+
+            tc_link_key = zigpy.state.Key(key=tc_link_key_data)
 
         (status, state) = await ezsp.getCurrentSecurityState()
         assert status == t.EmberStatus.SUCCESS
@@ -294,7 +336,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             channel=zigpy.types.uint8_t(nwk_params.radioChannel),
             channel_mask=zigpy.types.Channels(nwk_params.channels),
             security_level=zigpy.types.uint8_t(security_level),
-            network_key=util.ezsp_key_to_zigpy_key(network_key, ezsp),
+            network_key=network_key,
             tc_link_key=tc_link_key,
             key_table=[],
             children=[],
@@ -312,19 +354,44 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if not load_devices:
             return
 
-        for idx in range(0, 192):
-            (status, key) = await ezsp.getKeyTableEntry(idx)
+        if ezsp.ezsp_version < 13:
+            for idx in range(0, 192):
+                (status, key) = await ezsp.getKeyTableEntry(idx)
 
-            if status == t.EmberStatus.INDEX_OUT_OF_RANGE:
-                break
-            elif status in (t.EmberStatus.TABLE_ENTRY_ERASED, t.EmberStatus.NOT_FOUND):
-                continue
+                if status == t.EmberStatus.INDEX_OUT_OF_RANGE:
+                    break
+                elif status in (
+                    t.EmberStatus.TABLE_ENTRY_ERASED,
+                    t.EmberStatus.NOT_FOUND,
+                ):
+                    continue
 
-            assert status == t.EmberStatus.SUCCESS
+                assert status == t.EmberStatus.SUCCESS
 
-            self.state.network_info.key_table.append(
-                util.ezsp_key_to_zigpy_key(key, ezsp)
-            )
+                self.state.network_info.key_table.append(
+                    util.ezsp_key_to_zigpy_key(key, ezsp)
+                )
+        else:
+            for index in range(255 + 1):
+                (
+                    eui64,
+                    plaintext_key,
+                    key_data,
+                    status,
+                ) = await ezsp.exportLinkKeyByIndex(index)
+                if status != t.sl_Status.SL_STATUS_OK:
+                    continue
+
+                key = zigpy.state.Key(key=plaintext_key)
+
+                self.state.network_info.key_table.append(
+                    zigpy.state.Key(
+                        key=plaintext_key,
+                        tx_counter=key_data.outgoing_frame_counter,
+                        rx_counter=key_data.incoming_frame_counter,
+                        partner_ieee=eui64,
+                    )
+                )
 
         for idx in range(0, 255 + 1):
             (status, *rsp) = await ezsp.getChildData(idx)
@@ -344,22 +411,20 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         # v4 can crash when getAddressTableRemoteNodeId(32) is received
         # Error code: undefined_0x8a
-        if ezsp.ezsp_version == 4:
-            return
+        if ezsp.ezsp_version > 4:
+            for idx in range(0, 255 + 1):
+                (nwk,) = await ezsp.getAddressTableRemoteNodeId(idx)
+                (eui64,) = await ezsp.getAddressTableRemoteEui64(idx)
 
-        for idx in range(0, 255 + 1):
-            (nwk,) = await ezsp.getAddressTableRemoteNodeId(idx)
-            (eui64,) = await ezsp.getAddressTableRemoteEui64(idx)
+                # Ignore invalid NWK entries
+                if nwk in t.EmberDistinguishedNodeId.__members__.values():
+                    continue
+                elif eui64 == t.EmberEUI64.convert("00:00:00:00:00:00:00:00"):
+                    continue
 
-            # Ignore invalid NWK entries
-            if nwk in t.EmberDistinguishedNodeId.__members__.values():
-                continue
-            elif eui64 == t.EmberEUI64.convert("00:00:00:00:00:00:00:00"):
-                continue
-
-            self.state.network_info.nwk_addresses[
-                zigpy.types.EUI64(eui64)
-            ] = zigpy.types.NWK(nwk)
+                self.state.network_info.nwk_addresses[
+                    zigpy.types.EUI64(eui64)
+                ] = zigpy.types.NWK(nwk)
 
     async def write_network_info(
         self, *, network_info: zigpy.state.NetworkInfo, node_info: zigpy.state.NodeInfo
