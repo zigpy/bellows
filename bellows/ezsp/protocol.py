@@ -107,6 +107,9 @@ class ProtocolHandler(abc.ABC):
 
         LOGGER.debug("Application frame received %s: %s", frame_name, result)
 
+        if data:
+            LOGGER.debug("Frame contains trailing data: %s", data)
+
         if sequence in self._awaiting:
             expected_id, schema, future = self._awaiting.pop(sequence)
             try:
