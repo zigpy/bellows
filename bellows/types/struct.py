@@ -82,7 +82,7 @@ class EmberBindingTableEntry(EzspStruct):
     remote: basic.uint8_t
     # A 64-bit identifier. This is either the destination EUI64 (for
     # unicasts) or the 64-bit group address (for multicasts).
-    identifier: named.EmberEUI64
+    identifier: named.EUI64
     # The index of the network the binding belongs to.
     networkIndex: basic.uint8_t
 
@@ -103,7 +103,7 @@ class EmberMulticastTableEntry(EzspStruct):
 class EmberTransientKeyData(EzspStruct):
     # The transient key data structure. Added in ver. 5
     # The IEEE address paired with the transient link key.
-    eui64: named.EmberEUI64
+    eui64: named.EUI64
     # The key data structure matching the transient key.
     keyData: named.EmberKeyData
     # The incoming frame counter associated with this key.
@@ -142,7 +142,7 @@ class EmberNeighborTableEntry(EzspStruct):
     # last received from this neighbor. The aging period is 16 seconds.
     age: basic.uint8_t
     # The 8 byte EUI64 of the neighbor.
-    longId: named.EmberEUI64
+    longId: named.EUI64
 
 
 class EmberRouteTableEntry(EzspStruct):
@@ -195,7 +195,7 @@ class EmberInitialSecurityState(EzspStruct):
     # EmberInitialSecurityState::bitmask. Most devices should clear that
     # bit and leave this field alone. This field must be set when using
     # commissioning mode.
-    preconfiguredTrustCenterEui64: named.EmberEUI64
+    preconfiguredTrustCenterEui64: named.EUI64
 
 
 class EmberCurrentSecurityState(EzspStruct):
@@ -204,7 +204,7 @@ class EmberCurrentSecurityState(EzspStruct):
     # device joined in the network.
     bitmask: named.EmberCurrentSecurityBitmask
     # The IEEE Address of the Trust Center device.
-    trustCenterLongAddress: named.EmberEUI64
+    trustCenterLongAddress: named.EUI64
 
 
 class EmberZllSecurityAlgorithmData(EzspStruct):
@@ -224,7 +224,7 @@ class EmberZllNetwork(EzspStruct):
     # Data associated with the ZLL security algorithm.
     securityAlgorithm: EmberZllSecurityAlgorithmData
     # Associated EUI64.
-    eui64: named.EmberEUI64
+    eui64: named.EUI64
     # The node id.
     nodeId: named.EmberNodeId
     # The ZLL state.
@@ -256,7 +256,7 @@ class EmberZllInitialSecurityState(EzspStruct):
 class EmberZllDeviceInfoRecord(EzspStruct):
     # Information about a specific ZLL Device.
     # EUI64 associated with the device.
-    ieeeAddress: named.EmberEUI64
+    ieeeAddress: named.EUI64
     # Endpoint id.
     endpointId: basic.uint8_t
     # Profile id.
@@ -342,7 +342,7 @@ class EmberTokTypeStackZllSecurity(EzspStruct):
 class EmberGpAddress(EzspStruct):
     # A GP address structure.
     # The GPD's EUI64.
-    gpdIeeeAddress: named.EmberEUI64
+    gpdIeeeAddress: named.EUI64
     # The GPD's source ID.
     sourceId: basic.uint32_t
     # The GPD Application ID.
@@ -355,5 +355,5 @@ class NV3StackTrustCenterToken(EzspStruct):
     """NV3 stack trust center token value."""
 
     mode: basic.uint16_t
-    eui64: named.EmberEUI64
+    eui64: named.EUI64
     key: named.EmberKeyData

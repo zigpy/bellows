@@ -104,7 +104,7 @@ COMMANDS = {
         0x010D,
         tuple(
             {
-                "eui64": t.EmberEUI64,
+                "eui64": t.EUI64,
             }.values()
         ),
         tuple(
@@ -125,7 +125,7 @@ COMMANDS = {
         ),
         tuple(
             {
-                "eui64": t.EmberEUI64,
+                "eui64": t.EUI64,
                 "plaintext_key": EmberKeyData,
                 "key_data": t.sl_zb_sec_man_aps_key_metadata_t,
                 "status": t.sl_Status,
@@ -136,7 +136,7 @@ COMMANDS = {
         0x0113,
         tuple(
             {
-                "eui64": t.EmberEUI64,
+                "eui64": t.EUI64,
             }.values()
         ),
         tuple(
@@ -173,7 +173,7 @@ COMMANDS = {
         ),
         tuple(
             {
-                "eui": t.EmberEUI64,
+                "eui": t.EUI64,
                 "key_data": t.sl_zb_sec_man_aps_key_metadata_t,
                 "status": t.sl_Status,
             }.values()
@@ -219,7 +219,7 @@ COMMANDS = {
         tuple(
             {
                 "index": t.uint8_t,
-                "address": t.EmberEUI64,
+                "address": t.EUI64,
                 "key": EmberKeyData,
             }.values()
         ),
@@ -233,7 +233,7 @@ COMMANDS = {
         0x0111,
         tuple(
             {
-                "eui64": t.EmberEUI64,
+                "eui64": t.EUI64,
                 "plaintext_key": EmberKeyData,
                 "flags": t.sl_zb_sec_man_flags_t,
             }.values()

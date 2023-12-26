@@ -18,7 +18,7 @@ class sl_zb_sec_man_context_t(EzspStruct):
     # The type of key derivation operation to perform on a key.
     derived_type: named.sl_zb_sec_man_derived_key_type_t
     # The EUI64 associated with this key.
-    eui64: t.EmberEUI64
+    eui64: t.EUI64
     # Multi-network index.
     multi_network_index: t.uint8_t
     # Flag bitmask.

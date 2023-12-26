@@ -35,13 +35,11 @@ def zha_security(
 
     if network_info.tc_link_key.partner_ieee != zigpy_t.EUI64.UNKNOWN:
         isc.bitmask |= t.EmberInitialSecurityBitmask.HAVE_TRUST_CENTER_EUI64
-        isc.preconfiguredTrustCenterEui64 = t.EmberEUI64(
+        isc.preconfiguredTrustCenterEui64 = t.EUI64(
             network_info.tc_link_key.partner_ieee
         )
     else:
-        isc.preconfiguredTrustCenterEui64 = t.EmberEUI64.convert(
-            "00:00:00:00:00:00:00:00"
-        )
+        isc.preconfiguredTrustCenterEui64 = t.EUI64.convert("00:00:00:00:00:00:00:00")
 
     if use_hashed_tclk:
         if network_info.tc_link_key.key != zigpy_t.KeyData(b"ZigBeeAlliance09"):
@@ -96,7 +94,7 @@ def zigpy_key_to_ezsp_key(zigpy_key: zigpy.state.Key, ezsp):
         key.bitmask |= ezsp.types.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER
 
     if zigpy_key.partner_ieee is not None:
-        key.partnerEUI64 = t.EmberEUI64(zigpy_key.partner_ieee)
+        key.partnerEUI64 = t.EUI64(zigpy_key.partner_ieee)
         key.bitmask |= ezsp.types.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
 
     return key

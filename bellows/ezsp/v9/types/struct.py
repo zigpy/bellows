@@ -100,7 +100,7 @@ class EmberKeyStruct(EzspStruct):
     # The sequence number associated with the key.
     sequenceNumber: basic.uint8_t
     # The IEEE address of the partner device also in possession of the key.
-    partnerEUI64: named.EmberEUI64
+    partnerEUI64: named.EUI64
 
     @classmethod
     def deserialize(cls, data: bytes) -> tuple[named.EmberKeyStruct, bytes]:
@@ -116,7 +116,7 @@ class EmberGpSinkListEntry(EzspStruct):
     # The sink list type.
     type: basic.uint8_t
     # The EUI64 of the target sink.
-    sinkEUI: named.EmberEUI64
+    sinkEUI: named.EUI64
     # The short address of the target sink.
     sinkNodeId: named.EmberNodeId
 
@@ -204,7 +204,7 @@ class EmberTransientKeyData(EzspStruct):
     """The transient key data structure. Added in ver. 5. Revised in ver 8"""
 
     # The IEEE address paired with the transient link key.
-    eui64: named.EmberEUI64
+    eui64: named.EUI64
     # The key data structure matching the transient key.
     keyData: named.EmberKeyData
     # This bitmask indicates whether various fields in the structure contain valid data.
@@ -218,7 +218,7 @@ class EmberChildData(EzspStruct):
     """A structure containing a child node's data."""
 
     # The EUI64 of the child
-    eui64: named.EmberEUI64
+    eui64: named.EUI64
     # The node type of the child
     type: named.EmberNodeType
     # The short address of the child
@@ -231,6 +231,6 @@ class EmberChildData(EzspStruct):
     timeout: basic.uint8_t
 
     # The GPD's EUI64.
-    # gpdIeeeAddress: named.EmberEUI64
+    # gpdIeeeAddress: named.EUI64
     # The GPD's source ID.
     # sourceId: basic.uint32_t

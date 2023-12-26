@@ -43,7 +43,7 @@ class EmberKeyStruct(EzspStruct):
     # The sequence number associated with the key.
     sequenceNumber: basic.uint8_t
     # The IEEE address of the partner device also in possession of the key.
-    partnerEUI64: named.EmberEUI64
+    partnerEUI64: named.EUI64
 
 
 class EmberGpSinkListEntry(EzspStruct):
@@ -51,7 +51,7 @@ class EmberGpSinkListEntry(EzspStruct):
     # The sink list type.
     type: basic.uint8_t
     # The EUI64 of the target sink.
-    sinkEUI: named.EmberEUI64
+    sinkEUI: named.EUI64
     # The short address of the target sink.
     sinkNodeId: named.EmberNodeId
 

@@ -34,7 +34,7 @@ def ezsp_key(ezsp_mock, network_info, node_info, zigpy_key):
         sequenceNumber=zigpy_key.seq,
         outgoingFrameCounter=zigpy_key.tx_counter,
         incomingFrameCounter=zigpy_key.rx_counter,
-        partnerEUI64=bellows_t.EmberEUI64(node_info.ieee),
+        partnerEUI64=bellows_t.EUI64(node_info.ieee),
     )
 
 
@@ -66,7 +66,7 @@ def test_zha_security_router_unknown_tclk_partner_ieee(network_info):
     )
 
     # Not set, since we don't know it
-    assert security.preconfiguredTrustCenterEui64 == bellows_t.EmberEUI64([0x00] * 8)
+    assert security.preconfiguredTrustCenterEui64 == bellows_t.EUI64([0x00] * 8)
     assert (
         bellows_t.EmberInitialSecurityBitmask.HAVE_TRUST_CENTER_EUI64
         not in security.bitmask

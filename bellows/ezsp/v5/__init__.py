@@ -41,6 +41,6 @@ class EZSPv5(EZSPv4):
 
     async def pre_permit(self, time_s: int) -> None:
         """Add pre-shared TC Link key."""
-        wild_card_ieee = v5_types.EmberEUI64([0xFF] * 8)
+        wild_card_ieee = v5_types.EUI64([0xFF] * 8)
         tc_link_key = v5_types.EmberKeyData(b"ZigBeeAlliance09")
         await self.add_transient_link_key(wild_card_ieee, tc_link_key)

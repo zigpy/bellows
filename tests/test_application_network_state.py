@@ -101,9 +101,7 @@ def _mock_app_for_load(app):
     )
 
     ezsp.getNodeId = AsyncMock(return_value=[t.EmberNodeId(0x0000)])
-    ezsp.getEui64 = AsyncMock(
-        return_value=[t.EmberEUI64.convert("00:12:4b:00:1c:a1:b8:46")]
-    )
+    ezsp.getEui64 = AsyncMock(return_value=[t.EUI64.convert("00:12:4b:00:1c:a1:b8:46")])
     ezsp.getConfigurationValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS, 5])
 
     def get_key(key_type):
@@ -118,7 +116,7 @@ def _mock_app_for_load(app):
                 outgoingFrameCounter=118785,
                 incomingFrameCounter=0,
                 sequenceNumber=108,
-                partnerEUI64=t.EmberEUI64.convert("00:00:00:00:00:00:00:00"),
+                partnerEUI64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
             ),
             ezsp.types.EmberKeyType.TRUST_CENTER_LINK_KEY: ezsp.types.EmberKeyStruct(
                 bitmask=(
@@ -131,7 +129,7 @@ def _mock_app_for_load(app):
                 outgoingFrameCounter=8712428,
                 incomingFrameCounter=0,
                 sequenceNumber=0,
-                partnerEUI64=t.EmberEUI64.convert("00:12:4b:00:1c:a1:b8:46"),
+                partnerEUI64=t.EUI64.convert("00:12:4b:00:1c:a1:b8:46"),
             ),
         }[key_type]
 
@@ -149,7 +147,7 @@ def _mock_app_for_load(app):
                     | t.EmberCurrentSecurityBitmask.HAVE_TRUST_CENTER_LINK_KEY
                     | t.EmberCurrentSecurityBitmask.GLOBAL_LINK_KEY
                 ),
-                trustCenterLongAddress=t.EmberEUI64.convert("00:12:4b:00:1c:a1:b8:46"),
+                trustCenterLongAddress=t.EUI64.convert("00:12:4b:00:1c:a1:b8:46"),
             ),
         )
     )
@@ -184,7 +182,7 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
         return (
             status,
             t.EmberNodeId(0xC06B),
-            t.EmberEUI64.convert("00:0b:57:ff:fe:2b:d4:57"),
+            t.EUI64.convert("00:0b:57:ff:fe:2b:d4:57"),
             t.EmberNodeType.SLEEPY_END_DEVICE,
         )
 
@@ -197,7 +195,7 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
         return (
             status,
             app._ezsp.types.EmberChildData(
-                eui64=t.EmberEUI64.convert("00:0b:57:ff:fe:2b:d4:57"),
+                eui64=t.EUI64.convert("00:0b:57:ff:fe:2b:d4:57"),
                 type=t.EmberNodeType.SLEEPY_END_DEVICE,
                 id=t.EmberNodeId(0xC06B),
                 phy=0,
@@ -233,7 +231,7 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
                     outgoingFrameCounter=3792973670,
                     incomingFrameCounter=1083290572,
                     sequenceNumber=147,
-                    partnerEUI64=t.EmberEUI64.convert("CC:CC:CC:FF:FE:E6:8E:CA"),
+                    partnerEUI64=t.EUI64.convert("CC:CC:CC:FF:FE:E6:8E:CA"),
                 ),
             )
         elif index == 1:
@@ -253,7 +251,7 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
                     outgoingFrameCounter=2597245184,
                     incomingFrameCounter=824424412,
                     sequenceNumber=19,
-                    partnerEUI64=t.EmberEUI64.convert("EC:1B:BD:FF:FE:2F:41:A4"),
+                    partnerEUI64=t.EUI64.convert("EC:1B:BD:FF:FE:2F:41:A4"),
                 ),
             )
         elif index >= 12:
@@ -270,7 +268,7 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
                 outgoingFrameCounter=8192,
                 incomingFrameCounter=0,
                 sequenceNumber=0,
-                partnerEUI64=t.EmberEUI64.convert("00:12:4b:00:1c:a1:b8:46"),
+                partnerEUI64=t.EUI64.convert("00:12:4b:00:1c:a1:b8:46"),
             ),
         )
 
@@ -291,17 +289,17 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
 
     def get_addr_table_eui64(index):
         if index < 16:
-            return (t.EmberEUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),)
+            return (t.EUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),)
         elif 16 <= index <= 18:
             return (
                 {
-                    16: t.EmberEUI64.convert("cc:cc:cc:ff:fe:e6:8e:ca"),
-                    17: t.EmberEUI64.convert("ec:1b:bd:ff:fe:2f:41:a4"),
-                    18: t.EmberEUI64.convert("00:00:00:00:00:00:00:00"),
+                    16: t.EUI64.convert("cc:cc:cc:ff:fe:e6:8e:ca"),
+                    17: t.EUI64.convert("ec:1b:bd:ff:fe:2f:41:a4"),
+                    18: t.EUI64.convert("00:00:00:00:00:00:00:00"),
                 }[index],
             )
         else:
-            return (t.EmberEUI64.convert("00:00:00:00:00:00:00:00"),)
+            return (t.EUI64.convert("00:00:00:00:00:00:00:00"),)
 
     app._ezsp.getAddressTableRemoteEui64 = AsyncMock(side_effect=get_addr_table_eui64)
 
@@ -340,9 +338,7 @@ def _mock_app_for_write(app, network_info, node_info, ezsp_ver=None):
         return_value=[ezsp.types.EmberNetworkStatus.JOINED_NETWORK]
     )
     ezsp.leaveNetwork = AsyncMock(return_value=[t.EmberStatus.NETWORK_DOWN])
-    ezsp.getEui64 = AsyncMock(
-        return_value=[t.EmberEUI64.convert("00:12:4b:00:1c:a1:b8:46")]
-    )
+    ezsp.getEui64 = AsyncMock(return_value=[t.EUI64.convert("00:12:4b:00:1c:a1:b8:46")])
 
     ezsp.setInitialSecurityState = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp.clearKeyTable = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
@@ -391,7 +387,7 @@ async def test_write_network_info_write_eui64(
     _mock_app_for_write(app, network_info, node_info)
 
     # Differs from what is in `node_info`
-    app._ezsp.getEui64.return_value = [t.EmberEUI64.convert("AA:AA:AA:AA:AA:AA:AA:AA")]
+    app._ezsp.getEui64.return_value = [t.EUI64.convert("AA:AA:AA:AA:AA:AA:AA:AA")]
     app._ezsp.can_burn_userdata_custom_eui64 = AsyncMock(return_value=can_burn)
     app._ezsp.can_rewrite_custom_eui64 = AsyncMock(return_value=can_rewrite)
 

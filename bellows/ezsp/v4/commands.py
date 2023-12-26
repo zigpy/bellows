@@ -77,7 +77,7 @@ COMMANDS = {
     "getXncpInfo": (0x13, (), (t.EmberStatus, t.uint16_t, t.uint16_t)),
     "customFrame": (0x47, (t.LVBytes,), (t.EmberStatus, t.LVBytes)),
     "customFrameHandler": (0x54, (), (t.LVBytes,)),
-    "getEui64": (0x26, (), (t.EmberEUI64,)),
+    "getEui64": (0x26, (), (t.EUI64,)),
     "getNodeId": (0x27, (), (t.EmberNodeId,)),
     "networkInit": (0x17, (), (t.EmberStatus,)),
     # 6. Networking Frames
@@ -107,7 +107,7 @@ COMMANDS = {
     "childJoinHandler": (
         0x23,
         (),
-        (t.uint8_t, t.Bool, t.EmberNodeId, t.EmberEUI64, t.EmberNodeType),
+        (t.uint8_t, t.Bool, t.EmberNodeId, t.EUI64, t.EmberNodeType),
     ),
     "energyScanRequest": (
         0x9C,
@@ -119,11 +119,11 @@ COMMANDS = {
         (),
         (t.EmberStatus, t.EmberNodeType, t.EmberNetworkParameters),
     ),
-    "getParentChildParameters": (0x29, (), (t.uint8_t, t.EmberEUI64, t.EmberNodeId)),
+    "getParentChildParameters": (0x29, (), (t.uint8_t, t.EUI64, t.EmberNodeId)),
     "getChildData": (
         0x4A,
         (t.uint8_t,),
-        (t.EmberStatus, t.EmberNodeId, t.EmberEUI64, t.EmberNodeType),
+        (t.EmberStatus, t.EmberNodeId, t.EUI64, t.EmberNodeType),
     ),
     "getNeighbor": (0x79, (t.uint8_t,), (t.EmberStatus, t.EmberNeighborTableEntry)),
     "neighborCount": (0x7A, (), (t.uint8_t,)),
@@ -202,7 +202,7 @@ COMMANDS = {
     "pollForData": (0x42, (t.uint16_t, t.EmberEventUnits, t.uint8_t), (t.EmberStatus,)),
     "pollCompleteHandler": (0x43, (), (t.EmberStatus,)),
     "pollHandler": (0x44, (), (t.EmberNodeId,)),
-    "incomingSenderEui64Handler": (0x62, (), (t.EmberEUI64,)),
+    "incomingSenderEui64Handler": (0x62, (), (t.EUI64,)),
     "incomingMessageHandler": (
         0x45,
         (),
@@ -220,7 +220,7 @@ COMMANDS = {
     "incomingRouteRecordHandler": (
         0x59,
         (),
-        (t.EmberNodeId, t.EmberEUI64, t.uint8_t, t.int8s, t.LVList(t.EmberNodeId)),
+        (t.EmberNodeId, t.EUI64, t.uint8_t, t.int8s, t.LVList(t.EmberNodeId)),
     ),
     "setSourceRoute": (
         0x5A,
@@ -230,23 +230,23 @@ COMMANDS = {
     "incomingManyToOneRouteRequestHandler": (
         0x7D,
         (),
-        (t.EmberNodeId, t.EmberEUI64, t.uint8_t),
+        (t.EmberNodeId, t.EUI64, t.uint8_t),
     ),
     "incomingRouteErrorHandler": (0x80, (), (t.EmberStatus, t.EmberNodeId)),
     "addressTableEntryIsActive": (0x5B, (t.uint8_t,), (t.Bool,)),
-    "setAddressTableRemoteEui64": (0x5C, (t.uint8_t, t.EmberEUI64), (t.EmberStatus,)),
+    "setAddressTableRemoteEui64": (0x5C, (t.uint8_t, t.EUI64), (t.EmberStatus,)),
     "setAddressTableRemoteNodeId": (0x5D, (t.uint8_t, t.EmberNodeId), ()),
-    "getAddressTableRemoteEui64": (0x5E, (t.uint8_t,), (t.EmberEUI64,)),
+    "getAddressTableRemoteEui64": (0x5E, (t.uint8_t,), (t.EUI64,)),
     "getAddressTableRemoteNodeId": (0x5F, (t.uint8_t,), (t.EmberNodeId,)),
-    "setExtendedTimeout": (0x7E, (t.EmberEUI64, t.Bool), ()),
-    "getExtendedTimeout": (0x7F, (t.EmberEUI64,), (t.Bool,)),
+    "setExtendedTimeout": (0x7E, (t.EUI64, t.Bool), ()),
+    "getExtendedTimeout": (0x7F, (t.EUI64,), (t.Bool,)),
     "replaceAddressTableEntry": (
         0x82,
-        (t.uint8_t, t.EmberEUI64, t.EmberNodeId, t.Bool),
-        (t.EmberStatus, t.EmberEUI64, t.EmberNodeId, t.Bool),
+        (t.uint8_t, t.EUI64, t.EmberNodeId, t.Bool),
+        (t.EmberStatus, t.EUI64, t.EmberNodeId, t.Bool),
     ),
-    "lookupNodeIdByEui64": (0x60, (t.EmberEUI64,), (t.EmberNodeId,)),
-    "lookupEui64ByNodeId": (0x61, (t.EmberNodeId,), (t.EmberStatus, t.EmberEUI64)),
+    "lookupNodeIdByEui64": (0x60, (t.EUI64,), (t.EmberNodeId,)),
+    "lookupEui64ByNodeId": (0x61, (t.EmberNodeId,), (t.EmberStatus, t.EUI64)),
     "getMulticastTableEntry": (
         0x63,
         (t.uint8_t,),
@@ -278,20 +278,20 @@ COMMANDS = {
     "getKeyTableEntry": (0x71, (t.uint8_t,), (t.EmberStatus, t.EmberKeyStruct)),
     "setKeyTableEntry": (
         0x72,
-        (t.uint8_t, t.EmberEUI64, t.Bool, t.EmberKeyData),
+        (t.uint8_t, t.EUI64, t.Bool, t.EmberKeyData),
         (t.EmberStatus,),
     ),
-    "findKeyTableEntry": (0x75, (t.EmberEUI64, t.Bool), (t.uint8_t,)),
+    "findKeyTableEntry": (0x75, (t.EUI64, t.Bool), (t.uint8_t,)),
     "addOrUpdateKeyTableEntry": (
         0x66,
-        (t.EmberEUI64, t.Bool, t.EmberKeyData),
+        (t.EUI64, t.Bool, t.EmberKeyData),
         (t.EmberStatus,),
     ),
     "eraseKeyTableEntry": (0x76, (t.uint8_t,), (t.EmberStatus,)),
     "clearKeyTable": (0xB1, (), (t.EmberStatus,)),
-    "requestLinkKey": (0x14, (t.EmberEUI64,), (t.EmberStatus,)),
-    "zigbeeKeyEstablishmentHandler": (0x9B, (), (t.EmberEUI64, t.EmberKeyStatus)),
-    "addTransientLinkKey": (0xAF, (t.EmberEUI64, t.EmberKeyData), (t.EmberStatus,)),
+    "requestLinkKey": (0x14, (t.EUI64,), (t.EmberStatus,)),
+    "zigbeeKeyEstablishmentHandler": (0x9B, (), (t.EUI64, t.EmberKeyStatus)),
+    "addTransientLinkKey": (0xAF, (t.EUI64, t.EmberKeyData), (t.EmberStatus,)),
     "clearTransientLinkKeys": (0x6B, (), ()),
     # 10. Trust Center Frames
     "trustCenterJoinHandler": (
@@ -299,7 +299,7 @@ COMMANDS = {
         (),
         (
             t.EmberNodeId,
-            t.EmberEUI64,
+            t.EUI64,
             t.EmberDeviceUpdate,
             t.EmberJoinDecision,
             t.EmberNodeId,
@@ -315,12 +315,12 @@ COMMANDS = {
     ),
     "removeDevice": (
         0xA8,
-        (t.EmberNodeId, t.EmberEUI64, t.EmberEUI64),
+        (t.EmberNodeId, t.EUI64, t.EUI64),
         (t.EmberStatus,),
     ),
     "unicastNwkKeyUpdate": (
         0xA9,
-        (t.EmberNodeId, t.EmberEUI64, t.EmberKeyData),
+        (t.EmberNodeId, t.EUI64, t.EmberKeyData),
         (t.EmberStatus,),
     ),
     # 11. Certificate Based Key Exchange (CBKE) Frames
@@ -398,7 +398,7 @@ COMMANDS = {
     "mfglibRxHandler": (0x8E, (), (t.uint8_t, t.int8s, t.LVBytes)),
     # 13. Bootloader Frames
     "launchStandaloneBootloader": (0x8F, (t.uint8_t,), (t.EmberStatus,)),
-    "sendBootloadMessage": (0x90, (t.Bool, t.EmberEUI64, t.LVBytes), (t.EmberStatus,)),
+    "sendBootloadMessage": (0x90, (t.Bool, t.EUI64, t.LVBytes), (t.EmberStatus,)),
     "getStandaloneBootloaderVersionPlatMicroPhy": (
         0x91,
         (),
@@ -407,7 +407,7 @@ COMMANDS = {
     "incomingBootloadMessageHandler": (
         0x92,
         (),
-        (t.EmberEUI64, t.uint8_t, t.int8s, t.LVBytes),
+        (t.EUI64, t.uint8_t, t.int8s, t.LVBytes),
     ),
     "bootloadTransmitCompleteHandler": (0x93, (), (t.EmberStatus, t.LVBytes)),
     "aesEncrypt": (
@@ -510,7 +510,7 @@ COMMANDS = {
         0xDB,
         (),
         (
-            t.EmberEUI64,
+            t.EUI64,
             t.uint8_t,
             t.EmberRf4ceVendorInfo,
             t.EmberRf4ceApplicationInfo,
@@ -525,7 +525,7 @@ COMMANDS = {
             t.Bool,
             t.uint8_t,
             t.EmberPanId,
-            t.EmberEUI64,
+            t.EUI64,
             t.uint8_t,
             t.EmberRf4ceVendorInfo,
             t.EmberRf4ceApplicationInfo,
@@ -539,7 +539,7 @@ COMMANDS = {
         (),
         (
             t.EmberStatus,
-            t.EmberEUI64,
+            t.EUI64,
             t.uint8_t,
             t.EmberRf4ceVendorInfo,
             t.EmberRf4ceApplicationInfo,
@@ -548,7 +548,7 @@ COMMANDS = {
     ),
     "rf4cePair": (
         0xDF,
-        (t.uint8_t, t.EmberPanId, t.EmberEUI64, t.uint8_t),
+        (t.uint8_t, t.EmberPanId, t.EUI64, t.uint8_t),
         (t.EmberStatus,),
     ),
     "rf4cePairCompleteHandler": (
@@ -562,7 +562,7 @@ COMMANDS = {
         (
             t.EmberStatus,
             t.uint8_t,
-            t.EmberEUI64,
+            t.EUI64,
             t.uint8_t,
             t.EmberRf4ceVendorInfo,
             t.EmberRf4ceApplicationInfo,
@@ -596,7 +596,7 @@ COMMANDS = {
             t.uint16_t,
             t.uint16_t,
             t.uint16_t,
-            t.EmberEUI64,
+            t.EUI64,
             t.EmberKeyData,
         ),
         (),

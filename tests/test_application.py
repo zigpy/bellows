@@ -35,7 +35,7 @@ APP_CONFIG = {
 
 @pytest.fixture
 def ieee(init=0):
-    return t.EmberEUI64(map(t.uint8_t, range(init, init + 8)))
+    return t.EUI64(map(t.uint8_t, range(init, init + 8)))
 
 
 @pytest.fixture
@@ -187,7 +187,7 @@ def _create_app_for_startup(
                 outgoingFrameCounter=t.uint32_t(0x12345678),
                 incomingFrameCounter=t.uint32_t(0x00000000),
                 sequenceNumber=t.uint8_t(1),
-                partnerEUI64=t.EmberEUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),
+                partnerEUI64=t.EUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),
             ),
         ]
     )
@@ -261,7 +261,7 @@ async def test_startup_ezsp_ver7(app, ieee):
 
 async def test_startup_ezsp_ver8(app, ieee):
     app.state.counters["ezsp_counters"] = MagicMock()
-    ieee_1 = t.EmberEUI64.convert("11:22:33:44:55:66:77:88")
+    ieee_1 = t.EUI64.convert("11:22:33:44:55:66:77:88")
     dev_1 = app.add_device(ieee_1, 0x1234)
     dev_1.relays = [
         t.EmberNodeId(0x2222),
@@ -1470,7 +1470,7 @@ async def test_set_mfg_id(ieee, expected_mfg_id, app, ezsp_mock):
         "trustCenterJoinHandler",
         [
             1,
-            t.EmberEUI64.convert(ieee),
+            t.EUI64.convert(ieee),
             t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
             t.EmberJoinDecision.NO_ACTION,
             sentinel.parent,
@@ -1481,7 +1481,7 @@ async def test_set_mfg_id(ieee, expected_mfg_id, app, ezsp_mock):
         "trustCenterJoinHandler",
         [
             1,
-            t.EmberEUI64.convert(ieee),
+            t.EUI64.convert(ieee),
             t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
             t.EmberJoinDecision.NO_ACTION,
             sentinel.parent,

@@ -114,7 +114,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if status != t.EmberStatus.SUCCESS:
             raise StackAlreadyRunning()
 
-    async def cleanup_tc_link_key(self, ieee: t.EmberEUI64) -> None:
+    async def cleanup_tc_link_key(self, ieee: t.EUI64) -> None:
         """Remove tc link_key for the given device."""
         (index,) = await self._ezsp.findKeyTableEntry(ieee, True)
         if index != 0xFF:
@@ -273,7 +273,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     core_key_type=ezsp.types.sl_zb_sec_man_key_type_t.NETWORK,
                     key_index=0,
                     derived_type=ezsp.types.sl_zb_sec_man_derived_key_type_t.NONE,
-                    eui64=t.EmberEUI64.convert("00:00:00:00:00:00:00:00"),
+                    eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
                     multi_network_index=0,
                     flags=ezsp.types.sl_zb_sec_man_flags_t.NONE,
                     psa_key_alg_permission=0,
@@ -298,7 +298,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     core_key_type=ezsp.types.sl_zb_sec_man_key_type_t.TC_LINK,
                     key_index=0,
                     derived_type=ezsp.types.sl_zb_sec_man_derived_key_type_t.NONE,
-                    eui64=t.EmberEUI64.convert("00:00:00:00:00:00:00:00"),
+                    eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
                     multi_network_index=0,
                     flags=ezsp.types.sl_zb_sec_man_flags_t.NONE,
                     psa_key_alg_permission=0,
@@ -417,7 +417,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 # Ignore invalid NWK entries
                 if nwk in t.EmberDistinguishedNodeId.__members__.values():
                     continue
-                elif eui64 == t.EmberEUI64.convert("00:00:00:00:00:00:00:00"):
+                elif eui64 == t.EUI64.convert("00:00:00:00:00:00:00:00"):
                     continue
 
                 self.state.network_info.nwk_addresses[
@@ -484,15 +484,39 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         assert status == t.EmberStatus.SUCCESS
 
         # Write APS link keys
-        for key in network_info.key_table:
-            ember_key = util.zigpy_key_to_ezsp_key(key, ezsp)
+        for index, key in enumerate(network_info.key_table):
+            if ezsp.ezsp_version < 13:
+                # XXX: is there no way to set the outgoing frame counter or seq?
+                (status,) = await ezsp.addOrUpdateKeyTableEntry(
+                    key.partner_ieee, True, key.key
+                )
+            else:
+                (status,) = await ezsp.importLinkKey(index, key.partner_ieee, key.key)
 
-            # XXX: is there no way to set the outgoing frame counter or seq?
-            (status,) = await ezsp.addOrUpdateKeyTableEntry(
-                ember_key.partnerEUI64, True, ember_key.key
-            )
             if status != t.EmberStatus.SUCCESS:
                 LOGGER.warning("Couldn't add %s key: %s", key, status)
+
+        # Write the child table
+        if ezsp.ezsp_version >= 9:
+            index = 0
+
+            for child_eui64 in self.state.network_info.children:
+                if child_eui64 not in self.state.network_info.nwk_addresses:
+                    continue
+
+                status = await ezsp.setChildData(
+                    index,
+                    ezsp.types.ChildData(
+                        eui64=child_eui64,
+                        # XXX: what does this do?
+                        type=t.EmberNodeType.MOBILE_END_DEVICE,
+                        id=self.state.network_info.nwk_addresses[child_eui64],
+                        phy=0,
+                        power=255,
+                        timeout=255,
+                    ),
+                )
+                index += 1
 
         if ezsp.ezsp_version > 4:
             # Set NWK frame counter
@@ -512,7 +536,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         # Set the network settings
         parameters = t.EmberNetworkParameters()
         parameters.panId = t.EmberPanId(network_info.pan_id)
-        parameters.extendedPanId = t.EmberEUI64(network_info.extended_pan_id)
+        parameters.extendedPanId = t.EUI64(network_info.extended_pan_id)
         parameters.radioTxPower = t.uint8_t(8)
         parameters.radioChannel = t.uint8_t(network_info.channel)
         parameters.joinMethod = t.EmberJoinMethod.USE_MAC_ASSOCIATION
@@ -689,7 +713,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     def _handle_tc_join_handler(
         self,
         nwk: t.EmberNodeId,
-        ieee: t.EmberEUI64,
+        ieee: t.EUI64,
         device_update_status: EmberDeviceUpdate,
         decision: t.EmberJoinDecision,
         parent_nwk: t.EmberNodeId,
@@ -996,7 +1020,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     def handle_route_record(
         self,
         nwk: t.EmberNodeId,
-        ieee: t.EmberEUI64,
+        ieee: t.EUI64,
         lqi: t.uint8_t,
         rssi: t.int8s,
         relays: t.LVList(t.EmberNodeId),

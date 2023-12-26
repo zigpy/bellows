@@ -43,7 +43,7 @@ class EmberKeyStruct(EzspStruct):
     # The sequence number associated with the key.
     sequenceNumber: basic.uint8_t
     # The IEEE address of the partner device also in possession of the key.
-    partnerEUI64: named.EmberEUI64
+    partnerEUI64: named.EUI64
 
 
 class EmberRf4ceVendorInfo(EzspStruct):
@@ -76,7 +76,7 @@ class EmberRf4cePairingTableEntry(EzspStruct):
     # The link key to be used to secure this pairing link.
     securityLinkKey: named.EmberKeyData
     # The IEEE address of the destination device.
-    destLongId: named.EmberEUI64
+    destLongId: named.EUI64
     # The frame counter last received from the recipient node.
     frameCounter: basic.uint32_t
     # The network address to be assumed by the source device.
@@ -106,6 +106,6 @@ class EmberGpSinkListEntry(EzspStruct):
     # The sink list type.
     type: basic.uint8_t
     # The EUI64 of the target sink.
-    sinkEUI: named.EmberEUI64
+    sinkEUI: named.EUI64
     # The short address of the target sink.
     sinkNodeId: named.EmberNodeId

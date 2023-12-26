@@ -385,14 +385,14 @@ class EZSP:
                 return None
 
             if status == t.EmberStatus.SUCCESS:
-                nv3_restored_eui64, _ = t.EmberEUI64.deserialize(data)
+                nv3_restored_eui64, _ = t.EUI64.deserialize(data)
                 LOGGER.debug("NV3 restored EUI64: %s=%s", key, nv3_restored_eui64)
 
                 return key
 
         return None
 
-    async def _get_mfg_custom_eui_64(self) -> t.EmberEUI64 | None:
+    async def _get_mfg_custom_eui_64(self) -> t.EUI64 | None:
         """Get the custom EUI 64 manufacturing token, if it has a valid value."""
         (data,) = await self.getMfgToken(t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
 
@@ -400,9 +400,9 @@ class EZSP:
         if not data:
             raise ValueError("Firmware does not support MFG_CUSTOM_EUI_64 token")
 
-        mfg_custom_eui64, _ = t.EmberEUI64.deserialize(data)
+        mfg_custom_eui64, _ = t.EUI64.deserialize(data)
 
-        if mfg_custom_eui64 == t.EmberEUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF"):
+        if mfg_custom_eui64 == t.EUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF"):
             return None
 
         return mfg_custom_eui64
@@ -428,7 +428,7 @@ class EZSP:
         (status,) = await self.setTokenData(
             nv3_eui64_key,
             0,
-            t.LVBytes32(t.EmberEUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF").serialize()),
+            t.LVBytes32(t.EUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF").serialize()),
         )
         assert status == t.EmberStatus.SUCCESS
 

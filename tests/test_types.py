@@ -77,7 +77,7 @@ def test_str():
 
 def test_ember_eui64():
     serialized = b"\x00\x01\x02\x03\x04\x05\x06\x07"
-    eui64, data = t.EmberEUI64.deserialize(serialized)
+    eui64, data = t.EUI64.deserialize(serialized)
     assert data == b""
     assert eui64.serialize() == serialized
 

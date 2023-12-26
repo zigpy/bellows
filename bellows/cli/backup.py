@@ -44,7 +44,7 @@ SCHEMA_KEY = vol.Schema(
         ATTR_KEY_FRAME_COUNTER_OUT: cv_hex,
         ATTR_KEY_FRAME_COUNTER_IN: cv_hex,
         ATTR_KEY_SEQ: cv_hex,
-        ATTR_KEY_PARTNER: vol.All(str, t.EmberEUI64.convert),
+        ATTR_KEY_PARTNER: vol.All(str, t.EUI64.convert),
     }
 )
 SCHEMA_BAK = vol.Schema(
@@ -52,7 +52,7 @@ SCHEMA_BAK = vol.Schema(
         ATTR_CHANNELS: cv_hex,
         ATTR_NODE_TYPE: cv_hex,
         ATTR_NODE_ID: cv_hex,
-        ATTR_NODE_EUI64: vol.All(str, t.EmberEUI64.convert),
+        ATTR_NODE_EUI64: vol.All(str, t.EUI64.convert),
         ATTR_NWK_UPDATE_ID: cv_hex,
         ATTR_PAN_ID: cv_hex,
         ATTR_RADIO_CHANNEL: cv_hex,
@@ -214,7 +214,7 @@ async def _restore(
             return
 
     if update_eui64_token:
-        ncp_eui64 = t.EmberEUI64(backup_data[ATTR_NODE_EUI64]).serialize()
+        ncp_eui64 = t.EUI64(backup_data[ATTR_NODE_EUI64]).serialize()
         (status,) = await ezsp.setMfgToken(
             t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, ncp_eui64
         )

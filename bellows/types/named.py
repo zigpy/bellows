@@ -5,6 +5,7 @@ from . import basic
 
 Channels = ztypes.Channels
 EmberEUI64 = ztypes.EUI64
+EUI64 = ztypes.EUI64
 
 
 class NcpResetCode(basic.enum8):
