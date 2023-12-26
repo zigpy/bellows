@@ -1,6 +1,7 @@
 """"EZSP Protocol version 5 protocol handler."""
+from __future__ import annotations
+
 import logging
-from typing import Tuple
 
 import voluptuous
 
@@ -30,7 +31,7 @@ class EZSPv5(EZSPv4):
         frame = [self._seq, 0x00, 0xFF, 0x00, cmd_id]
         return bytes(frame)
 
-    def _ezsp_frame_rx(self, data: bytes) -> Tuple[int, int, bytes]:
+    def _ezsp_frame_rx(self, data: bytes) -> tuple[int, int, bytes]:
         """Handler for received data frame."""
         return data[0], data[4], data[5:]
 

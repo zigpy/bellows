@@ -1,4 +1,6 @@
 """"EZSP Protocol version 13 protocol handler."""
+from __future__ import annotations
+
 import voluptuous as vol
 
 import bellows.config
