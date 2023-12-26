@@ -128,8 +128,8 @@ COMMANDS = {
     ),
     "setChildData": (
         0x00AC,
-        (t.uint8_t,),
-        (t.EmberStatus, t.EmberChildData),
+        (t.uint8_t, t.EmberChildData),
+        (t.EmberStatus,),
     ),
     "getSourceRouteTableTotalSize": (0x00C3, (), (t.uint8_t,)),
     "getSourceRouteTableFilledSize": (0x00C2, (), (t.uint8_t,)),
