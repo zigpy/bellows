@@ -476,6 +476,25 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             node_info.ieee = current_eui64
             network_info.tc_link_key.partner_ieee = current_eui64
 
+        if ezsp.ezsp_version > 4:
+            # Frame counters can only be set *before* we have joined a network
+            (state,) = await self._ezsp.networkState()
+            assert state == ezsp.types.EmberNetworkStatus.NO_NETWORK
+
+            # Set NWK frame counter
+            (status,) = await ezsp.setValue(
+                ezsp.types.EzspValueId.VALUE_NWK_FRAME_COUNTER,
+                t.uint32_t(network_info.network_key.tx_counter).serialize(),
+            )
+            assert status == t.EmberStatus.SUCCESS
+
+            # Set APS frame counter
+            (status,) = await ezsp.setValue(
+                ezsp.types.EzspValueId.VALUE_APS_FRAME_COUNTER,
+                t.uint32_t(network_info.tc_link_key.tx_counter).serialize(),
+            )
+            assert status == t.EmberStatus.SUCCESS
+
         use_hashed_tclk = ezsp.ezsp_version > 4
 
         if use_hashed_tclk and not stack_specific.get("hashed_tclk"):
@@ -525,21 +544,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     ),
                 )
                 index += 1
-
-        if ezsp.ezsp_version > 4:
-            # Set NWK frame counter
-            (status,) = await ezsp.setValue(
-                ezsp.types.EzspValueId.VALUE_NWK_FRAME_COUNTER,
-                t.uint32_t(network_info.network_key.tx_counter).serialize(),
-            )
-            assert status == t.EmberStatus.SUCCESS
-
-            # Set APS frame counter
-            (status,) = await ezsp.setValue(
-                ezsp.types.EzspValueId.VALUE_APS_FRAME_COUNTER,
-                t.uint32_t(network_info.tc_link_key.tx_counter).serialize(),
-            )
-            assert status == t.EmberStatus.SUCCESS
 
         # Set the network settings
         parameters = t.EmberNetworkParameters()

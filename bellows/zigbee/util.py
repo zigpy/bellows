@@ -29,6 +29,7 @@ def zha_security(
         | t.EmberInitialSecurityBitmask.REQUIRE_ENCRYPTED_KEY
         | t.EmberInitialSecurityBitmask.TRUST_CENTER_GLOBAL_LINK_KEY
         | t.EmberInitialSecurityBitmask.HAVE_NETWORK_KEY
+        | t.EmberInitialSecurityBitmask.NO_FRAME_COUNTER_RESET
     )
     isc.networkKey = t.KeyData(network_info.network_key.key)
     isc.networkKeySequenceNumber = t.uint8_t(network_info.network_key.seq)
