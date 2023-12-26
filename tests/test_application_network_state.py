@@ -112,7 +112,7 @@ def _mock_app_for_load(app):
                     | t.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER
                 ),
                 type=ezsp.types.EmberKeyType.CURRENT_NETWORK_KEY,
-                key=t.EmberKeyData(bytes.fromhex("2ccade06b3090c310315b3d574d3c85a")),
+                key=t.KeyData(bytes.fromhex("2ccade06b3090c310315b3d574d3c85a")),
                 outgoingFrameCounter=118785,
                 incomingFrameCounter=0,
                 sequenceNumber=108,
@@ -125,7 +125,7 @@ def _mock_app_for_load(app):
                     | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
                 ),
                 type=ezsp.types.EmberKeyType.TRUST_CENTER_LINK_KEY,
-                key=t.EmberKeyData(bytes.fromhex("abcdabcdabcdabcdabcdabcdabcdabcd")),
+                key=t.KeyData(bytes.fromhex("abcdabcdabcdabcdabcdabcdabcdabcd")),
                 outgoingFrameCounter=8712428,
                 incomingFrameCounter=0,
                 sequenceNumber=0,
@@ -225,9 +225,7 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
                         | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
                     ),
                     type=app._ezsp.types.EmberKeyType.APPLICATION_LINK_KEY,
-                    key=t.EmberKeyData(
-                        bytes.fromhex("857C05003E761AF9689A49416A605C76")
-                    ),
+                    key=t.KeyData(bytes.fromhex("857C05003E761AF9689A49416A605C76")),
                     outgoingFrameCounter=3792973670,
                     incomingFrameCounter=1083290572,
                     sequenceNumber=147,
@@ -245,9 +243,7 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
                         | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
                     ),
                     type=app._ezsp.types.EmberKeyType.APPLICATION_LINK_KEY,
-                    key=t.EmberKeyData(
-                        bytes.fromhex("CA02E8BB757C94F89339D39CB3CDA7BE")
-                    ),
+                    key=t.KeyData(bytes.fromhex("CA02E8BB757C94F89339D39CB3CDA7BE")),
                     outgoingFrameCounter=2597245184,
                     incomingFrameCounter=824424412,
                     sequenceNumber=19,
@@ -264,7 +260,7 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
             app._ezsp.types.EmberKeyStruct(
                 bitmask=t.EmberKeyStructBitmask(244),
                 type=app._ezsp.types.EmberKeyType(0x46),
-                key=t.EmberKeyData(bytes.fromhex("b8a11c004b1200cdabcdabcdabcdabcd")),
+                key=t.KeyData(bytes.fromhex("b8a11c004b1200cdabcdabcdabcdabcd")),
                 outgoingFrameCounter=8192,
                 incomingFrameCounter=0,
                 sequenceNumber=0,

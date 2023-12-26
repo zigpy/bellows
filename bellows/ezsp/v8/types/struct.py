@@ -88,7 +88,7 @@ class EmberKeyStruct(EzspStruct):
     # The type of the key.
     type: named.EmberKeyType
     # The actual key data.
-    key: named.EmberKeyData
+    key: named.KeyData
     # The outgoing frame counter associated with the key.
     outgoingFrameCounter: basic.uint32_t
     # The frame counter of the partner device associated with the key.
@@ -113,7 +113,7 @@ class EmberGpProxyTableEntry(EzspStruct):
     """The internal representation of a proxy table entry."""
 
     # The link key to be used to secure this pairing link.
-    securityLinkKey: named.EmberKeyData
+    securityLinkKey: named.KeyData
     # Internal status of the proxy table entry.
     status: named.EmberGpProxyTableEntryStatus
     # The tunneling options
@@ -128,7 +128,7 @@ class EmberGpProxyTableEntry(EzspStruct):
     # The security frame counter of the GPD.
     gpdSecurityFrameCounter: named.EmberGpSecurityFrameCounter
     # The key to use for GPD.
-    gpdKey: named.EmberKeyData
+    gpdKey: named.KeyData
     # The list of sinks (hardcoded to 2 which is the spec minimum).
     sinkList: basic.fixed_list(2, EmberGpSinkListEntry)
     # The groupcast radius.
@@ -160,7 +160,7 @@ class EmberGpSinkTableEntry(EzspStruct):
     # The security frame counter of the GPD.
     gpdSecurityFrameCounter: named.EmberGpSecurityFrameCounter
     # The key to use for GPD.
-    gpdKey: named.EmberKeyData
+    gpdKey: named.KeyData
 
 
 class EmberDutyCycleLimits(EzspStruct):
@@ -196,7 +196,7 @@ class EmberTransientKeyData(EzspStruct):
     # The IEEE address paired with the transient link key.
     eui64: named.EUI64
     # The key data structure matching the transient key.
-    keyData: named.EmberKeyData
+    keyData: named.KeyData
     # This bitmask indicates whether various fields in the structure contain valid data.
     bitmask: named.EmberKeyStructBitmask
     # The number of seconds remaining before the key is automatically timed out of the

@@ -244,7 +244,7 @@ async def _restore(
         init_sec_state.bitmask |= (
             t.EmberInitialSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
         )
-        init_sec_state.preconfiguredKey = t.EmberKeyData(os.urandom(16))
+        init_sec_state.preconfiguredKey = t.KeyData(os.urandom(16))
 
     (status,) = await ezsp.setInitialSecurityState(init_sec_state)
     LOGGER.debug("Set initial security state: %s", status)
@@ -344,5 +344,5 @@ async def _update_nwk_id(ezsp, nwk_update_id):
 
 def is_well_known_key(tc_link_key):
     """Return True if this is a well known key."""
-    well_known_key = t.EmberKeyData.deserialize(b"ZigBeeAlliance09")[0]
+    well_known_key = t.KeyData.deserialize(b"ZigBeeAlliance09")[0]
     return tc_link_key == well_known_key

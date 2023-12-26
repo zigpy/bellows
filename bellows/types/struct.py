@@ -105,7 +105,7 @@ class EmberTransientKeyData(EzspStruct):
     # The IEEE address paired with the transient link key.
     eui64: named.EUI64
     # The key data structure matching the transient key.
-    keyData: named.EmberKeyData
+    keyData: named.KeyData
     # The incoming frame counter associated with this key.
     incomingFrameCounter: basic.uint32_t
     # The number of milliseconds remaining before the key
@@ -179,12 +179,12 @@ class EmberInitialSecurityState(EzspStruct):
     # joining the network. The security bitmask must be set with the
     # HAVE_PRECONFIGURED_KEY bit to indicate that the key contains valid
     # data.
-    preconfiguredKey: named.EmberKeyData
+    preconfiguredKey: named.KeyData
     # The Network Key that should be used by the Trust Center when it forms
     # the network, or the Network Key currently in use by a joined device.
     # The security bitmask must be set with HAVE_NETWORK_KEY to indicate
     # that the key contains valid data.
-    networkKey: named.EmberKeyData
+    networkKey: named.KeyData
     # The sequence number associated with the network key. This is only
     # valid if the HAVE_NETWORK_KEY has been set in the security bitmask.
     networkKeySequenceNumber: basic.uint8_t
@@ -247,10 +247,10 @@ class EmberZllInitialSecurityState(EzspStruct):
     # The key encryption algorithm advertised by the application.
     keyIndex: named.EmberZllKeyIndex
     # The encryption key for use by algorithms that require it.
-    encryptionKey: named.EmberKeyData
+    encryptionKey: named.KeyData
     # The pre-configured link key used during classical ZigBee
     # commissioning.
-    preconfiguredKey: named.EmberKeyData
+    preconfiguredKey: named.KeyData
 
 
 class EmberZllDeviceInfoRecord(EzspStruct):
@@ -334,9 +334,9 @@ class EmberTokTypeStackZllSecurity(EzspStruct):
     # Key index.
     keyIndex: basic.uint8_t
     # Encryption key.
-    encryptionKey: named.EmberKeyData
+    encryptionKey: named.KeyData
     # Preconfigured key.
-    preconfiguredKey: named.EmberKeyData
+    preconfiguredKey: named.KeyData
 
 
 class EmberGpAddress(EzspStruct):
@@ -356,4 +356,4 @@ class NV3StackTrustCenterToken(EzspStruct):
 
     mode: basic.uint16_t
     eui64: named.EUI64
-    key: named.EmberKeyData
+    key: named.KeyData

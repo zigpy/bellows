@@ -30,7 +30,7 @@ def ezsp_key(ezsp_mock, network_info, node_info, zigpy_key):
             | ezsp.types.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER
             | ezsp.types.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
         ),
-        key=ezsp.types.EmberKeyData(network_info.network_key.key),
+        key=ezsp.types.KeyData(network_info.network_key.key),
         sequenceNumber=zigpy_key.seq,
         outgoingFrameCounter=zigpy_key.tx_counter,
         incomingFrameCounter=zigpy_key.rx_counter,

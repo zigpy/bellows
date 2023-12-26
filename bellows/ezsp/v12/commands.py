@@ -1,4 +1,4 @@
-from bellows.types import EmberKeyData
+from bellows.types import KeyData
 
 from . import types as t
 from ..v11.commands import COMMANDS as COMMANDS_v11
@@ -95,7 +95,7 @@ COMMANDS = {
         ),
         tuple(
             {
-                "key": EmberKeyData,
+                "key": KeyData,
                 "status": t.sl_Status,
             }.values()
         ),
@@ -109,7 +109,7 @@ COMMANDS = {
         ),
         tuple(
             {
-                "plaintext_key": EmberKeyData,
+                "plaintext_key": KeyData,
                 "index": t.uint8_t,
                 "key_data": t.sl_zb_sec_man_aps_key_metadata_t,
                 "status": t.sl_Status,
@@ -126,7 +126,7 @@ COMMANDS = {
         tuple(
             {
                 "eui64": t.EUI64,
-                "plaintext_key": EmberKeyData,
+                "plaintext_key": KeyData,
                 "key_data": t.sl_zb_sec_man_aps_key_metadata_t,
                 "status": t.sl_Status,
             }.values()
@@ -142,7 +142,7 @@ COMMANDS = {
         tuple(
             {
                 "context": t.sl_zb_sec_man_context_t,
-                "plaintext_key": EmberKeyData,
+                "plaintext_key": KeyData,
                 "key_data": t.sl_zb_sec_man_aps_key_metadata_t,
                 "status": t.sl_Status,
             }.values()
@@ -158,7 +158,7 @@ COMMANDS = {
         tuple(
             {
                 "context": t.sl_zb_sec_man_context_t,
-                "plaintext_key": EmberKeyData,
+                "plaintext_key": KeyData,
                 "key_data": t.sl_zb_sec_man_aps_key_metadata_t,
                 "status": t.sl_Status,
             }.values()
@@ -205,7 +205,7 @@ COMMANDS = {
         tuple(
             {
                 "context": t.sl_zb_sec_man_context_t,
-                "key": EmberKeyData,
+                "key": KeyData,
             }.values()
         ),
         tuple(
@@ -220,7 +220,7 @@ COMMANDS = {
             {
                 "index": t.uint8_t,
                 "address": t.EUI64,
-                "key": EmberKeyData,
+                "key": KeyData,
             }.values()
         ),
         tuple(
@@ -234,7 +234,7 @@ COMMANDS = {
         tuple(
             {
                 "eui64": t.EUI64,
-                "plaintext_key": EmberKeyData,
+                "plaintext_key": KeyData,
                 "flags": t.sl_zb_sec_man_flags_t,
             }.values()
         ),

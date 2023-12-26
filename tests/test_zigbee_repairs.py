@@ -76,7 +76,7 @@ async def test_fix_invalid_tclk(ezsp_tclk_f: EZSP, caplog) -> None:
             t.NV3StackTrustCenterToken(
                 mode=228,
                 eui64=t.EUI64.convert("BB:BB:BB:BB:BB:BB:BB:BB"),
-                key=t.EmberKeyData.convert(
+                key=t.KeyData.convert(
                     "21:8e:df:b8:50:a0:4a:b6:8b:c6:10:25:bc:4e:93:6a"
                 ),
             ).serialize(),
@@ -100,7 +100,7 @@ async def test_fix_invalid_tclk(ezsp_tclk_f: EZSP, caplog) -> None:
             t.NV3StackTrustCenterToken(
                 mode=228,
                 eui64=t.EUI64.convert("AA:AA:AA:AA:AA:AA:AA:AA"),
-                key=t.EmberKeyData.convert(
+                key=t.KeyData.convert(
                     "21:8e:df:b8:50:a0:4a:b6:8b:c6:10:25:bc:4e:93:6a"
                 ),
             ).serialize(),
@@ -126,7 +126,7 @@ async def test_fix_invalid_tclk_all_versions(
                 t.NV3StackTrustCenterToken(
                     mode=228,
                     eui64=t.EUI64.convert("BB:BB:BB:BB:BB:BB:BB:BB"),
-                    key=t.EmberKeyData.convert(
+                    key=t.KeyData.convert(
                         "21:8e:df:b8:50:a0:4a:b6:8b:c6:10:25:bc:4e:93:6a"
                     ),
                 ).serialize(),
@@ -162,7 +162,7 @@ async def test_fix_invalid_tclk_all_versions(
                 t.NV3StackTrustCenterToken(
                     mode=228,
                     eui64=t.EUI64.convert("AA:AA:AA:AA:AA:AA:AA:AA"),
-                    key=t.EmberKeyData.convert(
+                    key=t.KeyData.convert(
                         "21:8e:df:b8:50:a0:4a:b6:8b:c6:10:25:bc:4e:93:6a"
                     ),
                 ).serialize(),

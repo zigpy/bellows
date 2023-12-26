@@ -19,7 +19,6 @@ from bellows.types.named import (  # noqa: F401, F403
     EmberInitialSecurityBitmask,
     EmberJoinDecision,
     EmberJoinMethod,
-    EmberKeyData,
     EmberKeyStatus,
     EmberKeyStructBitmask,
     EmberLibraryStatus,
@@ -50,6 +49,7 @@ from bellows.types.named import (  # noqa: F401, F403
     EzspSourceRouteOverheadInformation,
     EzspStatus,
     EzspZllNetworkOperation,
+    KeyData,
 )
 
 

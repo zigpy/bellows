@@ -278,20 +278,20 @@ COMMANDS = {
     "getKeyTableEntry": (0x71, (t.uint8_t,), (t.EmberStatus, t.EmberKeyStruct)),
     "setKeyTableEntry": (
         0x72,
-        (t.uint8_t, t.EUI64, t.Bool, t.EmberKeyData),
+        (t.uint8_t, t.EUI64, t.Bool, t.KeyData),
         (t.EmberStatus,),
     ),
     "findKeyTableEntry": (0x75, (t.EUI64, t.Bool), (t.uint8_t,)),
     "addOrUpdateKeyTableEntry": (
         0x66,
-        (t.EUI64, t.Bool, t.EmberKeyData),
+        (t.EUI64, t.Bool, t.KeyData),
         (t.EmberStatus,),
     ),
     "eraseKeyTableEntry": (0x76, (t.uint8_t,), (t.EmberStatus,)),
     "clearKeyTable": (0xB1, (), (t.EmberStatus,)),
     "requestLinkKey": (0x14, (t.EUI64,), (t.EmberStatus,)),
     "zigbeeKeyEstablishmentHandler": (0x9B, (), (t.EUI64, t.EmberKeyStatus)),
-    "addTransientLinkKey": (0xAF, (t.EUI64, t.EmberKeyData), (t.EmberStatus,)),
+    "addTransientLinkKey": (0xAF, (t.EUI64, t.KeyData), (t.EmberStatus,)),
     "clearTransientLinkKeys": (0x6B, (), ()),
     # 10. Trust Center Frames
     "trustCenterJoinHandler": (
@@ -305,9 +305,9 @@ COMMANDS = {
             t.EmberNodeId,
         ),
     ),
-    "broadcastNextNetworkKey": (0x73, (t.EmberKeyData,), (t.EmberStatus,)),
+    "broadcastNextNetworkKey": (0x73, (t.KeyData,), (t.EmberStatus,)),
     "broadcastNetworkKeySwitch": (0x74, (), (t.EmberStatus,)),
-    "becomeTrustCenter": (0x77, (t.EmberKeyData,), (t.EmberStatus,)),
+    "becomeTrustCenter": (0x77, (t.KeyData,), (t.EmberStatus,)),
     "aesMmoHash": (
         0x6F,
         (t.EmberAesMmoHashContext, t.Bool, t.LVBytes),
@@ -320,7 +320,7 @@ COMMANDS = {
     ),
     "unicastNwkKeyUpdate": (
         0xA9,
-        (t.EmberNodeId, t.EUI64, t.EmberKeyData),
+        (t.EmberNodeId, t.EUI64, t.KeyData),
         (t.EmberStatus,),
     ),
     # 11. Certificate Based Key Exchange (CBKE) Frames
@@ -424,7 +424,7 @@ COMMANDS = {
     ),
     "zllSetInitialSecurityState": (
         0xB3,
-        (t.EmberKeyData, t.EmberZllInitialSecurityState),
+        (t.KeyData, t.EmberZllInitialSecurityState),
         (t.EmberStatus,),
     ),
     "zllStartScan": (0xB4, (t.Channels, t.int8s, t.EmberNodeType), (t.EmberStatus,)),
@@ -463,7 +463,7 @@ COMMANDS = {
         (t.EmberStatus, t.EmberRf4cePairingTableEntry),
     ),
     "rf4ceDeletePairingTableEntry": (0xD2, (t.uint8_t,), (t.EmberStatus,)),
-    "rf4ceKeyUpdate": (0xD3, (t.uint8_t, t.EmberKeyData), (t.EmberStatus,)),
+    "rf4ceKeyUpdate": (0xD3, (t.uint8_t, t.KeyData), (t.EmberStatus,)),
     "rf4ceSend": (
         0xD4,
         (t.uint8_t, t.uint8_t, t.uint16_t, t.EmberRf4ceTxOption, t.uint8_t, t.LVBytes),
@@ -597,7 +597,7 @@ COMMANDS = {
             t.uint16_t,
             t.uint16_t,
             t.EUI64,
-            t.EmberKeyData,
+            t.KeyData,
         ),
         (),
     ),

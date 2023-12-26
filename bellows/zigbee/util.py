@@ -30,7 +30,7 @@ def zha_security(
         | t.EmberInitialSecurityBitmask.TRUST_CENTER_GLOBAL_LINK_KEY
         | t.EmberInitialSecurityBitmask.HAVE_NETWORK_KEY
     )
-    isc.networkKey = t.EmberKeyData(network_info.network_key.key)
+    isc.networkKey = t.KeyData(network_info.network_key.key)
     isc.networkKeySequenceNumber = t.uint8_t(network_info.network_key.seq)
 
     if network_info.tc_link_key.partner_ieee != zigpy_t.EUI64.UNKNOWN:
@@ -46,11 +46,11 @@ def zha_security(
             LOGGER.warning("Only the well-known TC Link Key is supported")
 
         isc.bitmask |= t.EmberInitialSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
-        isc.preconfiguredKey, _ = t.EmberKeyData.deserialize(
+        isc.preconfiguredKey, _ = t.KeyData.deserialize(
             bytes.fromhex(network_info.stack_specific["ezsp"]["hashed_tclk"])
         )
     else:
-        isc.preconfiguredKey = t.EmberKeyData(network_info.tc_link_key.key)
+        isc.preconfiguredKey = t.KeyData(network_info.tc_link_key.key)
 
     return isc
 
@@ -78,7 +78,7 @@ def ezsp_key_to_zigpy_key(key, ezsp) -> zigpy.state.Key:
 def zigpy_key_to_ezsp_key(zigpy_key: zigpy.state.Key, ezsp):
     """Convert a zigpy `Key` into a `EmberKeyStruct`."""
     key = ezsp.types.EmberKeyStruct()
-    key.key = ezsp.types.EmberKeyData(zigpy_key.key)
+    key.key = ezsp.types.KeyData(zigpy_key.key)
     key.bitmask = ezsp.types.EmberKeyStructBitmask(0)
 
     if zigpy_key.seq is not None:

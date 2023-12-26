@@ -183,7 +183,7 @@ def _create_app_for_startup(
                 bitmask=t.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER
                 | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER,
                 type=t.EmberKeyType.CURRENT_NETWORK_KEY,
-                key=t.EmberKeyData(b"ActualNetworkKey"),
+                key=t.KeyData(b"ActualNetworkKey"),
                 outgoingFrameCounter=t.uint32_t(0x12345678),
                 incomingFrameCounter=t.uint32_t(0x00000000),
                 sequenceNumber=t.uint8_t(1),

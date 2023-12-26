@@ -35,7 +35,7 @@ class EmberKeyStruct(EzspStruct):
     # The type of the key.
     type: named.EmberKeyType
     # The actual key data.
-    key: named.EmberKeyData
+    key: named.KeyData
     # The outgoing frame counter associated with the key.
     outgoingFrameCounter: basic.uint32_t
     # The frame counter of the partner device associated with the key.
@@ -74,7 +74,7 @@ class EmberRf4ceApplicationInfo(EzspStruct):
 class EmberRf4cePairingTableEntry(EzspStruct):
     # The internal representation of an RF4CE pairing table entry.
     # The link key to be used to secure this pairing link.
-    securityLinkKey: named.EmberKeyData
+    securityLinkKey: named.KeyData
     # The IEEE address of the destination device.
     destLongId: named.EUI64
     # The frame counter last received from the recipient node.

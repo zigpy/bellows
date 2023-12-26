@@ -391,13 +391,13 @@ COMMANDS = {
     "getKeyTableEntry": (0x0071, (t.uint8_t,), (t.EmberStatus, t.EmberKeyStruct)),
     "setKeyTableEntry": (
         0x0072,
-        (t.uint8_t, t.EUI64, t.Bool, t.EmberKeyData),
+        (t.uint8_t, t.EUI64, t.Bool, t.KeyData),
         (t.EmberStatus,),
     ),
     "findKeyTableEntry": (0x0075, (t.EUI64, t.Bool), (t.uint8_t,)),
     "addOrUpdateKeyTableEntry": (
         0x0066,
-        (t.EUI64, t.Bool, t.EmberKeyData),
+        (t.EUI64, t.Bool, t.KeyData),
         (t.EmberStatus,),
     ),
     "sendTrustCenterLinkKey": (0x0067, (t.EmberNodeId, t.EUI64), (t.EmberStatus,)),
@@ -406,7 +406,7 @@ COMMANDS = {
     "requestLinkKey": (0x0014, (t.EUI64,), (t.EmberStatus,)),
     "updateTcLinkKey": (0x006C, (t.uint8_t,), (t.EmberStatus,)),
     "zigbeeKeyEstablishmentHandler": (0x009B, (), (t.EUI64, t.EmberKeyStatus)),
-    "addTransientLinkKey": (0x00AF, (t.EUI64, t.EmberKeyData), (t.EmberStatus,)),
+    "addTransientLinkKey": (0x00AF, (t.EUI64, t.KeyData), (t.EmberStatus,)),
     "clearTransientLinkKeys": (0x006B, (), ()),
     "getTransientLinkKey": (
         0x00CE,
@@ -430,9 +430,9 @@ COMMANDS = {
             t.EmberNodeId,
         ),
     ),
-    "broadcastNextNetworkKey": (0x0073, (t.EmberKeyData,), (t.EmberStatus,)),
+    "broadcastNextNetworkKey": (0x0073, (t.KeyData,), (t.EmberStatus,)),
     "broadcastNetworkKeySwitch": (0x0074, (), (t.EmberStatus,)),
-    "becomeTrustCenter": (0x0077, (t.EmberKeyData,), (t.EmberStatus,)),
+    "becomeTrustCenter": (0x0077, (t.KeyData,), (t.EmberStatus,)),
     "aesMmoHash": (
         0x006F,
         (t.EmberAesMmoHashContext, t.Bool, t.LVBytes),
@@ -445,7 +445,7 @@ COMMANDS = {
     ),
     "unicastNwkKeyUpdate": (
         0x00A9,
-        (t.EmberNodeId, t.EUI64, t.EmberKeyData),
+        (t.EmberNodeId, t.EUI64, t.KeyData),
         (t.EmberStatus,),
     ),
     # 11. Certificate Based Key Exchange (CBKE) Frames
@@ -552,7 +552,7 @@ COMMANDS = {
     ),
     "zllSetInitialSecurityState": (
         0x00B3,
-        (t.EmberKeyData, t.EmberZllInitialSecurityState),
+        (t.KeyData, t.EmberZllInitialSecurityState),
         (t.EmberStatus,),
     ),
     "zllSetSecurityStateWithoutKey": (
@@ -610,7 +610,7 @@ COMMANDS = {
             t.uint16_t,
             t.uint16_t,
             t.EUI64,
-            t.EmberKeyData,
+            t.KeyData,
         ),
         (),
     ),
@@ -666,7 +666,7 @@ COMMANDS = {
     # 17 Secure EZSP Frames
     "setSecurityKey": (
         0x00CA,
-        (t.EmberKeyData, t.SecureEzspSecurityType),
+        (t.KeyData, t.SecureEzspSecurityType),
         (t.EzspStatus,),
     ),
     "setSecurityParameters": (
