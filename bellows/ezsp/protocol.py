@@ -13,6 +13,7 @@ else:
 
 from bellows.config import CONF_EZSP_POLICIES
 from bellows.exception import InvalidCommandError
+import bellows.types as t
 from bellows.typing import GatewayType
 
 LOGGER = logging.getLogger(__name__)
@@ -53,6 +54,9 @@ class ProtocolHandler(abc.ABC):
 
     async def pre_permit(self, time_s: int) -> None:
         """Schedule task before allowing new joins."""
+
+    async def add_transient_link_key(self, ieee: t.EUI64, key: t.KeyData) -> None:
+        """Add a transient link key."""
 
     async def command(self, name, *args) -> Any:
         """Serialize command and send it."""

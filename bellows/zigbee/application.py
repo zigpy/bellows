@@ -905,7 +905,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     ) -> None:
         """Permits a new device to join with the given IEEE and link key."""
 
-        v = await self._ezsp.addTransientLinkKey(node, link_key)
+        v = await self._ezsp.add_transient_link_key(node, link_key)
 
         if v[0] != t.EmberStatus.SUCCESS:
             raise Exception("Failed to set link key")

@@ -5,6 +5,7 @@ from typing import Tuple
 import voluptuous
 
 import bellows.config
+import bellows.types as t
 
 from . import commands, config, types as v5_types
 from ..v4 import EZSPv4
@@ -33,8 +34,13 @@ class EZSPv5(EZSPv4):
         """Handler for received data frame."""
         return data[0], data[4], data[5:]
 
+    async def add_transient_link_key(
+        self, ieee: t.EUI64, key: t.KeyData
+    ) -> tuple[t.EmberStatus]:
+        return await self.addTransientLinkKey(ieee, key)
+
     async def pre_permit(self, time_s: int) -> None:
         """Add pre-shared TC Link key."""
         wild_card_ieee = v5_types.EmberEUI64([0xFF] * 8)
         tc_link_key = v5_types.EmberKeyData(b"ZigBeeAlliance09")
-        await self.addTransientLinkKey(wild_card_ieee, tc_link_key)
+        await self.add_transient_link_key(wild_card_ieee, tc_link_key)

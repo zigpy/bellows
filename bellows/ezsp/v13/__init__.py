@@ -2,6 +2,7 @@
 import voluptuous as vol
 
 import bellows.config
+import bellows.types as t
 
 from . import commands, config, types as v13_types
 from ..v12 import EZSPv12
@@ -17,3 +18,12 @@ class EZSPv13(EZSPv12):
         bellows.config.CONF_EZSP_POLICIES: vol.Schema(config.EZSP_POLICIES_SCH),
     }
     types = v13_types
+
+    async def add_transient_link_key(
+        self, ieee: t.EUI64, key: t.KeyData
+    ) -> tuple[t.EmberStatus]:
+        return await self.importTransientKey(
+            ieee,
+            key,
+            v13_types.sl_zb_sec_man_flags_t.NONE,
+        )
