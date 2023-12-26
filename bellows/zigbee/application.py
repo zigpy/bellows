@@ -372,7 +372,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     util.ezsp_key_to_zigpy_key(key, ezsp)
                 )
         else:
-            for index in range(255 + 1):
+            (status, key_table_size) = await ezsp.getConfigurationValue(
+                ezsp.types.EzspConfigId.CONFIG_KEY_TABLE_SIZE
+            )
+            for index in range(key_table_size):
                 (
                     eui64,
                     plaintext_key,
