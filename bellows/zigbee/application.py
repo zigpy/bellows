@@ -535,12 +535,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     index,
                     ezsp.types.ChildData(
                         eui64=child_eui64,
-                        # XXX: what does this do?
-                        type=t.EmberNodeType.MOBILE_END_DEVICE,
+                        # XXX: why does EmberZNet also have `MOBILE_END_DEVICE`?
+                        type=t.EmberNodeType.SLEEPY_END_DEVICE,
                         id=self.state.network_info.nwk_addresses[child_eui64],
+                        # The rest are unused when setting child data
                         phy=0,
-                        power=255,
-                        timeout=255,
+                        power=0,
+                        timeout=0,
+                        **({"timeout_remaining": 0} if ezsp.ezsp_version >= 10 else {}),
                     ),
                 )
                 index += 1
