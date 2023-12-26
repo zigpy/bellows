@@ -382,8 +382,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 if status != t.sl_Status.SL_STATUS_OK:
                     continue
 
-                key = zigpy.state.Key(key=plaintext_key)
-
                 self.state.network_info.key_table.append(
                     zigpy.state.Key(
                         key=plaintext_key,
