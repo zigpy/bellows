@@ -229,6 +229,7 @@ class EmberChildData(EzspStruct):
     power: basic.uint8_t
     # The timeout of the child
     timeout: basic.uint8_t
+    timeout_remaining: basic.uint32_t
 
     # The GPD's EUI64.
     # gpdIeeeAddress: named.EUI64
