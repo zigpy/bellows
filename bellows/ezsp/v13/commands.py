@@ -37,6 +37,82 @@ COMMANDS = {
             }.values()
         ),
     ),
+    # The following commands are redefined because `sl_zb_sec_man_context_t` changed
+    "exportKey": (
+        0x0114,
+        tuple(
+            {
+                "context": t.sl_zb_sec_man_context_t,
+            }.values()
+        ),
+        tuple(
+            {
+                "key": t.KeyData,
+                "status": t.sl_Status,
+            }.values()
+        ),
+    ),
+    "exportTransientKeyByEui": (
+        0x0113,
+        tuple(
+            {
+                "eui64": t.EUI64,
+            }.values()
+        ),
+        tuple(
+            {
+                "context": t.sl_zb_sec_man_context_t,
+                "plaintext_key": t.KeyData,
+                "key_data": t.sl_zb_sec_man_aps_key_metadata_t,
+                "status": t.sl_Status,
+            }.values()
+        ),
+    ),
+    "exportTransientKeyByIndex": (
+        0x0112,
+        tuple(
+            {
+                "index": t.uint8_t,
+            }.values()
+        ),
+        tuple(
+            {
+                "context": t.sl_zb_sec_man_context_t,
+                "plaintext_key": t.KeyData,
+                "key_data": t.sl_zb_sec_man_aps_key_metadata_t,
+                "status": t.sl_Status,
+            }.values()
+        ),
+    ),
+    "getApsKeyInfo": (
+        0x010C,
+        tuple(
+            {
+                "context_in": t.sl_zb_sec_man_context_t,
+            }.values()
+        ),
+        tuple(
+            {
+                "eui": t.EUI64,
+                "key_data": t.sl_zb_sec_man_aps_key_metadata_t,
+                "status": t.sl_Status,
+            }.values()
+        ),
+    ),
+    "importKey": (
+        0x0115,
+        tuple(
+            {
+                "context": t.sl_zb_sec_man_context_t,
+                "key": t.KeyData,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.sl_Status,
+            }.values()
+        ),
+    ),
 }
 
 del COMMANDS["getKey"]
