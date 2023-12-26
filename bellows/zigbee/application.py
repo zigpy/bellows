@@ -190,12 +190,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         for cnt_group in self.state.counters:
             cnt_group.reset()
 
-        # Device relays are cleared on startup when "source routing" on newer EmberZNet
-        # to enable route discovery when first sending requests
-        if self.config[zigpy.config.CONF_SOURCE_ROUTING] and ezsp.ezsp_version >= 8:
-            for device in self.devices.values():
-                device.relays = None
-
         ezsp.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
 
@@ -760,16 +754,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def _set_source_route(
         self, nwk: zigpy.types.NWK, relays: list[zigpy.types.NWK]
     ) -> bool:
-        if self._ezsp.ezsp_version >= 8:
-            # Pretend EmberZNet knows about the device's relays if they are set (i.e. we
-            # did not receive a routing error)
-            try:
-                device = self.get_device(nwk=nwk)
-            except KeyError:
-                return False
-            else:
-                return device.relays is not None
-
         (res,) = await self._ezsp.setSourceRoute(nwk, relays)
         return res == t.EmberStatus.SUCCESS
 

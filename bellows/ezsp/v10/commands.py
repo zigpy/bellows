@@ -313,6 +313,11 @@ COMMANDS = {
         (),
         tuple({"errorCode": t.EmberStackError, "target": t.EmberNodeId}.values()),
     ),
+    "setSourceRoute": (
+        0x00AE,
+        (t.EmberNodeId, t.LVList(t.EmberNodeId)),
+        (t.EmberStatus,),
+    ),
     "setSourceRouteDiscoveryMode": (0x005A, (t.uint8_t,), (t.uint32_t,)),
     "incomingManyToOneRouteRequestHandler": (
         0x007D,
