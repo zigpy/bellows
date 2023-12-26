@@ -413,14 +413,19 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         # v4 can crash when getAddressTableRemoteNodeId(32) is received
         # Error code: undefined_0x8a
         if ezsp.ezsp_version > 4:
-            for idx in range(0, 255 + 1):
+            (status, addr_table_size) = await ezsp.getConfigurationValue(
+                ezsp.types.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
+            )
+
+            for idx in range(addr_table_size):
                 (nwk,) = await ezsp.getAddressTableRemoteNodeId(idx)
-                (eui64,) = await ezsp.getAddressTableRemoteEui64(idx)
 
                 # Ignore invalid NWK entries
                 if nwk in t.EmberDistinguishedNodeId.__members__.values():
                     continue
-                elif eui64 == t.EUI64.convert("00:00:00:00:00:00:00:00"):
+
+                (eui64,) = await ezsp.getAddressTableRemoteEui64(idx)
+                if eui64 == t.EUI64.convert("00:00:00:00:00:00:00:00"):
                     continue
 
                 self.state.network_info.nwk_addresses[
