@@ -129,7 +129,7 @@ class EZSP:
     async def initialize(cls, zigpy_config: dict) -> EZSP:
         """Return initialized EZSP instance."""
         ezsp = cls(zigpy_config[conf.CONF_DEVICE])
-        await ezsp.connect()
+        await ezsp.connect(use_thread=zigpy_config[conf.CONF_USE_THREAD])
 
         try:
             await ezsp.startup_reset()
@@ -139,9 +139,9 @@ class EZSP:
 
         return ezsp
 
-    async def connect(self) -> None:
+    async def connect(self, *, use_thread: bool = True) -> None:
         assert self._gw is None
-        self._gw = await bellows.uart.connect(self._config, self)
+        self._gw = await bellows.uart.connect(self._config, self, use_thread=use_thread)
         self._protocol = v4.EZSPv4(self.handle_callback, self._gw)
 
     async def reset(self):

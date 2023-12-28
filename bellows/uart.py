@@ -11,6 +11,7 @@ else:
 import zigpy.config
 import zigpy.serial
 
+from bellows.thread import EventLoopThread, ThreadsafeProxy
 import bellows.types as t
 
 LOGGER = logging.getLogger(__name__)
@@ -363,7 +364,7 @@ class Gateway(asyncio.Protocol):
         return out
 
 
-async def connect(config, application):
+async def _connect(config, application):
     loop = asyncio.get_event_loop()
 
     connection_future = loop.create_future()
@@ -386,4 +387,23 @@ async def connect(config, application):
 
     await connection_future
 
+    thread_safe_protocol = ThreadsafeProxy(protocol, loop)
+    return thread_safe_protocol, connection_done_future
+
+
+async def connect(config, application, use_thread=True):
+    if use_thread:
+        application = ThreadsafeProxy(application, asyncio.get_event_loop())
+        thread = EventLoopThread()
+        await thread.start()
+        try:
+            protocol, connection_done = await thread.run_coroutine_threadsafe(
+                _connect(config, application)
+            )
+        except Exception:
+            thread.force_stop()
+            raise
+        connection_done.add_done_callback(lambda _: thread.force_stop())
+    else:
+        protocol, _ = await _connect(config, application)
     return protocol
