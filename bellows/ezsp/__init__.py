@@ -155,7 +155,7 @@ class EZSP:
         self.start_ezsp()
 
     def _switch_protocol_version(self, version: int) -> None:
-        LOGGER.debug("Switching to EZSP protocol version %d", self.ezsp_version)
+        LOGGER.debug("Switching to EZSP protocol version %d", version)
 
         if version not in self._BY_VERSION:
             LOGGER.warning(
@@ -166,7 +166,7 @@ class EZSP:
             version = EZSP_LATEST
 
         self._ezsp_version = version
-        self._protocol = self._BY_VERSION[EZSP_LATEST](self.handle_callback, self._gw)
+        self._protocol = self._BY_VERSION[version](self.handle_callback, self._gw)
 
     async def version(self):
         ver, stack_type, stack_version = await self._command(
