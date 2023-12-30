@@ -348,9 +348,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if not load_devices:
             return
 
+        (status, key_table_size) = await ezsp.getConfigurationValue(
+            ezsp.types.EzspConfigId.CONFIG_KEY_TABLE_SIZE
+        )
+
         if ezsp.ezsp_version < 13:
-            for idx in range(0, 192):
-                (status, key) = await ezsp.getKeyTableEntry(idx)
+            for index in range(key_table_size):
+                (status, key) = await ezsp.getKeyTableEntry(index)
 
                 if status == t.EmberStatus.INDEX_OUT_OF_RANGE:
                     break
@@ -366,9 +370,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     util.ezsp_key_to_zigpy_key(key, ezsp)
                 )
         else:
-            (status, key_table_size) = await ezsp.getConfigurationValue(
-                ezsp.types.EzspConfigId.CONFIG_KEY_TABLE_SIZE
-            )
             for index in range(key_table_size):
                 (
                     eui64,
