@@ -79,10 +79,11 @@ def network_info(node_info):
     )
 
 
-def _mock_app_for_load(app, version=7):
+def _mock_app_for_load(app, ezsp_ver=7):
     """Mock methods on the application and EZSP objects to run network state code."""
     ezsp = app._ezsp
-    type(ezsp).types = EZSP._BY_VERSION[version].types
+    ezsp.ezsp_version = ezsp_ver
+    type(ezsp).types = EZSP._BY_VERSION[ezsp_ver].types
 
     app._ensure_network_running = AsyncMock()
     ezsp.getNetworkParameters = AsyncMock(
@@ -165,7 +166,7 @@ def _mock_app_for_load(app, version=7):
 
     ezsp.getKey = AsyncMock(side_effect=get_key)
 
-    if version >= 13:
+    if ezsp_ver >= 13:
 
         def export_key(security_context):
             key = {
@@ -213,7 +214,7 @@ async def test_load_network_info_no_devices(app, network_info, node_info):
 @pytest.mark.parametrize("ezsp_ver", [4, 6, 7, 13])
 async def test_load_network_info_with_devices(app, network_info, node_info, ezsp_ver):
     """Test `load_network_info(load_devices=True)`"""
-    _mock_app_for_load(app, version=ezsp_ver)
+    _mock_app_for_load(app, ezsp_ver)
 
     def get_child_data_v6(index):
         if index == 0:
@@ -428,8 +429,10 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
         app._ezsp.getAddressTableRemoteEui64.assert_not_called()
 
 
-def _mock_app_for_write(app, network_info, node_info, ezsp_ver=None):
+def _mock_app_for_write(app, network_info, node_info, ezsp_ver=7):
     ezsp = app._ezsp
+    ezsp.ezsp_version = ezsp_ver
+    type(ezsp).types = EZSP._BY_VERSION[ezsp_ver].types
 
     network_state = ezsp.types.EmberNetworkStatus.JOINED_NETWORK
     ezsp.networkState = AsyncMock(side_effect=lambda: [network_state])
@@ -456,32 +459,46 @@ def _mock_app_for_write(app, network_info, node_info, ezsp_ver=None):
     ezsp.getConfigurationValue = AsyncMock(
         return_value=[t.EmberStatus.SUCCESS, t.uint8_t(200)]
     )
-    ezsp.addOrUpdateKeyTableEntry = AsyncMock(
-        side_effect=[
-            # Only the first one succeeds
-            (t.EmberStatus.SUCCESS,),
-        ]
-        + [
-            # The rest will fail
-            (t.EmberStatus.TABLE_FULL,),
-        ]
-        * 20
-    )
 
-    if ezsp_ver is not None:
-        ezsp.ezsp_version = ezsp_ver
+    if ezsp_ver >= 13:
+        ezsp.importLinkKey = AsyncMock(
+            side_effect=[
+                # Only the first one succeeds
+                (t.EmberStatus.SUCCESS,),
+            ]
+            + [
+                # The rest will fail
+                (t.EmberStatus.TABLE_FULL,),
+            ]
+            * 20
+        )
+    else:
+        ezsp.addOrUpdateKeyTableEntry = AsyncMock(
+            side_effect=[
+                # Only the first one succeeds
+                (t.EmberStatus.SUCCESS,),
+            ]
+            + [
+                # The rest will fail
+                (t.EmberStatus.TABLE_FULL,),
+            ]
+            * 20
+        )
 
-        if ezsp_ver == 4:
-            ezsp.setValue = AsyncMock(return_value=[t.EmberStatus.BAD_ARGUMENT])
-        else:
-            ezsp.setValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    if ezsp_ver == 4:
+        ezsp.setValue = AsyncMock(return_value=[t.EmberStatus.BAD_ARGUMENT])
+    else:
+        ezsp.setValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+
+    if ezsp_ver >= 9:
+        ezsp.setChildData = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
 
     ezsp.setValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp.setMfgToken = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp.getTokenData = AsyncMock(return_value=[t.EmberStatus.LIBRARY_NOT_PRESENT, b""])
 
 
-@pytest.mark.parametrize("ezsp_ver", [4, 7])
+@pytest.mark.parametrize("ezsp_ver", [4, 7, 13])
 async def test_write_network_info(app, network_info, node_info, ezsp_ver):
     _mock_app_for_write(app, network_info, node_info, ezsp_ver)
 

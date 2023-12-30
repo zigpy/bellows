@@ -522,16 +522,16 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if ezsp.ezsp_version >= 9:
             index = 0
 
-            for child_eui64 in self.state.network_info.children:
-                if child_eui64 not in self.state.network_info.nwk_addresses:
+            for child_eui64 in network_info.children:
+                if child_eui64 not in network_info.nwk_addresses:
                     continue
 
-                status = await ezsp.setChildData(
+                await ezsp.setChildData(
                     index,
-                    ezsp.types.ChildData(
+                    ezsp.types.EmberChildData(
                         eui64=child_eui64,
                         type=t.EmberNodeType.SLEEPY_END_DEVICE,
-                        id=self.state.network_info.nwk_addresses[child_eui64],
+                        id=network_info.nwk_addresses[child_eui64],
                         # The rest are unused when setting child data
                         phy=0,
                         power=0,
