@@ -711,7 +711,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             cnt_name = f"unknown_msg_type_{msg}"
 
         try:
-            request = self._pending[message_tag]
+            request = self._pending[(destination, message_tag)]
             request.result.set_result((status, f"message send {msg}"))
             self.state.counters[COUNTERS_CTRL][cnt_name].increment()
         except KeyError:
@@ -846,7 +846,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         async with self._limit_concurrency():
             message_tag = self.get_sequence()
-            with self._pending.new(message_tag) as req:
+            with self._pending.new((packet.dst.address, message_tag)) as req:
                 for attempt, retry_delay in enumerate(RETRY_DELAYS):
                     async with self._req_lock:
                         if packet.dst.addr_mode == zigpy.types.AddrMode.NWK:
