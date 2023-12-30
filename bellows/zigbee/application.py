@@ -711,12 +711,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             cnt_name = f"unknown_msg_type_{msg}"
 
         try:
-            request = self._pending[(destination, message_tag)]
+            pending_tag = (destination, message_tag)
+            request = self._pending[pending_tag]
             request.result.set_result((status, f"message send {msg}"))
             self.state.counters[COUNTERS_CTRL][cnt_name].increment()
         except KeyError:
             self.state.counters[COUNTERS_CTRL][f"{cnt_name}_unexpected"].increment()
-            LOGGER.debug("Unexpected message send notification tag: %s", message_tag)
+            LOGGER.debug("Unexpected message send notification tag: %s", pending_tag)
         except asyncio.InvalidStateError as exc:
             self.state.counters[COUNTERS_CTRL][f"{cnt_name}_duplicate"].increment()
             LOGGER.debug(
@@ -724,7 +725,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     "Invalid state on future for message tag %s "
                     "- probably duplicate response: %s"
                 ),
-                message_tag,
+                pending_tag,
                 exc,
             )
 
@@ -846,7 +847,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         async with self._limit_concurrency():
             message_tag = self.get_sequence()
-            with self._pending.new((packet.dst.address, message_tag)) as req:
+            pending_tag = (packet.dst.address, message_tag)
+            with self._pending.new(pending_tag) as req:
                 for attempt, retry_delay in enumerate(RETRY_DELAYS):
                     async with self._req_lock:
                         if packet.dst.addr_mode == zigpy.types.AddrMode.NWK:
@@ -901,7 +903,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                         if attempt < len(RETRY_DELAYS):
                             LOGGER.debug(
                                 "Request %s failed to enqueue, retrying in %ss: %s",
-                                message_tag,
+                                pending_tag,
                                 retry_delay,
                                 status,
                             )
