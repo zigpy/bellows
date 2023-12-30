@@ -1,6 +1,7 @@
 import importlib.metadata
 
 import pytest
+import zigpy.exceptions
 import zigpy.state
 import zigpy.types as zigpy_t
 import zigpy.zdo.types as zdo_t
@@ -65,7 +66,9 @@ def network_info(node_info):
                 partner_ieee=zigpy_t.EUI64.convert("EC:1B:BD:FF:FE:2F:41:A4"),
             ),
         ],
-        children=[zigpy_t.EUI64.convert("00:0B:57:FF:FE:2B:D4:57")],
+        children=[
+            zigpy_t.EUI64.convert("00:0B:57:FF:FE:2B:D4:57"),
+        ],
         # If exposed by the stack, NWK addresses of other connected devices on the network
         nwk_addresses={
             # Two routers
@@ -209,6 +212,28 @@ async def test_load_network_info_no_devices(app, network_info, node_info):
         nwk_addresses={},
         metadata=app.state.network_info.metadata,
     )
+
+
+async def test_load_network_info_no_key_set(app, network_info, node_info):
+    """Test loading network info in v13+ when no network key is set."""
+    _mock_app_for_load(app, ezsp_ver=13)
+
+    app._ezsp.getNetworkKeyInfo = AsyncMock(
+        return_value=[
+            app._ezsp.types.sl_Status.SL_STATUS_OK,
+            0x1234,
+            app._ezsp.types.sl_zb_sec_man_network_key_info_t(
+                network_key_set=False,  # Not set
+                alternate_network_key_set=False,
+                network_key_sequence_number=108,
+                alt_network_key_sequence_number=0,
+                network_key_frame_counter=118785,
+            ),
+        ]
+    )
+
+    with pytest.raises(zigpy.exceptions.NetworkNotFormed):
+        await app.load_network_info(load_devices=False)
 
 
 @pytest.mark.parametrize("ezsp_ver", [4, 6, 7, 13])
@@ -502,7 +527,16 @@ def _mock_app_for_write(app, network_info, node_info, ezsp_ver=7):
 async def test_write_network_info(app, network_info, node_info, ezsp_ver):
     _mock_app_for_write(app, network_info, node_info, ezsp_ver)
 
-    await app.write_network_info(network_info=network_info, node_info=node_info)
+    await app.write_network_info(
+        network_info=network_info.replace(
+            children=network_info.children
+            + [
+                # Bogus child that can't be restored
+                zigpy_t.EUI64.convert("FF:FF:57:FF:FE:2B:D4:57")
+            ]
+        ),
+        node_info=node_info,
+    )
 
 
 @pytest.mark.parametrize("can_burn", [True, False])
