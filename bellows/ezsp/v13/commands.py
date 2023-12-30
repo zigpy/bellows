@@ -115,6 +115,7 @@ COMMANDS = {
     ),
 }
 
+del COMMANDS["becomeTrustCenter"]  # this one was likely removed earlier
 del COMMANDS["getKey"]
 del COMMANDS["getKeyTableEntry"]
 del COMMANDS["setKeyTableEntry"]
