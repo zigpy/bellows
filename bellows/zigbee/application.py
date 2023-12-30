@@ -924,10 +924,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     ) -> None:
         """Permits a new device to join with the given IEEE and link key."""
 
-        v = await self._ezsp.add_transient_link_key(node, link_key)
+        status = await self._ezsp.add_transient_link_key(node, link_key)
 
-        if v[0] != t.EmberStatus.SUCCESS:
-            raise Exception("Failed to set link key")
+        if status != t.EmberStatus.SUCCESS:
+            raise ControllerError("Failed to set link key")
 
         if self._ezsp.ezsp_version >= 8:
             await self._ezsp.setPolicy(

@@ -27,7 +27,11 @@ def test_ezsp_frame_rx(ezsp_f):
 
 async def test_pre_permit(ezsp_f):
     """Test pre permit."""
-    p2 = patch.object(ezsp_f, "addTransientLinkKey", new=AsyncMock())
+    p2 = patch.object(
+        ezsp_f,
+        "addTransientLinkKey",
+        new=AsyncMock(return_value=[ezsp_f.types.EmberStatus.SUCCESS]),
+    )
     with p2 as tclk_mock:
         await ezsp_f.pre_permit(1)
     assert tclk_mock.await_count == 1

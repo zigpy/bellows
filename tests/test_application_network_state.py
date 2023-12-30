@@ -102,7 +102,17 @@ def _mock_app_for_load(app):
 
     ezsp.getNodeId = AsyncMock(return_value=[t.EmberNodeId(0x0000)])
     ezsp.getEui64 = AsyncMock(return_value=[t.EUI64.convert("00:12:4b:00:1c:a1:b8:46")])
-    ezsp.getConfigurationValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS, 5])
+
+    def get_configuration_value(config_id):
+        size = {
+            app._ezsp.types.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE: t.uint8_t(20),
+            app._ezsp.types.EzspConfigId.CONFIG_KEY_TABLE_SIZE: t.uint8_t(13),
+            app._ezsp.types.EzspConfigId.CONFIG_SECURITY_LEVEL: t.uint8_t(5),
+        }[config_id]
+
+        return [app._ezsp.types.EmberStatus.SUCCESS, size]
+
+    ezsp.getConfigurationValue = AsyncMock(side_effect=get_configuration_value)
 
     def get_key(key_type):
         key = {
@@ -330,10 +340,25 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
 
 def _mock_app_for_write(app, network_info, node_info, ezsp_ver=None):
     ezsp = app._ezsp
-    ezsp.networkState = AsyncMock(
-        return_value=[ezsp.types.EmberNetworkStatus.JOINED_NETWORK]
-    )
-    ezsp.leaveNetwork = AsyncMock(return_value=[t.EmberStatus.NETWORK_DOWN])
+
+    network_state = ezsp.types.EmberNetworkStatus.JOINED_NETWORK
+    ezsp.networkState = AsyncMock(side_effect=lambda: [network_state])
+
+    def leave_network():
+        nonlocal network_state
+        network_state = ezsp.types.EmberNetworkStatus.NO_NETWORK
+
+        return [t.EmberStatus.NETWORK_DOWN]
+
+    def form_network(params):
+        nonlocal network_state
+        network_state = ezsp.types.EmberNetworkStatus.JOINED_NETWORK
+
+        return [t.EmberStatus.SUCCESS]
+
+    ezsp.leaveNetwork = AsyncMock(side_effect=leave_network)
+    ezsp.formNetwork = AsyncMock(side_effect=form_network)
+
     ezsp.getEui64 = AsyncMock(return_value=[t.EUI64.convert("00:12:4b:00:1c:a1:b8:46")])
 
     ezsp.setInitialSecurityState = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
@@ -361,7 +386,6 @@ def _mock_app_for_write(app, network_info, node_info, ezsp_ver=None):
         else:
             ezsp.setValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
 
-    ezsp.formNetwork = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp.setValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp.setMfgToken = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp.getTokenData = AsyncMock(return_value=[t.EmberStatus.LIBRARY_NOT_PRESENT, b""])

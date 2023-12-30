@@ -55,7 +55,9 @@ class ProtocolHandler(abc.ABC):
     async def pre_permit(self, time_s: int) -> None:
         """Schedule task before allowing new joins."""
 
-    async def add_transient_link_key(self, ieee: t.EUI64, key: t.KeyData) -> None:
+    async def add_transient_link_key(
+        self, ieee: t.EUI64, key: t.KeyData
+    ) -> t.EmberStatus:
         """Add a transient link key."""
 
     async def command(self, name, *args) -> Any:

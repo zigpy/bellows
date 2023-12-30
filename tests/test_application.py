@@ -71,6 +71,7 @@ def ezsp_mock(ieee):
     mock_ezsp.wait_for_stack_status.return_value.__enter__ = AsyncMock(
         return_value=t.EmberStatus.NETWORK_UP
     )
+    mock_ezsp.add_transient_link_key = AsyncMock(return_value=t.EmberStatus.SUCCESS)
     mock_ezsp._protocol = AsyncMock()
 
     type(mock_ezsp).types = ezsp_t7
@@ -615,49 +616,33 @@ async def test_permit_ncp(app):
     assert app._ezsp.permitJoining.call_count == 1
 
 
-@pytest.mark.parametrize(
-    "version, tc_policy_count, ezsp_types",
-    ((4, 0, t), (5, 0, ezsp_t5), (6, 0, ezsp_t6), (7, 0, ezsp_t7), (8, 1, ezsp_t8)),
-)
-async def test_permit_with_link_key_ieee(
-    app, ieee, version, tc_policy_count, ezsp_types
-):
-    p1 = patch("zigpy.application.ControllerApplication.permit")
-    p2 = patch.object(app._ezsp, "types", ezsp_types)
-
-    with patch.object(app._ezsp, "ezsp_version", version), p1 as permit_mock, p2:
+async def test_permit_with_link_key(app, ieee):
+    with patch("zigpy.application.ControllerApplication.permit") as permit_mock:
         await app.permit_with_link_key(
             ieee,
-            zigpy_t.KeyData.convert("11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88:"),
+            zigpy_t.KeyData.convert("11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88"),
             60,
         )
 
-    assert app._ezsp.addTransientLinkKey.await_count == 1
     assert permit_mock.await_count == 1
-    assert app._ezsp.setPolicy.await_count == tc_policy_count
+    assert app._ezsp.add_transient_link_key.await_count == 1
 
 
-async def test_permit_with_link_key_failed_add_key(app, ieee):
-    app._ezsp.addTransientLinkKey = AsyncMock(return_value=[1, 1])
+async def test_permit_with_link_key_failure(app, ieee):
+    app._ezsp.add_transient_link_key.return_value = t.EmberStatus.ERR_FATAL
 
-    with pytest.raises(Exception):
-        await app.permit_with_link_key(
-            ieee,
-            zigpy_t.KeyData.convert("11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88:"),
-            60,
-        )
+    with patch("zigpy.application.ControllerApplication.permit") as permit_mock:
+        with pytest.raises(ControllerError):
+            await app.permit_with_link_key(
+                ieee,
+                zigpy_t.KeyData.convert(
+                    "11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88"
+                ),
+                60,
+            )
 
-
-async def test_permit_with_link_key_failed_set_policy(app, ieee):
-    app._ezsp.addTransientLinkKey = AsyncMock(return_value=[0])
-    app._ezsp.setPolicy = AsyncMock(return_value=[1])
-
-    with pytest.raises(Exception):
-        await app.permit_with_link_key(
-            ieee,
-            zigpy_t.KeyData.convert("11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88:"),
-            60,
-        )
+    assert permit_mock.await_count == 0
+    assert app._ezsp.add_transient_link_key.await_count == 1
 
 
 @pytest.fixture
@@ -773,33 +758,6 @@ async def test_send_packet_unicast_source_route_ezsp7(make_app, packet):
     app._ezsp.setSourceRoute.assert_called_once_with(
         packet.dst.address, [0x0001, 0x0002]
     )
-
-
-async def test_send_packet_unicast_source_route_ezsp8_have_relays(make_app, packet):
-    app = make_app({zigpy.config.CONF_SOURCE_ROUTING: True})
-    app._ezsp.ezsp_version = 8
-
-    device = MagicMock()
-    device.relays = [0x0003]
-
-    app.get_device = MagicMock(return_value=device)
-
-    packet.source_route = [0x0001, 0x0002]
-    await _test_send_packet_unicast(app, packet)
-
-    aps_frame = app._ezsp.sendUnicast.mock_calls[0].args[2]
-    assert t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY not in aps_frame.options
-
-
-async def test_send_packet_unicast_source_route_ezsp8_no_relays(make_app, packet):
-    app = make_app({zigpy.config.CONF_SOURCE_ROUTING: True})
-    app._ezsp.ezsp_version = 8
-
-    packet.source_route = [0x0001, 0x0002]
-    await _test_send_packet_unicast(app, packet)
-
-    aps_frame = app._ezsp.sendUnicast.mock_calls[0].args[2]
-    assert t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY in aps_frame.options
 
 
 async def test_send_packet_unicast_retries_success(app, packet):
@@ -1583,32 +1541,6 @@ async def test_startup_new_coordinator_no_groups_joined(app, ieee):
         await app.start_network()
 
     p2.assert_not_called()
-
-
-@pytest.mark.parametrize("enable_source_routing", [True, False])
-async def test_startup_source_routing(make_app, ieee, enable_source_routing):
-    """Existing relays are cleared on startup."""
-
-    app = make_app({zigpy.config.CONF_SOURCE_ROUTING: enable_source_routing})
-
-    app._ezsp.ezsp_version = 9
-    app._ezsp.update_policies = AsyncMock()
-
-    app._ensure_network_running = AsyncMock()
-    app.load_network_info = AsyncMock()
-    app.state.node_info.ieee = ieee
-
-    mock_device = MagicMock()
-    mock_device.relays = sentinel.relays
-    mock_device.initialize = AsyncMock()
-    app.devices[0xABCD] = mock_device
-
-    await app.start_network()
-
-    if enable_source_routing:
-        assert mock_device.relays is None
-    else:
-        assert mock_device.relays is sentinel.relays
 
 
 @pytest.mark.parametrize(
