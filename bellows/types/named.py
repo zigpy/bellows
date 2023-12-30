@@ -5,6 +5,7 @@ from . import basic
 
 Channels = ztypes.Channels
 EmberEUI64 = ztypes.EUI64
+EUI64 = ztypes.EUI64
 
 
 class NcpResetCode(basic.enum8):
@@ -1239,6 +1240,7 @@ class EzspSourceRouteOverheadInformation(basic.enum8):
 
 
 EmberKeyData = ztypes.KeyData
+KeyData = ztypes.KeyData
 
 
 class EmberCertificateData(basic.fixed_list(48, basic.uint8_t)):

@@ -1,8 +1,9 @@
-"""Protocol version 12 specific structs."""
+"""Protocol version 13 specific structs."""
 
 from __future__ import annotations
 
-from bellows.ezsp.v12.types import named
+from bellows.ezsp.v12.types.struct import *  # noqa: F401, F403
+from bellows.ezsp.v13.types import named
 import bellows.types as t
 from bellows.types.struct import EzspStruct
 
@@ -26,19 +27,6 @@ class sl_zb_sec_man_context_t(EzspStruct):
     psa_key_alg_permission: t.uint32_t
 
 
-class sl_zb_sec_man_aps_key_metadata_t(EzspStruct):
-    """Metadata for APS link keys."""
-
-    # Bitmask of key properties
-    bitmask: t.EmberKeyStructBitmask
-    # Outgoing frame counter.
-    outgoing_frame_counter: t.uint32_t
-    # Incoming frame counter.
-    incoming_frame_counter: t.uint32_t
-    # Remaining lifetime (for transient keys).
-    ttl_in_seconds: t.uint16_t
-
-
 class sl_zb_sec_man_network_key_info_t(EzspStruct):
     """The metadata pertaining to an network key."""
 
@@ -46,3 +34,4 @@ class sl_zb_sec_man_network_key_info_t(EzspStruct):
     alternate_network_key_set: t.Bool
     network_key_sequence_number: t.uint8_t
     alt_network_key_sequence_number: t.uint8_t
+    network_key_frame_counter: t.uint32_t

@@ -2,6 +2,7 @@
 
 import bellows.types.basic as basic
 from bellows.types.named import (  # noqa: F401, F403
+    EUI64,
     Bool,
     Channels,
     EmberApsOption,
@@ -11,7 +12,6 @@ from bellows.types.named import (  # noqa: F401, F403
     EmberConcentratorType,
     EmberConfigTxPowerMode,
     EmberCurrentSecurityBitmask,
-    EmberEUI64,
     EmberEventUnits,
     EmberGpKeyType,
     EmberGpSecurityLevel,
@@ -19,7 +19,6 @@ from bellows.types.named import (  # noqa: F401, F403
     EmberInitialSecurityBitmask,
     EmberJoinDecision,
     EmberJoinMethod,
-    EmberKeyData,
     EmberKeyStatus,
     EmberKeyStructBitmask,
     EmberLibraryStatus,
@@ -50,6 +49,7 @@ from bellows.types.named import (  # noqa: F401, F403
     EzspSourceRouteOverheadInformation,
     EzspStatus,
     EzspZllNetworkOperation,
+    KeyData,
 )
 
 

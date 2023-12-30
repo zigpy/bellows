@@ -12,6 +12,8 @@ import sys
 from typing import Any, Callable, Generator
 import urllib.parse
 
+from zigpy.datastructures import PriorityDynamicBoundedSemaphore
+
 if sys.version_info[:2] < (3, 11):
     from async_timeout import timeout as asyncio_timeout  # pragma: no cover
 else:
@@ -25,9 +27,9 @@ from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig, ValueConfig
 import bellows.types as t
 import bellows.uart
 
-from . import v4, v5, v6, v7, v8, v9, v10, v11, v12
+from . import v4, v5, v6, v7, v8, v9, v10, v11, v12, v13
 
-EZSP_LATEST = v12.EZSPv12.VERSION
+EZSP_LATEST = v13.EZSPv13.VERSION
 LOGGER = logging.getLogger(__name__)
 MTOR_MIN_INTERVAL = 60
 MTOR_MAX_INTERVAL = 3600
@@ -38,6 +40,8 @@ UART_PROBE_TIMEOUT = 3
 NETWORK_PROBE_TIMEOUT = 7
 NETWORK_OPS_TIMEOUT = 10
 NETWORK_COORDINATOR_STARTUP_RESET_WAIT = 1
+
+MAX_COMMAND_CONCURRENCY = 4
 
 
 class EZSP:
@@ -51,6 +55,7 @@ class EZSP:
         v10.EZSPv10.VERSION: v10.EZSPv10,
         v11.EZSPv11.VERSION: v11.EZSPv11,
         v12.EZSPv12.VERSION: v12.EZSPv12,
+        v13.EZSPv13.VERSION: v13.EZSPv13,
     }
 
     def __init__(self, device_config: dict):
@@ -60,6 +65,7 @@ class EZSP:
         self._ezsp_version = v4.EZSPv4.VERSION
         self._gw = None
         self._protocol = None
+        self._send_sem = PriorityDynamicBoundedSemaphore(value=MAX_COMMAND_CONCURRENCY)
 
         self._stack_status_listeners: collections.defaultdict[
             t.EmberStatus, list[asyncio.Future]
@@ -124,7 +130,7 @@ class EZSP:
     async def initialize(cls, zigpy_config: dict) -> EZSP:
         """Return initialized EZSP instance."""
         ezsp = cls(zigpy_config[conf.CONF_DEVICE])
-        await ezsp.connect()
+        await ezsp.connect(use_thread=zigpy_config[conf.CONF_USE_THREAD])
 
         try:
             await ezsp.startup_reset()
@@ -134,9 +140,9 @@ class EZSP:
 
         return ezsp
 
-    async def connect(self) -> None:
+    async def connect(self, *, use_thread: bool = True) -> None:
         assert self._gw is None
-        self._gw = await bellows.uart.connect(self._config, self)
+        self._gw = await bellows.uart.connect(self._config, self, use_thread=use_thread)
         self._protocol = v4.EZSPv4(self.handle_callback, self._gw)
 
     async def reset(self):
@@ -149,20 +155,19 @@ class EZSP:
         self.start_ezsp()
 
     def _switch_protocol_version(self, version: int) -> None:
+        LOGGER.debug("Switching to EZSP protocol version %d", version)
         self._ezsp_version = version
-        LOGGER.debug("Switching to EZSP protocol version %d", self.ezsp_version)
 
-        try:
-            protcol_cls = self._BY_VERSION[version]
-        except KeyError:
+        if version not in self._BY_VERSION:
             LOGGER.warning(
                 "Protocol version %s is not supported, using version %s instead",
                 version,
                 EZSP_LATEST,
             )
-            protcol_cls = self._BY_VERSION[EZSP_LATEST]
+            # We replace the protocol object but keep the version correct
+            version = EZSP_LATEST
 
-        self._protocol = protcol_cls(self.handle_callback, self._gw)
+        self._protocol = self._BY_VERSION[version](self.handle_callback, self._gw)
 
     async def version(self):
         ver, stack_type, stack_version = await self._command(
@@ -184,14 +189,30 @@ class EZSP:
             self._gw.close()
             self._gw = None
 
-    def _command(self, name: str, *args: tuple[Any, ...]) -> asyncio.Future:
+    def _get_command_priority(self, name: str) -> int:
+        return {
+            # Deprioritize any commands that send packets
+            "setSourceRoute": -1,
+            "setExtendedTimeout": -1,
+            "sendUnicast": -1,
+            "sendMulticast": -1,
+            "sendBroadcast": -1,
+            # Prioritize watchdog commands
+            "nop": 999,
+            "readCounters": 999,
+            "readAndClearCounters": 999,
+            "getValue": 999,
+        }.get(name, 0)
+
+    async def _command(self, name: str, *args: tuple[Any, ...]) -> Any:
         if not self.is_ezsp_running:
             LOGGER.debug(
                 "Couldn't send command %s(%s). EZSP is not running", name, args
             )
             raise EzspError("EZSP is not running")
 
-        return self._protocol.command(name, *args)
+        async with self._send_sem(priority=self._get_command_priority(name)):
+            return await self._protocol.command(name, *args)
 
     async def _list_command(self, name, item_frames, completion_frame, spos, *args):
         """Run a command, returning result callbacks as a list"""
@@ -365,14 +386,14 @@ class EZSP:
                 return None
 
             if status == t.EmberStatus.SUCCESS:
-                nv3_restored_eui64, _ = t.EmberEUI64.deserialize(data)
+                nv3_restored_eui64, _ = t.EUI64.deserialize(data)
                 LOGGER.debug("NV3 restored EUI64: %s=%s", key, nv3_restored_eui64)
 
                 return key
 
         return None
 
-    async def _get_mfg_custom_eui_64(self) -> t.EmberEUI64 | None:
+    async def _get_mfg_custom_eui_64(self) -> t.EUI64 | None:
         """Get the custom EUI 64 manufacturing token, if it has a valid value."""
         (data,) = await self.getMfgToken(t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
 
@@ -380,9 +401,9 @@ class EZSP:
         if not data:
             raise ValueError("Firmware does not support MFG_CUSTOM_EUI_64 token")
 
-        mfg_custom_eui64, _ = t.EmberEUI64.deserialize(data)
+        mfg_custom_eui64, _ = t.EUI64.deserialize(data)
 
-        if mfg_custom_eui64 == t.EmberEUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF"):
+        if mfg_custom_eui64 == t.EUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF"):
             return None
 
         return mfg_custom_eui64
@@ -408,7 +429,7 @@ class EZSP:
         (status,) = await self.setTokenData(
             nv3_eui64_key,
             0,
-            t.LVBytes32(t.EmberEUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF").serialize()),
+            t.LVBytes32(t.EUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF").serialize()),
         )
         assert status == t.EmberStatus.SUCCESS
 

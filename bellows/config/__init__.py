@@ -30,6 +30,7 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
         vol.Optional(CONF_EZSP_POLICIES, default={}): vol.Schema(
             {vol.Optional(str): int}
         ),
+        vol.Optional(CONF_USE_THREAD, default=True): cv_boolean,
     }
 )
 
