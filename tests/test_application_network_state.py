@@ -6,6 +6,7 @@ import zigpy.types as zigpy_t
 import zigpy.zdo.types as zdo_t
 
 from bellows.exception import EzspError
+from bellows.ezsp import EZSP
 import bellows.types as t
 
 from tests.async_mock import AsyncMock, PropertyMock
@@ -78,9 +79,10 @@ def network_info(node_info):
     )
 
 
-def _mock_app_for_load(app):
+def _mock_app_for_load(app, version=7):
     """Mock methods on the application and EZSP objects to run network state code."""
     ezsp = app._ezsp
+    type(ezsp).types = EZSP._BY_VERSION[version].types
 
     app._ensure_network_running = AsyncMock()
     ezsp.getNetworkParameters = AsyncMock(
@@ -114,38 +116,6 @@ def _mock_app_for_load(app):
 
     ezsp.getConfigurationValue = AsyncMock(side_effect=get_configuration_value)
 
-    def get_key(key_type):
-        key = {
-            ezsp.types.EmberKeyType.CURRENT_NETWORK_KEY: ezsp.types.EmberKeyStruct(
-                bitmask=(
-                    t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
-                    | t.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER
-                ),
-                type=ezsp.types.EmberKeyType.CURRENT_NETWORK_KEY,
-                key=t.KeyData(bytes.fromhex("2ccade06b3090c310315b3d574d3c85a")),
-                outgoingFrameCounter=118785,
-                incomingFrameCounter=0,
-                sequenceNumber=108,
-                partnerEUI64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
-            ),
-            ezsp.types.EmberKeyType.TRUST_CENTER_LINK_KEY: ezsp.types.EmberKeyStruct(
-                bitmask=(
-                    t.EmberKeyStructBitmask.KEY_IS_AUTHORIZED
-                    | t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
-                    | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
-                ),
-                type=ezsp.types.EmberKeyType.TRUST_CENTER_LINK_KEY,
-                key=t.KeyData(bytes.fromhex("abcdabcdabcdabcdabcdabcdabcdabcd")),
-                outgoingFrameCounter=8712428,
-                incomingFrameCounter=0,
-                sequenceNumber=0,
-                partnerEUI64=t.EUI64.convert("00:12:4b:00:1c:a1:b8:46"),
-            ),
-        }[key_type]
-
-        return (t.EmberStatus.SUCCESS, key)
-
-    ezsp.getKey = AsyncMock(side_effect=get_key)
     ezsp.getCurrentSecurityState = AsyncMock(
         return_value=(
             t.EmberStatus.SUCCESS,
@@ -161,6 +131,68 @@ def _mock_app_for_load(app):
             ),
         )
     )
+
+    def get_key(key_type):
+        key = {
+            ezsp.types.EmberKeyType.CURRENT_NETWORK_KEY: ezsp.types.EmberKeyStruct(
+                bitmask=(
+                    t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
+                    | t.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER
+                ),
+                type=ezsp.types.EmberKeyType.CURRENT_NETWORK_KEY,
+                key=t.KeyData.convert("2ccade06b3090c310315b3d574d3c85a"),
+                outgoingFrameCounter=118785,
+                incomingFrameCounter=0,
+                sequenceNumber=108,
+                partnerEUI64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
+            ),
+            ezsp.types.EmberKeyType.TRUST_CENTER_LINK_KEY: ezsp.types.EmberKeyStruct(
+                bitmask=(
+                    t.EmberKeyStructBitmask.KEY_IS_AUTHORIZED
+                    | t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
+                    | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
+                ),
+                type=ezsp.types.EmberKeyType.TRUST_CENTER_LINK_KEY,
+                key=t.KeyData.convert("abcdabcdabcdabcdabcdabcdabcdabcd"),
+                outgoingFrameCounter=8712428,
+                incomingFrameCounter=0,
+                sequenceNumber=0,
+                partnerEUI64=t.EUI64.convert("00:12:4b:00:1c:a1:b8:46"),
+            ),
+        }[key_type]
+
+        return (t.EmberStatus.SUCCESS, key)
+
+    ezsp.getKey = AsyncMock(side_effect=get_key)
+
+    if version >= 13:
+
+        def export_key(security_context):
+            key = {
+                ezsp.types.sl_zb_sec_man_key_type_t.NETWORK: t.KeyData.convert(
+                    "2ccade06b3090c310315b3d574d3c85a"
+                ),
+                ezsp.types.sl_zb_sec_man_key_type_t.TC_LINK: t.KeyData.convert(
+                    "abcdabcdabcdabcdabcdabcdabcdabcd"
+                ),
+            }[security_context.core_key_type]
+
+            return (key, t.EmberStatus.SUCCESS)
+
+        ezsp.exportKey = AsyncMock(side_effect=export_key)
+        ezsp.getNetworkKeyInfo = AsyncMock(
+            return_value=[
+                ezsp.types.sl_Status.SL_STATUS_OK,
+                0x1234,
+                ezsp.types.sl_zb_sec_man_network_key_info_t(
+                    network_key_set=True,
+                    alternate_network_key_set=False,
+                    network_key_sequence_number=108,
+                    alt_network_key_sequence_number=0,
+                    network_key_frame_counter=118785,
+                ),
+            ]
+        )
 
 
 async def test_load_network_info_no_devices(app, network_info, node_info):
@@ -178,10 +210,10 @@ async def test_load_network_info_no_devices(app, network_info, node_info):
     )
 
 
-@pytest.mark.parametrize("ezsp_ver", [4, 6, 7])
+@pytest.mark.parametrize("ezsp_ver", [4, 6, 7, 13])
 async def test_load_network_info_with_devices(app, network_info, node_info, ezsp_ver):
     """Test `load_network_info(load_devices=True)`"""
-    _mock_app_for_load(app)
+    _mock_app_for_load(app, version=ezsp_ver)
 
     def get_child_data_v6(index):
         if index == 0:
@@ -217,68 +249,122 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
     app._ezsp.ezsp_version = ezsp_ver
     app._ezsp.getChildData = AsyncMock(
         side_effect={
+            13: get_child_data_v7,
             7: get_child_data_v7,
             6: get_child_data_v6,
             4: get_child_data_v6,
         }[ezsp_ver]
     )
 
-    def get_key_table_entry(index):
-        if index == 0:
-            return (
-                t.EmberStatus.SUCCESS,
-                app._ezsp.types.EmberKeyStruct(
-                    bitmask=(
-                        t.EmberKeyStructBitmask.KEY_IS_AUTHORIZED
-                        | t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
-                        | t.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER
-                        | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
+    if ezsp_ver < 13:
+
+        def get_key_table_entry(index):
+            if index == 0:
+                return (
+                    t.EmberStatus.SUCCESS,
+                    app._ezsp.types.EmberKeyStruct(
+                        bitmask=(
+                            t.EmberKeyStructBitmask.KEY_IS_AUTHORIZED
+                            | t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
+                            | t.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER
+                            | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
+                        ),
+                        type=app._ezsp.types.EmberKeyType.APPLICATION_LINK_KEY,
+                        key=t.KeyData.convert("857C05003E761AF9689A49416A605C76"),
+                        outgoingFrameCounter=3792973670,
+                        incomingFrameCounter=1083290572,
+                        sequenceNumber=147,
+                        partnerEUI64=t.EUI64.convert("CC:CC:CC:FF:FE:E6:8E:CA"),
                     ),
-                    type=app._ezsp.types.EmberKeyType.APPLICATION_LINK_KEY,
-                    key=t.KeyData(bytes.fromhex("857C05003E761AF9689A49416A605C76")),
-                    outgoingFrameCounter=3792973670,
-                    incomingFrameCounter=1083290572,
-                    sequenceNumber=147,
-                    partnerEUI64=t.EUI64.convert("CC:CC:CC:FF:FE:E6:8E:CA"),
+                )
+            elif index == 1:
+                return (
+                    t.EmberStatus.SUCCESS,
+                    app._ezsp.types.EmberKeyStruct(
+                        bitmask=(
+                            t.EmberKeyStructBitmask.KEY_IS_AUTHORIZED
+                            | t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
+                            | t.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER
+                            | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
+                        ),
+                        type=app._ezsp.types.EmberKeyType.APPLICATION_LINK_KEY,
+                        key=t.KeyData.convert("CA02E8BB757C94F89339D39CB3CDA7BE"),
+                        outgoingFrameCounter=2597245184,
+                        incomingFrameCounter=824424412,
+                        sequenceNumber=19,
+                        partnerEUI64=t.EUI64.convert("EC:1B:BD:FF:FE:2F:41:A4"),
+                    ),
+                )
+            elif index >= 12:
+                status = t.EmberStatus.INDEX_OUT_OF_RANGE
+            else:
+                status = t.EmberStatus.TABLE_ENTRY_ERASED
+
+            return (
+                status,
+                app._ezsp.types.EmberKeyStruct(
+                    bitmask=t.EmberKeyStructBitmask(244),
+                    type=app._ezsp.types.EmberKeyType(0x46),
+                    key=t.KeyData.convert("b8a11c004b1200cdabcdabcdabcdabcd"),
+                    outgoingFrameCounter=8192,
+                    incomingFrameCounter=0,
+                    sequenceNumber=0,
+                    partnerEUI64=t.EUI64.convert("00:12:4b:00:1c:a1:b8:46"),
                 ),
             )
-        elif index == 1:
-            return (
-                t.EmberStatus.SUCCESS,
-                app._ezsp.types.EmberKeyStruct(
-                    bitmask=(
-                        t.EmberKeyStructBitmask.KEY_IS_AUTHORIZED
-                        | t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
-                        | t.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER
-                        | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
+
+        app._ezsp.getKeyTableEntry = AsyncMock(side_effect=get_key_table_entry)
+    else:
+
+        def export_link_key_by_index(index):
+            if index == 0:
+                return (
+                    t.EUI64.convert("CC:CC:CC:FF:FE:E6:8E:CA"),
+                    t.KeyData.convert("857C05003E761AF9689A49416A605C76"),
+                    app._ezsp.types.sl_zb_sec_man_aps_key_metadata_t(
+                        bitmask=(
+                            t.EmberKeyStructBitmask.KEY_IS_AUTHORIZED
+                            | t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
+                            | t.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER
+                            | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
+                        ),
+                        outgoing_frame_counter=3792973670,
+                        incoming_frame_counter=1083290572,
+                        ttl_in_seconds=0,
                     ),
-                    type=app._ezsp.types.EmberKeyType.APPLICATION_LINK_KEY,
-                    key=t.KeyData(bytes.fromhex("CA02E8BB757C94F89339D39CB3CDA7BE")),
-                    outgoingFrameCounter=2597245184,
-                    incomingFrameCounter=824424412,
-                    sequenceNumber=19,
-                    partnerEUI64=t.EUI64.convert("EC:1B:BD:FF:FE:2F:41:A4"),
+                    app._ezsp.types.sl_Status.SL_STATUS_OK,
+                )
+            elif index == 1:
+                return (
+                    t.EUI64.convert("EC:1B:BD:FF:FE:2F:41:A4"),
+                    t.KeyData.convert("CA02E8BB757C94F89339D39CB3CDA7BE"),
+                    app._ezsp.types.sl_zb_sec_man_aps_key_metadata_t(
+                        bitmask=(
+                            t.EmberKeyStructBitmask.KEY_IS_AUTHORIZED
+                            | t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
+                            | t.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER
+                            | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
+                        ),
+                        outgoing_frame_counter=2597245184,
+                        incoming_frame_counter=824424412,
+                        ttl_in_seconds=0,
+                    ),
+                    app._ezsp.types.sl_Status.SL_STATUS_OK,
+                )
+
+            return (
+                t.EUI64.convert("7f:c9:35:e1:b0:00:00:00"),
+                t.KeyData.convert("80:45:38:73:55:00:00:00:08:e4:35:c9:7f:00:00:00"),
+                app._ezsp.types.sl_zb_sec_man_aps_key_metadata_t(
+                    bitmask=t.EmberKeyStructBitmask(43976),
+                    outgoing_frame_counter=85,
+                    incoming_frame_counter=0,
+                    ttl_in_seconds=0,
                 ),
+                app._ezsp.types.sl_Status.SL_STATUS_NOT_FOUND,
             )
-        elif index >= 12:
-            status = t.EmberStatus.INDEX_OUT_OF_RANGE
-        else:
-            status = t.EmberStatus.TABLE_ENTRY_ERASED
 
-        return (
-            status,
-            app._ezsp.types.EmberKeyStruct(
-                bitmask=t.EmberKeyStructBitmask(244),
-                type=app._ezsp.types.EmberKeyType(0x46),
-                key=t.KeyData(bytes.fromhex("b8a11c004b1200cdabcdabcdabcdabcd")),
-                outgoingFrameCounter=8192,
-                incomingFrameCounter=0,
-                sequenceNumber=0,
-                partnerEUI64=t.EUI64.convert("00:12:4b:00:1c:a1:b8:46"),
-            ),
-        )
-
-    app._ezsp.getKeyTableEntry = AsyncMock(side_effect=get_key_table_entry)
+        app._ezsp.exportLinkKeyByIndex = AsyncMock(side_effect=export_link_key_by_index)
 
     def get_addr_table_node_id(index):
         return (
@@ -329,6 +415,10 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
         key_table=[key.replace(seq=0) for key in network_info.key_table],
         nwk_addresses=nwk_addresses,
         metadata=app.state.network_info.metadata,
+        # TC link key does not have a TX counter
+        tc_link_key=network_info.tc_link_key.replace(
+            tx_counter=app.state.network_info.tc_link_key.tx_counter
+        ),
     )
     assert app.state.node_info == node_info
 
