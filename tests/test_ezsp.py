@@ -545,8 +545,8 @@ async def test_can_rewrite_custom_eui64_old_ezsp(ezsp_f):
 async def test_write_custom_eui64(ezsp_f):
     """Test writing a custom EUI64."""
 
-    old_eui64 = t.EmberEUI64.convert("AA" * 8)
-    new_eui64 = t.EmberEUI64.convert("BB" * 8)
+    old_eui64 = t.EUI64.convert("AA" * 8)
+    new_eui64 = t.EUI64.convert("BB" * 8)
 
     ezsp_f.getEui64 = AsyncMock(return_value=[old_eui64])
     ezsp_f.setMfgToken = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
@@ -614,8 +614,8 @@ async def test_write_custom_eui64(ezsp_f):
 async def test_write_custom_eui64_rcp(ezsp_f):
     """Test writing a custom EUI64 with RPC firmware."""
 
-    old_eui64 = t.EmberEUI64.convert("AA" * 8)
-    new_eui64 = t.EmberEUI64.convert("BB" * 8)
+    old_eui64 = t.EUI64.convert("AA" * 8)
+    new_eui64 = t.EUI64.convert("BB" * 8)
 
     ezsp_f.getEui64 = AsyncMock(return_value=[old_eui64])
     ezsp_f.setMfgToken = AsyncMock(return_value=[t.EmberStatus.INVALID_CALL])

@@ -28,7 +28,11 @@ def test_ezsp_frame_rx(ezsp_f):
 async def test_pre_permit(ezsp_f):
     """Test pre permit."""
     p1 = patch.object(ezsp_f, "setPolicy", new=AsyncMock())
-    p2 = patch.object(ezsp_f, "addTransientLinkKey", new=AsyncMock())
+    p2 = patch.object(
+        ezsp_f,
+        "addTransientLinkKey",
+        new=AsyncMock(return_value=[ezsp_f.types.EmberStatus.SUCCESS]),
+    )
     with p1 as pre_permit_mock, p2 as tclk_mock:
         await ezsp_f.pre_permit(-1.9)
     assert pre_permit_mock.await_count == 2
@@ -266,6 +270,7 @@ command_frames = {
     "setRoutingShortcutThreshold": 0x00D0,
     "setSecurityKey": 0x00CA,
     "setSecurityParameters": 0x00CB,
+    "setSourceRoute": 0x00AE,
     "setSourceRouteDiscoveryMode": 0x005A,
     "setTimer": 0x000E,
     "setToken": 0x0009,

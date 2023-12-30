@@ -75,7 +75,7 @@ COMMANDS = {
     "getXncpInfo": (0x0013, (), (t.EmberStatus, t.uint16_t, t.uint16_t)),
     "customFrame": (0x0047, (t.LVBytes,), (t.EmberStatus, t.LVBytes)),
     "customFrameHandler": (0x0054, (), (t.LVBytes,)),
-    "getEui64": (0x0026, (), (t.EmberEUI64,)),
+    "getEui64": (0x0026, (), (t.EUI64,)),
     "getNodeId": (0x0027, (), (t.EmberNodeId,)),
     "getPhyInterfaceCount": (0x00FC, (), (t.uint8_t,)),
     "getTrueRandomEntropySource": (0x004F, (), (t.EmberEntropySource,)),
@@ -113,7 +113,7 @@ COMMANDS = {
     "childJoinHandler": (
         0x0023,
         (),
-        (t.uint8_t, t.Bool, t.EmberNodeId, t.EmberEUI64, t.EmberNodeType),
+        (t.uint8_t, t.Bool, t.EmberNodeId, t.EUI64, t.EmberNodeType),
     ),
     "energyScanRequest": (
         0x009C,
@@ -130,7 +130,7 @@ COMMANDS = {
         (t.uint8_t,),
         (t.EmberStatus, t.EmberNodeType, t.EmberNetworkParameters),
     ),
-    "getParentChildParameters": (0x0029, (), (t.uint8_t, t.EmberEUI64, t.EmberNodeId)),
+    "getParentChildParameters": (0x0029, (), (t.uint8_t, t.EUI64, t.EmberNodeId)),
     "getChildData": (
         0x004A,
         (t.uint8_t,),
@@ -144,7 +144,7 @@ COMMANDS = {
         (t.EmberStatus, t.EmberNodeId, t.uint8_t),
     ),
     "getNeighbor": (0x0079, (t.uint8_t,), (t.EmberStatus, t.EmberNeighborTableEntry)),
-    "getNeighborFrameCounter": (0x003E, (t.EmberEUI64,), (t.EmberStatus, t.uint32_t)),
+    "getNeighborFrameCounter": (0x003E, (t.EUI64,), (t.EmberStatus, t.uint32_t)),
     "setRoutingShortcutThreshold": (0x00D0, (t.uint8_t,), (t.EmberStatus,)),
     "getRoutingShortcutThreshold": (0x00D1, (), (t.uint8_t,)),
     "neighborCount": (0x007A, (), (t.uint8_t,)),
@@ -291,7 +291,7 @@ COMMANDS = {
     ),
     "pollCompleteHandler": (0x0043, (), (t.EmberStatus,)),
     "pollHandler": (0x0044, (), (t.EmberNodeId,)),
-    "incomingSenderEui64Handler": (0x0062, (), (t.EmberEUI64,)),
+    "incomingSenderEui64Handler": (0x0062, (), (t.EUI64,)),
     "incomingMessageHandler": (
         0x0045,
         (),
@@ -309,35 +309,40 @@ COMMANDS = {
     "incomingRouteRecordHandler": (
         0x0059,
         (),
-        (t.EmberNodeId, t.EmberEUI64, t.uint8_t, t.int8s, t.LVList(t.EmberNodeId)),
+        (t.EmberNodeId, t.EUI64, t.uint8_t, t.int8s, t.LVList(t.EmberNodeId)),
     ),
     "changeSourceRouteHandler": (0x00C4, (), (t.EmberNodeId, t.EmberNodeId, t.Bool)),
+    "setSourceRoute": (
+        0x00AE,
+        (t.EmberNodeId, t.LVList(t.EmberNodeId)),
+        (t.EmberStatus,),
+    ),
     "setSourceRouteDiscoveryMode": (0x005A, (t.uint8_t,), (t.uint32_t,)),
     "incomingManyToOneRouteRequestHandler": (
         0x007D,
         (),
-        (t.EmberNodeId, t.EmberEUI64, t.uint8_t),
+        (t.EmberNodeId, t.EUI64, t.uint8_t),
     ),
     "incomingRouteErrorHandler": (0x0080, (), (t.EmberStatus, t.EmberNodeId)),
     "unicastCurrentNetworkKey": (
         0x0050,
-        (t.EmberNodeId, t.EmberEUI64, t.EmberNodeId),
+        (t.EmberNodeId, t.EUI64, t.EmberNodeId),
         (t.EmberStatus,),
     ),
     "addressTableEntryIsActive": (0x005B, (t.uint8_t,), (t.Bool,)),
-    "setAddressTableRemoteEui64": (0x005C, (t.uint8_t, t.EmberEUI64), (t.EmberStatus,)),
+    "setAddressTableRemoteEui64": (0x005C, (t.uint8_t, t.EUI64), (t.EmberStatus,)),
     "setAddressTableRemoteNodeId": (0x005D, (t.uint8_t, t.EmberNodeId), ()),
-    "getAddressTableRemoteEui64": (0x005E, (t.uint8_t,), (t.EmberEUI64,)),
+    "getAddressTableRemoteEui64": (0x005E, (t.uint8_t,), (t.EUI64,)),
     "getAddressTableRemoteNodeId": (0x005F, (t.uint8_t,), (t.EmberNodeId,)),
-    "setExtendedTimeout": (0x007E, (t.EmberEUI64, t.Bool), ()),
-    "getExtendedTimeout": (0x007F, (t.EmberEUI64,), (t.Bool,)),
+    "setExtendedTimeout": (0x007E, (t.EUI64, t.Bool), ()),
+    "getExtendedTimeout": (0x007F, (t.EUI64,), (t.Bool,)),
     "replaceAddressTableEntry": (
         0x0082,
-        (t.uint8_t, t.EmberEUI64, t.EmberNodeId, t.Bool),
-        (t.EmberStatus, t.EmberEUI64, t.EmberNodeId, t.Bool),
+        (t.uint8_t, t.EUI64, t.EmberNodeId, t.Bool),
+        (t.EmberStatus, t.EUI64, t.EmberNodeId, t.Bool),
     ),
-    "lookupNodeIdByEui64": (0x0060, (t.EmberEUI64,), (t.EmberNodeId,)),
-    "lookupEui64ByNodeId": (0x0061, (t.EmberNodeId,), (t.EmberStatus, t.EmberEUI64)),
+    "lookupNodeIdByEui64": (0x0060, (t.EUI64,), (t.EmberNodeId,)),
+    "lookupEui64ByNodeId": (0x0061, (t.EmberNodeId,), (t.EmberStatus, t.EUI64)),
     "getMulticastTableEntry": (
         0x0063,
         (t.uint8_t,),
@@ -394,26 +399,26 @@ COMMANDS = {
     "getKeyTableEntry": (0x0071, (t.uint8_t,), (t.EmberStatus, t.EmberKeyStruct)),
     "setKeyTableEntry": (
         0x0072,
-        (t.uint8_t, t.EmberEUI64, t.Bool, t.EmberKeyData),
+        (t.uint8_t, t.EUI64, t.Bool, t.KeyData),
         (t.EmberStatus,),
     ),
-    "findKeyTableEntry": (0x0075, (t.EmberEUI64, t.Bool), (t.uint8_t,)),
+    "findKeyTableEntry": (0x0075, (t.EUI64, t.Bool), (t.uint8_t,)),
     "addOrUpdateKeyTableEntry": (
         0x0066,
-        (t.EmberEUI64, t.Bool, t.EmberKeyData),
+        (t.EUI64, t.Bool, t.KeyData),
         (t.EmberStatus,),
     ),
-    "sendTrustCenterLinkKey": (0x0067, (t.EmberNodeId, t.EmberEUI64), (t.EmberStatus,)),
+    "sendTrustCenterLinkKey": (0x0067, (t.EmberNodeId, t.EUI64), (t.EmberStatus,)),
     "eraseKeyTableEntry": (0x0076, (t.uint8_t,), (t.EmberStatus,)),
     "clearKeyTable": (0x00B1, (), (t.EmberStatus,)),
-    "requestLinkKey": (0x0014, (t.EmberEUI64,), (t.EmberStatus,)),
+    "requestLinkKey": (0x0014, (t.EUI64,), (t.EmberStatus,)),
     "updateTcLinkKey": (0x006C, (t.uint8_t,), (t.EmberStatus,)),
-    "zigbeeKeyEstablishmentHandler": (0x009B, (), (t.EmberEUI64, t.EmberKeyStatus)),
-    "addTransientLinkKey": (0x00AF, (t.EmberEUI64, t.EmberKeyData), (t.EmberStatus,)),
+    "zigbeeKeyEstablishmentHandler": (0x009B, (), (t.EUI64, t.EmberKeyStatus)),
+    "addTransientLinkKey": (0x00AF, (t.EUI64, t.KeyData), (t.EmberStatus,)),
     "clearTransientLinkKeys": (0x006B, (), ()),
     "getTransientLinkKey": (
         0x00CE,
-        (t.EmberEUI64,),
+        (t.EUI64,),
         (t.EmberStatus, t.EmberTransientKeyData),
     ),
     "getTransientKeyTableEntry": (
@@ -427,15 +432,15 @@ COMMANDS = {
         (),
         (
             t.EmberNodeId,
-            t.EmberEUI64,
+            t.EUI64,
             t.EmberDeviceUpdate,
             t.EmberJoinDecision,
             t.EmberNodeId,
         ),
     ),
-    "broadcastNextNetworkKey": (0x0073, (t.EmberKeyData,), (t.EmberStatus,)),
+    "broadcastNextNetworkKey": (0x0073, (t.KeyData,), (t.EmberStatus,)),
     "broadcastNetworkKeySwitch": (0x0074, (), (t.EmberStatus,)),
-    "becomeTrustCenter": (0x0077, (t.EmberKeyData,), (t.EmberStatus,)),
+    "becomeTrustCenter": (0x0077, (t.KeyData,), (t.EmberStatus,)),
     "aesMmoHash": (
         0x006F,
         (t.EmberAesMmoHashContext, t.Bool, t.LVBytes),
@@ -443,12 +448,12 @@ COMMANDS = {
     ),
     "removeDevice": (
         0x00A8,
-        (t.EmberNodeId, t.EmberEUI64, t.EmberEUI64),
+        (t.EmberNodeId, t.EUI64, t.EUI64),
         (t.EmberStatus,),
     ),
     "unicastNwkKeyUpdate": (
         0x00A9,
-        (t.EmberNodeId, t.EmberEUI64, t.EmberKeyData),
+        (t.EmberNodeId, t.EUI64, t.KeyData),
         (t.EmberStatus,),
     ),
     # 11. Certificate Based Key Exchange (CBKE) Frames
@@ -528,7 +533,7 @@ COMMANDS = {
     "launchStandaloneBootloader": (0x008F, (t.uint8_t,), (t.EmberStatus,)),
     "sendBootloadMessage": (
         0x0090,
-        (t.Bool, t.EmberEUI64, t.LVBytes),
+        (t.Bool, t.EUI64, t.LVBytes),
         (t.EmberStatus,),
     ),
     "getStandaloneBootloaderVersionPlatMicroPhy": (
@@ -539,7 +544,7 @@ COMMANDS = {
     "incomingBootloadMessageHandler": (
         0x0092,
         (),
-        (t.EmberEUI64, t.uint8_t, t.int8s, t.LVBytes),
+        (t.EUI64, t.uint8_t, t.int8s, t.LVBytes),
     ),
     "bootloadTransmitCompleteHandler": (0x0093, (), (t.EmberStatus, t.LVBytes)),
     "aesEncrypt": (
@@ -556,7 +561,7 @@ COMMANDS = {
     ),
     "zllSetInitialSecurityState": (
         0x00B3,
-        (t.EmberKeyData, t.EmberZllInitialSecurityState),
+        (t.KeyData, t.EmberZllInitialSecurityState),
         (t.EmberStatus,),
     ),
     "zllSetSecurityStateWithoutKey": (
@@ -613,8 +618,8 @@ COMMANDS = {
             t.uint16_t,
             t.uint16_t,
             t.uint16_t,
-            t.EmberEUI64,
-            t.EmberKeyData,
+            t.EUI64,
+            t.KeyData,
         ),
         (),
     ),
@@ -670,7 +675,7 @@ COMMANDS = {
     # 16 Secure EZSP Frames
     "setSecurityKey": (
         0x00CA,
-        (t.EmberKeyData, t.SecureEzspSecurityType),
+        (t.KeyData, t.SecureEzspSecurityType),
         (t.EzspStatus,),
     ),
     "setSecurityParameters": (

@@ -27,9 +27,9 @@ from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig, ValueConfig
 import bellows.types as t
 import bellows.uart
 
-from . import v4, v5, v6, v7, v8, v9, v10, v11, v12
+from . import v4, v5, v6, v7, v8, v9, v10, v11, v12, v13
 
-EZSP_LATEST = v12.EZSPv12.VERSION
+EZSP_LATEST = v13.EZSPv13.VERSION
 LOGGER = logging.getLogger(__name__)
 MTOR_MIN_INTERVAL = 60
 MTOR_MAX_INTERVAL = 3600
@@ -55,6 +55,7 @@ class EZSP:
         v10.EZSPv10.VERSION: v10.EZSPv10,
         v11.EZSPv11.VERSION: v11.EZSPv11,
         v12.EZSPv12.VERSION: v12.EZSPv12,
+        v13.EZSPv13.VERSION: v13.EZSPv13,
     }
 
     def __init__(self, device_config: dict):
@@ -154,20 +155,19 @@ class EZSP:
         self.start_ezsp()
 
     def _switch_protocol_version(self, version: int) -> None:
+        LOGGER.debug("Switching to EZSP protocol version %d", version)
         self._ezsp_version = version
-        LOGGER.debug("Switching to EZSP protocol version %d", self.ezsp_version)
 
-        try:
-            protcol_cls = self._BY_VERSION[version]
-        except KeyError:
+        if version not in self._BY_VERSION:
             LOGGER.warning(
                 "Protocol version %s is not supported, using version %s instead",
                 version,
                 EZSP_LATEST,
             )
-            protcol_cls = self._BY_VERSION[EZSP_LATEST]
+            # We replace the protocol object but keep the version correct
+            version = EZSP_LATEST
 
-        self._protocol = protcol_cls(self.handle_callback, self._gw)
+        self._protocol = self._BY_VERSION[version](self.handle_callback, self._gw)
 
     async def version(self):
         ver, stack_type, stack_version = await self._command(
@@ -386,14 +386,14 @@ class EZSP:
                 return None
 
             if status == t.EmberStatus.SUCCESS:
-                nv3_restored_eui64, _ = t.EmberEUI64.deserialize(data)
+                nv3_restored_eui64, _ = t.EUI64.deserialize(data)
                 LOGGER.debug("NV3 restored EUI64: %s=%s", key, nv3_restored_eui64)
 
                 return key
 
         return None
 
-    async def _get_mfg_custom_eui_64(self) -> t.EmberEUI64 | None:
+    async def _get_mfg_custom_eui_64(self) -> t.EUI64 | None:
         """Get the custom EUI 64 manufacturing token, if it has a valid value."""
         (data,) = await self.getMfgToken(t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
 
@@ -401,9 +401,9 @@ class EZSP:
         if not data:
             raise ValueError("Firmware does not support MFG_CUSTOM_EUI_64 token")
 
-        mfg_custom_eui64, _ = t.EmberEUI64.deserialize(data)
+        mfg_custom_eui64, _ = t.EUI64.deserialize(data)
 
-        if mfg_custom_eui64 == t.EmberEUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF"):
+        if mfg_custom_eui64 == t.EUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF"):
             return None
 
         return mfg_custom_eui64
@@ -429,7 +429,7 @@ class EZSP:
         (status,) = await self.setTokenData(
             nv3_eui64_key,
             0,
-            t.LVBytes32(t.EmberEUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF").serialize()),
+            t.LVBytes32(t.EUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF").serialize()),
         )
         assert status == t.EmberStatus.SUCCESS
 
