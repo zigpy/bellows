@@ -80,6 +80,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     def __init__(self, config: dict):
         super().__init__(config)
         self._ctrl_event = asyncio.Event()
+        self._created_device_endpoints: list[zdo_t.SimpleDescriptor] = []
         self._ezsp = None
         self._multicast = None
         self._mfg_id_task: asyncio.Task | None = None
@@ -116,8 +117,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             descriptor.input_clusters,
             descriptor.output_clusters,
         )
+
         if status != t.EmberStatus.SUCCESS:
             raise StackAlreadyRunning()
+
+        self._created_device_endpoints.append(descriptor)
 
     async def cleanup_tc_link_key(self, ieee: t.EUI64) -> None:
         """Remove tc link_key for the given device."""
@@ -150,6 +154,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             raise
 
         self._ezsp = ezsp
+
+        self._created_device_endpoints.clear()
         await self.register_endpoints()
 
     async def _ensure_network_running(self) -> bool:
@@ -198,10 +204,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         ezsp.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
 
+        group_membership = {}
+
         try:
             db_device = self.get_device(ieee=self.state.node_info.ieee)
         except KeyError:
-            db_device = None
+            pass
+        else:
+            if 1 in db_device.endpoints:
+                group_membership = db_device.endpoints[1].member_of
 
         ezsp_device = zigpy.device.Device(
             application=self,
@@ -210,15 +221,18 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         )
         self.devices[self.state.node_info.ieee] = ezsp_device
 
-        # The coordinator device does not respond to attribute reads
-        ezsp_device.endpoints[1] = EZSPEndpoint(ezsp_device, 1)
-        ezsp_device.model = ezsp_device.endpoints[1].model
-        ezsp_device.manufacturer = ezsp_device.endpoints[1].manufacturer
+        # The coordinator device does not respond to attribute reads so we have to
+        # divine the internal NCP state.
+        for zdo_desc in self._created_device_endpoints:
+            ep = EZSPEndpoint(ezsp_device, zdo_desc.endpoint, zdo_desc)
+            ezsp_device.endpoints[zdo_desc.endpoint] = ep
+            ezsp_device.model = ep.model
+            ezsp_device.manufacturer = ep.manufacturer
+
         await ezsp_device.schedule_initialize()
 
         # Group membership is stored in the database for EZSP coordinators
-        if db_device is not None and 1 in db_device.endpoints:
-            ezsp_device.endpoints[1].member_of.update(db_device.endpoints[1].member_of)
+        ezsp_device.endpoints[1].member_of.update(group_membership)
 
         self._multicast = bellows.multicast.Multicast(ezsp)
         await self._multicast.startup(ezsp_device)
