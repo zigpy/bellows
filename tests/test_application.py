@@ -491,7 +491,7 @@ def test_frame_handler_ignored(app, aps_frame):
     ),
 )
 def test_send_failure(app, aps, ieee, msg_type):
-    req = app._pending[254] = MagicMock()
+    req = app._pending[(0xBEED, 254)] = MagicMock()
     app.ezsp_callback_handler(
         "messageSentHandler", [msg_type, 0xBEED, aps, 254, sentinel.status, b""]
     )
@@ -501,7 +501,7 @@ def test_send_failure(app, aps, ieee, msg_type):
 
 
 def test_dup_send_failure(app, aps, ieee):
-    req = app._pending[254] = MagicMock()
+    req = app._pending[(0xBEED, 254)] = MagicMock()
     req.result.set_result.side_effect = asyncio.InvalidStateError()
     app.ezsp_callback_handler(
         "messageSentHandler",
@@ -533,7 +533,7 @@ def test_send_failure_unexpected(app, aps, ieee):
 
 
 def test_send_success(app, aps, ieee):
-    req = app._pending[253] = MagicMock()
+    req = app._pending[(0xBEED, 253)] = MagicMock()
     app.ezsp_callback_handler(
         "messageSentHandler",
         [
@@ -558,7 +558,7 @@ def test_unexpected_send_success(app, aps, ieee):
 
 
 def test_dup_send_success(app, aps, ieee):
-    req = app._pending[253] = MagicMock()
+    req = app._pending[(0xBEED, 253)] = MagicMock()
     req.result.set_result.side_effect = asyncio.InvalidStateError()
     app.ezsp_callback_handler(
         "messageSentHandler",
