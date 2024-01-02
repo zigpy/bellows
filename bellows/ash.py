@@ -6,6 +6,7 @@ import binascii
 import dataclasses
 import enum
 import logging
+import time
 
 from zigpy.types import BaseDataclassMixin
 
@@ -314,6 +315,7 @@ class AshProtocol(asyncio.Protocol):
         self._send_data_frame_lock = asyncio.Lock()
         self._tx_seq: int = 0
         self._rx_seq: int = 0
+        self._t_rx_ack = T_RX_ACK_INIT
 
     def _get_tx_seq(self) -> int:
         result = self._tx_seq
@@ -455,10 +457,14 @@ class AshProtocol(asyncio.Protocol):
         _LOGGER.debug("Sending data %r", data)
         self._transport.write(data)
 
-    async def send_frame(self, frame: AshFrame) -> None:
-        return await asyncio.shield(self._send_frame(frame))
+    def _change_ack_timeout(self, new_value: float) -> None:
+        new_value = max(T_RX_ACK_MIN, min(new_value, T_RX_ACK_MAX))
+        _LOGGER.debug(
+            "Changing ACK timeout from %0.2f to %0.2f", self._t_rx_ack, new_value
+        )
+        self._t_rx_ack = new_value
 
-    async def _send_frame(self, frame: AshFrame) -> None:
+    async def send_frame(self, frame: AshFrame) -> None:
         if not isinstance(frame, DataFrame):
             self._write_frame(frame)
             return
@@ -469,19 +475,28 @@ class AshProtocol(asyncio.Protocol):
             self._pending_data_frames[frm_num] = ack_future
 
             for attempt in range(ACK_TIMEOUTS):
-                self.send_frame(
-                    frame.replace(
-                        frm_num=frm_num,
-                        re_tx=(attempt > 0),
-                        ack_num=self._rx_seq,
-                    )
+                # Use a fresh ACK number on every try
+                frame = frame.replace(
+                    frm_num=frm_num,
+                    re_tx=(attempt > 0),
+                    ack_num=self._rx_seq,
                 )
 
+                send_time = time.monotonic()
+                self.send_frame(frame)
+
                 try:
-                    await asyncio.wait_for(ack_future, timeout=T_RX_ACK_MAX)
+                    await asyncio.wait_for(ack_future, timeout=self._t_rx_ack)
                 except asyncio.TimeoutError:
-                    pass
+                    # If a DATA frame acknowledgement is not received within the current
+                    # timeout value, then t_rx_ack isdoubled.
+                    self._change_ack_timeout(2 * self._t_rx_ack)
                 else:
+                    # Whenever an acknowledgement is received, t_rx_ack is set to 7/8 of
+                    # its current value plus 1/2 of the measured time for the
+                    # acknowledgement.
+                    delta = time.monotonic() - send_time
+                    self._change_ack_timeout((7 / 8) * self._t_rx_ack + 0.5 * delta)
                     break
             else:
                 self._enter_failed_state()
