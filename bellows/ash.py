@@ -312,7 +312,7 @@ class AshProtocol(asyncio.Protocol):
         self._discarding_until_flag: bool = False
         self._pending_data_frames: dict[int, asyncio.Future] = {}
         self._ncp_state = NCPState.CONNECTED
-        self._send_data_frame_lock = asyncio.Lock()
+        self._send_data_frame_semaphore = asyncio.Semaphore(TX_K)
         self._tx_seq: int = 0
         self._rx_seq: int = 0
         self._t_rx_ack = T_RX_ACK_INIT
@@ -388,6 +388,7 @@ class AshProtocol(asyncio.Protocol):
                 # Consecutive Flag Bytes after the first Flag Byte are ignored
                 self._buffer = self._buffer[1:]
             elif self._buffer.startswith(CANCEL):
+                # all data received since the previous Flag Byte to be ignored
                 _, _, self._buffer = self._buffer.partition(CANCEL)
             elif self._buffer.startswith(XON):
                 _LOGGER.debug("Received XON byte, resuming transmission")
@@ -416,7 +417,6 @@ class AshProtocol(asyncio.Protocol):
     def _handle_ack(self, frame: DataFrame | AckFrame) -> None:
         # Note that ackNum is the number of the next frame the receiver expects and it
         # is one greater than the last frame received.
-
         ack_num = (frame.ack_num - 1) % 8
 
         if ack_num not in self._pending_data_frames:
@@ -427,7 +427,6 @@ class AshProtocol(asyncio.Protocol):
 
     def frame_received(self, frame: AshFrame) -> None:
         _LOGGER.debug("Received frame %r", frame)
-        return
 
         if isinstance(frame, DataFrame):
             # The Host may not piggyback acknowledgments and should promptly send an ACK
@@ -442,6 +441,7 @@ class AshProtocol(asyncio.Protocol):
 
             if frame.frm_num != expected_seq:
                 _LOGGER.warning("Received an out of sequence frame: %r", frame)
+                self.send_frame(NakFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
             else:
                 self._rx_seq = expected_seq
         elif isinstance(frame, AckFrame):
@@ -450,7 +450,7 @@ class AshProtocol(asyncio.Protocol):
             error = NotAcked(frame=frame)
             self._pending_data_frames[frame.ack_num].set_exception(error)
 
-    def _write_frame(self, frame: AshFrame) -> None:
+    def write_frame(self, frame: AshFrame) -> None:
         _LOGGER.debug("Sending frame %r", frame)
         data = self._stuff_bytes(frame.to_bytes()) + FLAG
 
@@ -466,10 +466,11 @@ class AshProtocol(asyncio.Protocol):
 
     async def send_frame(self, frame: AshFrame) -> None:
         if not isinstance(frame, DataFrame):
-            self._write_frame(frame)
+            # Non-DATA frames can be sent immediately and do not require an ACK
+            self.write_frame(frame)
             return
 
-        async with self._send_data_frame_lock:
+        async with self._send_data_frame_semaphore:
             frm_num = self._get_tx_seq()
             ack_future = asyncio.get_running_loop().create_future()
             self._pending_data_frames[frm_num] = ack_future
