@@ -775,8 +775,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def _set_source_route(
         self, nwk: zigpy.types.NWK, relays: list[zigpy.types.NWK]
     ) -> bool:
-        (res,) = await self._ezsp.setSourceRoute(nwk, relays)
-        return res == t.EmberStatus.SUCCESS
+        if self._ezsp.ezsp_version >= 8:
+            (res,) = await self._ezsp.setSourceRoute(nwk, len(relays), relays)
+            return res == t.EmberStatus.SUCCESS
+        else:
+            (res,) = await self._ezsp.setSourceRoute(nwk, relays)
+            return res == t.EmberStatus.SUCCESS
 
     async def energy_scan(
         self, channels: t.Channels, duration_exp: int, count: int

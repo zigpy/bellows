@@ -311,7 +311,7 @@ COMMANDS = {
     "changeSourceRouteHandler": (0x00C4, (), (t.EmberNodeId, t.EmberNodeId, t.Bool)),
     "setSourceRoute": (
         0x00AE,
-        (t.EmberNodeId, t.LVList(t.EmberNodeId)),
+        (t.EmberNodeId, t.uint8_t, t.LVList(t.EmberNodeId)),
         (t.EmberStatus,),
     ),
     "setSourceRouteDiscoveryMode": (0x005A, (t.uint8_t,), (t.uint32_t,)),
