@@ -306,7 +306,7 @@ class ErrorFrame(RStackFrame):
 
 
 class AshProtocol(asyncio.Protocol):
-    def __init__(self, ezsp_protocol) -> None:
+    def __init__(self, ezsp_protocol, *, host: bool = True) -> None:
         self._ezsp_protocol = ezsp_protocol
         self._transport = None
         self._buffer = bytearray()
@@ -316,7 +316,9 @@ class AshProtocol(asyncio.Protocol):
         self._send_data_frame_semaphore = asyncio.Semaphore(TX_K)
         self._tx_seq: int = 0
         self._rx_seq: int = 0
-        self._t_rx_ack = T_RX_ACK_INIT
+
+        self._host = host
+        self._t_rx_ack = T_RX_ACK_MAX if host else T_RX_ACK_INIT
 
     def connection_made(self, transport):
         self._transport = transport
@@ -529,15 +531,21 @@ class AshProtocol(asyncio.Protocol):
                     try:
                         await asyncio.wait_for(ack_future, timeout=self._t_rx_ack)
                     except asyncio.TimeoutError:
+                        _LOGGER.debug("No ACK received in %0.2fs", self._t_rx_ack)
                         # If a DATA frame acknowledgement is not received within the current
                         # timeout value, then t_rx_ack isdoubled.
-                        self._change_ack_timeout(2 * self._t_rx_ack)
+                        if not self._host:
+                            self._change_ack_timeout(2 * self._t_rx_ack)
                     else:
                         # Whenever an acknowledgement is received, t_rx_ack is set to 7/8 of
                         # its current value plus 1/2 of the measured time for the
                         # acknowledgement.
-                        delta = time.monotonic() - send_time
-                        self._change_ack_timeout((7 / 8) * self._t_rx_ack + 0.5 * delta)
+                        if not self._host:
+                            delta = time.monotonic() - send_time
+                            self._change_ack_timeout(
+                                (7 / 8) * self._t_rx_ack + 0.5 * delta
+                            )
+
                         break
                 else:
                     self._enter_failed_state()
@@ -553,42 +561,3 @@ class AshProtocol(asyncio.Protocol):
 
     def send_reset(self) -> None:
         self._write_frame(RstFrame())
-
-
-if __name__ == "__main__":
-    import ast
-    import pathlib
-    import sys
-
-    import coloredlogs
-
-    coloredlogs.install(level="INFO")
-
-    protocol = AshProtocol(None)
-
-    def frame_received(frame):
-        protocol.last_frame = frame
-
-    protocol.frame_received = frame_received
-
-    for log_f in sys.argv[1:]:
-        with pathlib.Path(log_f).open("r") as f:
-            for line in f:
-                if "xbee" in line:
-                    continue
-
-                if "uart] Sending: b'" in line:
-                    send_frame = bytes.fromhex(line.split(": b'")[1].split("'")[0])
-
-                    protocol.data_received(send_frame)
-                    _LOGGER.info(" ----->   %s", protocol.last_frame)
-                elif " frame: b'" in line and "ZCL" not in line:
-                    decoded = ast.literal_eval(line.split(": b")[1])
-                    unstuffed_frame = bytes.fromhex(decoded)
-                    receive_frame = (
-                        AshProtocol._stuff_bytes(unstuffed_frame[:-1])
-                        + unstuffed_frame[-1:]
-                    )
-
-                    protocol.data_received(receive_frame)
-                    _LOGGER.info("<-----    %s", protocol.last_frame)
