@@ -64,11 +64,12 @@ class ProtocolHandler(abc.ABC):
         """Serialize command and send it."""
         LOGGER.debug("Send command %s: %s", name, args)
         data = self._ezsp_frame(name, *args)
-        self._gw.data(data)
         c = self.COMMANDS[name]
         future = asyncio.Future()
         self._awaiting[self._seq] = (c[0], c[2], future)
         self._seq = (self._seq + 1) % 256
+
+        await self._gw.send_data(data)
 
         async with asyncio_timeout(EZSP_CMD_TIMEOUT):
             return await future
@@ -85,6 +86,7 @@ class ProtocolHandler(abc.ABC):
 
     def __call__(self, data: bytes) -> None:
         """Handler for received data frame."""
+        LOGGER.debug("Received EZSP frame %s", data)
         orig_data = data
         sequence, frame_id, data = self._ezsp_frame_rx(data)
 

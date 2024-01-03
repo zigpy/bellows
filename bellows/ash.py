@@ -307,6 +307,7 @@ class ErrorFrame(RStackFrame):
 
 class AshProtocol(asyncio.Protocol):
     def __init__(self, ezsp_protocol) -> None:
+        self._ezsp_protocol = ezsp_protocol
         self._transport = None
         self._buffer = bytearray()
         self._discarding_until_flag: bool = False
@@ -317,11 +318,25 @@ class AshProtocol(asyncio.Protocol):
         self._rx_seq: int = 0
         self._t_rx_ack = T_RX_ACK_INIT
 
+    def connection_made(self, transport):
+        self._transport = transport
+        self._ezsp_protocol.connection_made(self)
+
+    def connection_lost(self, exc):
+        self._ezsp_protocol.connection_lost(exc)
+
+    def eof_received(self):
+        self._ezsp_protocol.eof_received()
+
     def _get_tx_seq(self) -> int:
         result = self._tx_seq
         self._tx_seq = (self._tx_seq + 1) % 8
 
         return result
+
+    def close(self):
+        if self._transport is not None:
+            self._transport.close()
 
     def _extract_frame(self, data: bytes) -> AshFrame:
         control_byte = data[0]
@@ -372,7 +387,7 @@ class AshProtocol(asyncio.Protocol):
         return out
 
     def data_received(self, data: bytes) -> None:
-        _LOGGER.debug("Received data %r", data)
+        _LOGGER.debug("Received data: %s", data.hex())
         self._buffer.extend(data)
 
         while self._buffer:
@@ -419,10 +434,16 @@ class AshProtocol(asyncio.Protocol):
         # is one greater than the last frame received.
         ack_num = (frame.ack_num - 1) % 8
 
-        if ack_num not in self._pending_data_frames:
+        fut = self._pending_data_frames.get(ack_num)
+
+        if fut is None:
             _LOGGER.warning("Received an unexpected ACK: %r", frame)
             return
+        elif fut.done():
+            _LOGGER.debug("Received a double ACK, ignoring...")
+            return
 
+        _LOGGER.debug("Resolving frame %d", ack_num)
         self._pending_data_frames[ack_num].set_result(True)
 
     def frame_received(self, frame: AshFrame) -> None:
@@ -431,79 +452,107 @@ class AshProtocol(asyncio.Protocol):
         if isinstance(frame, DataFrame):
             # The Host may not piggyback acknowledgments and should promptly send an ACK
             # frame when it receives a DATA frame.
-            self.send_frame(AckFrame(res=0, ncp_ready=0, ack_num=self._rx_seq + 1))
-            self._handle_ack(frame)
 
             if frame.re_tx:
-                expected_seq = self._rx_seq
+                expected_seq = (self._rx_seq - 1) % 8
             else:
-                expected_seq = (self._rx_seq + 1) % 8
+                expected_seq = self._rx_seq
 
             if frame.frm_num != expected_seq:
                 _LOGGER.warning("Received an out of sequence frame: %r", frame)
-                self.send_frame(NakFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
+                self._write_frame(NakFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
             else:
-                self._rx_seq = expected_seq
+                self._handle_ack(frame)
+
+                self._rx_seq = (frame.frm_num + 1) % 8
+                self._write_frame(AckFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
+
+            self._ezsp_protocol.data_received(frame.ezsp_frame)
+        elif isinstance(frame, ErrorFrame):
+            self._ezsp_protocol.error_received(frame.reset_code)
+        elif isinstance(frame, RStackFrame):
+            self._tx_seq = 0
+            self._rx_seq = 0
+            self._change_ack_timeout(T_RX_ACK_INIT)
+            self._ezsp_protocol.reset_received(frame.reset_code)
         elif isinstance(frame, AckFrame):
             self._handle_ack(frame)
         elif isinstance(frame, NakFrame):
             error = NotAcked(frame=frame)
             self._pending_data_frames[frame.ack_num].set_exception(error)
 
-    def write_frame(self, frame: AshFrame) -> None:
+    def _write_frame(self, frame: AshFrame) -> None:
         _LOGGER.debug("Sending frame %r", frame)
         data = self._stuff_bytes(frame.to_bytes()) + FLAG
 
-        _LOGGER.debug("Sending data %r", data)
+        _LOGGER.debug("Sending data %s", data.hex())
         self._transport.write(data)
 
     def _change_ack_timeout(self, new_value: float) -> None:
         new_value = max(T_RX_ACK_MIN, min(new_value, T_RX_ACK_MAX))
-        _LOGGER.debug(
-            "Changing ACK timeout from %0.2f to %0.2f", self._t_rx_ack, new_value
-        )
+
+        if abs(new_value - self._t_rx_ack) > 0.01:
+            _LOGGER.debug(
+                "Changing ACK timeout from %0.2f to %0.2f", self._t_rx_ack, new_value
+            )
+
         self._t_rx_ack = new_value
 
-    async def send_frame(self, frame: AshFrame) -> None:
+    async def _send_frame(self, frame: AshFrame) -> None:
         if not isinstance(frame, DataFrame):
             # Non-DATA frames can be sent immediately and do not require an ACK
-            self.write_frame(frame)
+            self._write_frame(frame)
             return
 
+        if self._send_data_frame_semaphore.locked():
+            _LOGGER.debug("Semaphore is locked, waiting")
+
         async with self._send_data_frame_semaphore:
-            frm_num = self._get_tx_seq()
+            frm_num = self._tx_seq
+            self._tx_seq = (self._tx_seq + 1) % 8
+
             ack_future = asyncio.get_running_loop().create_future()
             self._pending_data_frames[frm_num] = ack_future
 
-            for attempt in range(ACK_TIMEOUTS):
-                # Use a fresh ACK number on every try
-                frame = frame.replace(
-                    frm_num=frm_num,
-                    re_tx=(attempt > 0),
-                    ack_num=self._rx_seq,
-                )
+            try:
+                for attempt in range(ACK_TIMEOUTS):
+                    # Use a fresh ACK number on every retry
+                    frame = frame.replace(
+                        frm_num=frm_num,
+                        re_tx=(attempt > 0),
+                        ack_num=self._rx_seq,
+                    )
 
-                send_time = time.monotonic()
-                self.send_frame(frame)
+                    send_time = time.monotonic()
+                    self._write_frame(frame)
 
-                try:
-                    await asyncio.wait_for(ack_future, timeout=self._t_rx_ack)
-                except asyncio.TimeoutError:
-                    # If a DATA frame acknowledgement is not received within the current
-                    # timeout value, then t_rx_ack isdoubled.
-                    self._change_ack_timeout(2 * self._t_rx_ack)
+                    try:
+                        await asyncio.wait_for(ack_future, timeout=self._t_rx_ack)
+                    except asyncio.TimeoutError:
+                        # If a DATA frame acknowledgement is not received within the current
+                        # timeout value, then t_rx_ack isdoubled.
+                        self._change_ack_timeout(2 * self._t_rx_ack)
+                    else:
+                        # Whenever an acknowledgement is received, t_rx_ack is set to 7/8 of
+                        # its current value plus 1/2 of the measured time for the
+                        # acknowledgement.
+                        delta = time.monotonic() - send_time
+                        self._change_ack_timeout((7 / 8) * self._t_rx_ack + 0.5 * delta)
+                        break
                 else:
-                    # Whenever an acknowledgement is received, t_rx_ack is set to 7/8 of
-                    # its current value plus 1/2 of the measured time for the
-                    # acknowledgement.
-                    delta = time.monotonic() - send_time
-                    self._change_ack_timeout((7 / 8) * self._t_rx_ack + 0.5 * delta)
-                    break
-            else:
-                self._enter_failed_state()
-                raise
+                    self._enter_failed_state()
+                    raise
+            finally:
+                self._pending_data_frames.pop(frm_num)
 
-            self._pending_data_frames.pop(frm_num)
+    async def send_data(self, data: bytes) -> None:
+        await self._send_frame(
+            # All of the other fields will be set during transmission/retries
+            DataFrame(frm_num=None, re_tx=None, ack_num=None, ezsp_frame=data)
+        )
+
+    def send_reset(self) -> None:
+        self._write_frame(RstFrame())
 
 
 if __name__ == "__main__":
