@@ -69,9 +69,8 @@ class ProtocolHandler(abc.ABC):
         self._awaiting[self._seq] = (c[0], c[2], future)
         self._seq = (self._seq + 1) % 256
 
-        await self._gw.send_data(data)
-
         async with asyncio_timeout(EZSP_CMD_TIMEOUT):
+            await self._gw.send_data(data)
             return await future
 
     async def update_policies(self, policy_config: dict) -> None:
