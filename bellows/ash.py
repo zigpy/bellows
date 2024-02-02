@@ -561,3 +561,56 @@ class AshProtocol(asyncio.Protocol):
 
     def send_reset(self) -> None:
         self._write_frame(RstFrame())
+
+
+def main():
+    import ast
+    import pathlib
+    import sys
+    import unittest.mock
+
+    import coloredlogs
+
+    coloredlogs.install(level="DEBUG")
+
+    class CapturingAshProtocol(AshProtocol):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._parsed_frames = []
+
+        def frame_received(self, frame: AshFrame) -> None:
+            self._parsed_frames.append(frame)
+
+    with pathlib.Path(sys.argv[1]).open("r") as f:
+        for line in f:
+            if "bellows.uart" not in line:
+                continue
+
+            if "Sending: " in line:
+                direction = " --->"
+            elif (
+                "Data frame:" in line or "ACK frame: " in line or "NAK frame: " in line
+            ):
+                direction = "<--- "
+            else:
+                continue
+
+            data = bytes.fromhex(ast.literal_eval(line.split(": b", 1)[1]))
+
+            # Data frames are logged already unstuffed
+            if direction == "<--- ":
+                data = AshProtocol._stuff_bytes(data[:-1]) + data[-1:]
+
+            protocol = CapturingAshProtocol(ezsp_protocol=unittest.mock.Mock())
+            protocol.data_received(data)
+
+            if len(protocol._parsed_frames) != 1:
+                raise ValueError(f"Failed to parse frames: {protocol._parsed_frames}")
+
+            frame = protocol._parsed_frames[0]
+
+            _LOGGER.info("%s: %s", direction, frame)
+
+
+if __name__ == "__main__":
+    main()
