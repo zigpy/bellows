@@ -268,13 +268,38 @@ class Gateway(asyncio.Protocol):
             if item is self.Terminator:
                 break
             data, seq = item
-            success = False
-            rxmit = 0
-            while not success:
+
+            for attempt in range(4 + 1):
                 self._pending = (seq, asyncio.get_event_loop().create_future())
+
+                rxmit = attempt > 0
                 self.write(self._data_frame(data, seq, rxmit))
-                rxmit = 1
-                success = await self._pending[1]
+
+                try:
+                    async with asyncio_timeout(1):
+                        success = await self._pending[1]
+                except asyncio.TimeoutError:
+                    LOGGER.warning(
+                        "Frame %s (seq %s) timed out on attempt %d, retrying",
+                        data,
+                        seq,
+                        attempt,
+                    )
+                else:
+                    if success:
+                        break
+
+                    LOGGER.warning(
+                        "Frame %s (seq %s) failed to transmit on attempt %d, retrying",
+                        data,
+                        seq,
+                        attempt,
+                    )
+            else:
+                self.connection_lost(
+                    RuntimeError(f"Frame {data} failed to transmit after 4 retries")
+                )
+                return
 
     def _handle_ack(self, control):
         """Handle an acknowledgement frame"""
