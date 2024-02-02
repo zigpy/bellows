@@ -118,10 +118,18 @@ class Gateway(asyncio.Protocol):
         """Data frame receive handler"""
         LOGGER.debug("Data frame: %s", binascii.hexlify(data))
         seq = (data[0] & 0b01110000) >> 4
-        self._rec_seq = (seq + 1) % 8
-        self.write(self._ack_frame())
-        self._handle_ack(data[0])
-        self._application.frame_received(self._randomize(data[1:-3]))
+        re_tx = (data[0] & 0b00001000) >> 3
+
+        if seq == self._rec_seq:
+            self._rec_seq = (seq + 1) % 8
+            self.write(self._ack_frame())
+
+            self._handle_ack(data[0])
+            self._application.frame_received(self._randomize(data[1:-3]))
+        elif re_tx:
+            self.write(self._ack_frame())
+        else:
+            self.write(self._nak_frame())
 
     def ack_frame_received(self, data):
         """Acknowledgement frame receive handler"""
