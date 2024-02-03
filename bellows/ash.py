@@ -453,21 +453,19 @@ class AshProtocol(asyncio.Protocol):
             # The Host may not piggyback acknowledgments and should promptly send an ACK
             # frame when it receives a DATA frame.
 
-            if frame.re_tx:
-                expected_seq = (self._rx_seq - 1) % 8
-            else:
-                expected_seq = self._rx_seq
-
-            if frame.frm_num != expected_seq:
-                _LOGGER.warning("Received an out of sequence frame: %r", frame)
-                self._write_frame(NakFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
-            else:
+            if frame.frm_num == self._rx_seq:
                 self._handle_ack(frame)
-
                 self._rx_seq = (frame.frm_num + 1) % 8
                 self._write_frame(AckFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
 
-            self._ezsp_protocol.data_received(frame.ezsp_frame)
+                self._ezsp_protocol.data_received(frame.ezsp_frame)
+            elif frame.re_tx:
+                # Retransmitted frames must be immediately ACKed even if they are out of
+                # sequence
+                self._write_frame(AckFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
+            else:
+                _LOGGER.warning("Received an out of sequence frame: %r", frame)
+                self._write_frame(NakFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
         elif isinstance(frame, ErrorFrame):
             self._ezsp_protocol.error_received(frame.reset_code)
         elif isinstance(frame, RStackFrame):
