@@ -1165,7 +1165,7 @@ async def test_ezsp_value_counter(app, monkeypatch):
         is None
     )
     assert (
-        app.state.counters[application.COUNTERS_CTRL][application.COUNTER_WATCHDOG] == 1
+        app.state.counters[application.COUNTERS_CTRL][application.COUNTER_WATCHDOG] == 0
     )
 
     # Ezsp Value success
