@@ -1018,10 +1018,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             LOGGER.warning("Watchdog heartbeat timeout: %s", repr(exc))
             self._watchdog_failures += 1
             if self._watchdog_failures > MAX_WATCHDOG_FAILURES:
+                self.state.counters[COUNTERS_CTRL][COUNTER_WATCHDOG].increment()
                 raise
         else:
             self._watchdog_failures = 0
-            self.state.counters[COUNTERS_CTRL][COUNTER_WATCHDOG].increment()
 
     async def _get_free_buffers(self) -> int | None:
         status, value = await self._ezsp.getValue(
