@@ -6,7 +6,13 @@ import binascii
 import dataclasses
 import enum
 import logging
+import sys
 import time
+
+if sys.version_info[:2] < (3, 11):
+    from async_timeout import timeout as asyncio_timeout  # pragma: no cover
+else:
+    from asyncio import timeout as asyncio_timeout  # pragma: no cover
 
 from zigpy.types import BaseDataclassMixin
 
@@ -43,7 +49,7 @@ T_REMOTE_NOTRDY = 1.0
 
 # Maximum number of DATA frames the NCP can transmit without having received
 # acknowledgements
-TX_K = 5
+TX_K = 1
 
 # Maximum number of consecutive timeouts allowed while waiting to receive an ACK before
 # going to the FAILED state. The value 0 prevents the NCP from entering the error state
@@ -437,10 +443,8 @@ class AshProtocol(asyncio.Protocol):
         fut = self._pending_data_frames.get(ack_num)
 
         if fut is None:
-            _LOGGER.warning("Received an unexpected ACK: %r", frame)
             return
         elif fut.done():
-            _LOGGER.debug("Received a double ACK, ignoring...")
             return
 
         _LOGGER.debug("Resolving frame %d", ack_num)
@@ -477,7 +481,13 @@ class AshProtocol(asyncio.Protocol):
             self._handle_ack(frame)
         elif isinstance(frame, NakFrame):
             error = NotAcked(frame=frame)
-            self._pending_data_frames[frame.ack_num].set_exception(error)
+
+            for frm_num, fut in self._pending_data_frames.items():
+                if (
+                    not frame.ack_num - TX_K <= frm_num <= frame.ack_num
+                    and not fut.done()
+                ):
+                    fut.set_exception(error)
 
     def _write_frame(self, frame: AshFrame) -> None:
         _LOGGER.debug("Sending frame %r", frame)
@@ -509,41 +519,53 @@ class AshProtocol(asyncio.Protocol):
             frm_num = self._tx_seq
             self._tx_seq = (self._tx_seq + 1) % 8
 
-            ack_future = asyncio.get_running_loop().create_future()
-            self._pending_data_frames[frm_num] = ack_future
+            for attempt in range(ACK_TIMEOUTS):
+                # Use a fresh ACK number on every retry
+                frame = frame.replace(
+                    frm_num=frm_num,
+                    re_tx=(attempt > 0),
+                    ack_num=self._rx_seq,
+                )
 
-            try:
-                for attempt in range(ACK_TIMEOUTS):
-                    # Use a fresh ACK number on every retry
-                    frame = frame.replace(
-                        frm_num=frm_num,
-                        re_tx=(attempt > 0),
-                        ack_num=self._rx_seq,
+                send_time = time.monotonic()
+
+                ack_future = asyncio.get_running_loop().create_future()
+                self._pending_data_frames[frm_num] = ack_future
+                self._write_frame(frame)
+
+                try:
+                    async with asyncio_timeout(self._t_rx_ack):
+                        await ack_future
+                except NotAcked:
+                    _LOGGER.debug(
+                        "NCP responded with NAK. Retrying (attempt %d)", attempt + 1
                     )
 
-                    send_time = time.monotonic()
-                    self._write_frame(frame)
-
-                    try:
-                        await asyncio.wait_for(ack_future, timeout=self._t_rx_ack)
-                    except asyncio.TimeoutError:
-                        _LOGGER.debug("No ACK received in %0.2fs", self._t_rx_ack)
-                        # If a DATA frame acknowledgement is not received within the current
-                        # timeout value, then t_rx_ack is doubled.
-                        self._change_ack_timeout(2 * self._t_rx_ack)
-                    else:
-                        # Whenever an acknowledgement is received, t_rx_ack is set to 7/8 of
-                        # its current value plus 1/2 of the measured time for the
-                        # acknowledgement.
-                        delta = time.monotonic() - send_time
-                        self._change_ack_timeout((7 / 8) * self._t_rx_ack + 0.5 * delta)
-
-                        break
+                    # For timing purposes, NAK can be treated as an ACK
+                    delta = time.monotonic() - send_time
+                    self._change_ack_timeout((7 / 8) * self._t_rx_ack + 0.5 * delta)
+                except asyncio.TimeoutError:
+                    _LOGGER.debug(
+                        "No ACK received in %0.2fs (attempt %d)",
+                        self._t_rx_ack,
+                        attempt + 1,
+                    )
+                    # If a DATA frame acknowledgement is not received within the current
+                    # timeout value, then t_rx_ack is doubled.
+                    self._change_ack_timeout(2 * self._t_rx_ack)
                 else:
-                    self._enter_failed_state()
-                    raise
-            finally:
+                    # Whenever an acknowledgement is received, t_rx_ack is set to 7/8 of
+                    # its current value plus 1/2 of the measured time for the
+                    # acknowledgement.
+                    delta = time.monotonic() - send_time
+                    self._change_ack_timeout((7 / 8) * self._t_rx_ack + 0.5 * delta)
+
+                    break
+
+                # Any exception will trigger this
                 self._pending_data_frames.pop(frm_num)
+            else:
+                raise
 
     async def send_data(self, data: bytes) -> None:
         await self._send_frame(
