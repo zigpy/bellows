@@ -306,7 +306,7 @@ class ErrorFrame(RStackFrame):
 
 
 class AshProtocol(asyncio.Protocol):
-    def __init__(self, ezsp_protocol, *, host: bool = True) -> None:
+    def __init__(self, ezsp_protocol) -> None:
         self._ezsp_protocol = ezsp_protocol
         self._transport = None
         self._buffer = bytearray()
@@ -316,9 +316,7 @@ class AshProtocol(asyncio.Protocol):
         self._send_data_frame_semaphore = asyncio.Semaphore(TX_K)
         self._tx_seq: int = 0
         self._rx_seq: int = 0
-
-        self._host = host
-        self._t_rx_ack = T_RX_ACK_MAX if host else T_RX_ACK_INIT
+        self._t_rx_ack = T_RX_ACK_INIT
 
     def connection_made(self, transport):
         self._transport = transport
@@ -533,18 +531,14 @@ class AshProtocol(asyncio.Protocol):
                     except asyncio.TimeoutError:
                         _LOGGER.debug("No ACK received in %0.2fs", self._t_rx_ack)
                         # If a DATA frame acknowledgement is not received within the current
-                        # timeout value, then t_rx_ack isdoubled.
-                        if not self._host:
-                            self._change_ack_timeout(2 * self._t_rx_ack)
+                        # timeout value, then t_rx_ack is doubled.
+                        self._change_ack_timeout(2 * self._t_rx_ack)
                     else:
                         # Whenever an acknowledgement is received, t_rx_ack is set to 7/8 of
                         # its current value plus 1/2 of the measured time for the
                         # acknowledgement.
-                        if not self._host:
-                            delta = time.monotonic() - send_time
-                            self._change_ack_timeout(
-                                (7 / 8) * self._t_rx_ack + 0.5 * delta
-                            )
+                        delta = time.monotonic() - send_time
+                        self._change_ack_timeout((7 / 8) * self._t_rx_ack + 0.5 * delta)
 
                         break
                 else:
