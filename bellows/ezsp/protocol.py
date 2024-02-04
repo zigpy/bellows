@@ -17,7 +17,7 @@ import bellows.types as t
 from bellows.typing import GatewayType
 
 LOGGER = logging.getLogger(__name__)
-EZSP_CMD_TIMEOUT = 5
+EZSP_CMD_TIMEOUT = 10
 
 
 class ProtocolHandler(abc.ABC):
@@ -64,13 +64,13 @@ class ProtocolHandler(abc.ABC):
         """Serialize command and send it."""
         LOGGER.debug("Send command %s: %s", name, args)
         data = self._ezsp_frame(name, *args)
-        self._gw.data(data)
         c = self.COMMANDS[name]
         future = asyncio.Future()
         self._awaiting[self._seq] = (c[0], c[2], future)
         self._seq = (self._seq + 1) % 256
 
         async with asyncio_timeout(EZSP_CMD_TIMEOUT):
+            await self._gw.send_data(data)
             return await future
 
     async def update_policies(self, policy_config: dict) -> None:
@@ -85,6 +85,7 @@ class ProtocolHandler(abc.ABC):
 
     def __call__(self, data: bytes) -> None:
         """Handler for received data frame."""
+        LOGGER.debug("Received EZSP frame %s", data)
         orig_data = data
         sequence, frame_id, data = self._ezsp_frame_rx(data)
 

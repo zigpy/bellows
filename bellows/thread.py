@@ -4,6 +4,11 @@ import functools
 import logging
 import sys
 
+
+class EventLoopShuttingDown(RuntimeError):
+    pass
+
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -59,11 +64,16 @@ class EventLoopThread:
         if self.loop is None:
             return
 
+        LOGGER.debug("Shutting down thread")
+
         def cancel_tasks_and_stop_loop():
             tasks = asyncio.all_tasks(loop=self.loop)
 
             for task in tasks:
-                self.loop.call_soon_threadsafe(task.cancel)
+                coro = task.get_coro()
+
+                if coro is not None:
+                    self.loop.call_soon_threadsafe(coro.throw, EventLoopShuttingDown())
 
             gather = asyncio.gather(*tasks, return_exceptions=True)
             gather.add_done_callback(
