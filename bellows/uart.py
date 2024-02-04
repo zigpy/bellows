@@ -2,6 +2,7 @@ import asyncio
 import binascii
 import logging
 import sys
+import time
 
 if sys.version_info[:2] < (3, 11):
     from async_timeout import timeout as asyncio_timeout  # pragma: no cover
@@ -18,7 +19,10 @@ LOGGER = logging.getLogger(__name__)
 RESET_TIMEOUT = 5
 
 ASH_ACK_RETRIES = 4
-ASH_ACK_TIMEOUT = 1
+
+ASH_RX_ACK_INIT = 1.6
+ASH_RX_ACK_MIN = 0.4
+ASH_RX_ACK_MAX = 3.2
 
 
 class Gateway(asyncio.Protocol):
@@ -50,6 +54,7 @@ class Gateway(asyncio.Protocol):
         self._connection_done_future = connection_done_future
 
         self._send_task = None
+        self._ack_timeout = ASH_RX_ACK_INIT
 
     def connection_made(self, transport):
         """Callback when the uart is connected"""
@@ -283,11 +288,14 @@ class Gateway(asyncio.Protocol):
             for attempt in range(ASH_ACK_RETRIES + 1):
                 self._pending = (seq, asyncio.get_event_loop().create_future())
 
+                send_time = time.monotonic()
+
+                success = None
                 rxmit = attempt > 0
                 self.write(self._data_frame(data, seq, rxmit))
 
                 try:
-                    async with asyncio_timeout(ASH_ACK_TIMEOUT):
+                    async with asyncio_timeout(self._ack_timeout):
                         success = await self._pending[1]
                 except asyncio.TimeoutError:
                     LOGGER.debug(
@@ -306,6 +314,30 @@ class Gateway(asyncio.Protocol):
                         seq,
                         attempt,
                     )
+                finally:
+                    delta = time.monotonic() - send_time
+
+                    if success is not None:
+                        new_ack_timeout = max(
+                            ASH_RX_ACK_MIN,
+                            min(
+                                ASH_RX_ACK_MAX,
+                                (7 / 8) * self._ack_timeout + 0.5 * delta,
+                            ),
+                        )
+                    else:
+                        new_ack_timeout = max(
+                            ASH_RX_ACK_MIN, min(ASH_RX_ACK_MAX, 2 * self._ack_timeout)
+                        )
+
+                    if abs(self._ack_timeout - new_ack_timeout) > 0.01:
+                        LOGGER.debug(
+                            "Adjusting ACK timeout from %.2f to %.2f",
+                            self._ack_timeout,
+                            new_ack_timeout,
+                        )
+
+                    self._ack_timeout = new_ack_timeout
             else:
                 self.connection_lost(
                     ConnectionResetError(
