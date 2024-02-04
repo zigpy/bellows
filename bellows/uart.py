@@ -308,7 +308,9 @@ class Gateway(asyncio.Protocol):
                     )
             else:
                 self.connection_lost(
-                    RuntimeError(f"Frame {data} failed to transmit after 4 retries")
+                    ConnectionResetError(
+                        f"Failed to transmit ASH frame after {ASH_ACK_RETRIES} retries"
+                    )
                 )
                 return
 
