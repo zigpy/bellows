@@ -194,6 +194,7 @@ def test_substitute_received(gw):
 
 def test_partial_data_received(gw):
     gw.write = MagicMock()
+    gw._rec_seq = 5
     gw.data_received(b"\x54\x79\xa1\xb0")
     gw.data_received(b"\x50\xf2\x6e\x7e")
     assert gw.write.call_count == 1
@@ -209,6 +210,7 @@ def test_crc_error(gw):
 
 def test_crc_error_and_valid_frame(gw):
     gw.write = MagicMock()
+    gw._rec_seq = 5
     gw.data_received(
         b"L\xa1\x8e\x03\xcd\x07\xb9Y\xfbG%\xae\xbd~\x54\x79\xa1\xb0\x50\xf2\x6e\x7e"
     )
@@ -218,6 +220,7 @@ def test_crc_error_and_valid_frame(gw):
 
 def test_data_frame_received(gw):
     gw.write = MagicMock()
+    gw._rec_seq = 5
     gw.data_received(b"\x54\x79\xa1\xb0\x50\xf2\x6e\x7e")
     assert gw.write.call_count == 1
     assert gw._application.frame_received.call_count == 1
