@@ -17,6 +17,9 @@ import bellows.types as t
 LOGGER = logging.getLogger(__name__)
 RESET_TIMEOUT = 5
 
+ASH_ACK_RETRIES = 4
+ASH_ACK_TIMEOUT = 1
+
 
 class Gateway(asyncio.Protocol):
     FLAG = b"\x7E"  # Marks end of frame
@@ -277,14 +280,14 @@ class Gateway(asyncio.Protocol):
                 break
             data, seq = item
 
-            for attempt in range(4 + 1):
+            for attempt in range(ASH_ACK_RETRIES + 1):
                 self._pending = (seq, asyncio.get_event_loop().create_future())
 
                 rxmit = attempt > 0
                 self.write(self._data_frame(data, seq, rxmit))
 
                 try:
-                    async with asyncio_timeout(1):
+                    async with asyncio_timeout(ASH_ACK_TIMEOUT):
                         success = await self._pending[1]
                 except asyncio.TimeoutError:
                     LOGGER.warning(
