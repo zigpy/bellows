@@ -290,7 +290,7 @@ class Gateway(asyncio.Protocol):
                     async with asyncio_timeout(ASH_ACK_TIMEOUT):
                         success = await self._pending[1]
                 except asyncio.TimeoutError:
-                    LOGGER.warning(
+                    LOGGER.debug(
                         "Frame %s (seq %s) timed out on attempt %d, retrying",
                         data,
                         seq,
@@ -300,7 +300,7 @@ class Gateway(asyncio.Protocol):
                     if success:
                         break
 
-                    LOGGER.warning(
+                    LOGGER.debug(
                         "Frame %s (seq %s) failed to transmit on attempt %d, retrying",
                         data,
                         seq,
