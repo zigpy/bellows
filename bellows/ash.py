@@ -297,7 +297,7 @@ class RStackFrame(AshFrame):
         )
 
     def to_bytes(self) -> bytes:
-        return self.append_crc(bytes([self.MASK_VALUE]) + self.data)
+        return self.append_crc(bytes([self.MASK_VALUE, self.version, self.reset_code]))
 
     def __str__(self) -> str:
         return f"RSTACK(ver={self.version}, code={self.reset_code})"
