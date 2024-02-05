@@ -289,8 +289,6 @@ class Gateway(asyncio.Protocol):
                 self._pending = (seq, asyncio.get_event_loop().create_future())
 
                 send_time = time.monotonic()
-
-                success = None
                 rxmit = attempt > 0
                 self.write(self._data_frame(data, seq, rxmit))
 
@@ -298,6 +296,7 @@ class Gateway(asyncio.Protocol):
                     async with asyncio_timeout(self._ack_timeout):
                         success = await self._pending[1]
                 except asyncio.TimeoutError:
+                    success = None
                     LOGGER.debug(
                         "Frame %s (seq %s) timed out on attempt %d, retrying",
                         data,
@@ -338,6 +337,7 @@ class Gateway(asyncio.Protocol):
                         )
 
                     self._ack_timeout = new_ack_timeout
+                    self._pending = (-1, None)
             else:
                 self.connection_lost(
                     ConnectionResetError(

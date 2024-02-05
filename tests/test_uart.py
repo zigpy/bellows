@@ -419,3 +419,111 @@ async def test_wait_for_startup_reset_failure(gw):
         await asyncio.wait_for(gw.wait_for_startup_reset(), 0.01)
 
     assert gw._startup_reset_future is None
+
+
+ASH_ACK_MIN = 0.01
+
+
+@patch("bellows.uart.ASH_RX_ACK_MIN", new=ASH_ACK_MIN * 2**0)
+@patch("bellows.uart.ASH_RX_ACK_INIT", new=ASH_ACK_MIN * 2**2)
+@patch("bellows.uart.ASH_RX_ACK_MAX", new=ASH_ACK_MIN * 2**3)
+async def test_retry_success():
+    app = MagicMock()
+    transport = MagicMock()
+    connected_future = asyncio.get_running_loop().create_future()
+
+    gw = uart.Gateway(app, connected_future)
+    gw.connection_made(transport)
+
+    old_timeout = gw._ack_timeout
+    gw.data(b"TX 1")
+    await asyncio.sleep(0)
+
+    # Wait more than one ACK cycle to reply
+    assert len(transport.write.mock_calls) == 1
+    await asyncio.sleep(ASH_ACK_MIN * 5)
+
+    # The gateway has retried once by now
+    assert len(transport.write.mock_calls) == 2
+
+    gw.frame_received(
+        # ash.DataFrame(frm_num=0, re_tx=0, ack_num=1, ezsp_frame=b"RX 1").to_bytes()
+        bytes.fromhex("01107988654851")
+    )
+
+    # An ACK has been received and the pending frame has been acknowledged
+    await asyncio.sleep(0)
+    assert gw._pending == (-1, None)
+
+    assert gw._ack_timeout > old_timeout
+
+    gw.close()
+
+
+@patch("bellows.uart.ASH_RX_ACK_MIN", new=ASH_ACK_MIN * 2**0)
+@patch("bellows.uart.ASH_RX_ACK_INIT", new=ASH_ACK_MIN * 2**2)
+@patch("bellows.uart.ASH_RX_ACK_MAX", new=ASH_ACK_MIN * 2**3)
+async def test_retry_nak_then_success():
+    app = MagicMock()
+    transport = MagicMock()
+    connected_future = asyncio.get_running_loop().create_future()
+
+    gw = uart.Gateway(app, connected_future)
+    gw.connection_made(transport)
+
+    old_timeout = gw._ack_timeout
+    gw.data(b"TX 1")
+    await asyncio.sleep(0)
+    assert len(transport.write.mock_calls) == 1
+
+    # Wait less than one ACK cycle so that we can NAK the frame during the RX window
+    await asyncio.sleep(ASH_ACK_MIN)
+    # NAK the frame
+    gw.frame_received(
+        # ash.NakFrame(res=0, ncp_ready=0, ack_num=0).to_bytes()
+        bytes.fromhex("a0541a")
+    )
+
+    # The gateway has retried once more, instantly
+    await asyncio.sleep(0)
+    assert len(transport.write.mock_calls) == 2
+
+    # Send a proper ACK
+    gw.frame_received(
+        # ash.AckFrame(res=0, ncp_ready=0, ack_num=1).to_bytes()
+        bytes.fromhex("816059")
+    )
+    await asyncio.sleep(0)
+    assert gw._pending == (-1, None)
+    assert gw._ack_timeout < old_timeout
+
+    gw.close()
+
+
+@patch("bellows.uart.ASH_RX_ACK_MIN", new=ASH_ACK_MIN * 2**0)
+@patch("bellows.uart.ASH_RX_ACK_INIT", new=ASH_ACK_MIN * 2**2)
+@patch("bellows.uart.ASH_RX_ACK_MAX", new=ASH_ACK_MIN * 2**3)
+async def test_retry_failure():
+    app = MagicMock()
+    transport = MagicMock()
+    connected_future = asyncio.get_running_loop().create_future()
+
+    gw = uart.Gateway(app, connected_future)
+    gw.connection_made(transport)
+
+    old_timeout = gw._ack_timeout
+    gw.data(b"TX 1")
+    await asyncio.sleep(0)
+
+    # Wait more than one ACK cycle to reply
+    assert len(transport.write.mock_calls) == 1
+    await asyncio.sleep(ASH_ACK_MIN * 40)
+
+    # The gateway has exhausted retries
+    assert len(transport.write.mock_calls) == 5
+
+    assert gw._pending == (-1, None)
+    assert gw._ack_timeout > old_timeout
+    assert gw._ack_timeout == ASH_ACK_MIN * 2**3  # max timeout
+
+    gw.close()
