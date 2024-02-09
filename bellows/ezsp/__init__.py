@@ -664,7 +664,7 @@ class EZSP:
                 bytes([custom_commands.CustomCommand.CMD_GET_SUPPORTED_FEATURES]),
             )
         except InvalidCommandError:
-            return custom_commands.SupportedCustomFeatures(0)
+            return custom_commands.FirmwareFeatures(0)
 
-        features, _ = custom_commands.SupportedCustomFeatures.deserialize(rsp_data)
+        features, _ = custom_commands.FirmwareFeatures.deserialize(rsp_data)
         return features

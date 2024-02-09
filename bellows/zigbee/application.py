@@ -36,7 +36,7 @@ from bellows.ezsp.custom_commands import FirmwareFeatures
 import bellows.multicast
 import bellows.types as t
 from bellows.zigbee import repairs
-from bellows.zigbee.device import EZSPEndpoint
+from bellows.zigbee.device import EZSPEndpoint, EZSPGroupEndpoint
 import bellows.zigbee.util as util
 
 APS_ACK_TIMEOUT = 120
@@ -202,14 +202,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         ezsp.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
 
-        custom_features = await self._ezsp.get_supported_custom_features()
+        custom_features = await self._ezsp.get_supported_firmware_features()
         LOGGER.debug("Supported custom firmware features: %r", custom_features)
 
         if FirmwareFeatures.MEMBER_OF_ALL_GROUPS in custom_features:
             # If the firmware passes through all incoming group messages, do nothing
-            endpoint_cls = zigpy.endpoint.Endpoint
-        else:
             endpoint_cls = EZSPEndpoint
+        else:
+            endpoint_cls = EZSPGroupEndpoint
 
         ezsp_device = zigpy.device.Device(
             application=self,
@@ -221,7 +221,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         # The coordinator device does not respond to attribute reads so we have to
         # divine the internal NCP state.
         for zdo_desc in self._created_device_endpoints:
-            ep = endpoint_cls(ezsp_device, zdo_desc.endpoint, zdo_desc)
+            ep = endpoint_cls.from_descriptor(ezsp_device, zdo_desc.endpoint, zdo_desc)
             ezsp_device.endpoints[zdo_desc.endpoint] = ep
             ezsp_device.model = ep.model
             ezsp_device.manufacturer = ep.manufacturer
