@@ -23,6 +23,7 @@ import zigpy.config
 
 import bellows.config as conf
 from bellows.exception import EzspError, InvalidCommandError
+from bellows.ezsp import custom_commands
 from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig, ValueConfig
 import bellows.types as t
 import bellows.uart
@@ -653,3 +654,17 @@ class EZSP:
                     status,
                 )
                 continue
+
+    async def get_supported_firmware_features(
+        self,
+    ) -> custom_commands.FirmwareFeatures:
+        """Get supported firmware extensions."""
+        try:
+            status, rsp_data = await self.customFrame(
+                bytes([custom_commands.CustomCommand.CMD_GET_SUPPORTED_FEATURES]),
+            )
+        except InvalidCommandError:
+            return custom_commands.SupportedCustomFeatures(0)
+
+        features, _ = custom_commands.SupportedCustomFeatures.deserialize(rsp_data)
+        return features

@@ -32,6 +32,7 @@ from bellows.config import (
 )
 from bellows.exception import ControllerError, EzspError, StackAlreadyRunning
 import bellows.ezsp
+from bellows.ezsp.custom_commands import FirmwareFeatures
 import bellows.multicast
 import bellows.types as t
 from bellows.zigbee import repairs
@@ -201,15 +202,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         ezsp.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
 
-        group_membership = {}
+        custom_features = await self._ezsp.get_supported_custom_features()
+        LOGGER.debug("Supported custom firmware features: %r", custom_features)
 
-        try:
-            db_device = self.get_device(ieee=self.state.node_info.ieee)
-        except KeyError:
-            pass
+        if FirmwareFeatures.MEMBER_OF_ALL_GROUPS in custom_features:
+            # If the firmware passes through all incoming group messages, do nothing
+            endpoint_cls = zigpy.endpoint.Endpoint
         else:
-            if 1 in db_device.endpoints:
-                group_membership = db_device.endpoints[1].member_of
+            endpoint_cls = EZSPEndpoint
 
         ezsp_device = zigpy.device.Device(
             application=self,
@@ -221,18 +221,31 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         # The coordinator device does not respond to attribute reads so we have to
         # divine the internal NCP state.
         for zdo_desc in self._created_device_endpoints:
-            ep = EZSPEndpoint(ezsp_device, zdo_desc.endpoint, zdo_desc)
+            ep = endpoint_cls(ezsp_device, zdo_desc.endpoint, zdo_desc)
             ezsp_device.endpoints[zdo_desc.endpoint] = ep
             ezsp_device.model = ep.model
             ezsp_device.manufacturer = ep.manufacturer
 
         await ezsp_device.schedule_initialize()
 
-        # Group membership is stored in the database for EZSP coordinators
-        ezsp_device.endpoints[1].member_of.update(group_membership)
+        if FirmwareFeatures.MEMBER_OF_ALL_GROUPS not in custom_features:
+            # If the firmware does not support group traffic passthrough, register the
+            # replacement `Endpoint` objects that proxy endpoint registration to the NCP
+            group_membership = {}
 
-        self._multicast = bellows.multicast.Multicast(ezsp)
-        await self._multicast.startup(ezsp_device)
+            try:
+                db_device = self.get_device(ieee=self.state.node_info.ieee)
+            except KeyError:
+                pass
+            else:
+                if 1 in db_device.endpoints:
+                    group_membership = db_device.endpoints[1].member_of
+
+            # Group membership is stored in the database for EZSP coordinators
+            ezsp_device.endpoints[1].member_of.update(group_membership)
+
+            self._multicast = bellows.multicast.Multicast(ezsp)
+            await self._multicast.startup(ezsp_device)
 
     async def load_network_info(self, *, load_devices=False) -> None:
         ezsp = self._ezsp
