@@ -1358,7 +1358,7 @@ def test_handle_route_error(app):
     app.ezsp_callback_handler(
         "incomingRouteErrorHandler", [sentinel.status, sentinel.nwk]
     )
-    app.handle_relays.assert_called_once_with(nwk=sentinel.nwk, relays=None)
+    app.handle_relays.assert_not_called()
 
 
 def test_handle_id_conflict(app, ieee):
