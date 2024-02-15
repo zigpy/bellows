@@ -1051,4 +1051,3 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def handle_route_error(self, status: t.EmberStatus, nwk: t.EmberNodeId) -> None:
         LOGGER.debug("Processing route error: status=%s, nwk=%s", status, nwk)
-        self.handle_relays(nwk=nwk, relays=None)
