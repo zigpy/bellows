@@ -1870,7 +1870,7 @@ class EmberDistinguishedNodeId(basic.enum16):
     TABLE_ENTRY_UNUSED = 0xFFFF
 
 
-class EmberStackError(basic.enum16):
+class EmberStackError(basic.enum8):
     """Stack error codes."""
 
     ROUTE_ERROR_NO_ROUTE_AVAILABLE = 0x00

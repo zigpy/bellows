@@ -9,7 +9,6 @@ COMMANDS = {
         tuple(
             {
                 "status": t.sl_Status,
-                "bogus": t.uint16_t,
                 "network_key_info": t.sl_zb_sec_man_network_key_info_t,
             }.values()
         ),

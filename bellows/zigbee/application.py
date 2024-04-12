@@ -294,7 +294,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             )
             assert status == t.EmberStatus.SUCCESS
 
-            (status, _, network_key_info) = await ezsp.getNetworkKeyInfo()
+            (status, network_key_info) = await ezsp.getNetworkKeyInfo()
             assert status == t.EmberStatus.SUCCESS
 
             if not network_key_info.network_key_set:
