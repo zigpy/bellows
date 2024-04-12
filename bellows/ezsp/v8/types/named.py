@@ -693,7 +693,7 @@ class SecureEzspSecurityLevel(basic.uint8_t):
     """Security level of the Secure EZSP Protocol."""
 
 
-class SecureEzspRandomNumber(basic.fixed_list(16, basic.uint8_t)):
+class SecureEzspRandomNumber(basic.FixedList[basic.uint8_t, 16]):
     """Randomly generated 64-bit number.
 
     Both NCP and Host contribute this number to create the Session ID,
@@ -701,7 +701,7 @@ class SecureEzspRandomNumber(basic.fixed_list(16, basic.uint8_t)):
     """
 
 
-class SecureEzspSessionId(basic.fixed_list(8, basic.uint8_t)):
+class SecureEzspSessionId(basic.FixedList[basic.uint8_t, 8]):
     """Generated 64-bit Session ID, using random numbers from Host and NCP.
 
     It is generated at each reboot (during negotiation phase). Having both sides

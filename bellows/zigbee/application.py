@@ -1042,7 +1042,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         ieee: t.EUI64,
         lqi: t.uint8_t,
         rssi: t.int8s,
-        relays: t.LVList(t.EmberNodeId),
+        relays: t.LVList[t.EmberNodeId],
     ) -> None:
         LOGGER.debug(
             "Processing route record request: %s", (nwk, ieee, lqi, rssi, relays)

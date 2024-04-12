@@ -72,7 +72,7 @@ async def join(ctx, channels, pan_id, extended_pan_id):
     if isinstance(extended_pan_id, str):
         extended_pan_id = util.parse_epan(extended_pan_id)
     if extended_pan_id is None:
-        extended_pan_id = t.fixed_list(8, t.uint8_t)([t.uint8_t(0)] * 8)
+        extended_pan_id = t.FixedList[t.uint8_t, 8]([t.uint8_t(0)] * 8)
 
     v = await util.network_init(s)
 

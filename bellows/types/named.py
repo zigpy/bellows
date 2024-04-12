@@ -25,19 +25,19 @@ class ExtendedPanId(ztypes.ExtendedPanId):
     """Extended PAN ID."""
 
 
-class EmberNodeId(basic.HexRepr, basic.uint16_t):
+class EmberNodeId(basic.uint16_t, repr="hex"):
     # 16-bit ZigBee network address.
-    _hex_len = 4
+    pass
 
 
-class EmberPanId(basic.HexRepr, basic.uint16_t):
+class EmberPanId(basic.uint16_t, repr="hex"):
     # 802.15.4 PAN ID.
-    _hex_len = 4
+    pass
 
 
-class EmberMulticastId(basic.HexRepr, basic.uint16_t):
+class EmberMulticastId(basic.uint16_t, repr="hex"):
     # 16-bit ZigBee multicast group identifier.
-    _hex_len = 4
+    pass
 
 
 class EmberLibraryId(basic.uint8_t):
@@ -1243,43 +1243,43 @@ EmberKeyData = ztypes.KeyData
 KeyData = ztypes.KeyData
 
 
-class EmberCertificateData(basic.fixed_list(48, basic.uint8_t)):
+class EmberCertificateData(basic.FixedList[basic.uint8_t, 48]):
     """The implicit certificate used in CBKE."""
 
 
-class EmberPublicKeyData(basic.fixed_list(22, basic.uint8_t)):
+class EmberPublicKeyData(basic.FixedList[basic.uint8_t, 22]):
     """The public key data used in CBKE."""
 
 
-class EmberPrivateKeyData(basic.fixed_list(21, basic.uint8_t)):
+class EmberPrivateKeyData(basic.FixedList[basic.uint8_t, 21]):
     """The private key data used in CBKE."""
 
 
-class EmberSmacData(basic.fixed_list(16, basic.uint8_t)):
+class EmberSmacData(basic.FixedList[basic.uint8_t, 16]):
     """The Shared Message Authentication Code data used in CBKE."""
 
 
-class EmberSignatureData(basic.fixed_list(42, basic.uint8_t)):
+class EmberSignatureData(basic.FixedList[basic.uint8_t, 42]):
     """An ECDSA signature."""
 
 
-class EmberCertificate283k1Data(basic.fixed_list(74, basic.uint8_t)):
+class EmberCertificate283k1Data(basic.FixedList[basic.uint8_t, 74]):
     """The implicit certificate used in CBKE."""
 
 
-class EmberPublicKey283k1Data(basic.fixed_list(37, basic.uint8_t)):
+class EmberPublicKey283k1Data(basic.FixedList[basic.uint8_t, 37]):
     """The 283k1 public key data used in CBKE."""
 
 
-class EmberPrivateKey283k1Data(basic.fixed_list(36, basic.uint8_t)):
+class EmberPrivateKey283k1Data(basic.FixedList[basic.uint8_t, 36]):
     """The 283k1 private key data used in CBKE."""
 
 
-class EmberSignature283k1Data(basic.fixed_list(72, basic.uint8_t)):
+class EmberSignature283k1Data(basic.FixedList[basic.uint8_t, 72]):
     """An 283k1 ECDSA signature data."""
 
 
-class EmberMessageDigest(basic.fixed_list(16, basic.uint8_t)):
+class EmberMessageDigest(basic.FixedList[basic.uint8_t, 16]):
     """The calculated digest of a message"""
 
 
