@@ -29,7 +29,7 @@ async def test_command(prot_hndl):
 def test_receive_reply(prot_hndl):
     callback_mock = MagicMock(spec_set=asyncio.Future)
     prot_hndl._awaiting[0] = (0, prot_hndl.COMMANDS["version"][2], callback_mock)
-    prot_hndl(b"\x00\xff\x00\x04\x05\x06")
+    prot_hndl(b"\x00\xff\x00\x04\x05\x06\x00")
 
     assert 0 not in prot_hndl._awaiting
     assert callback_mock.set_exception.call_count == 0
@@ -42,7 +42,7 @@ def test_receive_reply_after_timeout(prot_hndl):
     callback_mock = MagicMock(spec_set=asyncio.Future)
     callback_mock.set_result.side_effect = asyncio.InvalidStateError()
     prot_hndl._awaiting[0] = (0, prot_hndl.COMMANDS["version"][2], callback_mock)
-    prot_hndl(b"\x00\xff\x00\x04\x05\x06")
+    prot_hndl(b"\x00\xff\x00\x04\x05\x06\x00")
 
     assert 0 not in prot_hndl._awaiting
     assert callback_mock.set_exception.call_count == 0
