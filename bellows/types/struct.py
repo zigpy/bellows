@@ -63,6 +63,7 @@ class EmberApsFrame(EzspStruct):
     groupId: basic.uint16_t
     # The sequence number.
     sequence: basic.uint8_t
+    radius: basic.uint8_t = StructField(optional=True)
 
 
 class EmberBindingTableEntry(EzspStruct):
