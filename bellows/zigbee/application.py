@@ -673,7 +673,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 data=zigpy.types.SerializableBytes(message),
                 lqi=lqi,
                 rssi=rssi,
-                radius=aps_frame.radius,
             )
         )
 
