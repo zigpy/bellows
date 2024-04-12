@@ -30,4 +30,4 @@ from zigpy.types import (  # noqa: F401
 
 
 class LVBytes32(LVBytes):
-    _length_type = uint32_t
+    _prefix_length = 4
