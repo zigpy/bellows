@@ -62,7 +62,7 @@ class ProtocolHandler(abc.ABC):
 
     async def command(self, name, *args) -> Any:
         """Serialize command and send it."""
-        LOGGER.debug("Send command %s: %s", name, args)
+        LOGGER.debug("Sending command  %s: %s", name, args)
         data = self._ezsp_frame(name, *args)
         c = self.COMMANDS[name]
         future = asyncio.Future()
@@ -85,7 +85,6 @@ class ProtocolHandler(abc.ABC):
 
     def __call__(self, data: bytes) -> None:
         """Handler for received data frame."""
-        LOGGER.debug("Received EZSP frame %s", data)
         orig_data = data
         sequence, frame_id, data = self._ezsp_frame_rx(data)
 
@@ -108,7 +107,7 @@ class ProtocolHandler(abc.ABC):
             )
             raise
 
-        LOGGER.debug("Application frame received %s: %s", frame_name, result)
+        LOGGER.debug("Received command %s: %s", frame_name, result)
 
         if data:
             LOGGER.debug("Frame contains trailing data: %s", data)

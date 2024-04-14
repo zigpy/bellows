@@ -393,7 +393,7 @@ class AshProtocol(asyncio.Protocol):
         return out
 
     def data_received(self, data: bytes) -> None:
-        _LOGGER.debug("Received data: %s", data.hex())
+        # _LOGGER.debug("Received data: %s", data.hex())
         self._buffer.extend(data)
 
         while self._buffer:
@@ -447,7 +447,7 @@ class AshProtocol(asyncio.Protocol):
         elif fut.done():
             return
 
-        _LOGGER.debug("Resolving frame %d", ack_num)
+        # _LOGGER.debug("Resolving frame %d", ack_num)
         self._pending_data_frames[ack_num].set_result(True)
 
     def frame_received(self, frame: AshFrame) -> None:
@@ -493,7 +493,7 @@ class AshProtocol(asyncio.Protocol):
         _LOGGER.debug("Sending frame %r", frame)
         data = self._stuff_bytes(frame.to_bytes()) + FLAG
 
-        _LOGGER.debug("Sending data %s", data.hex())
+        # _LOGGER.debug("Sending data %s", data.hex())
         self._transport.write(data)
 
     def _change_ack_timeout(self, new_value: float) -> None:
