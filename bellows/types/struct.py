@@ -1,4 +1,4 @@
-from zigpy.types import Struct as EzspStruct
+from zigpy.types import Struct as EzspStruct, StructField
 
 from . import basic, named
 
@@ -97,7 +97,7 @@ class EmberMulticastTableEntry(EzspStruct):
     # ZDO is not a member of any multicast groups.)
     endpoint: basic.uint8_t
     # The network index of the network the entry is related to.
-    networkIndex: basic.uint8_t
+    networkIndex: basic.uint8_t = StructField(optional=True)
 
 
 class EmberTransientKeyData(EzspStruct):
@@ -116,7 +116,7 @@ class EmberTransientKeyData(EzspStruct):
 class EmberAesMmoHashContext(EzspStruct):
     # The hash context for an ongoing hash operation.
     # The result of ongoing the hash operation.
-    result: basic.fixed_list(16, basic.uint8_t)
+    result: basic.FixedList[basic.uint8_t, 16]
     # The total length of the data that has been hashed so far.
     length: basic.uint32_t
 

@@ -183,7 +183,7 @@ async def test_form_network_fail_stack_status(ezsp_f):
 def test_receive_new(ezsp_f):
     callback = MagicMock()
     ezsp_f.add_callback(callback)
-    ezsp_f.frame_received(b"\x00\xff\x00\x04\x05\x06")
+    ezsp_f.frame_received(b"\x00\xff\x00\x04\x05\x06\x00")
     assert callback.call_count == 1
 
 

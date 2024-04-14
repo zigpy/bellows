@@ -294,7 +294,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             )
             assert status == t.EmberStatus.SUCCESS
 
-            (status, _, network_key_info) = await ezsp.getNetworkKeyInfo()
+            (status, network_key_info) = await ezsp.getNetworkKeyInfo()
             assert status == t.EmberStatus.SUCCESS
 
             if not network_key_info.network_key_set:
@@ -1042,7 +1042,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         ieee: t.EUI64,
         lqi: t.uint8_t,
         rssi: t.int8s,
-        relays: t.LVList(t.EmberNodeId),
+        relays: t.LVList[t.EmberNodeId],
     ) -> None:
         LOGGER.debug(
             "Processing route record request: %s", (nwk, ieee, lqi, rssi, relays)

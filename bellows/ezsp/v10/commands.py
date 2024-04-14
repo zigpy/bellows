@@ -14,8 +14,8 @@ COMMANDS = {
             t.uint8_t,
             t.uint8_t,
             t.uint8_t,
-            t.List(t.uint16_t),
-            t.List(t.uint16_t),
+            t.List[t.uint16_t],
+            t.List[t.uint16_t],
         ),
         (t.EzspStatus,),
     ),
@@ -35,8 +35,8 @@ COMMANDS = {
     "invalidCommand": (0x0058, (), (t.EzspStatus,)),
     "callback": (0x0006, (), ()),
     "noCallbacks": (0x0007, (), ()),
-    "setToken": (0x0009, (t.uint8_t, t.fixed_list(8, t.uint8_t)), (t.EmberStatus,)),
-    "getToken": (0x000A, (t.uint8_t,), (t.EmberStatus, t.fixed_list(8, t.uint8_t))),
+    "setToken": (0x0009, (t.uint8_t, t.FixedList[t.uint8_t, 8]), (t.EmberStatus,)),
+    "getToken": (0x000A, (t.uint8_t,), (t.EmberStatus, t.FixedList[t.uint8_t, 8])),
     "getMfgToken": (0x000B, (t.EzspMfgTokenId,), (t.LVBytes,)),
     "setMfgToken": (0x000C, (t.EzspMfgTokenId, t.LVBytes), (t.EmberStatus,)),
     "stackTokenChangedHandler": (0x000D, (), (t.uint16_t,)),
@@ -52,12 +52,12 @@ COMMANDS = {
     "readAndClearCounters": (
         0x0065,
         (),
-        (t.fixed_list(len(t.EmberCounterType), t.uint16_t),),
+        (t.FixedList[t.uint16_t, len(t.EmberCounterType)],),
     ),
     "readCounters": (
         0x00F1,
         (),
-        (t.fixed_list(len(t.EmberCounterType), t.uint16_t),),
+        (t.FixedList[t.uint16_t, len(t.EmberCounterType)],),
     ),
     "counterRolloverHandler": (0x00F2, (), (t.EmberCounterType,)),
     "delayTest": (0x009D, (t.uint16_t,), ()),
@@ -181,7 +181,7 @@ COMMANDS = {
     "getCurrentDutyCycle": (
         0x004C,
         (t.uint8_t,),
-        (t.EmberStatus, t.fixed_list(134, t.uint8_t)),
+        (t.EmberStatus, t.FixedList[t.uint8_t, 134]),
     ),
     "dutyCycleHandler": (
         0x004D,
@@ -306,7 +306,7 @@ COMMANDS = {
     "incomingRouteRecordHandler": (
         0x0059,
         (),
-        (t.EmberNodeId, t.EUI64, t.uint8_t, t.int8s, t.LVList(t.EmberNodeId)),
+        (t.EmberNodeId, t.EUI64, t.uint8_t, t.int8s, t.LVList[t.EmberNodeId]),
     ),
     "incomingNetworkStatusHandler": (
         0x00C4,
@@ -315,7 +315,7 @@ COMMANDS = {
     ),
     "setSourceRoute": (
         0x00AE,
-        (t.EmberNodeId, t.LVList(t.EmberNodeId)),
+        (t.EmberNodeId, t.LVList[t.EmberNodeId]),
         (t.EmberStatus,),
     ),
     "setSourceRouteDiscoveryMode": (0x005A, (t.uint8_t,), (t.uint32_t,)),
@@ -550,8 +550,8 @@ COMMANDS = {
     "bootloadTransmitCompleteHandler": (0x0093, (), (t.EmberStatus, t.LVBytes)),
     "aesEncrypt": (
         0x0094,
-        (t.fixed_list(16, t.uint8_t), t.fixed_list(16, t.uint8_t)),
-        (t.fixed_list(16, t.uint8_t),),
+        (t.FixedList[t.uint8_t, 16], t.FixedList[t.uint8_t, 16]),
+        (t.FixedList[t.uint8_t, 16],),
     ),
     # 14. ZLL Frames
     "zllNetworkOps": (
