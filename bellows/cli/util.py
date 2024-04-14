@@ -147,7 +147,7 @@ async def network_init(s):
 def parse_epan(epan):
     """Parse a user specified extended PAN ID"""
     epan_list = [t.uint8_t(x, 16) for x in epan.split(":")]
-    return t.fixed_list(8, t.uint8_t)(epan_list)
+    return t.FixedList[t.uint8_t, 8](epan_list)
 
 
 async def basic_tc_permits(s):

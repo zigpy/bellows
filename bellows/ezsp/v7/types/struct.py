@@ -131,7 +131,7 @@ class EmberGpProxyTableEntry(EzspStruct):
     # The key to use for GPD.
     gpdKey: named.KeyData
     # The list of sinks (hardcoded to 2 which is the spec minimum).
-    sinkList: basic.fixed_list(2, EmberGpSinkListEntry)
+    sinkList: basic.FixedList[EmberGpSinkListEntry, 2]
     # The groupcast radius.
     groupcastRadius: basic.uint8_t
     # The search counter
@@ -151,7 +151,7 @@ class EmberGpSinkTableEntry(EzspStruct):
     # The device id for the GPD.
     deviceId: basic.uint8_t
     # The list of sinks (hardcoded to 2 which is the spec minimum).
-    sinkList: basic.fixed_list(2, EmberGpSinkListEntry)
+    sinkList: basic.FixedList[EmberGpSinkListEntry, 2]
     # The assigned alias for the GPD.
     assignedAlias: named.EmberNodeId
     # The groupcast radius.
@@ -176,7 +176,7 @@ class EmberDutyCycleLimits(EzspStruct):
     # The vendor identifier field shall contain the vendor identifier of the node.
     vendorId: basic.uint16_t
     # The vendor string field shall contain the vendor string of the node.
-    vendorString: basic.fixed_list(7, basic.uint8_t)
+    vendorString: basic.FixedList[basic.uint8_t, 7]
 
 
 class EmberPerDeviceDutyCycle(EzspStruct):

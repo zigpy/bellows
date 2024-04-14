@@ -294,7 +294,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             )
             assert status == t.EmberStatus.SUCCESS
 
-            (status, _, network_key_info) = await ezsp.getNetworkKeyInfo()
+            (status, network_key_info) = await ezsp.getNetworkKeyInfo()
             assert status == t.EmberStatus.SUCCESS
 
             if not network_key_info.network_key_set:
@@ -1018,10 +1018,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             LOGGER.warning("Watchdog heartbeat timeout: %s", repr(exc))
             self._watchdog_failures += 1
             if self._watchdog_failures > MAX_WATCHDOG_FAILURES:
+                self.state.counters[COUNTERS_CTRL][COUNTER_WATCHDOG].increment()
                 raise
         else:
             self._watchdog_failures = 0
-            self.state.counters[COUNTERS_CTRL][COUNTER_WATCHDOG].increment()
 
     async def _get_free_buffers(self) -> int | None:
         status, value = await self._ezsp.getValue(
@@ -1042,7 +1042,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         ieee: t.EUI64,
         lqi: t.uint8_t,
         rssi: t.int8s,
-        relays: t.LVList(t.EmberNodeId),
+        relays: t.LVList[t.EmberNodeId],
     ) -> None:
         LOGGER.debug(
             "Processing route record request: %s", (nwk, ieee, lqi, rssi, relays)
@@ -1051,4 +1051,3 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def handle_route_error(self, status: t.EmberStatus, nwk: t.EmberNodeId) -> None:
         LOGGER.debug("Processing route error: status=%s, nwk=%s", status, nwk)
-        self.handle_relays(nwk=nwk, relays=None)

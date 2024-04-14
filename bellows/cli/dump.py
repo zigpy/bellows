@@ -89,7 +89,7 @@ async def _dump(ctx, channel, outfile):
             hdr = pure_pcapy.Pkthdr(ts_sec, ts_usec, len(data), len(data))
 
             try:
-                pcap.dump(hdr, data)
+                pcap.dump(hdr, bytes(data))
             except BrokenPipeError:
                 done_event.set()
 

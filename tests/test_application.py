@@ -140,12 +140,18 @@ def _create_app_for_startup(
         app._ezsp.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_DOWN])
         return [t.EmberStatus.NETWORK_DOWN]
 
+    async def nop_mock():
+        return ([0] * 10,)
+
     app._in_flight_msg = None
     ezsp_mock = MagicMock(spec=ezsp.EZSP)
     ezsp_mock.types = ezsp_t7
     type(ezsp_mock).ezsp_version = PropertyMock(return_value=ezsp_version)
     ezsp_mock.initialize = AsyncMock(return_value=ezsp_mock)
     ezsp_mock.connect = AsyncMock()
+    ezsp_mock.nop = AsyncMock(side_effect=nop_mock)
+    ezsp_mock.readCounters = AsyncMock(side_effect=nop_mock)
+    ezsp_mock.readAndClearCounters = AsyncMock(side_effect=nop_mock)
     ezsp_mock._protocol = AsyncMock()
     ezsp_mock.setConcentrator = AsyncMock()
     ezsp_mock.getTokenData = AsyncMock(return_value=[t.EmberStatus.ERR_FATAL, b""])
@@ -1165,7 +1171,7 @@ async def test_ezsp_value_counter(app, monkeypatch):
         is None
     )
     assert (
-        app.state.counters[application.COUNTERS_CTRL][application.COUNTER_WATCHDOG] == 1
+        app.state.counters[application.COUNTERS_CTRL][application.COUNTER_WATCHDOG] == 0
     )
 
     # Ezsp Value success
@@ -1352,7 +1358,7 @@ def test_handle_route_error(app):
     app.ezsp_callback_handler(
         "incomingRouteErrorHandler", [sentinel.status, sentinel.nwk]
     )
-    app.handle_relays.assert_called_once_with(nwk=sentinel.nwk, relays=None)
+    app.handle_relays.assert_not_called()
 
 
 def test_handle_id_conflict(app, ieee):
