@@ -6,6 +6,7 @@ import pytest
 from bellows.ezsp import EZSP
 import bellows.ezsp.v4
 import bellows.ezsp.v4.types as t
+from bellows.uart import Gateway
 
 from .async_mock import ANY, AsyncMock, MagicMock, call, patch
 
@@ -13,17 +14,24 @@ from .async_mock import ANY, AsyncMock, MagicMock, call, patch
 @pytest.fixture
 def prot_hndl():
     """Protocol handler mock."""
-    return bellows.ezsp.v4.EZSPv4(MagicMock(), MagicMock())
+    app = MagicMock()
+    gateway = Gateway(app)
+    gateway._transport = AsyncMock()
+
+    callback_handler = MagicMock()
+    return bellows.ezsp.v4.EZSPv4(callback_handler, gateway)
 
 
 async def test_command(prot_hndl):
-    coro = prot_hndl.command("nop")
-    asyncio.get_running_loop().call_soon(
-        lambda: prot_hndl._awaiting[prot_hndl._seq - 1][2].set_result(True)
-    )
+    with patch.object(prot_hndl._gw, "send_data") as mock_send_data:
+        coro = prot_hndl.command("nop")
+        asyncio.get_running_loop().call_soon(
+            lambda: prot_hndl._awaiting[prot_hndl._seq - 1][2].set_result(True)
+        )
 
-    await coro
-    assert prot_hndl._gw.data.call_count == 1
+        await coro
+
+    assert mock_send_data.mock_calls == [call(b"\x00\x00\x05")]
 
 
 def test_receive_reply(prot_hndl):

@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import abc
 import asyncio
 import binascii
 import functools
 import logging
 import sys
-from typing import Any, Callable, Tuple
+from typing import TYPE_CHECKING, Any, Callable
 
 if sys.version_info[:2] < (3, 11):
     from async_timeout import timeout as asyncio_timeout  # pragma: no cover
@@ -14,7 +16,9 @@ else:
 from bellows.config import CONF_EZSP_POLICIES
 from bellows.exception import InvalidCommandError
 import bellows.types as t
-from bellows.typing import GatewayType
+
+if TYPE_CHECKING:
+    from bellows.uart import Gateway
 
 LOGGER = logging.getLogger(__name__)
 EZSP_CMD_TIMEOUT = 6  # Sum of all ASH retry timeouts: 0.4 + 0.8 + 1.6 + 3.2
@@ -26,7 +30,7 @@ class ProtocolHandler(abc.ABC):
     COMMANDS = {}
     VERSION = None
 
-    def __init__(self, cb_handler: Callable, gateway: GatewayType) -> None:
+    def __init__(self, cb_handler: Callable, gateway: Gateway) -> None:
         self._handle_callback = cb_handler
         self._awaiting = {}
         self._gw = gateway
@@ -37,7 +41,7 @@ class ProtocolHandler(abc.ABC):
         }
         self.tc_policy = 0
 
-    def _ezsp_frame(self, name: str, *args: Tuple[Any, ...]) -> bytes:
+    def _ezsp_frame(self, name: str, *args: tuple[Any, ...]) -> bytes:
         """Serialize the named frame and data."""
         c = self.COMMANDS[name]
         frame = self._ezsp_frame_tx(name)
@@ -45,7 +49,7 @@ class ProtocolHandler(abc.ABC):
         return frame + data
 
     @abc.abstractmethod
-    def _ezsp_frame_rx(self, data: bytes) -> Tuple[int, int, bytes]:
+    def _ezsp_frame_rx(self, data: bytes) -> tuple[int, int, bytes]:
         """Handler for received data frame."""
 
     @abc.abstractmethod
