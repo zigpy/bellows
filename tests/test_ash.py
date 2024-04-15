@@ -7,6 +7,66 @@ from bellows import ash
 import bellows.types as t
 
 
+class AshNcpProtocol(ash.AshProtocol):
+    def frame_received(self, frame: ash.AshFrame) -> None:
+        if self._ncp_reset_code is not None and not isinstance(frame, ash.RstFrame):
+            ash._LOGGER.debug(
+                "NCP in failure state %r, ignoring frame: %r",
+                self._ncp_reset_code,
+                frame,
+            )
+            self._write_frame(
+                ash.ErrorFrame(version=2, reset_code=self._ncp_reset_code)
+            )
+            return
+
+        super().frame_received(frame)
+
+    def _enter_ncp_error_state(self, code: t.NcpResetCode | None) -> None:
+        self._ncp_reset_code = code
+
+        if code is None:
+            self._ncp_state = ash.NcpState.CONNECTED
+        else:
+            self._ncp_state = ash.NcpState.FAILED
+
+        ash._LOGGER.debug("Changing connectivity state: %r", self._ncp_state)
+        ash._LOGGER.debug("Changing reset code: %r", self._ncp_reset_code)
+
+        if self._ncp_state == ash.NcpState.FAILED:
+            self._write_frame(
+                ash.ErrorFrame(version=2, reset_code=self._ncp_reset_code)
+            )
+
+    def rst_frame_received(self, frame: ash.RstFrame) -> None:
+        super().rst_frame_received(frame)
+
+        self._tx_seq = 0
+        self._rx_seq = 0
+        self._change_ack_timeout(ash.T_RX_ACK_INIT)
+
+        self._enter_ncp_error_state(None)
+        self._write_frame(
+            ash.RStackFrame(version=2, reset_code=t.NcpResetCode.RESET_SOFTWARE)
+        )
+
+    async def _send_frame(self, frame: ash.AshFrame) -> None:
+        try:
+            return await super()._send_frame(frame)
+        except asyncio.TimeoutError:
+            self._enter_ncp_error_state(
+                t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT
+            )
+            raise
+        if not isinstance(frame, ash.DataFrame):
+            # Non-DATA frames can be sent immediately and do not require an ACK
+            self._write_frame(frame)
+            return
+
+    def send_reset(self) -> None:
+        raise NotImplementedError()
+
+
 def test_stuffing():
     assert ash.AshProtocol._stuff_bytes(b"\x7E") == b"\x7D\x5E"
     assert ash.AshProtocol._stuff_bytes(b"\x11") == b"\x7D\x31"
@@ -129,8 +189,8 @@ async def test_ash_end_to_end():
             if not self.paused:
                 self.receiver.data_received(data)
 
-    host = ash.AshProtocol(host_ezsp, role=ash.AshRole.HOST)
-    ncp = ash.AshProtocol(ncp_ezsp, role=ash.AshRole.NCP)
+    host = ash.AshProtocol(host_ezsp)
+    ncp = AshNcpProtocol(ncp_ezsp)
 
     host_transport = FakeTransport(ncp)
     ncp_transport = FakeTransport(host)

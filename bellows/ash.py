@@ -81,11 +81,6 @@ class NcpState(enum.Enum):
     FAILED = "failed"
 
 
-class AshRole(enum.Enum):
-    HOST = "host"
-    NCP = "ncp"
-
-
 class ParsingError(Exception):
     pass
 
@@ -327,7 +322,7 @@ class ErrorFrame(AshFrame):
 
 
 class AshProtocol(asyncio.Protocol):
-    def __init__(self, ezsp_protocol, *, role: AshRole = AshRole.HOST) -> None:
+    def __init__(self, ezsp_protocol) -> None:
         self._ezsp_protocol = ezsp_protocol
         self._transport = None
         self._buffer = bytearray()
@@ -338,7 +333,6 @@ class AshProtocol(asyncio.Protocol):
         self._rx_seq: int = 0
         self._t_rx_ack = T_RX_ACK_INIT
 
-        self._role: AshRole = role
         self._ncp_reset_code: t.NcpResetCode | None = None
         self._ncp_state: NcpState = NcpState.CONNECTED
 
@@ -351,12 +345,6 @@ class AshProtocol(asyncio.Protocol):
 
     def eof_received(self):
         self._ezsp_protocol.eof_received()
-
-    def _get_tx_seq(self) -> int:
-        result = self._tx_seq
-        self._tx_seq = (self._tx_seq + 1) % 8
-
-        return result
 
     def close(self):
         if self._transport is not None:
@@ -471,78 +459,72 @@ class AshProtocol(asyncio.Protocol):
     def frame_received(self, frame: AshFrame) -> None:
         _LOGGER.debug("Received frame %r", frame)
 
-        if (
-            self._ncp_reset_code is not None
-            and self._role == AshRole.NCP
-            and not isinstance(frame, RstFrame)
-        ):
-            _LOGGER.debug(
-                "NCP in failure state %r, ignoring frame: %r",
-                self._ncp_reset_code,
-                frame,
-            )
-            self._write_frame(ErrorFrame(version=2, reset_code=self._ncp_reset_code))
-            return
-
         if isinstance(frame, DataFrame):
-            # The Host may not piggyback acknowledgments and should promptly send an ACK
-            # frame when it receives a DATA frame.
-            if frame.frm_num == self._rx_seq:
-                self._handle_ack(frame)
-                self._rx_seq = (frame.frm_num + 1) % 8
-                self._write_frame(AckFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
-
-                self._ezsp_protocol.data_received(frame.ezsp_frame)
-            elif frame.re_tx:
-                # Retransmitted frames must be immediately ACKed even if they are out of
-                # sequence
-                self._write_frame(AckFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
-            else:
-                _LOGGER.debug("Received an out of sequence frame: %r", frame)
-                self._write_frame(NakFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
+            self.data_frame_received(frame)
         elif isinstance(frame, RStackFrame):
-            self._ncp_reset_code = None
-            self._ncp_state = NcpState.CONNECTED
-
-            self._tx_seq = 0
-            self._rx_seq = 0
-            self._change_ack_timeout(T_RX_ACK_INIT)
-            self._ezsp_protocol.reset_received(frame.reset_code)
+            self.rstack_frame_received(frame)
         elif isinstance(frame, AckFrame):
-            self._handle_ack(frame)
+            self.ack_frame_received(frame)
         elif isinstance(frame, NakFrame):
-            error = NotAcked(frame=frame)
-
-            for frm_num, fut in self._pending_data_frames.items():
-                if (
-                    not frame.ack_num - TX_K <= frm_num <= frame.ack_num
-                    and not fut.done()
-                ):
-                    fut.set_exception(error)
+            self.nak_frame_received(frame)
         elif isinstance(frame, RstFrame):
-            self._ncp_reset_code = None
-            self._ncp_state = NcpState.CONNECTED
+            self.rst_frame_received(frame)
+        elif isinstance(frame, ErrorFrame):
+            self.error_frame_received(frame)
+        else:
+            raise TypeError(f"Unknown frame received: {frame}")  # pragma: no cover
 
-            if self._role == AshRole.NCP:
-                self._tx_seq = 0
-                self._rx_seq = 0
-                self._change_ack_timeout(T_RX_ACK_INIT)
+    def data_frame_received(self, frame: DataFrame) -> None:
+        # The Host may not piggyback acknowledgments and should promptly send an ACK
+        # frame when it receives a DATA frame.
+        if frame.frm_num == self._rx_seq:
+            self._handle_ack(frame)
+            self._rx_seq = (frame.frm_num + 1) % 8
+            self._write_frame(AckFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
 
-                self._enter_ncp_error_state(None)
-                self._write_frame(
-                    RStackFrame(version=2, reset_code=t.NcpResetCode.RESET_SOFTWARE)
-                )
-        elif isinstance(frame, ErrorFrame) and self._role == AshRole.HOST:
-            _LOGGER.debug("NCP has entered failed state: %s", frame.reset_code)
-            self._ncp_reset_code = frame.reset_code
-            self._ncp_state = NcpState.FAILED
+            self._ezsp_protocol.data_received(frame.ezsp_frame)
+        elif frame.re_tx:
+            # Retransmitted frames must be immediately ACKed even if they are out of
+            # sequence
+            self._write_frame(AckFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
+        else:
+            _LOGGER.debug("Received an out of sequence frame: %r", frame)
+            self._write_frame(NakFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
 
-            # Cancel all pending requests
-            exc = NcpFailure(code=self._ncp_reset_code)
+    def rstack_frame_received(self, frame: RStackFrame) -> None:
+        self._ncp_reset_code = None
+        self._ncp_state = NcpState.CONNECTED
 
-            for fut in self._pending_data_frames.values():
-                if not fut.done():
-                    fut.set_exception(exc)
+        self._tx_seq = 0
+        self._rx_seq = 0
+        self._change_ack_timeout(T_RX_ACK_INIT)
+        self._ezsp_protocol.reset_received(frame.reset_code)
+
+    def ack_frame_received(self, frame: AckFrame) -> None:
+        self._handle_ack(frame)
+
+    def nak_frame_received(self, frame: NakFrame) -> None:
+        err = NotAcked(frame=frame)
+
+        for frm_num, fut in self._pending_data_frames.items():
+            if not frame.ack_num - TX_K <= frm_num <= frame.ack_num and not fut.done():
+                fut.set_exception(err)
+
+    def rst_frame_received(self, frame: RstFrame) -> None:
+        self._ncp_reset_code = None
+        self._ncp_state = NcpState.CONNECTED
+
+    def error_frame_received(self, frame: ErrorFrame) -> None:
+        _LOGGER.debug("NCP has entered failed state: %s", frame.reset_code)
+        self._ncp_reset_code = frame.reset_code
+        self._ncp_state = NcpState.FAILED
+
+        # Cancel all pending requests
+        exc = NcpFailure(code=self._ncp_reset_code)
+
+        for fut in self._pending_data_frames.values():
+            if not fut.done():
+                fut.set_exception(exc)
 
     def _write_frame(self, frame: AshFrame) -> None:
         _LOGGER.debug("Sending frame  %r", frame)
@@ -561,20 +543,6 @@ class AshProtocol(asyncio.Protocol):
 
         self._t_rx_ack = new_value
 
-    def _enter_ncp_error_state(self, code: t.NcpResetCode | None) -> None:
-        self._ncp_reset_code = code
-
-        if code is None:
-            self._ncp_state = NcpState.CONNECTED
-        else:
-            self._ncp_state = NcpState.FAILED
-
-        _LOGGER.debug("Changing connectivity state: %r", self._ncp_state)
-        _LOGGER.debug("Changing reset code: %r", self._ncp_reset_code)
-
-        if self._ncp_state == NcpState.FAILED:
-            self._write_frame(ErrorFrame(version=2, reset_code=self._ncp_reset_code))
-
     async def _send_frame(self, frame: AshFrame) -> None:
         if not isinstance(frame, DataFrame):
             # Non-DATA frames can be sent immediately and do not require an ACK
@@ -589,10 +557,7 @@ class AshProtocol(asyncio.Protocol):
 
             try:
                 for attempt in range(ACK_TIMEOUTS):
-                    if (
-                        self._role == AshRole.HOST
-                        and self._ncp_state == NcpState.FAILED
-                    ):
+                    if self._ncp_state == NcpState.FAILED:
                         _LOGGER.debug(
                             "NCP is in a failed state, not re-sending: %r", frame
                         )
@@ -647,12 +612,6 @@ class AshProtocol(asyncio.Protocol):
                         self._change_ack_timeout(2 * self._t_rx_ack)
 
                         if attempt >= ACK_TIMEOUTS - 1:
-                            # Only a timeout is enough to enter an error state
-                            if self._role == AshRole.NCP:
-                                self._enter_ncp_error_state(
-                                    t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT
-                                )
-
                             raise
                     else:
                         # Whenever an acknowledgement is received, t_rx_ack is set to
