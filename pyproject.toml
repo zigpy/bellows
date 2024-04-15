@@ -73,3 +73,13 @@ omit = [
     "bellows/cli/*.py",
     "bellows/typing.py",
 ]
+
+
+[tool.coverage.report]
+exclude_also = [
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING",
+    "if typing.TYPE_CHECKING",
+    "@(abc\\.)?abstractmethod",
+]

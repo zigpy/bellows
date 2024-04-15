@@ -76,9 +76,14 @@ def generate_random_sequence(length: int) -> bytes:
 PSEUDO_RANDOM_DATA_SEQUENCE = generate_random_sequence(256)
 
 
-class NCPState(enum.Enum):
+class NcpState(enum.Enum):
     CONNECTED = "connected"
     FAILED = "failed"
+
+
+class AshRole(enum.Enum):
+    HOST = "host"
+    NCP = "ncp"
 
 
 class ParsingError(Exception):
@@ -98,11 +103,19 @@ class AshException(Exception):
 
 
 class NotAcked(AshException):
-    def __init__(self, frame: NakFrame):
+    def __init__(self, frame: NakFrame) -> None:
         self.frame = frame
 
     def __repr__(self) -> str:
-        return f"<{self.__class__.__name__}(" f"frame={self.frame}" f")>"
+        return f"<{self.__class__.__name__}(frame={self.frame})>"
+
+
+class NcpFailure(AshException):
+    def __init__(self, code: t.NcpResetCode) -> None:
+        self.code = code
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__}(code={self.code})>"
 
 
 class OutOfSequenceError(AshException):
@@ -186,9 +199,6 @@ class DataFrame(AshFrame):
             + self._randomize(self.ezsp_frame)
         )
 
-    def __str__(self) -> str:
-        return f"DATA(num={self.frm_num}, ack={self.ack_num}, re_tx={self.re_tx}) = {self.ezsp_frame.hex()}"
-
 
 @dataclasses.dataclass(frozen=True)
 class AckFrame(AshFrame):
@@ -220,9 +230,6 @@ class AckFrame(AshFrame):
                 ]
             )
         )
-
-    def __str__(self) -> str:
-        return f"ACK(ack={self.ack_num}, ready={'+' if self.ncp_ready == 0 else '-'!r})"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -256,9 +263,6 @@ class NakFrame(AshFrame):
             )
         )
 
-    def __str__(self) -> str:
-        return f"NAK(ack={self.ack_num}, ready={'+' if self.ncp_ready == 0 else '-'!r})"
-
 
 @dataclasses.dataclass(frozen=True)
 class RstFrame(AshFrame):
@@ -276,9 +280,6 @@ class RstFrame(AshFrame):
 
     def to_bytes(self) -> bytes:
         return self.append_crc(bytes([self.MASK_VALUE]))
-
-    def __str__(self) -> str:
-        return "RST()"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -311,30 +312,35 @@ class RStackFrame(AshFrame):
     def to_bytes(self) -> bytes:
         return self.append_crc(bytes([self.MASK_VALUE, self.version, self.reset_code]))
 
-    def __str__(self) -> str:
-        return f"RSTACK(ver={self.version}, code={self.reset_code})"
-
 
 @dataclasses.dataclass(frozen=True)
-class ErrorFrame(RStackFrame):
+class ErrorFrame(AshFrame):
+    MASK = 0b11111111
     MASK_VALUE = 0b11000010
 
-    def __str__(self) -> str:
-        return f"ERROR(ver={self.version}, code={self.reset_code})"
+    version: t.uint8_t
+    reset_code: t.NcpResetCode
+
+    # We do not want to inherit from `RStackFrame`
+    from_bytes = classmethod(RStackFrame.from_bytes.__func__)
+    to_bytes = RStackFrame.to_bytes
 
 
 class AshProtocol(asyncio.Protocol):
-    def __init__(self, ezsp_protocol) -> None:
+    def __init__(self, ezsp_protocol, *, role: AshRole = AshRole.HOST) -> None:
         self._ezsp_protocol = ezsp_protocol
         self._transport = None
         self._buffer = bytearray()
         self._discarding_until_flag: bool = False
         self._pending_data_frames: dict[int, asyncio.Future] = {}
-        self._ncp_state = NCPState.CONNECTED
         self._send_data_frame_semaphore = asyncio.Semaphore(TX_K)
         self._tx_seq: int = 0
         self._rx_seq: int = 0
         self._t_rx_ack = T_RX_ACK_INIT
+
+        self._role: AshRole = role
+        self._ncp_reset_code: t.NcpResetCode | None = None
+        self._ncp_state: NcpState = NcpState.CONNECTED
 
     def connection_made(self, transport):
         self._transport = transport
@@ -405,7 +411,7 @@ class AshProtocol(asyncio.Protocol):
         return out
 
     def data_received(self, data: bytes) -> None:
-        # _LOGGER.debug("Received data: %s", data.hex())
+        _LOGGER.debug("Received data %s", data.hex())
         self._buffer.extend(data)
 
         while self._buffer:
@@ -465,10 +471,22 @@ class AshProtocol(asyncio.Protocol):
     def frame_received(self, frame: AshFrame) -> None:
         _LOGGER.debug("Received frame %r", frame)
 
+        if (
+            self._ncp_reset_code is not None
+            and self._role == AshRole.NCP
+            and not isinstance(frame, RstFrame)
+        ):
+            _LOGGER.debug(
+                "NCP in failure state %r, ignoring frame: %r",
+                self._ncp_reset_code,
+                frame,
+            )
+            self._write_frame(ErrorFrame(version=2, reset_code=self._ncp_reset_code))
+            return
+
         if isinstance(frame, DataFrame):
             # The Host may not piggyback acknowledgments and should promptly send an ACK
             # frame when it receives a DATA frame.
-
             if frame.frm_num == self._rx_seq:
                 self._handle_ack(frame)
                 self._rx_seq = (frame.frm_num + 1) % 8
@@ -480,11 +498,12 @@ class AshProtocol(asyncio.Protocol):
                 # sequence
                 self._write_frame(AckFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
             else:
-                _LOGGER.warning("Received an out of sequence frame: %r", frame)
+                _LOGGER.debug("Received an out of sequence frame: %r", frame)
                 self._write_frame(NakFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
-        elif isinstance(frame, ErrorFrame):
-            self._ezsp_protocol.error_received(frame.reset_code)
         elif isinstance(frame, RStackFrame):
+            self._ncp_reset_code = None
+            self._ncp_state = NcpState.CONNECTED
+
             self._tx_seq = 0
             self._rx_seq = 0
             self._change_ack_timeout(T_RX_ACK_INIT)
@@ -500,12 +519,36 @@ class AshProtocol(asyncio.Protocol):
                     and not fut.done()
                 ):
                     fut.set_exception(error)
+        elif isinstance(frame, RstFrame):
+            self._ncp_reset_code = None
+            self._ncp_state = NcpState.CONNECTED
+
+            if self._role == AshRole.NCP:
+                self._tx_seq = 0
+                self._rx_seq = 0
+                self._change_ack_timeout(T_RX_ACK_INIT)
+
+                self._enter_ncp_error_state(None)
+                self._write_frame(
+                    RStackFrame(version=2, reset_code=t.NcpResetCode.RESET_SOFTWARE)
+                )
+        elif isinstance(frame, ErrorFrame) and self._role == AshRole.HOST:
+            _LOGGER.debug("NCP has entered failed state: %s", frame.reset_code)
+            self._ncp_reset_code = frame.reset_code
+            self._ncp_state = NcpState.FAILED
+
+            # Cancel all pending requests
+            exc = NcpFailure(code=self._ncp_reset_code)
+
+            for fut in self._pending_data_frames.values():
+                if not fut.done():
+                    fut.set_exception(exc)
 
     def _write_frame(self, frame: AshFrame) -> None:
-        _LOGGER.debug("Sending frame %r", frame)
+        _LOGGER.debug("Sending frame  %r", frame)
         data = self._stuff_bytes(frame.to_bytes()) + FLAG
 
-        # _LOGGER.debug("Sending data %s", data.hex())
+        _LOGGER.debug("Sending data  %s", data.hex())
         self._transport.write(data)
 
     def _change_ack_timeout(self, new_value: float) -> None:
@@ -518,6 +561,20 @@ class AshProtocol(asyncio.Protocol):
 
         self._t_rx_ack = new_value
 
+    def _enter_ncp_error_state(self, code: t.NcpResetCode | None) -> None:
+        self._ncp_reset_code = code
+
+        if code is None:
+            self._ncp_state = NcpState.CONNECTED
+        else:
+            self._ncp_state = NcpState.FAILED
+
+        _LOGGER.debug("Changing connectivity state: %r", self._ncp_state)
+        _LOGGER.debug("Changing reset code: %r", self._ncp_reset_code)
+
+        if self._ncp_state == NcpState.FAILED:
+            self._write_frame(ErrorFrame(version=2, reset_code=self._ncp_reset_code))
+
     async def _send_frame(self, frame: AshFrame) -> None:
         if not isinstance(frame, DataFrame):
             # Non-DATA frames can be sent immediately and do not require an ACK
@@ -528,56 +585,85 @@ class AshProtocol(asyncio.Protocol):
             _LOGGER.debug("Semaphore is locked, waiting")
 
         async with self._send_data_frame_semaphore:
-            frm_num = self._tx_seq
-            self._tx_seq = (self._tx_seq + 1) % 8
+            frm_num = None
 
-            for attempt in range(ACK_TIMEOUTS):
-                # Use a fresh ACK number on every retry
-                frame = frame.replace(
-                    frm_num=frm_num,
-                    re_tx=(attempt > 0),
-                    ack_num=self._rx_seq,
-                )
+            try:
+                for attempt in range(ACK_TIMEOUTS):
+                    if (
+                        self._role == AshRole.HOST
+                        and self._ncp_state == NcpState.FAILED
+                    ):
+                        _LOGGER.debug(
+                            "NCP is in a failed state, not re-sending: %r", frame
+                        )
+                        raise NcpFailure(
+                            t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT
+                        )
 
-                send_time = time.monotonic()
+                    if frm_num is None:
+                        frm_num = self._tx_seq
+                        self._tx_seq = (self._tx_seq + 1) % 8
 
-                ack_future = asyncio.get_running_loop().create_future()
-                self._pending_data_frames[frm_num] = ack_future
-                self._write_frame(frame)
-
-                try:
-                    async with asyncio_timeout(self._t_rx_ack):
-                        await ack_future
-                except NotAcked:
-                    _LOGGER.debug(
-                        "NCP responded with NAK. Retrying (attempt %d)", attempt + 1
+                    # Use a fresh ACK number on every retry
+                    frame = frame.replace(
+                        frm_num=frm_num,
+                        re_tx=(attempt > 0),
+                        ack_num=self._rx_seq,
                     )
 
-                    # For timing purposes, NAK can be treated as an ACK
-                    delta = time.monotonic() - send_time
-                    self._change_ack_timeout((7 / 8) * self._t_rx_ack + 0.5 * delta)
-                except asyncio.TimeoutError:
-                    _LOGGER.debug(
-                        "No ACK received in %0.2fs (attempt %d)",
-                        self._t_rx_ack,
-                        attempt + 1,
-                    )
-                    # If a DATA frame acknowledgement is not received within the current
-                    # timeout value, then t_rx_ack is doubled.
-                    self._change_ack_timeout(2 * self._t_rx_ack)
-                else:
-                    # Whenever an acknowledgement is received, t_rx_ack is set to 7/8 of
-                    # its current value plus 1/2 of the measured time for the
-                    # acknowledgement.
-                    delta = time.monotonic() - send_time
-                    self._change_ack_timeout((7 / 8) * self._t_rx_ack + 0.5 * delta)
+                    send_time = time.monotonic()
 
-                    break
+                    ack_future = asyncio.get_running_loop().create_future()
+                    self._pending_data_frames[frm_num] = ack_future
+                    self._write_frame(frame)
 
-                # Any exception will trigger this
+                    try:
+                        async with asyncio_timeout(self._t_rx_ack):
+                            await ack_future
+                    except NotAcked:
+                        _LOGGER.debug(
+                            "NCP responded with NAK. Retrying (attempt %d)", attempt + 1
+                        )
+
+                        # For timing purposes, NAK can be treated as an ACK
+                        delta = time.monotonic() - send_time
+                        self._change_ack_timeout((7 / 8) * self._t_rx_ack + 0.5 * delta)
+
+                        if attempt >= ACK_TIMEOUTS - 1:
+                            raise
+                    except NcpFailure:
+                        _LOGGER.debug(
+                            "NCP has entered into a failed state, not retrying"
+                        )
+                        raise
+                    except asyncio.TimeoutError:
+                        _LOGGER.debug(
+                            "No ACK received in %0.2fs (attempt %d)",
+                            self._t_rx_ack,
+                            attempt + 1,
+                        )
+                        # If a DATA frame acknowledgement is not received within the
+                        # current timeout value, then t_rx_ack is doubled.
+                        self._change_ack_timeout(2 * self._t_rx_ack)
+
+                        if attempt >= ACK_TIMEOUTS - 1:
+                            # Only a timeout is enough to enter an error state
+                            if self._role == AshRole.NCP:
+                                self._enter_ncp_error_state(
+                                    t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT
+                                )
+
+                            raise
+                    else:
+                        # Whenever an acknowledgement is received, t_rx_ack is set to
+                        # 7/8 of its current value plus 1/2 of the measured time for the
+                        # acknowledgement.
+                        delta = time.monotonic() - send_time
+                        self._change_ack_timeout((7 / 8) * self._t_rx_ack + 0.5 * delta)
+
+                        break
+            finally:
                 self._pending_data_frames.pop(frm_num)
-            else:
-                raise
 
     async def send_data(self, data: bytes) -> None:
         await self._send_frame(
@@ -587,56 +673,3 @@ class AshProtocol(asyncio.Protocol):
 
     def send_reset(self) -> None:
         self._write_frame(RstFrame())
-
-
-def main():
-    import ast
-    import pathlib
-    import sys
-    import unittest.mock
-
-    import coloredlogs
-
-    coloredlogs.install(level="DEBUG")
-
-    class CapturingAshProtocol(AshProtocol):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self._parsed_frames = []
-
-        def frame_received(self, frame: AshFrame) -> None:
-            self._parsed_frames.append(frame)
-
-    with pathlib.Path(sys.argv[1]).open("r") as f:
-        for line in f:
-            if "bellows.uart" not in line:
-                continue
-
-            if "Sending: " in line:
-                direction = " --->"
-            elif (
-                "Data frame:" in line or "ACK frame: " in line or "NAK frame: " in line
-            ):
-                direction = "<--- "
-            else:
-                continue
-
-            data = bytes.fromhex(ast.literal_eval(line.split(": b", 1)[1]))
-
-            # Data frames are logged already unstuffed
-            if direction == "<--- ":
-                data = AshProtocol._stuff_bytes(data[:-1]) + data[-1:]
-
-            protocol = CapturingAshProtocol(ezsp_protocol=unittest.mock.Mock())
-            protocol.data_received(data)
-
-            if len(protocol._parsed_frames) != 1:
-                raise ValueError(f"Failed to parse frames: {protocol._parsed_frames}")
-
-            frame = protocol._parsed_frames[0]
-
-            _LOGGER.info("%s: %s", direction, frame)
-
-
-if __name__ == "__main__":
-    main()
