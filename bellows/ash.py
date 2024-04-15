@@ -81,6 +81,18 @@ class NCPState(enum.Enum):
     FAILED = "failed"
 
 
+class ParsingError(Exception):
+    pass
+
+
+class InvalidChecksum(ParsingError):
+    pass
+
+
+class FrameTooShort(ParsingError):
+    pass
+
+
 class AshException(Exception):
     pass
 
@@ -121,12 +133,12 @@ class AshFrame(abc.ABC, BaseDataclassMixin):
     @classmethod
     def _unwrap(cls, data: bytes) -> tuple[int, bytes]:
         if len(data) < 3:
-            raise ValueError(f"Frame is too short: {data!r}")
+            raise FrameTooShort(f"Frame is too short: {data!r}")
 
         computed_crc = binascii.crc_hqx(data[:-2], 0xFFFF).to_bytes(2, "big")
 
         if computed_crc != data[-2:]:
-            raise ValueError(f"Invalid CRC bytes in frame {data!r}")
+            raise InvalidChecksum(f"Invalid CRC bytes in frame {data!r}")
 
         return data[0], data[1:-2]
 
@@ -427,7 +439,7 @@ class AshProtocol(asyncio.Protocol):
 
                 try:
                     frame = self._extract_frame(data)
-                except ValueError:
+                except Exception:
                     _LOGGER.warning(
                         "Failed to parse frame %r", frame_bytes, exc_info=True
                     )
