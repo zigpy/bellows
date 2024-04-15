@@ -663,7 +663,8 @@ class AshProtocol(asyncio.Protocol):
 
                         break
             finally:
-                self._pending_data_frames.pop(frm_num)
+                if frm_num is not None:
+                    self._pending_data_frames.pop(frm_num)
 
     async def send_data(self, data: bytes) -> None:
         await self._send_frame(
