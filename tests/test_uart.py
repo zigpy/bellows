@@ -6,6 +6,7 @@ import serial_asyncio
 import zigpy.config as conf
 
 from bellows import uart
+import bellows.types as t
 
 from .async_mock import AsyncMock, MagicMock, patch, sentinel
 
@@ -224,7 +225,7 @@ async def test_connection_lost_reset_error_propagation(monkeypatch):
 
 async def test_wait_for_startup_reset(gw):
     loop = asyncio.get_running_loop()
-    loop.call_later(0.01, gw.data_received, b"\xc1\x02\x0b\nR\x7e")
+    loop.call_later(0.01, gw.reset_received, t.NcpResetCode.RESET_SOFTWARE)
 
     assert gw._startup_reset_future is None
     await gw.wait_for_startup_reset()

@@ -60,7 +60,7 @@ class Gateway(asyncio.Protocol):
         """Callback when there is data received from the uart"""
         self._application.frame_received(data)
 
-    def reset_received(self, code):
+    def reset_received(self, code: t.NcpResetCode) -> None:
         """Reset acknowledgement frame receive handler"""
         # not a reset we've requested. Signal application reset
         if code is not t.NcpResetCode.RESET_SOFTWARE:
