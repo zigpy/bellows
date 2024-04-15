@@ -159,9 +159,8 @@ class DataFrame(AshFrame):
 
     @staticmethod
     def _randomize(data: bytes) -> bytes:
-        return bytes(
-            [a ^ b for a, b in zip(data, PSEUDO_RANDOM_DATA_SEQUENCE, strict=True)]
-        )
+        assert len(data) <= len(PSEUDO_RANDOM_DATA_SEQUENCE)
+        return bytes([a ^ b for a, b in zip(data, PSEUDO_RANDOM_DATA_SEQUENCE)])
 
     @classmethod
     def from_bytes(cls, data: bytes) -> DataFrame:

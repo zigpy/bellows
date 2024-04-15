@@ -1592,7 +1592,7 @@ async def test_startup_new_coordinator_no_groups_joined(app, ieee):
 )
 async def test_energy_scanning(app, scan_results):
     app._ezsp.startScan = AsyncMock(
-        return_value=list(zip(range(11, 26 + 1), scan_results, strict=True))
+        return_value=list(zip(range(11, 26 + 1), scan_results))
     )
 
     results = await app.energy_scan(

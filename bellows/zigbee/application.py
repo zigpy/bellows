@@ -1000,9 +1000,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 else:
                     (res,) = await self._ezsp.readAndClearCounters()
 
-                for cnt_type, value in zip(
-                    self._ezsp.types.EmberCounterType, res, strict=True
-                ):
+                for cnt_type, value in zip(self._ezsp.types.EmberCounterType, res):
                     counters[cnt_type.name[8:]].update(value)
 
                 if remainder == 0:
