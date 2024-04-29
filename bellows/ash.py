@@ -88,14 +88,6 @@ class ParsingError(Exception):
     pass
 
 
-class InvalidChecksum(ParsingError):
-    pass
-
-
-class FrameTooShort(ParsingError):
-    pass
-
-
 class AshException(Exception):
     pass
 
@@ -144,12 +136,15 @@ class AshFrame(abc.ABC, BaseDataclassMixin):
     @classmethod
     def _unwrap(cls, data: bytes) -> tuple[int, bytes]:
         if len(data) < 3:
-            raise FrameTooShort(f"Frame is too short: {data!r}")
+            raise ParsingError(f"Frame is too short: {data!r}")
 
         computed_crc = binascii.crc_hqx(data[:-2], 0xFFFF).to_bytes(2, "big")
 
         if computed_crc != data[-2:]:
-            raise InvalidChecksum(f"Invalid CRC bytes in frame {data!r}")
+            raise ParsingError(
+                f"Invalid CRC bytes in frame {data!r}:"
+                f" expected {computed_crc.hex()}, got {data[-2:].hex()}"
+            )
 
         return data[0], data[1:-2]
 
@@ -444,7 +439,7 @@ class AshProtocol(asyncio.Protocol):
                 try:
                     frame = self._extract_frame(data)
                 except Exception:
-                    _LOGGER.warning(
+                    _LOGGER.debug(
                         "Failed to parse frame %r", frame_bytes, exc_info=True
                     )
                 else:
@@ -454,7 +449,7 @@ class AshProtocol(asyncio.Protocol):
                 # All data received since the previous Flag Byte to be ignored
                 self._buffer = self._buffer[reserved_index + 1 :]
             elif reserved_byte == SUBSTITUTE[0]:
-                _LOGGER.warning("Received substitute byte, marking buffer as corrupted")
+                _LOGGER.debug("Received substitute byte, marking buffer as corrupted")
                 # The data between the previous and the next Flag Byte is ignored
                 self._discarding_until_next_flag = True
                 self._buffer = self._buffer[reserved_index + 1 :]

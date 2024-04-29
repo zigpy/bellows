@@ -83,6 +83,31 @@ class AshNcpProtocol(ash.AshProtocol):
         raise NotImplementedError()
 
 
+class FakeTransport:
+    def __init__(self, receiver):
+        self.receiver = receiver
+        self.paused = False
+
+    def write(self, data):
+        if not self.paused:
+            self.receiver.data_received(data)
+
+
+class FakeTransportOneByteAtATime(FakeTransport):
+    def write(self, data):
+        for byte in data:
+            super().write(bytes([byte]))
+
+
+class FakeTransportRandomLoss(FakeTransport):
+    def write(self, data):
+        if random.random() < 0.25:
+            return
+
+        for byte in data:
+            super().write(bytes([byte]))
+
+
 def test_stuffing():
     assert ash.AshProtocol._stuff_bytes(b"\x7E") == b"\x7D\x5E"
     assert ash.AshProtocol._stuff_bytes(b"\x11") == b"\x7D\x31"
@@ -98,6 +123,9 @@ def test_stuffing():
     assert ash.AshProtocol._unstuff_bytes(b"\x7D\x3A") == b"\x1A"
     assert ash.AshProtocol._unstuff_bytes(b"\x7D\x5D") == b"\x7D"
 
+    assert ash.AshProtocol._stuff_bytes(b"\x7F") == b"\x7F"
+    assert ash.AshProtocol._unstuff_bytes(b"\x7F") == b"\x7F"
+
 
 def test_pseudo_random_data_sequence():
     assert ash.PSEUDO_RANDOM_DATA_SEQUENCE.startswith(b"\x42\x21\xA8\x54\x2A")
@@ -105,9 +133,32 @@ def test_pseudo_random_data_sequence():
 
 def test_rst_frame():
     assert ash.RstFrame() == ash.RstFrame()
-    assert ash.RstFrame().to_bytes() == bytes.fromhex("c038bc")
-    assert ash.RstFrame.from_bytes(bytes.fromhex("c038bc")) == ash.RstFrame()
+    assert ash.RstFrame().to_bytes() == b"\xC0\x38\xBC"
+    assert ash.RstFrame.from_bytes(b"\xC0\x38\xBC") == ash.RstFrame()
     assert str(ash.RstFrame()) == "RstFrame()"
+
+    with pytest.raises(ValueError, match=r"Invalid data for RST frame: "):
+        ash.RstFrame.from_bytes(ash.AshFrame.append_crc(b"\xC0\xAB"))
+
+
+def test_rstack_frame():
+    frm = ash.RStackFrame(version=2, reset_code=t.NcpResetCode.RESET_SOFTWARE)
+
+    assert frm == frm
+    assert frm.to_bytes() == b"\xc1\x02\x0b\x0a\x52"
+    assert ash.RStackFrame.from_bytes(frm.to_bytes()) == frm
+    assert (
+        str(frm)
+        == "RStackFrame(version=2, reset_code=<NcpResetCode.RESET_SOFTWARE: 11>)"
+    )
+
+    with pytest.raises(ValueError, match=r"Invalid data length for RSTACK frame: "):
+        # Adding \xAB in the middle of the frame makes it invalid
+        ash.RStackFrame.from_bytes(ash.AshFrame.append_crc(b"\xc1\x02\xab\x0b"))
+
+    with pytest.raises(ValueError, match=r"Invalid version for RSTACK frame: 3"):
+        # Version 3 is unknown
+        ash.RStackFrame.from_bytes(ash.AshFrame.append_crc(b"\xc1\x03\x0b"))
 
 
 def test_cancel_byte():
@@ -212,31 +263,6 @@ async def test_ash_protocol_startup():
         ),
         call(ash.AckFrame(res=0, ncp_ready=0, ack_num=2)),
     ]
-
-
-class FakeTransport:
-    def __init__(self, receiver):
-        self.receiver = receiver
-        self.paused = False
-
-    def write(self, data):
-        if not self.paused:
-            self.receiver.data_received(data)
-
-
-class FakeTransportOneByteAtATime(FakeTransport):
-    def write(self, data):
-        for byte in data:
-            super().write(bytes([byte]))
-
-
-class FakeTransportRandomLoss(FakeTransport):
-    def write(self, data):
-        if random.random() < 0.25:
-            return
-
-        for byte in data:
-            super().write(bytes([byte]))
 
 
 @patch("bellows.ash.T_RX_ACK_INIT", ash.T_RX_ACK_INIT / 100)
