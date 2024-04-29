@@ -74,7 +74,7 @@ class Gateway(asyncio.Protocol):
         else:
             LOGGER.warning("Received an unexpected reset: %r", code)
 
-    def error_received(self, code):
+    def error_received(self, code: t.NcpResetCode) -> None:
         """Error frame receive handler."""
         self._application.enter_failed_state(code)
 

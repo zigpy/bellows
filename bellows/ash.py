@@ -108,26 +108,12 @@ class NcpFailure(AshException):
         return f"<{self.__class__.__name__}(code={self.code})>"
 
 
-class OutOfSequenceError(AshException):
-    def __init__(self, expected_seq: int, frame: AshFrame):
-        self.expected_seq = expected_seq
-        self.frame = frame
-
-    def __repr__(self) -> str:
-        return (
-            f"<{self.__class__.__name__}("
-            f"expected_seq={self.expected_seq}"
-            f", frame={self.frame}"
-            f")>"
-        )
-
-
 class AshFrame(abc.ABC, BaseDataclassMixin):
     MASK: t.uint8_t
     MASK_VALUE: t.uint8_t
 
     @classmethod
-    def from_bytes(cls, data: bytes) -> DataFrame:
+    def from_bytes(cls, data: bytes) -> AshFrame:
         raise NotImplementedError()
 
     def to_bytes(self) -> bytes:
@@ -267,7 +253,7 @@ class RstFrame(AshFrame):
         control, data = cls._unwrap(data)
 
         if data:
-            raise ValueError(f"Invalid data for RST frame: {data!r}")
+            raise ParsingError(f"Invalid data for RST frame: {data!r}")
 
         return cls()
 
@@ -288,12 +274,12 @@ class RStackFrame(AshFrame):
         control, data = cls._unwrap(data)
 
         if len(data) != 2:
-            raise ValueError(f"Invalid data length for RSTACK frame: {data!r}")
+            raise ParsingError(f"Invalid data length for RSTACK frame: {data!r}")
 
         version = data[0]
 
         if version != 0x02:
-            raise ValueError(f"Invalid version for RSTACK frame: {version}")
+            raise ParsingError(f"Invalid version for RSTACK frame: {data!r}")
 
         reset_code = t.NcpResetCode(data[1])
 
@@ -317,6 +303,27 @@ class ErrorFrame(AshFrame):
     # We do not want to inherit from `RStackFrame`
     from_bytes = classmethod(RStackFrame.from_bytes.__func__)
     to_bytes = RStackFrame.to_bytes
+
+
+def parse_frame(
+    data: bytes,
+) -> DataFrame | AckFrame | NakFrame | RstFrame | RStackFrame | ErrorFrame:
+    """Parse a frame from the given data, looking at the control byte."""
+    control_byte = data[0]
+
+    # In order of use
+    for frame in [
+        DataFrame,
+        AckFrame,
+        NakFrame,
+        RstFrame,
+        RStackFrame,
+        ErrorFrame,
+    ]:
+        if control_byte & frame.MASK == frame.MASK_VALUE:
+            return frame.from_bytes(data)
+    else:
+        raise ParsingError(f"Could not determine frame type: {data!r}")
 
 
 class AshProtocol(asyncio.Protocol):
@@ -347,22 +354,6 @@ class AshProtocol(asyncio.Protocol):
     def close(self):
         if self._transport is not None:
             self._transport.close()
-
-    def _extract_frame(self, data: bytes) -> AshFrame:
-        control_byte = data[0]
-
-        for frame in [
-            DataFrame,
-            AckFrame,
-            NakFrame,
-            RstFrame,
-            RStackFrame,
-            ErrorFrame,
-        ]:
-            if control_byte & frame.MASK == frame.MASK_VALUE:
-                return frame.from_bytes(data)
-        else:
-            raise ValueError(f"Could not determine frame type: {data!r}")
 
     @staticmethod
     def _stuff_bytes(data: bytes) -> bytes:
@@ -437,7 +428,7 @@ class AshProtocol(asyncio.Protocol):
                 data = self._unstuff_bytes(frame_bytes)
 
                 try:
-                    frame = self._extract_frame(data)
+                    frame = parse_frame(data)
                 except Exception:
                     _LOGGER.debug(
                         "Failed to parse frame %r", frame_bytes, exc_info=True
@@ -550,6 +541,8 @@ class AshProtocol(asyncio.Protocol):
         for fut in self._pending_data_frames.values():
             if not fut.done():
                 fut.set_exception(exc)
+
+        self._ezsp_protocol.error_received(frame.reset_code)
 
     def _write_frame(self, frame: AshFrame) -> None:
         _LOGGER.debug("Sending frame  %r", frame)

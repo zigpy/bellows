@@ -131,20 +131,27 @@ def test_pseudo_random_data_sequence():
     assert ash.PSEUDO_RANDOM_DATA_SEQUENCE.startswith(b"\x42\x21\xA8\x54\x2A")
 
 
+def test_frame_parsing_errors():
+    with pytest.raises(ash.ParsingError, match=r"Frame is too short:"):
+        assert ash.RstFrame.from_bytes(b"\xC0\x38")
+
+    with pytest.raises(ash.ParsingError, match=r"Invalid CRC bytes in frame"):
+        assert ash.RstFrame.from_bytes(b"\xC0\xAB\xCD")
+
+
 def test_rst_frame():
     assert ash.RstFrame() == ash.RstFrame()
     assert ash.RstFrame().to_bytes() == b"\xC0\x38\xBC"
     assert ash.RstFrame.from_bytes(b"\xC0\x38\xBC") == ash.RstFrame()
     assert str(ash.RstFrame()) == "RstFrame()"
 
-    with pytest.raises(ValueError, match=r"Invalid data for RST frame: "):
+    with pytest.raises(ash.ParsingError, match=r"Invalid data for RST frame:"):
         ash.RstFrame.from_bytes(ash.AshFrame.append_crc(b"\xC0\xAB"))
 
 
 def test_rstack_frame():
     frm = ash.RStackFrame(version=2, reset_code=t.NcpResetCode.RESET_SOFTWARE)
 
-    assert frm == frm
     assert frm.to_bytes() == b"\xc1\x02\x0b\x0a\x52"
     assert ash.RStackFrame.from_bytes(frm.to_bytes()) == frm
     assert (
@@ -152,11 +159,13 @@ def test_rstack_frame():
         == "RStackFrame(version=2, reset_code=<NcpResetCode.RESET_SOFTWARE: 11>)"
     )
 
-    with pytest.raises(ValueError, match=r"Invalid data length for RSTACK frame: "):
+    with pytest.raises(
+        ash.ParsingError, match=r"Invalid data length for RSTACK frame:"
+    ):
         # Adding \xAB in the middle of the frame makes it invalid
         ash.RStackFrame.from_bytes(ash.AshFrame.append_crc(b"\xc1\x02\xab\x0b"))
 
-    with pytest.raises(ValueError, match=r"Invalid version for RSTACK frame: 3"):
+    with pytest.raises(ash.ParsingError, match=r"Invalid version for RSTACK frame:"):
         # Version 3 is unknown
         ash.RStackFrame.from_bytes(ash.AshFrame.append_crc(b"\xc1\x03\x0b"))
 
@@ -174,6 +183,73 @@ def test_cancel_byte():
         call(ash.RStackFrame(version=2, reset_code=t.NcpResetCode.RESET_SOFTWARE))
     ]
     assert not protocol._buffer
+
+    # Parse byte-by-byte
+    protocol.frame_received.reset_mock()
+
+    for byte in bytes.fromhex("ddf9ff 1ac1020b0a527e"):
+        protocol.data_received(bytes([byte]))
+
+    # We still parse out the RSTACK frame
+    assert protocol.frame_received.mock_calls == [
+        call(ash.RStackFrame(version=2, reset_code=t.NcpResetCode.RESET_SOFTWARE))
+    ]
+    assert not protocol._buffer
+
+
+def test_substitute_byte():
+    ezsp = MagicMock()
+    protocol = ash.AshProtocol(ezsp)
+    protocol.frame_received = MagicMock(wraps=protocol.frame_received)
+
+    protocol.data_received(bytes.fromhex("c0        38bc 7e"))  # RST frame
+    assert protocol.frame_received.mock_calls == [call(ash.RstFrame())]
+    protocol.data_received(bytes.fromhex("c0 18     38bc 7e"))  # RST frame + SUBSTITUTE
+    assert protocol.frame_received.mock_calls == [call(ash.RstFrame())]  # ignored!
+    protocol.data_received(bytes.fromhex("c1 020b   0a52 7e"))  # RSTACK frame
+    assert protocol.frame_received.mock_calls == [
+        call(ash.RstFrame()),
+        call(ash.RStackFrame(version=2, reset_code=t.NcpResetCode.RESET_SOFTWARE)),
+    ]
+
+    assert not protocol._buffer
+
+
+def test_xon_xoff_bytes():
+    ezsp = MagicMock()
+    protocol = ash.AshProtocol(ezsp)
+    protocol.frame_received = MagicMock(wraps=protocol.frame_received)
+
+    protocol.data_received(bytes.fromhex("c0 11 38bc 13 7e"))  # RST frame + XON + XOFF
+    assert protocol.frame_received.mock_calls == [call(ash.RstFrame())]
+
+
+def test_multiple_eof():
+    ezsp = MagicMock()
+    protocol = ash.AshProtocol(ezsp)
+    protocol.frame_received = MagicMock(wraps=protocol.frame_received)
+
+    protocol.data_received(bytes.fromhex("c0 38bc 7e 7e 7e"))  # RST frame
+    assert protocol.frame_received.mock_calls == [call(ash.RstFrame())]
+
+
+def test_discarding():
+    ezsp = MagicMock()
+    protocol = ash.AshProtocol(ezsp)
+    protocol.frame_received = MagicMock(wraps=protocol.frame_received)
+
+    # RST frame with embedded SUBSTITUTE
+    protocol.data_received(bytes.fromhex("c0 18 38bc"))
+
+    # Garbage: still ignored
+    protocol.data_received(bytes.fromhex("aa bb cc dd ee ff"))
+
+    # Frame boundary: we now will handle data
+    protocol.data_received(bytes.fromhex("7e"))
+
+    # Normal RST frame
+    protocol.data_received(bytes.fromhex("c0    38bc 7e 7e 7e"))
+    assert protocol.frame_received.mock_calls == [call(ash.RstFrame())]
 
 
 def test_buffer_growth():
