@@ -379,14 +379,14 @@ class EZSP:
             t.NV3KeyId.NVM3KEY_STACK_RESTORED_EUI64,  # RCP firmware
         ):
             try:
-                status, data = await self.getTokenData(key, 0)
+                rsp = await self.getTokenData(key, 0)
             except (InvalidCommandError, AttributeError):
                 # Either the command doesn't exist in the EZSP version, or the command
                 # is not implemented in the firmware
                 return None
 
-            if status == t.EmberStatus.SUCCESS:
-                nv3_restored_eui64, _ = t.EUI64.deserialize(data)
+            if rsp.status == t.EmberStatus.SUCCESS:
+                nv3_restored_eui64, _ = t.EUI64.deserialize(rsp.data)
                 LOGGER.debug("NV3 restored EUI64: %s=%s", key, nv3_restored_eui64)
 
                 return key

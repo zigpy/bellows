@@ -7,6 +7,7 @@ import pytest
 
 from bellows.exception import InvalidCommandError
 from bellows.ezsp import EZSP
+from bellows.ezsp.commands.v9 import GetTokenDataRsp
 import bellows.types as t
 from bellows.zigbee import repairs
 
@@ -71,16 +72,16 @@ async def test_fix_invalid_tclk(ezsp_tclk_f: EZSP, caplog) -> None:
 
     ezsp_tclk_f.setTokenData = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp_tclk_f.getTokenData = AsyncMock(
-        return_value=[
-            t.EmberStatus.SUCCESS,
-            t.NV3StackTrustCenterToken(
+        return_value=GetTokenDataRsp(
+            status=t.EmberStatus.SUCCESS,
+            value=t.NV3StackTrustCenterToken(
                 mode=228,
                 eui64=t.EUI64.convert("BB:BB:BB:BB:BB:BB:BB:BB"),
                 key=t.KeyData.convert(
                     "21:8e:df:b8:50:a0:4a:b6:8b:c6:10:25:bc:4e:93:6a"
                 ),
             ).serialize(),
-        ]
+        )
     )
     ezsp_tclk_f.getEui64.return_value[0] = t.EUI64.convert("AA:AA:AA:AA:AA:AA:AA:AA")
     ezsp_tclk_f.getCurrentSecurityState.return_value[
@@ -121,21 +122,23 @@ async def test_fix_invalid_tclk_all_versions(
     if fw_has_token_interface:
         ezsp.setTokenData = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
         ezsp.getTokenData = AsyncMock(
-            return_value=[
-                t.EmberStatus.SUCCESS,
-                t.NV3StackTrustCenterToken(
+            return_value=GetTokenDataRsp(
+                status=t.EmberStatus.SUCCESS,
+                value=t.NV3StackTrustCenterToken(
                     mode=228,
                     eui64=t.EUI64.convert("BB:BB:BB:BB:BB:BB:BB:BB"),
                     key=t.KeyData.convert(
                         "21:8e:df:b8:50:a0:4a:b6:8b:c6:10:25:bc:4e:93:6a"
                     ),
                 ).serialize(),
-            ]
+            )
         )
 
     if not has_library:
         ezsp.setTokenData = AsyncMock(return_value=[t.EmberStatus.LIBRARY_NOT_LOADED])
-        ezsp.getTokenData = AsyncMock(return_value=[t.EmberStatus.LIBRARY_NOT_LOADED])
+        ezsp.getTokenData = AsyncMock(
+            return_value=GetTokenDataRsp(status=t.EmberStatus.LIBRARY_NOT_LOADED)
+        )
 
     ezsp.getEui64 = ezsp_tclk_f.getEui64
     ezsp.getCurrentSecurityState = ezsp_tclk_f.getCurrentSecurityState

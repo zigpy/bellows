@@ -3,7 +3,7 @@ from . import types as t
 
 class GetTokenDataRsp(t.Struct):
     status: t.EmberStatus
-    data: t.LVBytes32 = t.StructField(
+    value: t.LVBytes32 = t.StructField(
         requires=lambda rsp: rsp.status == t.EmberStatus.SUCCESS
     )
 

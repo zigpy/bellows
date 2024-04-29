@@ -29,15 +29,13 @@ async def fix_invalid_tclk_partner_ieee(ezsp: EZSP) -> bool:
     )
 
     try:
-        (status, value) = await ezsp.getTokenData(
-            t.NV3KeyId.NVM3KEY_STACK_TRUST_CENTER, 0
-        )
-        assert status == t.EmberStatus.SUCCESS
+        rsp = await ezsp.getTokenData(t.NV3KeyId.NVM3KEY_STACK_TRUST_CENTER, 0)
+        assert rsp.status == t.EmberStatus.SUCCESS
     except (InvalidCommandError, AttributeError, AssertionError):
         LOGGER.warning("NV3 interface not available in this firmware, please upgrade!")
         return False
 
-    token, remaining = t.NV3StackTrustCenterToken.deserialize(value)
+    token, remaining = t.NV3StackTrustCenterToken.deserialize(rsp.value)
     assert not remaining
     assert token.eui64 == state.trustCenterLongAddress
 
