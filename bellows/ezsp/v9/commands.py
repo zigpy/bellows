@@ -1,4 +1,14 @@
+from zigpy.types import Struct, StructField
+
 from . import types as t
+
+
+class GetTokenDataRsp(Struct):
+    status: t.EmberStatus
+    value: t.LVBytes32 = StructField(
+        requires=lambda rsp: rsp.status == t.EmberStatus.SUCCESS
+    )
+
 
 COMMANDS = {
     # 4. Configuration frames
@@ -687,7 +697,7 @@ COMMANDS = {
     "getTokenData": (
         0x0102,
         (t.uint32_t, t.uint32_t),
-        (t.EmberStatus, t.LVBytes32),
+        GetTokenDataRsp,
     ),
     "setTokenData": (
         0x0103,

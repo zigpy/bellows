@@ -8,6 +8,7 @@ import zigpy.zdo.types as zdo_t
 
 from bellows.exception import EzspError
 from bellows.ezsp import EZSP
+from bellows.ezsp.v9.commands import GetTokenDataRsp
 import bellows.types as t
 
 from tests.async_mock import AsyncMock, PropertyMock
@@ -518,7 +519,9 @@ def _mock_app_for_write(app, network_info, node_info, ezsp_ver=7):
 
     ezsp.setValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp.setMfgToken = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
-    ezsp.getTokenData = AsyncMock(return_value=[t.EmberStatus.LIBRARY_NOT_PRESENT, b""])
+    ezsp.getTokenData = AsyncMock(
+        return_value=GetTokenDataRsp(status=t.EmberStatus.LIBRARY_NOT_PRESENT)
+    )
 
 
 @pytest.mark.parametrize("ezsp_ver", [4, 7, 13])
