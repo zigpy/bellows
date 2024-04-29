@@ -7,7 +7,7 @@ import pytest
 
 from bellows.exception import InvalidCommandError
 from bellows.ezsp import EZSP
-from bellows.ezsp.commands.v9 import GetTokenDataRsp
+from bellows.ezsp.v9.commands import GetTokenDataRsp
 import bellows.types as t
 from bellows.zigbee import repairs
 

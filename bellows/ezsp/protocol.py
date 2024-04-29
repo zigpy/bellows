@@ -65,9 +65,9 @@ class ProtocolHandler(abc.ABC):
         LOGGER.debug("Send command %s: %s", name, args)
         data = self._ezsp_frame(name, *args)
         self._gw.data(data)
-        cmd_id, _, _ = self.COMMANDS[name]
+        cmd_id, _, rx_schema = self.COMMANDS[name]
         future = asyncio.get_running_loop().create_future()
-        self._awaiting[self._seq] = (cmd_id, future)
+        self._awaiting[self._seq] = (cmd_id, rx_schema, future)
         self._seq = (self._seq + 1) % 256
 
         async with asyncio_timeout(EZSP_CMD_TIMEOUT):
@@ -100,7 +100,7 @@ class ProtocolHandler(abc.ABC):
             return
 
         try:
-            if isinstance(rx_schema, dict):
+            if isinstance(rx_schema, tuple):
                 result, data = self.types.deserialize(data, rx_schema)
             else:
                 result, data = rx_schema.deserialize(data)
@@ -116,7 +116,7 @@ class ProtocolHandler(abc.ABC):
             LOGGER.debug("Frame contains trailing data: %s", data)
 
         if sequence in self._awaiting:
-            expected_id, future = self._awaiting.pop(sequence)
+            expected_id, schema, future = self._awaiting.pop(sequence)
             try:
                 if frame_name == "invalidCommand":
                     sent_cmd_name = self.COMMANDS_BY_ID[expected_id][0]

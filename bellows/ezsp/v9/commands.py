@@ -1,9 +1,11 @@
+from zigpy.types import Struct, StructField
+
 from . import types as t
 
 
-class GetTokenDataRsp(t.Struct):
+class GetTokenDataRsp(Struct):
     status: t.EmberStatus
-    value: t.LVBytes32 = t.StructField(
+    value: t.LVBytes32 = StructField(
         requires=lambda rsp: rsp.status == t.EmberStatus.SUCCESS
     )
 

@@ -386,7 +386,7 @@ class EZSP:
                 return None
 
             if rsp.status == t.EmberStatus.SUCCESS:
-                nv3_restored_eui64, _ = t.EUI64.deserialize(rsp.data)
+                nv3_restored_eui64, _ = t.EUI64.deserialize(rsp.value)
                 LOGGER.debug("NV3 restored EUI64: %s=%s", key, nv3_restored_eui64)
 
                 return key
