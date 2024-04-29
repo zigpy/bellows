@@ -10,6 +10,10 @@ import bellows.types as t
 
 
 class AshNcpProtocol(ash.AshProtocol):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.nak_state = False
+
     def frame_received(self, frame: ash.AshFrame) -> None:
         if self._ncp_reset_code is not None and not isinstance(frame, ash.RstFrame):
             ash._LOGGER.debug(
@@ -20,6 +24,10 @@ class AshNcpProtocol(ash.AshProtocol):
             self._write_frame(
                 ash.ErrorFrame(version=2, reset_code=self._ncp_reset_code)
             )
+            return
+
+        if self.nak_state:
+            self._write_frame(ash.NakFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
             return
 
         super().frame_received(frame)
@@ -257,6 +265,17 @@ async def test_ash_end_to_end():
 
     with pytest.raises(asyncio.TimeoutError):
         await send_task
+
+    ncp_ezsp.data_received.reset_mock()
+    host_ezsp.data_received.reset_mock()
+
+    # Simulate OOM on the NCP and send NAKs for a bit
+    with patch.object(ncp, "nak_state", True):
+        send_task = asyncio.create_task(host.send_data(b"ncp NAKing"))
+        await asyncio.sleep(host._t_rx_ack)
+
+    # It'll still succeed
+    await send_task
 
     ncp_ezsp.data_received.reset_mock()
     host_ezsp.data_received.reset_mock()
