@@ -6,6 +6,9 @@ import pytest
 from bellows.ezsp import EZSP
 import bellows.ezsp.v4
 import bellows.ezsp.v4.types as t
+import bellows.ezsp.v9
+from bellows.ezsp.v9.commands import GetTokenDataRsp
+from bellows.types import NV3KeyId
 from bellows.uart import Gateway
 
 from .async_mock import ANY, AsyncMock, MagicMock, call, patch
@@ -20,6 +23,17 @@ def prot_hndl():
 
     callback_handler = MagicMock()
     return bellows.ezsp.v4.EZSPv4(callback_handler, gateway)
+
+
+@pytest.fixture
+def prot_hndl_v9():
+    """Protocol handler mock."""
+    app = MagicMock()
+    gateway = Gateway(app)
+    gateway._transport = AsyncMock()
+
+    callback_handler = MagicMock()
+    return bellows.ezsp.v9.EZSPv9(callback_handler, gateway)
 
 
 async def test_command(prot_hndl):
@@ -102,3 +116,21 @@ async def test_logging_frame_parsing_failure(prot_hndl, caplog) -> None:
             prot_hndl(b"\xAA\xAA\x71\x22")
 
         assert "Failed to parse frame getKeyTableEntry: b'22'" in caplog.text
+
+
+async def test_parsing_schema_response(prot_hndl_v9):
+    """Test parsing data with a struct schema."""
+
+    coro = prot_hndl_v9.command(
+        "getTokenData", NV3KeyId.CREATOR_STACK_RESTORED_EUI64, 0
+    )
+    asyncio.get_running_loop().call_soon(
+        lambda: prot_hndl_v9(
+            bytes([prot_hndl_v9._seq - 1, 0x00, 0x00])
+            + t.uint16_t(prot_hndl_v9.COMMANDS["getTokenData"][0]).serialize()
+            + bytes([0xB5])
+        )
+    )
+
+    rsp = await coro
+    assert rsp == GetTokenDataRsp(status=t.EmberStatus.LIBRARY_NOT_PRESENT)

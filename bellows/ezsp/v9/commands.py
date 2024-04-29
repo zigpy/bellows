@@ -1,4 +1,14 @@
+from zigpy.types import Struct, StructField
+
 from . import types as t
+
+
+class GetTokenDataRsp(Struct):
+    status: t.EmberStatus
+    value: t.LVBytes32 = StructField(
+        requires=lambda rsp: rsp.status == t.EmberStatus.SUCCESS
+    )
+
 
 COMMANDS = {
     # 4. Configuration frames
@@ -308,7 +318,11 @@ COMMANDS = {
         (),
         (t.EmberNodeId, t.EUI64, t.uint8_t, t.int8s, t.LVList[t.EmberNodeId]),
     ),
-    "changeSourceRouteHandler": (0x00C4, (), (t.EmberNodeId, t.EmberNodeId, t.Bool)),
+    "incomingNetworkStatusHandler": (
+        0x00C4,
+        (),
+        tuple({"errorCode": t.EmberStackError, "target": t.EmberNodeId}.values()),
+    ),
     "setSourceRoute": (
         0x00AE,
         (t.EmberNodeId, t.LVList[t.EmberNodeId]),
@@ -687,7 +701,7 @@ COMMANDS = {
     "getTokenData": (
         0x0102,
         (t.uint32_t, t.uint32_t),
-        (t.EmberStatus, t.LVBytes32),
+        GetTokenDataRsp,
     ),
     "setTokenData": (
         0x0103,
