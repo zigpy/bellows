@@ -96,6 +96,33 @@ def test_rst_frame():
     assert str(ash.RstFrame()) == "RstFrame()"
 
 
+def test_cancel_byte():
+    ezsp = MagicMock()
+    protocol = ash.AshProtocol(ezsp)
+    protocol.frame_received = MagicMock(wraps=protocol.frame_received)
+
+    protocol.data_received(bytes.fromhex("ddf9ff"))
+    protocol.data_received(bytes.fromhex("1ac1020b0a527e"))  # starts with a CANCEL byte
+
+    # We still parse out the RSTACK frame
+    assert protocol.frame_received.mock_calls == [
+        call(ash.RStackFrame(version=2, reset_code=t.NcpResetCode.RESET_SOFTWARE))
+    ]
+    assert not protocol._buffer
+
+
+def test_buffer_growth():
+    ezsp = MagicMock()
+    protocol = ash.AshProtocol(ezsp)
+
+    # Receive a lot of bogus data
+    for i in range(1000):
+        protocol.data_received(b"\xEE" * 100)
+
+    # Make sure our internal buffer doesn't blow up
+    assert len(protocol._buffer) == ash.MAX_BUFFER_SIZE
+
+
 async def test_ash_protocol_startup():
     """Simple EZSP startup: reset, version(4), then version(8)."""
 
