@@ -208,29 +208,37 @@ async def test_ash_protocol_startup():
     ]
 
 
+class FakeTransport:
+    def __init__(self, receiver):
+        self.receiver = receiver
+        self.paused = False
+
+    def write(self, data):
+        if not self.paused:
+            self.receiver.data_received(data)
+
+
+class FakeTransportOneByteAtATime(FakeTransport):
+    def write(self, data):
+        for byte in data:
+            super().write(bytes([byte]))
+
+
 @patch("bellows.ash.T_RX_ACK_INIT", ash.T_RX_ACK_INIT / 100)
 @patch("bellows.ash.T_RX_ACK_MIN", ash.T_RX_ACK_MIN / 100)
 @patch("bellows.ash.T_RX_ACK_MAX", ash.T_RX_ACK_MAX / 100)
-async def test_ash_end_to_end():
+@pytest.mark.parametrize("transport_cls", [FakeTransport, FakeTransportOneByteAtATime])
+async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
     asyncio.get_running_loop()
 
     host_ezsp = MagicMock()
     ncp_ezsp = MagicMock()
 
-    class FakeTransport:
-        def __init__(self, receiver):
-            self.receiver = receiver
-            self.paused = False
-
-        def write(self, data):
-            if not self.paused:
-                self.receiver.data_received(data)
-
     host = ash.AshProtocol(host_ezsp)
     ncp = AshNcpProtocol(ncp_ezsp)
 
-    host_transport = FakeTransport(ncp)
-    ncp_transport = FakeTransport(host)
+    host_transport = transport_cls(ncp)
+    ncp_transport = transport_cls(host)
 
     host.connection_made(host_transport)
     ncp.connection_made(ncp_transport)
