@@ -1,3 +1,5 @@
+from bellows.ezsp.v9.commands import GetTokenDataRsp
+
 from . import types as t
 
 COMMANDS = {
@@ -691,7 +693,7 @@ COMMANDS = {
     "getTokenData": (
         0x0102,
         (t.uint32_t, t.uint32_t),
-        (t.EmberStatus, t.LVBytes32),
+        GetTokenDataRsp,
     ),
     "setTokenData": (
         0x0103,

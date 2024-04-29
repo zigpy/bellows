@@ -65,9 +65,9 @@ class ProtocolHandler(abc.ABC):
         LOGGER.debug("Send command %s: %s", name, args)
         data = self._ezsp_frame(name, *args)
         self._gw.data(data)
-        c = self.COMMANDS[name]
-        future = asyncio.Future()
-        self._awaiting[self._seq] = (c[0], c[2], future)
+        cmd_id, _, _ = self.COMMANDS[name]
+        future = asyncio.get_running_loop().create_future()
+        self._awaiting[self._seq] = (cmd_id, future)
         self._seq = (self._seq + 1) % 256
 
         async with asyncio_timeout(EZSP_CMD_TIMEOUT):
@@ -89,7 +89,7 @@ class ProtocolHandler(abc.ABC):
         sequence, frame_id, data = self._ezsp_frame_rx(data)
 
         try:
-            frame_name, _, schema = self.COMMANDS_BY_ID[frame_id]
+            frame_name, _, rx_schema = self.COMMANDS_BY_ID[frame_id]
         except KeyError:
             LOGGER.warning(
                 "Unknown application frame 0x%04X received: %s (%s).  This is a bug!",
@@ -100,7 +100,10 @@ class ProtocolHandler(abc.ABC):
             return
 
         try:
-            result, data = self.types.deserialize(data, schema)
+            if isinstance(rx_schema, dict):
+                result, data = self.types.deserialize(data, rx_schema)
+            else:
+                result, data = rx_schema.deserialize(data)
         except Exception:
             LOGGER.warning(
                 "Failed to parse frame %s: %s", frame_name, binascii.hexlify(data)
@@ -113,7 +116,7 @@ class ProtocolHandler(abc.ABC):
             LOGGER.debug("Frame contains trailing data: %s", data)
 
         if sequence in self._awaiting:
-            expected_id, schema, future = self._awaiting.pop(sequence)
+            expected_id, future = self._awaiting.pop(sequence)
             try:
                 if frame_name == "invalidCommand":
                     sent_cmd_name = self.COMMANDS_BY_ID[expected_id][0]

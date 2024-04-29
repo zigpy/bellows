@@ -1,5 +1,13 @@
 from . import types as t
 
+
+class GetTokenDataRsp(t.Struct):
+    status: t.EmberStatus
+    data: t.LVBytes32 = t.StructField(
+        requires=lambda rsp: rsp.status == t.EmberStatus.SUCCESS
+    )
+
+
 COMMANDS = {
     # 4. Configuration frames
     "version": (0x0000, (t.uint8_t,), (t.uint8_t, t.uint8_t, t.uint16_t)),
@@ -687,7 +695,7 @@ COMMANDS = {
     "getTokenData": (
         0x0102,
         (t.uint32_t, t.uint32_t),
-        (t.EmberStatus, t.LVBytes32),
+        GetTokenDataRsp,
     ),
     "setTokenData": (
         0x0103,
