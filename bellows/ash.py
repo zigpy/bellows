@@ -20,14 +20,17 @@ import bellows.types as t
 
 _LOGGER = logging.getLogger(__name__)
 
+MAX_BUFFER_SIZE = 1024
+
 FLAG = b"\x7E"  # Marks end of frame
 ESCAPE = b"\x7D"
 XON = b"\x11"  # Resume transmission
 XOFF = b"\x13"  # Stop transmission
-SUBSTITUTE = b"\x18"
+SUBSTITUTE = b"\x18"  # Replaces a byte received with a low-level communication error
 CANCEL = b"\x1A"  # Terminates a frame in progress
 
 RESERVED = frozenset(FLAG + ESCAPE + XON + XOFF + SUBSTITUTE + CANCEL)
+RESERVED_WITHOUT_ESCAPE = RESERVED - frozenset([ESCAPE[0]])
 
 # Initial value of t_rx_ack, the maximum time the NCP waits to receive acknowledgement
 # of a DATA frame
@@ -326,7 +329,7 @@ class AshProtocol(asyncio.Protocol):
         self._ezsp_protocol = ezsp_protocol
         self._transport = None
         self._buffer = bytearray()
-        self._discarding_until_flag: bool = False
+        self._discarding_until_next_flag: bool = False
         self._pending_data_frames: dict[int, asyncio.Future] = {}
         self._send_data_frame_semaphore = asyncio.Semaphore(TX_K)
         self._tx_seq: int = 0
@@ -402,32 +405,40 @@ class AshProtocol(asyncio.Protocol):
         _LOGGER.debug("Received data %s", data.hex())
         self._buffer.extend(data)
 
+        if len(self._buffer) > MAX_BUFFER_SIZE:
+            _LOGGER.debug(
+                "Truncating buffer to %s bytes, it is growing too fast", MAX_BUFFER_SIZE
+            )
+            self._buffer = self._buffer[:MAX_BUFFER_SIZE]
+
         while self._buffer:
-            if self._discarding_until_flag:
+            if self._discarding_until_next_flag:
                 if FLAG not in self._buffer:
                     self._buffer.clear()
-                    return
+                    break
 
-                self._discarding_until_flag = False
+                self._discarding_until_next_flag = False
                 _, _, self._buffer = self._buffer.partition(FLAG)
 
-            if self._buffer.startswith(FLAG):
-                # Consecutive Flag Bytes after the first Flag Byte are ignored
-                self._buffer = self._buffer[1:]
-            elif self._buffer.startswith(CANCEL):
-                # all data received since the previous Flag Byte to be ignored
-                _, _, self._buffer = self._buffer.partition(CANCEL)
-            elif self._buffer.startswith(XON):
-                _LOGGER.debug("Received XON byte, resuming transmission")
-                self._buffer = self._buffer[1:]
-            elif self._buffer.startswith(XOFF):
-                _LOGGER.debug("Received XOFF byte, pausing transmission")
-                self._buffer = self._buffer[1:]
-            elif self._buffer.startswith(SUBSTITUTE):
-                self._discarding_until_flag = True
-                self._buffer = self._buffer[1:]
-            elif FLAG in self._buffer:
-                frame_bytes, _, self._buffer = self._buffer.partition(FLAG)
+            try:
+                # Find the index of the first reserved byte that isn't an escape byte
+                reserved_index, reserved_byte = next(
+                    (index, byte)
+                    for index, byte in enumerate(self._buffer)
+                    if byte in RESERVED_WITHOUT_ESCAPE
+                )
+            except StopIteration:
+                break
+
+            if reserved_byte == FLAG[0]:
+                # Flag Byte marks the end of a frame
+                frame_bytes = self._buffer[:reserved_index]
+                self._buffer = self._buffer[reserved_index + 1 :]
+
+                # Consecutive EOFs can be received, empty frames are ignored
+                if not frame_bytes:
+                    continue
+
                 data = self._unstuff_bytes(frame_bytes)
 
                 try:
@@ -438,8 +449,27 @@ class AshProtocol(asyncio.Protocol):
                     )
                 else:
                     self.frame_received(frame)
+            elif reserved_byte == CANCEL[0]:
+                _LOGGER.debug("Received cancel byte, clearing buffer")
+                # All data received since the previous Flag Byte to be ignored
+                self._buffer = self._buffer[reserved_index + 1 :]
+            elif reserved_byte == SUBSTITUTE[0]:
+                _LOGGER.warning("Received substitute byte, marking buffer as corrupted")
+                # The data between the previous and the next Flag Byte is ignored
+                self._discarding_until_next_flag = True
+                self._buffer = self._buffer[reserved_index + 1 :]
+            elif reserved_byte == XON[0]:
+                # Resume transmission: not implemented!
+                _LOGGER.debug("Received XON byte, resuming transmission")
+                self._buffer.pop(reserved_index)
+            elif reserved_byte == XOFF[0]:
+                # Pause transmission: not implemented!
+                _LOGGER.debug("Received XOFF byte, pausing transmission")
+                self._buffer.pop(reserved_index)
             else:
-                break
+                raise RuntimeError(
+                    f"Unexpected reserved byte found: 0x{reserved_byte:02X}"
+                )  # pragma: no cover
 
     def _handle_ack(self, frame: DataFrame | AckFrame) -> None:
         # Note that ackNum is the number of the next frame the receiver expects and it
