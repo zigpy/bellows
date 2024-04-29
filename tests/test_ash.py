@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+import random
 from unittest.mock import MagicMock, call, patch
 
 import pytest
 
 from bellows import ash
 import bellows.types as t
+
+
+@pytest.fixture(autouse=True, scope="function")
+def random_seed():
+    random.seed(0)
 
 
 class AshNcpProtocol(ash.AshProtocol):
@@ -224,10 +230,22 @@ class FakeTransportOneByteAtATime(FakeTransport):
             super().write(bytes([byte]))
 
 
+class FakeTransportRandomLoss(FakeTransport):
+    def write(self, data):
+        if random.random() < 0.25:
+            return
+
+        for byte in data:
+            super().write(bytes([byte]))
+
+
 @patch("bellows.ash.T_RX_ACK_INIT", ash.T_RX_ACK_INIT / 100)
 @patch("bellows.ash.T_RX_ACK_MIN", ash.T_RX_ACK_MIN / 100)
 @patch("bellows.ash.T_RX_ACK_MAX", ash.T_RX_ACK_MAX / 100)
-@pytest.mark.parametrize("transport_cls", [FakeTransport, FakeTransportOneByteAtATime])
+@pytest.mark.parametrize(
+    "transport_cls",
+    [FakeTransport, FakeTransportOneByteAtATime, FakeTransportRandomLoss],
+)
 async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
     asyncio.get_running_loop()
 
