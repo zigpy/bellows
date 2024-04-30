@@ -22,15 +22,17 @@ _LOGGER = logging.getLogger(__name__)
 
 MAX_BUFFER_SIZE = 1024
 
-FLAG = b"\x7E"  # Marks end of frame
-ESCAPE = b"\x7D"
-XON = b"\x11"  # Resume transmission
-XOFF = b"\x13"  # Stop transmission
-SUBSTITUTE = b"\x18"  # Replaces a byte received with a low-level communication error
-CANCEL = b"\x1A"  # Terminates a frame in progress
 
-RESERVED = frozenset(FLAG + ESCAPE + XON + XOFF + SUBSTITUTE + CANCEL)
-RESERVED_WITHOUT_ESCAPE = RESERVED - frozenset([ESCAPE[0]])
+class Reserved(enum.IntEnum):
+    FLAG = 0x7E  # Marks end of frame
+    ESCAPE = 0x7D
+    XON = 0x11  # Resume transmission
+    XOFF = 0x13  # Stop transmission
+    SUBSTITUTE = 0x18  # Replaces a byte received with a low-level communication error
+    CANCEL = 0x1A  # Terminates a frame in progress
+
+
+RESERVED_WITHOUT_ESCAPE = frozenset([v for v in Reserved if v != Reserved.ESCAPE])
 
 # Initial value of t_rx_ack, the maximum time the NCP waits to receive acknowledgement
 # of a DATA frame
@@ -361,8 +363,8 @@ class AshProtocol(asyncio.Protocol):
         out = bytearray()
 
         for c in data:
-            if c in RESERVED:
-                out.extend([ESCAPE[0], c ^ 0b00100000])
+            if c in Reserved:
+                out.extend([Reserved.ESCAPE, c ^ 0b00100000])
             else:
                 out.append(c)
 
@@ -377,10 +379,10 @@ class AshProtocol(asyncio.Protocol):
         for c in data:
             if escaped:
                 byte = c ^ 0b00100000
-                assert byte in RESERVED
+                assert byte in Reserved
                 out.append(byte)
                 escaped = False
-            elif c == ESCAPE[0]:
+            elif c == Reserved.ESCAPE:
                 escaped = True
             else:
                 out.append(c)
@@ -399,12 +401,12 @@ class AshProtocol(asyncio.Protocol):
 
         while self._buffer:
             if self._discarding_until_next_flag:
-                if FLAG not in self._buffer:
+                if bytes([Reserved.FLAG]) not in self._buffer:
                     self._buffer.clear()
                     break
 
                 self._discarding_until_next_flag = False
-                _, _, self._buffer = self._buffer.partition(FLAG)
+                _, _, self._buffer = self._buffer.partition(bytes([Reserved.FLAG]))
 
             try:
                 # Find the index of the first reserved byte that isn't an escape byte
@@ -416,7 +418,7 @@ class AshProtocol(asyncio.Protocol):
             except StopIteration:
                 break
 
-            if reserved_byte == FLAG[0]:
+            if reserved_byte == Reserved.FLAG:
                 # Flag Byte marks the end of a frame
                 frame_bytes = self._buffer[:reserved_index]
                 self._buffer = self._buffer[reserved_index + 1 :]
@@ -435,20 +437,20 @@ class AshProtocol(asyncio.Protocol):
                     )
                 else:
                     self.frame_received(frame)
-            elif reserved_byte == CANCEL[0]:
+            elif reserved_byte == Reserved.CANCEL:
                 _LOGGER.debug("Received cancel byte, clearing buffer")
                 # All data received since the previous Flag Byte to be ignored
                 self._buffer = self._buffer[reserved_index + 1 :]
-            elif reserved_byte == SUBSTITUTE[0]:
+            elif reserved_byte == Reserved.SUBSTITUTE:
                 _LOGGER.debug("Received substitute byte, marking buffer as corrupted")
                 # The data between the previous and the next Flag Byte is ignored
                 self._discarding_until_next_flag = True
                 self._buffer = self._buffer[reserved_index + 1 :]
-            elif reserved_byte == XON[0]:
+            elif reserved_byte == Reserved.XON:
                 # Resume transmission: not implemented!
                 _LOGGER.debug("Received XON byte, resuming transmission")
                 self._buffer.pop(reserved_index)
-            elif reserved_byte == XOFF[0]:
+            elif reserved_byte == Reserved.XOFF:
                 # Pause transmission: not implemented!
                 _LOGGER.debug("Received XOFF byte, pausing transmission")
                 self._buffer.pop(reserved_index)
@@ -546,7 +548,7 @@ class AshProtocol(asyncio.Protocol):
 
     def _write_frame(self, frame: AshFrame) -> None:
         _LOGGER.debug("Sending frame  %r", frame)
-        data = self._stuff_bytes(frame.to_bytes()) + FLAG
+        data = self._stuff_bytes(frame.to_bytes()) + bytes([Reserved.FLAG])
 
         _LOGGER.debug("Sending data  %s", data.hex())
         self._transport.write(data)
