@@ -546,9 +546,12 @@ class AshProtocol(asyncio.Protocol):
 
         self._ezsp_protocol.reset_received(frame.reset_code)
 
-    def _write_frame(self, frame: AshFrame) -> None:
+    def _write_frame(self, frame: AshFrame, *, cancel: bool = False) -> None:
         _LOGGER.debug("Sending frame  %r", frame)
+
         data = self._stuff_bytes(frame.to_bytes()) + bytes([Reserved.FLAG])
+        if cancel:
+            data = bytes([Reserved.CANCEL]) + data
 
         _LOGGER.debug("Sending data  %s", data.hex())
         self._transport.write(data)
@@ -647,4 +650,4 @@ class AshProtocol(asyncio.Protocol):
         )
 
     def send_reset(self) -> None:
-        self._write_frame(RstFrame())
+        self._write_frame(RstFrame(), cancel=True)
