@@ -467,9 +467,7 @@ class AshProtocol(asyncio.Protocol):
 
         fut = self._pending_data_frames.get(ack_num)
 
-        if fut is None:
-            return
-        elif fut.done():
+        if fut is None or fut.done():
             return
 
         # _LOGGER.debug("Resolving frame %d", ack_num)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import random
 from unittest.mock import MagicMock, call, patch
 
@@ -89,24 +90,72 @@ class FakeTransport:
         self.receiver = receiver
         self.paused = False
 
-    def write(self, data):
+    def write(self, data: bytes) -> None:
         if not self.paused:
             self.receiver.data_received(data)
 
 
 class FakeTransportOneByteAtATime(FakeTransport):
-    def write(self, data):
+    def write(self, data: bytes) -> None:
         for byte in data:
             super().write(bytes([byte]))
 
 
 class FakeTransportRandomLoss(FakeTransport):
-    def write(self, data):
+    def write(self, data: bytes) -> None:
         if random.random() < 0.25:
             return
 
         for byte in data:
             super().write(bytes([byte]))
+
+
+class FakeTransportWithDelays(FakeTransport):
+    def write(self, data):
+        asyncio.get_running_loop().call_later(0, super().write, data)
+
+
+def test_ash_exception_repr() -> None:
+    assert (
+        repr(ash.NotAcked(ash.NakFrame(res=0, ncp_ready=0, ack_num=1)))
+        == "<NotAcked(frame=NakFrame(res=0, ncp_ready=0, ack_num=1))>"
+    )
+    assert (
+        repr(ash.NcpFailure(t.NcpResetCode.RESET_SOFTWARE))
+        == "<NcpFailure(code=<NcpResetCode.RESET_SOFTWARE: 11>)>"
+    )
+
+
+@pytest.mark.parametrize(
+    "frame",
+    [
+        ash.RstFrame(),
+        ash.AckFrame(res=0, ncp_ready=0, ack_num=1),
+        ash.NakFrame(res=0, ncp_ready=0, ack_num=1),
+        ash.RStackFrame(version=2, reset_code=t.NcpResetCode.RESET_SOFTWARE),
+        ash.ErrorFrame(version=2, reset_code=t.NcpResetCode.RESET_SOFTWARE),
+        ash.DataFrame(frm_num=0, re_tx=False, ack_num=1, ezsp_frame=b"test"),
+    ],
+)
+def test_parse_frame(frame: ash.AshFrame) -> None:
+    assert ash.parse_frame(frame.to_bytes()) == frame
+
+
+def test_parse_frame_failure() -> None:
+    with pytest.raises(ash.ParsingError):
+        ash.parse_frame(b"test")
+
+
+def test_ash_protocol_event_propagation() -> None:
+    ezsp = MagicMock()
+    protocol = ash.AshProtocol(ezsp)
+
+    err = RuntimeError("test")
+    protocol.connection_lost(err)
+    assert ezsp.connection_lost.mock_calls == [call(err)]
+
+    protocol.eof_received()
+    assert ezsp.eof_received.mock_calls == [call()]
 
 
 def test_stuffing():
@@ -321,8 +370,40 @@ async def test_sequence():
         await protocol.send_data(b"tx 2")
 
 
-async def test_ash_protocol_startup():
+async def test_frame_parsing_failure_recovery(caplog) -> None:
+    ezsp = MagicMock()
+    protocol = ash.AshProtocol(ezsp)
+    protocol.frame_received = MagicMock(spec_set=protocol.frame_received)
+
+    protocol.data_received(
+        ash.DataFrame(frm_num=0, re_tx=0, ack_num=0, ezsp_frame=b"frame 1").to_bytes()
+        + bytes([ash.Reserved.FLAG])
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        protocol.data_received(
+            ash.AshFrame.append_crc(b"\xFESome unknown frame")
+            + bytes([ash.Reserved.FLAG])
+        )
+
+    assert "Some unknown frame" in caplog.text
+
+    protocol.data_received(
+        ash.DataFrame(frm_num=1, re_tx=0, ack_num=0, ezsp_frame=b"frame 2").to_bytes()
+        + bytes([ash.Reserved.FLAG])
+    )
+
+    assert protocol.frame_received.mock_calls == [
+        call(ash.DataFrame(frm_num=0, re_tx=0, ack_num=0, ezsp_frame=b"frame 1")),
+        call(ash.DataFrame(frm_num=1, re_tx=0, ack_num=0, ezsp_frame=b"frame 2")),
+    ]
+
+
+async def test_ash_protocol_startup(caplog):
     """Simple EZSP startup: reset, version(4), then version(8)."""
+
+    # We have branching dependent on `_LOGGER.isEnabledFor` so test it here
+    caplog.set_level(logging.DEBUG)
 
     loop = asyncio.get_running_loop()
 
@@ -405,7 +486,12 @@ async def test_ash_protocol_startup():
 @patch("bellows.ash.T_RX_ACK_MAX", ash.T_RX_ACK_MAX / 100)
 @pytest.mark.parametrize(
     "transport_cls",
-    [FakeTransport, FakeTransportOneByteAtATime, FakeTransportRandomLoss],
+    [
+        FakeTransport,
+        FakeTransportOneByteAtATime,
+        FakeTransportRandomLoss,
+        FakeTransportWithDelays,
+    ],
 )
 async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
     asyncio.get_running_loop()
@@ -423,8 +509,11 @@ async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
     ncp.connection_made(ncp_transport)
 
     # Ping pong works
-    await host.send_data(b"Hello!")
-    assert ncp_ezsp.data_received.mock_calls == [call(b"Hello!")]
+    await asyncio.gather(
+        host.send_data(b"Hello 1!"),
+        host.send_data(b"Hello 2!"),
+    )
+    assert ncp_ezsp.data_received.mock_calls == [call(b"Hello 1!"), call(b"Hello 2!")]
 
     await ncp.send_data(b"World!")
     assert host_ezsp.data_received.mock_calls == [call(b"World!")]
@@ -467,7 +556,7 @@ async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
     ncp_ezsp.data_received.reset_mock()
     host_ezsp.data_received.reset_mock()
 
-    # When the NCP fail to receive a reply, it enters a failed state
+    # When the NCP fails to receive a reply, it enters a failed state
     assert host._ncp_reset_code is None
     assert ncp._ncp_reset_code is None
 
