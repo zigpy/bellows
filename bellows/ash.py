@@ -32,6 +32,7 @@ class Reserved(enum.IntEnum):
     CANCEL = 0x1A  # Terminates a frame in progress
 
 
+RESERVED_BYTES = frozenset(Reserved)
 RESERVED_WITHOUT_ESCAPE = frozenset([v for v in Reserved if v != Reserved.ESCAPE])
 
 # Initial value of t_rx_ack, the maximum time the NCP waits to receive acknowledgement
@@ -363,7 +364,7 @@ class AshProtocol(asyncio.Protocol):
         out = bytearray()
 
         for c in data:
-            if c in Reserved:
+            if c in RESERVED_BYTES:
                 out.extend([Reserved.ESCAPE, c ^ 0b00100000])
             else:
                 out.append(c)
@@ -379,7 +380,7 @@ class AshProtocol(asyncio.Protocol):
         for c in data:
             if escaped:
                 byte = c ^ 0b00100000
-                assert byte in Reserved
+                assert byte in RESERVED_BYTES
                 out.append(byte)
                 escaped = False
             elif c == Reserved.ESCAPE:
