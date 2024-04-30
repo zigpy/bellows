@@ -349,7 +349,9 @@ async def test_ash_protocol_startup():
     await asyncio.sleep(0.01)
 
     assert ezsp.reset_received.mock_calls == [call(t.NcpResetCode.RESET_SOFTWARE)]
-    assert protocol._write_frame.mock_calls == [call(ash.RstFrame())]
+    assert protocol._write_frame.mock_calls == [
+        call(ash.RstFrame(), prefix=(ash.Reserved.CANCEL,))
+    ]
 
     protocol._write_frame.reset_mock()
 
