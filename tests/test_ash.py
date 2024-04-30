@@ -33,7 +33,12 @@ class AshNcpProtocol(ash.AshProtocol):
             return
 
         if self.nak_state:
-            self._write_frame(ash.NakFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
+            asyncio.get_running_loop().call_later(
+                2 * self._t_rx_ack,
+                lambda: self._write_frame(
+                    ash.NakFrame(res=0, ncp_ready=0, ack_num=self._rx_seq)
+                ),
+            )
             return
 
         super().frame_received(frame)
@@ -66,18 +71,14 @@ class AshNcpProtocol(ash.AshProtocol):
             ash.RStackFrame(version=2, reset_code=t.NcpResetCode.RESET_SOFTWARE)
         )
 
-    async def _send_frame(self, frame: ash.AshFrame) -> None:
+    async def _send_data_frame(self, frame: ash.AshFrame) -> None:
         try:
-            return await super()._send_frame(frame)
+            return await super()._send_data_frame(frame)
         except asyncio.TimeoutError:
             self._enter_ncp_error_state(
                 t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT
             )
             raise
-        if not isinstance(frame, ash.DataFrame):
-            # Non-DATA frames can be sent immediately and do not require an ACK
-            self._write_frame(frame)
-            return
 
     def send_reset(self) -> None:
         raise NotImplementedError()
@@ -262,6 +263,62 @@ def test_buffer_growth():
 
     # Make sure our internal buffer doesn't blow up
     assert len(protocol._buffer) == ash.MAX_BUFFER_SIZE
+
+
+async def test_sequence():
+    loop = asyncio.get_running_loop()
+    ezsp = MagicMock()
+    transport = MagicMock()
+
+    protocol = ash.AshProtocol(ezsp)
+    protocol._write_frame = MagicMock(wraps=protocol._write_frame)
+    protocol.connection_made(transport)
+
+    # Normal send/receive
+    loop.call_later(
+        0,
+        protocol.frame_received,
+        ash.DataFrame(frm_num=0, re_tx=False, ack_num=1, ezsp_frame=b"rx 1"),
+    )
+    await protocol.send_data(b"tx 1")
+    assert protocol._write_frame.mock_calls[-1] == call(
+        ash.AckFrame(res=0, ncp_ready=0, ack_num=1)
+    )
+
+    assert protocol._rx_seq == 1
+    assert protocol._tx_seq == 1
+    assert ezsp.data_received.mock_calls == [call(b"rx 1")]
+
+    # Skip ACK 2: we are out of sync!
+    protocol.frame_received(
+        ash.DataFrame(frm_num=2, re_tx=False, ack_num=1, ezsp_frame=b"out of sequence")
+    )
+
+    # We NAK it, it is out of sequence!
+    assert protocol._write_frame.mock_calls[-1] == call(
+        ash.NakFrame(res=0, ncp_ready=0, ack_num=1)
+    )
+
+    # Sequence numbers remain intact
+    assert protocol._rx_seq == 1
+    assert protocol._tx_seq == 1
+
+    # Re-sync properly
+    protocol.frame_received(
+        ash.DataFrame(frm_num=1, re_tx=False, ack_num=1, ezsp_frame=b"rx 2")
+    )
+
+    assert ezsp.data_received.mock_calls == [call(b"rx 1"), call(b"rx 2")]
+
+    # Trigger an error
+    loop.call_later(
+        0,
+        protocol.frame_received,
+        ash.ErrorFrame(version=2, reset_code=t.NcpResetCode.RESET_SOFTWARE),
+    )
+
+    with pytest.raises(ash.NcpFailure):
+        await protocol.send_data(b"tx 2")
 
 
 async def test_ash_protocol_startup():

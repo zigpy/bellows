@@ -522,8 +522,8 @@ class AshProtocol(asyncio.Protocol):
     def nak_frame_received(self, frame: NakFrame) -> None:
         err = NotAcked(frame=frame)
 
-        for frm_num, fut in self._pending_data_frames.items():
-            if not frame.ack_num - TX_K <= frm_num <= frame.ack_num and not fut.done():
+        for fut in self._pending_data_frames.values():
+            if not fut.done():
                 fut.set_exception(err)
 
     def rst_frame_received(self, frame: RstFrame) -> None:
@@ -542,7 +542,7 @@ class AshProtocol(asyncio.Protocol):
             if not fut.done():
                 fut.set_exception(exc)
 
-        self._ezsp_protocol.error_received(frame.reset_code)
+        self._ezsp_protocol.reset_received(frame.reset_code)
 
     def _write_frame(self, frame: AshFrame) -> None:
         _LOGGER.debug("Sending frame  %r", frame)
@@ -561,12 +561,7 @@ class AshProtocol(asyncio.Protocol):
 
         self._t_rx_ack = new_value
 
-    async def _send_frame(self, frame: AshFrame) -> None:
-        if not isinstance(frame, DataFrame):
-            # Non-DATA frames can be sent immediately and do not require an ACK
-            self._write_frame(frame)
-            return
-
+    async def _send_data_frame(self, frame: AshFrame) -> None:
         if self._send_data_frame_semaphore.locked():
             _LOGGER.debug("Semaphore is locked, waiting")
 
@@ -644,7 +639,7 @@ class AshProtocol(asyncio.Protocol):
                     self._pending_data_frames.pop(frm_num)
 
     async def send_data(self, data: bytes) -> None:
-        await self._send_frame(
+        await self._send_data_frame(
             # All of the other fields will be set during transmission/retries
             DataFrame(frm_num=None, re_tx=None, ack_num=None, ezsp_frame=data)
         )
