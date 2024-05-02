@@ -311,7 +311,11 @@ COMMANDS = {
         (),
         (t.EmberNodeId, t.EUI64, t.uint8_t, t.int8s, t.LVList[t.EmberNodeId]),
     ),
-    "changeSourceRouteHandler": (0x00C4, (), (t.EmberNodeId, t.EmberNodeId, t.Bool)),
+    "incomingNetworkStatusHandler": (
+        0x00C4,
+        (),
+        tuple({"errorCode": t.EmberStackError, "target": t.EmberNodeId}.values()),
+    ),
     "setSourceRoute": (
         0x00AE,
         (t.EmberNodeId, t.LVList[t.EmberNodeId]),
