@@ -103,7 +103,7 @@ class FakeTransportOneByteAtATime(FakeTransport):
 
 class FakeTransportRandomLoss(FakeTransport):
     def write(self, data: bytes) -> None:
-        if random.random() < 0.25:
+        if random.random() < 0.20:
             return
 
         for byte in data:
@@ -584,3 +584,8 @@ async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
     host.send_reset()
     await asyncio.sleep(0.01)
     await host.send_data(b"test")
+
+    # Trigger a failure caused by excessive NAKs
+    with patch.object(ncp, "nak_state", True):
+        with pytest.raises(ash.NotAcked):
+            await host.send_data(b"ncp NAKing until failure")
