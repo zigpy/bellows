@@ -71,7 +71,7 @@ COMMANDS = {
     ),
     "counterRolloverHandler": (0x00F2, (), (t.EmberCounterType,)),
     "delayTest": (0x009D, (t.uint16_t,), ()),
-    "getLibraryStatus": (0x0001, (t.uint8_t,), (t.EmberLibraryStatus,)),
+    "getLibraryStatus": (0x0001, (t.EmberLibraryId,), (t.EmberLibraryStatus,)),
     "getXncpInfo": (0x0013, (), (t.EmberStatus, t.uint16_t, t.uint16_t)),
     "customFrame": (0x0047, (t.LVBytes,), (t.EmberStatus, t.LVBytes)),
     "customFrameHandler": (0x0054, (), (t.LVBytes,)),
