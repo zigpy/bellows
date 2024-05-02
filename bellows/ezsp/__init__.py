@@ -327,7 +327,10 @@ class EZSP:
             LOGGER.debug("Ignoring empty frame")
             return
 
-        self._protocol(data)
+        try:
+            self._protocol(data)
+        except Exception:
+            LOGGER.warning("Failed to parse frame, ignoring")
 
     async def get_board_info(
         self,

@@ -71,7 +71,7 @@ COMMANDS = {
     ),
     "counterRolloverHandler": (0x00F2, (), (t.EmberCounterType,)),
     "delayTest": (0x009D, (t.uint16_t,), ()),
-    "getLibraryStatus": (0x0001, (t.uint8_t,), (t.EmberLibraryStatus,)),
+    "getLibraryStatus": (0x0001, (t.EmberLibraryId,), (t.EmberLibraryStatus,)),
     "getXncpInfo": (0x0013, (), (t.EmberStatus, t.uint16_t, t.uint16_t)),
     "customFrame": (0x0047, (t.LVBytes,), (t.EmberStatus, t.LVBytes)),
     "customFrameHandler": (0x0054, (), (t.LVBytes,)),
@@ -311,7 +311,11 @@ COMMANDS = {
         (),
         (t.EmberNodeId, t.EUI64, t.uint8_t, t.int8s, t.LVList[t.EmberNodeId]),
     ),
-    "changeSourceRouteHandler": (0x00C4, (), (t.EmberNodeId, t.EmberNodeId, t.Bool)),
+    "incomingNetworkStatusHandler": (
+        0x00C4,
+        (),
+        tuple({"errorCode": t.EmberStackError, "target": t.EmberNodeId}.values()),
+    ),
     "setSourceRoute": (
         0x00AE,
         (t.EmberNodeId, t.LVList[t.EmberNodeId]),
