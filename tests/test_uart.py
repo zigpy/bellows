@@ -8,7 +8,7 @@ import zigpy.config as conf
 from bellows import uart
 import bellows.types as t
 
-from .async_mock import AsyncMock, MagicMock, patch, sentinel
+from .async_mock import AsyncMock, MagicMock, call, patch, sentinel
 
 
 @pytest.mark.parametrize("flow_control", ["software", "hardware"])
@@ -239,3 +239,13 @@ async def test_wait_for_startup_reset_failure(gw):
         await asyncio.wait_for(gw.wait_for_startup_reset(), 0.01)
 
     assert gw._startup_reset_future is None
+
+
+async def test_callbacks(gw):
+    gw.data_received(b"some ezsp packet")
+    assert gw._application.frame_received.mock_calls == [call(b"some ezsp packet")]
+
+    gw.error_received(t.NcpResetCode.RESET_SOFTWARE)
+    assert gw._application.enter_failed_state.mock_calls == [
+        call(t.NcpResetCode.RESET_SOFTWARE)
+    ]
