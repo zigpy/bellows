@@ -878,3 +878,13 @@ def test_empty_frame_received(ezsp_f):
     ezsp_f.frame_received(b"")
 
     assert ezsp_f._protocol.__call__.mock_calls == []
+
+
+def test_frame_parsing_error_doesnt_disconnect(ezsp_f, caplog):
+    """Test that frame parsing error doesn't trigger a disconnect."""
+    ezsp_f._protocol = MagicMock(spec_set=ezsp_f._protocol, side_effect=RuntimeError())
+
+    with caplog.at_level(logging.WARNING):
+        ezsp_f.frame_received(b"test")
+
+    assert "Failed to parse frame" in caplog.text
