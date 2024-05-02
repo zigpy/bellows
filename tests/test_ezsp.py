@@ -18,6 +18,8 @@ else:
 
 from unittest.mock import ANY, AsyncMock, MagicMock, call, patch, sentinel
 
+from bellows.ezsp.v9.commands import GetTokenDataRsp
+
 DEVICE_CONFIG = {
     zigpy.config.CONF_DEVICE_PATH: "/dev/null",
     zigpy.config.CONF_DEVICE_BAUDRATE: 115200,
@@ -183,7 +185,7 @@ async def test_form_network_fail_stack_status(ezsp_f):
 def test_receive_new(ezsp_f):
     callback = MagicMock()
     ezsp_f.add_callback(callback)
-    ezsp_f.frame_received(b"\x00\xff\x00\x04\x05\x06")
+    ezsp_f.frame_received(b"\x00\xff\x00\x04\x05\x06\x00")
     assert callback.call_count == 1
 
 
@@ -524,9 +526,9 @@ async def test_can_rewrite_custom_eui64(ezsp_f, tokens, expected_key, expected_r
 
     def get_token_data(key, index):
         if key not in tokens or index != 0:
-            return [t.EmberStatus.ERR_FATAL, b""]
+            return GetTokenDataRsp(status=t.EmberStatus.ERR_FATAL)
 
-        return [t.EmberStatus.SUCCESS, tokens[key]]
+        return GetTokenDataRsp(status=t.EmberStatus.SUCCESS, value=tokens[key])
 
     ezsp_f.getTokenData = AsyncMock(side_effect=get_token_data)
 
@@ -623,7 +625,9 @@ async def test_write_custom_eui64_rcp(ezsp_f):
 
     # RCP firmware does not support manufacturing tokens
     ezsp_f.getMfgToken = AsyncMock(return_value=[b""])
-    ezsp_f.getTokenData = AsyncMock(return_value=[t.EmberStatus.SUCCESS, b"\xFF" * 8])
+    ezsp_f.getTokenData = AsyncMock(
+        return_value=GetTokenDataRsp(status=t.EmberStatus.SUCCESS, value=b"\xFF" * 8)
+    )
 
     await ezsp_f.write_custom_eui64(new_eui64)
 
@@ -858,7 +862,9 @@ async def test_reset_custom_eui64(ezsp_f):
     assert len(ezsp_f.setTokenData.mock_calls) == 0
 
     # With NV3 interface
-    ezsp_f.getTokenData = AsyncMock(return_value=[t.EmberStatus.SUCCESS, b"\xAB" * 8])
+    ezsp_f.getTokenData = AsyncMock(
+        return_value=GetTokenDataRsp(status=t.EmberStatus.SUCCESS, value=b"\xAB" * 8)
+    )
     await ezsp_f.reset_custom_eui64()
     assert ezsp_f.setTokenData.mock_calls == [
         call(t.NV3KeyId.CREATOR_STACK_RESTORED_EUI64, 0, t.LVBytes32(b"\xFF" * 8))

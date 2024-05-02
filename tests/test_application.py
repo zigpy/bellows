@@ -18,6 +18,7 @@ import bellows.ezsp.v5.types as ezsp_t5
 import bellows.ezsp.v6.types as ezsp_t6
 import bellows.ezsp.v7.types as ezsp_t7
 import bellows.ezsp.v8.types as ezsp_t8
+from bellows.ezsp.v9.commands import GetTokenDataRsp
 import bellows.types.struct
 import bellows.uart as uart
 import bellows.zigbee.application
@@ -154,7 +155,9 @@ def _create_app_for_startup(
     ezsp_mock.readAndClearCounters = AsyncMock(side_effect=nop_mock)
     ezsp_mock._protocol = AsyncMock()
     ezsp_mock.setConcentrator = AsyncMock()
-    ezsp_mock.getTokenData = AsyncMock(return_value=[t.EmberStatus.ERR_FATAL, b""])
+    ezsp_mock.getTokenData = AsyncMock(
+        return_value=GetTokenDataRsp(status=t.EmberStatus.ERR_FATAL)
+    )
     ezsp_mock._command = AsyncMock(return_value=t.EmberStatus.SUCCESS)
     ezsp_mock.addEndpoint = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp_mock.setConfigurationValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])

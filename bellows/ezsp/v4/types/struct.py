@@ -52,7 +52,7 @@ class EmberRf4ceVendorInfo(EzspStruct):
     # the node.
     vendorId: basic.uint16_t
     # The vendor string field shall contain the vendor string of the node.
-    vendorString: basic.fixed_list(7, basic.uint8_t)
+    vendorString: basic.FixedList[basic.uint8_t, 7]
 
 
 class EmberRf4ceApplicationInfo(EzspStruct):
@@ -62,13 +62,13 @@ class EmberRf4ceApplicationInfo(EzspStruct):
     capabilities: named.EmberRf4ceApplicationCapabilities
     # The user string field shall contain the user specified identification
     # string.
-    userString: basic.fixed_list(15, basic.uint8_t)
+    userString: basic.FixedList[basic.uint8_t, 15]
     # The device type list field shall contain the list of device types
     # supported by the node.
-    deviceTypeList: basic.fixed_list(3, basic.uint8_t)
+    deviceTypeList: basic.FixedList[basic.uint8_t, 3]
     # The profile ID list field shall contain the list of profile
     # identifiers disclosed as supported by the node.
-    profileIdList: basic.fixed_list(7, basic.uint8_t)
+    profileIdList: basic.FixedList[basic.uint8_t, 7]
 
 
 class EmberRf4cePairingTableEntry(EzspStruct):
@@ -88,7 +88,7 @@ class EmberRf4cePairingTableEntry(EzspStruct):
     # The vendor ID of the destination device.
     destVendorId: basic.uint16_t
     # The list of profiles supported by the destination device.
-    destProfileIdList: basic.fixed_list(7, basic.uint8_t)
+    destProfileIdList: basic.FixedList[basic.uint8_t, 7]
     # The length of the list of supported profiles.
     destProfileIdListLength: basic.uint8_t
     # Info byte.
