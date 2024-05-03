@@ -659,12 +659,21 @@ class EZSP:
         self,
     ) -> custom_commands.FirmwareFeatures:
         """Get supported firmware extensions."""
+        req = custom_commands.CustomCommand(
+            command_id=custom_commands.CustomCommandId.CMD_GET_SUPPORTED_FEATURES_REQ,
+            payload=custom_commands.GetSupportedFeaturesReq().serialize(),
+        )
+
         try:
-            status, rsp_data = await self.customFrame(
-                bytes([custom_commands.CustomCommand.CMD_GET_SUPPORTED_FEATURES]),
-            )
+            status, data = await self.customFrame(req.serialize())
         except InvalidCommandError:
             return custom_commands.FirmwareFeatures(0)
 
-        features, _ = custom_commands.FirmwareFeatures.deserialize(rsp_data)
-        return features
+        rsp_cmd, _ = custom_commands.CustomCommand.deserialize(data)
+        assert (
+            rsp_cmd.command_id
+            == custom_commands.CustomCommandId.CMD_GET_SUPPORTED_FEATURES_RSP
+        )
+
+        rsp, _ = custom_commands.GetSupportedFeaturesRsp.deserialize(rsp_cmd.payload)
+        return rsp.features
