@@ -36,8 +36,10 @@ class CustomCommand(t.Struct):
 
 
 class FirmwareFeatures(t.bitmap32):
+    NONE = 0
+
     # The firmware passes through all group traffic, regardless of group membership
-    MEMBER_OF_ALL_GROUPS = 0b00000000_00000000_00000000_00000001
+    MEMBER_OF_ALL_GROUPS = 1 << 0
 
 
 class GetSupportedFeaturesReq(t.Struct):

@@ -667,7 +667,7 @@ class EZSP:
         try:
             status, data = await self.customFrame(req.serialize())
         except InvalidCommandError:
-            return custom_commands.FirmwareFeatures(0)
+            return custom_commands.FirmwareFeatures.NONE
 
         rsp_cmd, _ = custom_commands.CustomCommand.deserialize(data)
         assert (

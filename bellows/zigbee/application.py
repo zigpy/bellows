@@ -205,11 +205,21 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         custom_features = await self._ezsp.get_supported_firmware_features()
         LOGGER.debug("Supported custom firmware features: %r", custom_features)
 
+        group_membership = {}
+
         if FirmwareFeatures.MEMBER_OF_ALL_GROUPS in custom_features:
             # If the firmware passes through all incoming group messages, do nothing
             endpoint_cls = EZSPEndpoint
         else:
             endpoint_cls = EZSPGroupEndpoint
+
+            try:
+                db_device = self.get_device(ieee=self.state.node_info.ieee)
+            except KeyError:
+                pass
+            else:
+                if 1 in db_device.endpoints:
+                    group_membership = db_device.endpoints[1].member_of
 
         ezsp_device = zigpy.device.Device(
             application=self,
@@ -229,21 +239,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await ezsp_device.schedule_initialize()
 
         if FirmwareFeatures.MEMBER_OF_ALL_GROUPS not in custom_features:
-            # If the firmware does not support group traffic passthrough, register the
-            # replacement `Endpoint` objects that proxy endpoint registration to the NCP
-            group_membership = {}
-
-            try:
-                db_device = self.get_device(ieee=self.state.node_info.ieee)
-            except KeyError:
-                pass
-            else:
-                if 1 in db_device.endpoints:
-                    group_membership = db_device.endpoints[1].member_of
-
-            # Group membership is stored in the database for EZSP coordinators
             ezsp_device.endpoints[1].member_of.update(group_membership)
-
             self._multicast = bellows.multicast.Multicast(ezsp)
             await self._multicast.startup(ezsp_device)
 
