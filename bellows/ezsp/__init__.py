@@ -669,6 +669,9 @@ class EZSP:
         except InvalidCommandError:
             return custom_commands.FirmwareFeatures.NONE
 
+        if not data:
+            return custom_commands.FirmwareFeatures.NONE
+
         rsp_cmd, _ = custom_commands.CustomCommand.deserialize(data)
         assert (
             rsp_cmd.command_id
