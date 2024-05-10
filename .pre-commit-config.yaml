@@ -18,11 +18,12 @@ repos:
           - --quiet
 
   - repo: https://github.com/pycqa/flake8
-    rev: 6.0.0
+    rev: 7.0.0
     hooks:
       - id: flake8
+        entry: pflake8
         additional_dependencies: 
-          - Flake8-pyproject==1.2.3
+          - pyproject-flake8==7.0.0
 
   - repo: https://github.com/PyCQA/isort
     rev: 5.12.0

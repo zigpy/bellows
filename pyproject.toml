@@ -55,19 +55,31 @@ ignore_errors = true
 asyncio_mode = "auto"
 
 [tool.flake8]
-exclude = [".venv", ".git", ".tox", "docs", "venv", "bin", "lib", "deps", "build"]
+exclude = ".venv,.git,.tox,docs,venv,bin,lib,deps,build"
 # To work with Black
 max-line-length = 88
 # W503: Line break occurred before a binary operator
 # E203: Whitespace before ':'
 # E501: line too long
 # D202 No blank lines allowed after function docstring
-ignore = ["W503", "E203", "E501", "D202"]
-per-file-ignores = ["tests/*:F811,F401,F403"]
+ignore = "W503,E203,E501,D202"
+per-file-ignores = """
+    tests/*:F811,F401,F403
+"""
 
 [tool.coverage.run]
 source = ["bellows"]
 omit = [
     "bellows/cli/*.py",
     "bellows/typing.py",
+]
+
+
+[tool.coverage.report]
+exclude_also = [
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING",
+    "if typing.TYPE_CHECKING",
+    "@(abc\\.)?abstractmethod",
 ]
