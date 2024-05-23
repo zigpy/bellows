@@ -102,7 +102,6 @@ class EmberKeyStruct(EzspStruct):
 
     @classmethod
     def deserialize(cls, data: bytes) -> tuple[EmberKeyStruct, bytes]:
-        breakpoint()
         if len(data) == 24:
             # XXX: `key` can seemingly be replaced with the uint32_t `psa_id` field in
             # an invalid response. Pad it with zeroes so it deserializes.
