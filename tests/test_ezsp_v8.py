@@ -1,5 +1,6 @@
 import pytest
 
+from bellows.ash import DataFrame
 import bellows.ezsp.v8
 
 from .async_mock import AsyncMock, MagicMock, patch
@@ -45,6 +46,20 @@ def test_command_frames(ezsp_f):
     for name, frame_id in command_frames.items():
         assert ezsp_f.COMMANDS[name][0] == frame_id
         assert ezsp_f.COMMANDS_BY_ID[frame_id][0] == name
+
+
+def test_get_key_table_entry_fallback_parsing(ezsp_f):
+    """Test parsing of a getKeyTableEntry response with an invalid length."""
+    data_frame = DataFrame.from_bytes(
+        bytes.fromhex(
+            "039ba1a9252a1659c6974b25aa55d1209c6e76ddedce958bfdc6f29ffc5e0d2845"
+        )
+    )
+    ezsp_f(data_frame.ezsp_frame)
+
+    assert len(ezsp_f._handle_callback.mock_calls) == 1
+    mock_call = ezsp_f._handle_callback.mock_calls[0]
+    assert mock_call.args[0] == "getKeyTableEntry"
 
 
 command_frames = {

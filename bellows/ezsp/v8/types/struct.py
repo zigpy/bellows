@@ -1,5 +1,7 @@
 """Protocol version 8 specific structs."""
 
+from __future__ import annotations
+
 import bellows.types.basic as basic
 from bellows.types.struct import (  # noqa: F401
     EmberAesMmoHashContext,
@@ -97,6 +99,15 @@ class EmberKeyStruct(EzspStruct):
     sequenceNumber: basic.uint8_t
     # The IEEE address of the partner device also in possession of the key.
     partnerEUI64: named.EUI64
+
+    @classmethod
+    def deserialize(cls, data: bytes) -> tuple[EmberKeyStruct, bytes]:
+        if len(data) == 24:
+            # XXX: `key` can seemingly be replaced with the uint32_t `psa_id` field in
+            # an invalid response. Pad it with zeroes so it deserializes.
+            data = data[:7] + b"\x00" * 12 + data[7:]
+
+        return super().deserialize(data)
 
 
 class EmberGpSinkListEntry(EzspStruct):
