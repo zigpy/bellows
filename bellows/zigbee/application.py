@@ -775,6 +775,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def _set_source_route(
         self, nwk: zigpy.types.NWK, relays: list[zigpy.types.NWK]
     ) -> bool:
+        # The `setSourceRoute` command is a no-op in EZSPv9 and above
+        if self._ezsp.ezsp_version >= 8:
+            return True
+
         (res,) = await self._ezsp.setSourceRoute(nwk, relays)
         return res == t.EmberStatus.SUCCESS
 
@@ -858,15 +862,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             if packet.extended_timeout and device is not None:
                                 await self._ezsp.setExtendedTimeout(device.ieee, True)
 
-                            if (
-                                packet.source_route is not None
-                                and not await self._set_source_route(
-                                    packet.dst.address, packet.source_route
-                                )
-                            ):
-                                aps_frame.options |= (
-                                    t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-                                )
+                            await self._set_source_route(
+                                packet.dst.address, packet.source_route
+                            )
 
                             status, _ = await self._ezsp.sendUnicast(
                                 t.EmberOutgoingMessageType.OUTGOING_DIRECT,
