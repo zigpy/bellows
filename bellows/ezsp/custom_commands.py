@@ -23,11 +23,8 @@ class Bytes(bytes):
 
 
 class CustomCommandId(t.enum16):
-    CMD_GET_PROTOCOL_VERSION_REQ = 0x0000
-    CMD_GET_PROTOCOL_VERSION_RSP = 0x8000
-
-    CMD_GET_SUPPORTED_FEATURES_REQ = 0x0001
-    CMD_GET_SUPPORTED_FEATURES_RSP = 0x8001
+    CMD_GET_SUPPORTED_FEATURES = 0x0000
+    CMD_SET_SOURCE_ROUTE = 0x0001
 
 
 class CustomCommand(t.Struct):
@@ -41,6 +38,9 @@ class FirmwareFeatures(t.bitmap32):
     # The firmware passes through all group traffic, regardless of group membership
     MEMBER_OF_ALL_GROUPS = 1 << 0
 
+    # Source routes can be overridden by the application
+    MANUAL_SOURCE_ROUTE = 1 << 1
+
 
 class GetSupportedFeaturesReq(t.Struct):
     pass
@@ -48,3 +48,12 @@ class GetSupportedFeaturesReq(t.Struct):
 
 class GetSupportedFeaturesRsp(t.Struct):
     features: FirmwareFeatures
+
+
+class SetSourceRouteReq(t.Struct):
+    destination: t.NWK
+    source_route: t.List[t.NWK]
+
+
+class SetSourceRouteRsp(t.Struct):
+    pass
