@@ -862,9 +862,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             if packet.extended_timeout and device is not None:
                                 await self._ezsp.setExtendedTimeout(device.ieee, True)
 
-                            await self._set_source_route(
-                                packet.dst.address, packet.source_route
-                            )
+                            if packet.source_route is not None:
+                                await self._set_source_route(
+                                    packet.dst.address, packet.source_route
+                                )
 
                             status, _ = await self._ezsp.sendUnicast(
                                 t.EmberOutgoingMessageType.OUTGOING_DIRECT,
