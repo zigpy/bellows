@@ -655,12 +655,12 @@ class EZSP:
                 )
                 continue
 
-    async def get_supported_firmware_features(
+    async def xncp_get_supported_firmware_features(
         self,
     ) -> custom_commands.FirmwareFeatures:
         """Get supported firmware extensions."""
         req = custom_commands.CustomCommand(
-            command_id=custom_commands.CustomCommandId.CMD_GET_SUPPORTED_FEATURES_REQ,
+            command_id=custom_commands.CustomCommandId.CMD_GET_SUPPORTED_FEATURES,
             payload=custom_commands.GetSupportedFeaturesReq().serialize(),
         )
 
@@ -672,11 +672,22 @@ class EZSP:
         if not data:
             return custom_commands.FirmwareFeatures.NONE
 
-        rsp_cmd, _ = custom_commands.CustomCommand.deserialize(data)
-        assert (
-            rsp_cmd.command_id
-            == custom_commands.CustomCommandId.CMD_GET_SUPPORTED_FEATURES_RSP
+        rsp, _ = custom_commands.GetSupportedFeaturesRsp.deserialize(data)
+        return rsp.features
+
+    async def xncp_set_manual_source_route(
+        self, destination: t.NWK, route: list[t.NWK]
+    ) -> None:
+        """Set a manual source route."""
+        req = custom_commands.CustomCommand(
+            command_id=custom_commands.CustomCommandId.CMD_SET_SOURCE_ROUTE,
+            payload=custom_commands.SetSourceRouteReq(
+                destination=destination, source_route=route
+            ).serialize(),
         )
 
-        rsp, _ = custom_commands.GetSupportedFeaturesRsp.deserialize(rsp_cmd.payload)
-        return rsp.features
+        status, data = await self.customFrame(req.serialize())
+        if status != self.types.EmberStatus.SUCCESS:
+            raise EzspError(f"Failed to set source route: {status}")
+
+        return None
