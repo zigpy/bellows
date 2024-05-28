@@ -844,6 +844,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         if not self.config[zigpy.config.CONF_SOURCE_ROUTING]:
             aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+        else:
+            # Source routing uses address discovery to discover routes
+            aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
 
         async with self._limit_concurrency():
             message_tag = self.get_sequence()
