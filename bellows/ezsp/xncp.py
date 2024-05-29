@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 from typing import Callable
 
 import zigpy.types as t
 
-from bellows.types import EmberStatus
+from bellows.types import EmberStatus, EzspMfgTokenId
+
+_LOGGER = logging.getLogger(__name__)
 
 COMMANDS: dict[XncpCommandId, type[XncpCommandPayload]] = {}
 REV_COMMANDS: dict[type[XncpCommandPayload], XncpCommandId] = {}
@@ -42,13 +45,11 @@ class Bytes(bytes):
 class XncpCommandId(t.enum16):
     GET_SUPPORTED_FEATURES_REQ = 0x0000
     SET_SOURCE_ROUTE_REQ = 0x0001
-    GET_BOARD_NAME_REQ = 0x0002
-    GET_MANUF_NAME_REQ = 0x0003
+    GET_MFG_TOKEN_OVERRIDE_REQ = 0x0002
 
     GET_SUPPORTED_FEATURES_RSP = GET_SUPPORTED_FEATURES_REQ | 0x8000
     SET_SOURCE_ROUTE_RSP = SET_SOURCE_ROUTE_REQ | 0x8000
-    GET_BOARD_NAME_RSP = GET_BOARD_NAME_REQ | 0x8000
-    GET_MANUF_NAME_RSP = GET_MANUF_NAME_REQ | 0x8000
+    GET_MFG_TOKEN_OVERRIDE_RSP = GET_MFG_TOKEN_OVERRIDE_REQ | 0x8000
 
     UNKNOWN = 0xFFFF
 
@@ -71,7 +72,10 @@ class XncpCommand:
     def from_bytes(cls, data: bytes) -> XncpCommand:
         command_id, data = XncpCommandId.deserialize(data)
         status, data = EmberStatus.deserialize(data)
-        payload = COMMANDS[command_id].deserialize(data)
+        payload, rest = COMMANDS[command_id].deserialize(data)
+
+        if rest:
+            _LOGGER.debug("Unparsed data remains after %s frame: %s", payload, rest)
 
         return cls(command_id=command_id, status=status, payload=payload)
 
@@ -92,8 +96,8 @@ class FirmwareFeatures(t.bitmap32):
     # Source routes can be overridden by the application
     MANUAL_SOURCE_ROUTE = 1 << 1
 
-    # The firmware supports overriding the board name
-    BOARD_MANUF = 1 << 2
+    # The firmware supports overriding some manufacturing tokens
+    MFG_TOKEN_OVERRIDES = 1 << 2
 
 
 class XncpCommandPayload(t.Struct):
@@ -121,21 +125,11 @@ class SetSourceRouteRsp(XncpCommandPayload):
     pass
 
 
-@register_command(XncpCommandId.GET_BOARD_NAME_REQ)
-class GetBoardNameReq(XncpCommandPayload):
-    pass
+@register_command(XncpCommandId.GET_MFG_TOKEN_OVERRIDE_REQ)
+class GetMfgTokenOverrideReq(XncpCommandPayload):
+    token: EzspMfgTokenId
 
 
-@register_command(XncpCommandId.GET_BOARD_NAME_RSP)
-class GetBoardNameRsp(XncpCommandPayload):
-    board_name: Bytes
-
-
-@register_command(XncpCommandId.GET_MANUF_NAME_REQ)
-class GetManufNameReq(XncpCommandPayload):
-    pass
-
-
-@register_command(XncpCommandId.GET_MANUF_NAME_RSP)
-class GetManufNameRsp(XncpCommandPayload):
-    manuf_name: Bytes
+@register_command(XncpCommandId.GET_MFG_TOKEN_OVERRIDE_RSP)
+class GetMfgTokenOverrideRsp(XncpCommandPayload):
+    value: Bytes
