@@ -360,24 +360,10 @@ class EZSP:
     ) -> tuple[str, str, str | None] | tuple[None, None, str | None]:
         """Return board info."""
 
-        raw_tokens: dict[t.EzspMfgTokenId, list[bytes]] = {
-            t.EzspMfgTokenId.MFG_STRING: [],
-            t.EzspMfgTokenId.MFG_BOARD_NAME: [],
-        }
+        tokens = {}
 
-        # Prefer XNCP overrides if they exist
-        try:
-            override_board, override_manuf = await self.xncp_get_board_info_overrides()
-        except InvalidCommandError:
-            pass
-        else:
-            raw_tokens[t.EzspMfgTokenId.MFG_STRING].append(override_manuf)
-            raw_tokens[t.EzspMfgTokenId.MFG_BOARD_NAME].append(override_board)
-
-        # If not, read manufacturing tokens
         for token in (t.EzspMfgTokenId.MFG_STRING, t.EzspMfgTokenId.MFG_BOARD_NAME):
-            (value,) = await self.getMfgToken(tokenId=token)
-            LOGGER.debug("Read %s token: %s", token.name, value)
+            value = await self.get_mfg_token(token)
             raw_tokens[token].append(value)
 
         # Try to parse them
@@ -441,9 +427,25 @@ class EZSP:
 
         return None
 
+    async def get_mfg_token(self, token: t.EzspMfgTokenId) -> bytes:
+        (value,) = await self.getMfgToken(tokenId=token)
+        LOGGER.debug("Read manufacturing token %s: %s", token.name, value)
+
+        override_value = None
+
+        if FirmwareFeatures.MFG_TOKEN_OVERRIDES in self._xncp_features:
+            try:
+                override_value = await self.xncp_get_mfg_token_override(token)
+            except InvalidCommandError:
+                pass
+
+            LOGGER.debug("XNCP override token %s: %s", token.name, override_value)
+
+        return override_value or value
+
     async def _get_mfg_custom_eui_64(self) -> t.EUI64 | None:
         """Get the custom EUI 64 manufacturing token, if it has a valid value."""
-        (data,) = await self.getMfgToken(tokenId=t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
+        data = await self.get_mfg_token(t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
 
         # Manufacturing tokens do not exist in RCP firmware: all reads are empty
         if not data:
@@ -724,9 +726,7 @@ class EZSP:
             )
         )
 
-    async def xncp_get_board_info_overrides(self) -> tuple[str | None, str | None]:
-        """Get board information overrides."""
-        name_rsp = await self.send_xncp_frame(xncp.GetBoardNameReq())
-        manuf_rsp = await self.send_xncp_frame(xncp.GetManufNameReq())
-
-        return (name_rsp.board_name or None, manuf_rsp.manuf_name or None)
+    async def xncp_get_mfg_token_override(self, token: t.EzspMfgTokenId) -> bytes:
+        """Get manufacturing token override."""
+        rsp = await self.send_xncp_frame(xncp.GetMfgTokenOverrideReq(token=token))
+        return rsp.value
