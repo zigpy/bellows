@@ -32,7 +32,7 @@ from bellows.config import (
 )
 from bellows.exception import ControllerError, EzspError, StackAlreadyRunning
 import bellows.ezsp
-from bellows.ezsp.custom_commands import FirmwareFeatures
+from bellows.ezsp.xncp import FirmwareFeatures
 import bellows.multicast
 import bellows.types as t
 from bellows.zigbee import repairs
@@ -88,7 +88,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._pending = zigpy.util.Requests()
         self._watchdog_failures = 0
         self._watchdog_feed_counter = 0
-        self._custom_features = FirmwareFeatures.NONE
 
         self._req_lock = asyncio.Lock()
 
@@ -203,12 +202,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         ezsp.add_callback(self.ezsp_callback_handler)
         self.controller_event.set()
 
-        self._custom_features = await self._ezsp.xncp_get_supported_firmware_features()
-        LOGGER.debug("Supported custom firmware features: %r", self._custom_features)
-
         group_membership = {}
 
-        if FirmwareFeatures.MEMBER_OF_ALL_GROUPS in self._custom_features:
+        if FirmwareFeatures.MEMBER_OF_ALL_GROUPS in self._ezsp._xncp_features:
             # If the firmware passes through all incoming group messages, do nothing
             endpoint_cls = EZSPEndpoint
         else:
@@ -239,7 +235,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         await ezsp_device.schedule_initialize()
 
-        if FirmwareFeatures.MEMBER_OF_ALL_GROUPS not in self._custom_features:
+        if FirmwareFeatures.MEMBER_OF_ALL_GROUPS not in self._ezsp._xncp_features:
             ezsp_device.endpoints[1].member_of.update(group_membership)
             self._multicast = bellows.multicast.Multicast(ezsp)
             await self._multicast.startup(ezsp_device)
@@ -679,7 +675,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         """Resets manufacturer id if was temporary overridden by a joining device."""
         await self._ezsp.setManufacturerCode(code=mfg_id)
         await asyncio.sleep(MFG_ID_RESET_DELAY)
-        await self._ezsp.setManufacturerCode(code=DEFAULT_MFG_ID)
+        await self._ezsp.setManufacturerCode(DEFAULT_MFG_ID)
 
     async def energy_scan(
         self, channels: t.Channels, duration_exp: int, count: int
@@ -764,7 +760,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                                 )
 
                             if packet.source_route is not None:
-                                if FirmwareFeatures.MANUAL_SOURCE_ROUTE in self._custom_features:
+                                if FirmwareFeatures.MANUAL_SOURCE_ROUTE in self._ezsp._xncp_features:
                                     await self._ezsp.xncp_set_manual_source_route(
                                         nwk=packet.dst.address,
                                         relays=packet.source_route,
@@ -921,6 +917,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     cnt = counters[COUNTER_EZSP_BUFFERS]
                     cnt._raw_value = free_buffers
                     cnt._last_reset_value = 0
+
+                await self._ezsp.getMulticastTableEntry(0)
 
                 LOGGER.debug("%s", counters)
         except (asyncio.TimeoutError, EzspError) as exc:

@@ -23,8 +23,9 @@ import zigpy.config
 
 import bellows.config as conf
 from bellows.exception import EzspError, InvalidCommandError
-from bellows.ezsp import custom_commands
+from bellows.ezsp import xncp
 from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig, ValueConfig
+from bellows.ezsp.xncp import FirmwareFeatures
 import bellows.types as t
 import bellows.uart
 
@@ -65,6 +66,7 @@ class EZSP:
         self._callbacks = {}
         self._ezsp_event = asyncio.Event()
         self._ezsp_version = v4.EZSPv4.VERSION
+        self._xncp_features = FirmwareFeatures.NONE
         self._gw = None
         self._protocol = None
         self._send_sem = PriorityDynamicBoundedSemaphore(value=MAX_COMMAND_CONCURRENCY)
@@ -178,11 +180,23 @@ class EZSP:
         if ver != self.ezsp_version:
             self._switch_protocol_version(ver)
             await self._command("version", desiredProtocolVersion=ver)
+
+        try:
+            self._xncp_features = await self.xncp_get_supported_firmware_features()
+        except InvalidCommandError:
+            self._xncp_features = xncp.FirmwareFeatures.NONE
+
         LOGGER.debug(
-            "EZSP Stack Type: %s, Stack Version: %04x, Protocol version: %s",
+            (
+                "EZSP Stack Type: %s"
+                ", Stack Version: %04x"
+                ", Protocol version: %s"
+                ", XNCP features: %s"
+            ),
             stack_type,
             stack_version,
             ver,
+            self._xncp_features,
         )
 
     def close(self):
@@ -346,26 +360,46 @@ class EZSP:
     ) -> tuple[str, str, str | None] | tuple[None, None, str | None]:
         """Return board info."""
 
-        tokens = {}
+        raw_tokens: dict[t.EzspMfgTokenId, list[bytes]] = {
+            t.EzspMfgTokenId.MFG_STRING: [],
+            t.EzspMfgTokenId.MFG_BOARD_NAME: [],
+        }
 
+        # Prefer XNCP overrides if they exist
+        try:
+            override_board, override_manuf = await self.xncp_get_board_info_overrides()
+        except InvalidCommandError:
+            pass
+        else:
+            raw_tokens[t.EzspMfgTokenId.MFG_STRING].append(override_manuf)
+            raw_tokens[t.EzspMfgTokenId.MFG_BOARD_NAME].append(override_board)
+
+        # If not, read manufacturing tokens
         for token in (t.EzspMfgTokenId.MFG_STRING, t.EzspMfgTokenId.MFG_BOARD_NAME):
             (value,) = await self.getMfgToken(tokenId=token)
             LOGGER.debug("Read %s token: %s", token.name, value)
+            raw_tokens[token].append(value)
 
-            # Tokens are fixed-length and initially filled with \xFF but also can end
-            # with \x00
-            while value.endswith((b"\xFF", b"\x00")):
-                value = value.rstrip(b"\xFF").rstrip(b"\x00")
+        # Try to parse them
+        tokens: dict[t.EzspMfgTokenId, str] = {}
 
-            try:
-                result = value.decode("utf-8")
-            except UnicodeDecodeError:
-                result = "0x" + value.hex().upper()
+        for token_id, values in raw_tokens.items():
+            for value in values:
+                # Tokens are fixed-length and initially filled with \xFF but also can end
+                # with \x00
+                while value.endswith((b"\xFF", b"\x00")):
+                    value = value.rstrip(b"\xFF").rstrip(b"\x00")
 
-            if not result:
-                result = None
+                try:
+                    result = value.decode("utf-8")
+                except UnicodeDecodeError:
+                    result = "0x" + value.hex().upper()
 
-            tokens[token] = result
+                if result:
+                    tokens[token_id] = result
+                    break
+            else:
+                tokens[token_id] = None
 
         (status, ver_info_bytes) = await self.getValue(
             valueId=t.EzspValueId.VALUE_VERSION_INFO
@@ -655,39 +689,44 @@ class EZSP:
                 )
                 continue
 
-    async def xncp_get_supported_firmware_features(
-        self,
-    ) -> custom_commands.FirmwareFeatures:
+    async def send_xncp_frame(
+        self, payload: xncp.XncpCommandPayload
+    ) -> xncp.XncpCommandPayload:
+        """Send an XNCP frame."""
+        req_frame = xncp.XncpCommand.from_payload(payload)
+        LOGGER.debug("Sending XNCP frame: %s", req_frame)
+        status, data = await self.customFrame(req_frame.serialize())
+
+        if status != t.EmberStatus.SUCCESS:
+            raise InvalidCommandError("XNCP is not supported")
+
+        rsp_frame = xncp.XncpCommand.from_bytes(data)
+        LOGGER.debug("Received XNCP frame: %s", rsp_frame)
+
+        if rsp_frame.status != t.EmberStatus.SUCCESS:
+            raise InvalidCommandError(f"XNCP response error: {rsp_frame.status}")
+
+        return rsp_frame.payload
+
+    async def xncp_get_supported_firmware_features(self) -> xncp.FirmwareFeatures:
         """Get supported firmware extensions."""
-        req = custom_commands.CustomCommand(
-            command_id=custom_commands.CustomCommandId.CMD_GET_SUPPORTED_FEATURES,
-            payload=custom_commands.GetSupportedFeaturesReq().serialize(),
-        )
-
-        try:
-            status, data = await self.customFrame(req.serialize())
-        except InvalidCommandError:
-            return custom_commands.FirmwareFeatures.NONE
-
-        if not data:
-            return custom_commands.FirmwareFeatures.NONE
-
-        rsp, _ = custom_commands.GetSupportedFeaturesRsp.deserialize(data)
+        rsp = await self.send_xncp_frame(xncp.GetSupportedFeaturesReq())
         return rsp.features
 
     async def xncp_set_manual_source_route(
         self, destination: t.NWK, route: list[t.NWK]
     ) -> None:
         """Set a manual source route."""
-        req = custom_commands.CustomCommand(
-            command_id=custom_commands.CustomCommandId.CMD_SET_SOURCE_ROUTE,
-            payload=custom_commands.SetSourceRouteReq(
-                destination=destination, source_route=route
-            ).serialize(),
+        await self.send_xncp_frame(
+            xncp.SetSourceRouteReq(
+                destination=destination,
+                source_route=route,
+            )
         )
 
-        status, data = await self.customFrame(req.serialize())
-        if status != self.types.EmberStatus.SUCCESS:
-            raise EzspError(f"Failed to set source route: {status}")
+    async def xncp_get_board_info_overrides(self) -> tuple[str | None, str | None]:
+        """Get board information overrides."""
+        name_rsp = await self.send_xncp_frame(xncp.GetBoardNameReq())
+        manuf_rsp = await self.send_xncp_frame(xncp.GetManufNameReq())
 
-        return None
+        return (name_rsp.board_name or None, manuf_rsp.manuf_name or None)

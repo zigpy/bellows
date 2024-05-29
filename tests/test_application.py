@@ -17,6 +17,7 @@ from bellows.exception import ControllerError, EzspError
 import bellows.ezsp as ezsp
 from bellows.ezsp.custom_commands import FirmwareFeatures
 from bellows.ezsp.v9.commands import GetTokenDataRsp
+from bellows.ezsp.xncp import FirmwareFeatures
 import bellows.types
 import bellows.types as t
 import bellows.types.struct
