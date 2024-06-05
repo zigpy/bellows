@@ -588,7 +588,8 @@ async def test_write_custom_eui64_rcp(ezsp_f):
 
 @patch.object(EZSP, "version", new_callable=AsyncMock)
 @patch.object(EZSP, "reset", new_callable=AsyncMock)
-async def test_ezsp_init_zigbeed(reset_mock, version_mock):
+@patch.object(ezsp.EZSP, "get_xncp_features", new_callable=AsyncMock)
+async def test_ezsp_init_zigbeed(reset_mock, xncp_mock, version_mock):
     """Test initialize method with a received startup reset frame."""
     ezsp = make_ezsp(
         config={
@@ -609,8 +610,9 @@ async def test_ezsp_init_zigbeed(reset_mock, version_mock):
 
 @patch.object(EZSP, "version", new_callable=AsyncMock)
 @patch.object(EZSP, "reset", new_callable=AsyncMock)
+@patch.object(ezsp.EZSP, "get_xncp_features", new_callable=AsyncMock)
 @patch("bellows.ezsp.NETWORK_COORDINATOR_STARTUP_RESET_WAIT", 0.01)
-async def test_ezsp_init_zigbeed_timeout(reset_mock, version_mock):
+async def test_ezsp_init_zigbeed_timeout(reset_mock, xncp_mock, version_mock):
     """Test initialize method with a received startup reset frame."""
     ezsp = make_ezsp(
         config={
