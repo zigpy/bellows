@@ -25,8 +25,10 @@ import zigpy.zdo.types as zdo_t
 
 import bellows
 from bellows.config import (
+    CONF_BELLOWS_CONFIG,
     CONF_EZSP_CONFIG,
     CONF_EZSP_POLICIES,
+    CONF_MANUAL_SOURCE_ROUTING,
     CONF_USE_THREAD,
     CONFIG_SCHEMA,
 )
@@ -760,7 +762,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                                 )
 
                             if packet.source_route is not None:
-                                if FirmwareFeatures.MANUAL_SOURCE_ROUTE in self._ezsp._xncp_features:
+                                if FirmwareFeatures.MANUAL_SOURCE_ROUTE in self._ezsp._xncp_features and self.config[CONF_BELLOWS_CONFIG][CONF_MANUAL_SOURCE_ROUTING]:
                                     await self._ezsp.xncp_set_manual_source_route(
                                         nwk=packet.dst.address,
                                         relays=packet.source_route,
