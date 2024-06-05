@@ -46,10 +46,12 @@ class XncpCommandId(t.enum16):
     GET_SUPPORTED_FEATURES_REQ = 0x0000
     SET_SOURCE_ROUTE_REQ = 0x0001
     GET_MFG_TOKEN_OVERRIDE_REQ = 0x0002
+    GET_BUILD_STRING_REQ = 0x0003
 
     GET_SUPPORTED_FEATURES_RSP = GET_SUPPORTED_FEATURES_REQ | 0x8000
     SET_SOURCE_ROUTE_RSP = SET_SOURCE_ROUTE_REQ | 0x8000
     GET_MFG_TOKEN_OVERRIDE_RSP = GET_MFG_TOKEN_OVERRIDE_REQ | 0x8000
+    GET_BUILD_STRING_RSP = GET_BUILD_STRING_REQ | 0x8000
 
     UNKNOWN = 0xFFFF
 
@@ -99,6 +101,9 @@ class FirmwareFeatures(t.bitmap32):
     # The firmware supports overriding some manufacturing tokens
     MFG_TOKEN_OVERRIDES = 1 << 2
 
+    # The firmware contains a free-form build string
+    BUILD_STRING = 1 << 3
+
 
 class XncpCommandPayload(t.Struct):
     pass
@@ -133,3 +138,13 @@ class GetMfgTokenOverrideReq(XncpCommandPayload):
 @register_command(XncpCommandId.GET_MFG_TOKEN_OVERRIDE_RSP)
 class GetMfgTokenOverrideRsp(XncpCommandPayload):
     value: Bytes
+
+
+@register_command(XncpCommandId.GET_BUILD_STRING_REQ)
+class GetBuildStringReq(XncpCommandPayload):
+    pass
+
+
+@register_command(XncpCommandId.GET_BUILD_STRING_RSP)
+class GetBuildStringRsp(XncpCommandPayload):
+    build_string: Bytes

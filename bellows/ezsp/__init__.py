@@ -398,6 +398,15 @@ class EZSP:
             special, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
             version = f"{major}.{minor}.{patch}.{special} build {build}"
 
+            if xncp.FirmwareFeatures.BUILD_STRING in self._xncp_features:
+                try:
+                    build_string = await self.xncp_get_build_string()
+                except InvalidCommandError:
+                    build_string = None
+
+                if build_string:
+                    version = f"{version} ({build_string})"
+
         return (
             tokens[t.EzspMfgTokenId.MFG_STRING],
             tokens[t.EzspMfgTokenId.MFG_BOARD_NAME],
@@ -726,3 +735,8 @@ class EZSP:
         """Get manufacturing token override."""
         rsp = await self.send_xncp_frame(xncp.GetMfgTokenOverrideReq(token=token))
         return rsp.value
+
+    async def xncp_get_build_string(self) -> bytes:
+        """Get build string."""
+        rsp = await self.send_xncp_frame(xncp.GetBuildStringReq())
+        return rsp.build_string.decode("utf-8")
