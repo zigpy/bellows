@@ -920,8 +920,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     cnt._raw_value = free_buffers
                     cnt._last_reset_value = 0
 
-                await self._ezsp.getMulticastTableEntry(0)
-
                 LOGGER.debug("%s", counters)
         except (asyncio.TimeoutError, EzspError) as exc:
             # TODO: converted Silvercrest gateways break without this
