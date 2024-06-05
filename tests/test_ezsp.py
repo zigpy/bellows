@@ -286,8 +286,9 @@ async def test_no_close_without_callback(ezsp_f):
 
 @patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
 @patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
+@patch.object(ezsp.EZSP, "get_xncp_features", new_callable=AsyncMock)
 @patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
-async def test_ezsp_init(conn_mock, reset_mock, version_mock):
+async def test_ezsp_init(conn_mock, xncp_mock, reset_mock, version_mock):
     """Test initialize method."""
     zigpy_config = config.CONFIG_SCHEMA({"device": DEVICE_CONFIG})
     await ezsp.EZSP.initialize(zigpy_config)
@@ -618,8 +619,9 @@ async def test_write_custom_eui64_rcp(ezsp_f):
 
 @patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
 @patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
+@patch.object(ezsp.EZSP, "get_xncp_features", new_callable=AsyncMock)
 @patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
-async def test_ezsp_init_zigbeed(conn_mock, reset_mock, version_mock):
+async def test_ezsp_init_zigbeed(conn_mock, xncp_mock, reset_mock, version_mock):
     """Test initialize method with a received startup reset frame."""
     zigpy_config = config.CONFIG_SCHEMA(
         {
@@ -642,9 +644,12 @@ async def test_ezsp_init_zigbeed(conn_mock, reset_mock, version_mock):
 
 @patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
 @patch.object(ezsp.EZSP, "reset", new_callable=AsyncMock)
+@patch.object(ezsp.EZSP, "get_xncp_features", new_callable=AsyncMock)
 @patch("bellows.uart.connect", return_value=MagicMock(spec_set=uart.Gateway))
 @patch("bellows.ezsp.NETWORK_COORDINATOR_STARTUP_RESET_WAIT", 0.01)
-async def test_ezsp_init_zigbeed_timeout(conn_mock, reset_mock, version_mock):
+async def test_ezsp_init_zigbeed_timeout(
+    conn_mock, xncp_mock, reset_mock, version_mock
+):
     """Test initialize method with a received startup reset frame."""
     zigpy_config = config.CONFIG_SCHEMA(
         {

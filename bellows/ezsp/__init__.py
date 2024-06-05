@@ -129,6 +129,7 @@ class EZSP:
             await self.reset()
 
         await self.version()
+        await self.get_xncp_features()
 
     @classmethod
     async def initialize(cls, zigpy_config: dict) -> EZSP:
@@ -181,23 +182,20 @@ class EZSP:
             self._switch_protocol_version(ver)
             await self._command("version", desiredProtocolVersion=ver)
 
+        LOGGER.debug(
+            ("EZSP Stack Type: %s" ", Stack Version: %04x" ", Protocol version: %s"),
+            stack_type,
+            stack_version,
+            ver,
+        )
+
+    async def get_xncp_features(self) -> None:
         try:
             self._xncp_features = await self.xncp_get_supported_firmware_features()
         except InvalidCommandError:
             self._xncp_features = xncp.FirmwareFeatures.NONE
 
-        LOGGER.debug(
-            (
-                "EZSP Stack Type: %s"
-                ", Stack Version: %04x"
-                ", Protocol version: %s"
-                ", XNCP features: %s"
-            ),
-            stack_type,
-            stack_version,
-            ver,
-            self._xncp_features,
-        )
+        LOGGER.debug("XNCP features: %s", self._xncp_features)
 
     def close(self):
         self.stop_ezsp()

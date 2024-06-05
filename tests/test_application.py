@@ -123,9 +123,10 @@ def _create_app_for_startup(
     ezsp_mock.wait_for_stack_status.return_value.__enter__ = AsyncMock(
         return_value=t.EmberStatus.NETWORK_UP
     )
-    ezsp_mock.get_supported_firmware_features = AsyncMock(
+    ezsp_mock.xncp_get_supported_firmware_features = AsyncMock(
         return_value=FirmwareFeatures.NONE
     )
+    ezsp_mock._xncp_features = FirmwareFeatures.NONE
 
     if board_info:
         ezsp_mock.get_board_info = AsyncMock(
