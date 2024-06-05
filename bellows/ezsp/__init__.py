@@ -434,10 +434,8 @@ class EZSP:
         override_value = None
 
         if FirmwareFeatures.MFG_TOKEN_OVERRIDES in self._xncp_features:
-            try:
+            with contextlib.suppress(InvalidCommandError):
                 override_value = await self.xncp_get_mfg_token_override(token)
-            except InvalidCommandError:
-                pass
 
             LOGGER.debug("XNCP override token %s: %s", token.name, override_value)
 
