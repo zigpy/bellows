@@ -32,6 +32,42 @@ DEFAULT_CONFIG_COMMON = [
         value=2,
     ),
     RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_SECURITY_LEVEL,
+        value=5,
+    ),
+    RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD,
+        value=2,
+    ),
+    RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_MAX_END_DEVICE_CHILDREN,
+        value=32,
+        minimum=True,
+    ),
+    RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_APPLICATION_ZDO_FLAGS,
+        value=(
+            t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS
+            | t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
+        ),
+    ),
+]
+
+DEFAULT_CONFIG_LEGACY = DEFAULT_CONFIG_COMMON + [
+    RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_SOURCE_ROUTE_TABLE_SIZE,
+        value=16,
+        minimum=True,
+    ),
+    RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT,
+        value=60,
+    ),
+    RuntimeConfig(
+        config_id=types_v4.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT,
+        value=8,
+    ),
+    RuntimeConfig(
         config_id=types_v4.EzspConfigId.CONFIG_SUPPORTED_NETWORKS,
         value=1,
         minimum=True,
@@ -47,62 +83,21 @@ DEFAULT_CONFIG_COMMON = [
         minimum=True,
     ),
     RuntimeConfig(
-        config_id=types_v4.EzspConfigId.CONFIG_SECURITY_LEVEL,
-        value=5,
-    ),
-    RuntimeConfig(
         config_id=types_v4.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE,
         value=16,
         minimum=True,
-    ),
-    RuntimeConfig(
-        config_id=types_v4.EzspConfigId.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD,
-        value=2,
     ),
     RuntimeConfig(
         config_id=types_v4.EzspConfigId.CONFIG_KEY_TABLE_SIZE,
         value=4,
         minimum=True,
     ),
-    RuntimeConfig(
-        config_id=types_v4.EzspConfigId.CONFIG_MAX_END_DEVICE_CHILDREN,
-        value=32,
-        minimum=True,
-    ),
-    RuntimeConfig(
-        config_id=types_v4.EzspConfigId.CONFIG_APPLICATION_ZDO_FLAGS,
-        value=(
-            t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS
-            | t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
-        ),
-    ),
     # Must be set last
     RuntimeConfig(types_v4.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT, value=0xFF),
 ]
 
-DEFAULT_CONFIG_LEGACY = [
-    RuntimeConfig(
-        config_id=types_v4.EzspConfigId.CONFIG_SOURCE_ROUTE_TABLE_SIZE,
-        value=16,
-        minimum=True,
-    ),
-    RuntimeConfig(
-        config_id=types_v4.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT,
-        value=60,
-    ),
-    RuntimeConfig(
-        config_id=types_v4.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT,
-        value=8,
-    ),
-] + DEFAULT_CONFIG_COMMON
 
-
-DEFAULT_CONFIG_NEW = [
-    RuntimeConfig(
-        config_id=types_v6.EzspConfigId.CONFIG_SOURCE_ROUTE_TABLE_SIZE,
-        value=200,
-        minimum=True,
-    ),
+DEFAULT_CONFIG_NEW = DEFAULT_CONFIG_COMMON + [
     RuntimeConfig(
         config_id=types_v6.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT,
         value=8,
@@ -117,7 +112,7 @@ DEFAULT_CONFIG_NEW = [
         value_id=types_v7.EzspValueId.VALUE_FORCE_TX_AFTER_FAILED_CCA_ATTEMPTS,
         value=t.uint8_t(1),
     ),
-] + DEFAULT_CONFIG_COMMON
+]
 
 
 DEFAULT_CONFIG = {
