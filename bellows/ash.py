@@ -57,7 +57,7 @@ T_REMOTE_NOTRDY = 1.0
 
 # Maximum number of DATA frames the NCP can transmit without having received
 # acknowledgements
-TX_K = 1
+TX_K = 1  # TODO: investigate why this cannot be raised without causing a firmware crash
 
 # Maximum number of consecutive timeouts allowed while waiting to receive an ACK before
 # going to the FAILED state. The value 0 prevents the NCP from entering the error state
@@ -482,15 +482,14 @@ class AshProtocol(asyncio.Protocol):
     def _handle_ack(self, frame: DataFrame | AckFrame) -> None:
         # Note that ackNum is the number of the next frame the receiver expects and it
         # is one greater than the last frame received.
-        ack_num = (frame.ack_num - 1) % 8
+        for ack_num_offset in range(-TX_K, 0):
+            ack_num = (frame.ack_num + ack_num_offset) % 8
+            fut = self._pending_data_frames.get(ack_num)
 
-        fut = self._pending_data_frames.get(ack_num)
+            if fut is None or fut.done():
+                continue
 
-        if fut is None or fut.done():
-            return
-
-        # _LOGGER.debug("Resolving frame %d", ack_num)
-        self._pending_data_frames[ack_num].set_result(True)
+            self._pending_data_frames[ack_num].set_result(True)
 
     def frame_received(self, frame: AshFrame) -> None:
         _LOGGER.debug("Received frame %r", frame)
