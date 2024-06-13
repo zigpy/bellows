@@ -556,13 +556,16 @@ class AshProtocol(asyncio.Protocol):
         self._ncp_state = NcpState.FAILED
 
         # Cancel all pending requests
-        exc = NcpFailure(code=self._ncp_reset_code)
+        self._enter_failed_state(self._ncp_reset_code)
+
+    def _enter_failed_state(self, reset_code: t.NcpResetCode) -> None:
+        exc = NcpFailure(code=reset_code)
 
         for fut in self._pending_data_frames.values():
             if not fut.done():
                 fut.set_exception(exc)
 
-        self._ezsp_protocol.reset_received(frame.reset_code)
+        self._ezsp_protocol.reset_received(reset_code)
 
     def _write_frame(
         self,
@@ -601,7 +604,7 @@ class AshProtocol(asyncio.Protocol):
                 for attempt in range(ACK_TIMEOUTS):
                     if self._ncp_state == NcpState.FAILED:
                         _LOGGER.debug(
-                            "NCP is in a failed state, not re-sending: %r", frame
+                            "NCP is in a failed state, not sending: %r", frame
                         )
                         raise NcpFailure(
                             t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT
@@ -637,6 +640,9 @@ class AshProtocol(asyncio.Protocol):
                         self._change_ack_timeout((7 / 8) * self._t_rx_ack + 0.5 * delta)
 
                         if attempt >= ACK_TIMEOUTS - 1:
+                            self._enter_failed_state(
+                                t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT
+                            )
                             raise
                     except NcpFailure:
                         _LOGGER.debug(
@@ -654,6 +660,9 @@ class AshProtocol(asyncio.Protocol):
                         self._change_ack_timeout(2 * self._t_rx_ack)
 
                         if attempt >= ACK_TIMEOUTS - 1:
+                            self._enter_failed_state(
+                                t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT
+                            )
                             raise
                     else:
                         # Whenever an acknowledgement is received, t_rx_ack is set to
