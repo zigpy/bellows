@@ -3,11 +3,13 @@ from __future__ import annotations
 import abc
 import asyncio
 import binascii
+from collections.abc import Coroutine
 import dataclasses
 import enum
 import logging
 import sys
 import time
+import typing
 
 if sys.version_info[:2] < (3, 11):
     from async_timeout import timeout as asyncio_timeout  # pragma: no cover
@@ -80,6 +82,23 @@ def generate_random_sequence(length: int) -> bytes:
 
 # Since the sequence is static for every frame, we only need to generate it once
 PSEUDO_RANDOM_DATA_SEQUENCE = generate_random_sequence(256)
+
+if sys.version_info[:2] < (3, 12):
+    create_eager_task = asyncio.create_task
+else:
+    _T = typing.TypeVar("T")
+
+    def create_eager_task(
+        coro: Coroutine[typing.Any, typing.Any, _T],
+        *,
+        name: str | None = None,
+        loop: asyncio.AbstractEventLoop | None = None,
+    ) -> asyncio.Task[_T]:
+        """Create a task from a coroutine and schedule it to run immediately."""
+        if loop is None:
+            loop = asyncio.get_running_loop()
+
+        return asyncio.Task(coro, loop=loop, name=name, eager_start=True)
 
 
 class NcpState(enum.Enum):
@@ -649,9 +668,14 @@ class AshProtocol(asyncio.Protocol):
                     self._pending_data_frames.pop(frm_num)
 
     async def send_data(self, data: bytes) -> None:
-        await self._send_data_frame(
-            # All of the other fields will be set during transmission/retries
-            DataFrame(frm_num=None, re_tx=None, ack_num=None, ezsp_frame=data)
+        # Sending data is a critical operation and cannot really be cancelled
+        await asyncio.shield(
+            create_eager_task(
+                self._send_data_frame(
+                    # All of the other fields will be set during transmission/retries
+                    DataFrame(frm_num=None, re_tx=None, ack_num=None, ezsp_frame=data)
+                )
+            )
         )
 
     def send_reset(self) -> None:
