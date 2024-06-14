@@ -65,6 +65,7 @@ IEEE_PREFIX_MFG_ID = {
     "54:EF:44": 0x115F,  # Lumi
 }
 
+LIB_VERSION = importlib.metadata.version("bellows")
 LOGGER = logging.getLogger(__name__)
 
 
@@ -341,7 +342,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         can_rewrite_custom_eui64 = await ezsp.can_rewrite_custom_eui64()
 
         self.state.network_info = zigpy.state.NetworkInfo(
-            source=f"bellows@{importlib.metadata.version('bellows')}",
+            source=f"bellows@{LIB_VERSION}",
             extended_pan_id=zigpy.types.ExtendedPanId(nwk_params.extendedPanId),
             pan_id=zigpy.types.PanId(nwk_params.panId),
             nwk_update_id=zigpy.types.uint8_t(nwk_params.nwkUpdateId),
