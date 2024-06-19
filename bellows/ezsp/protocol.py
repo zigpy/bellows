@@ -85,7 +85,9 @@ class ProtocolHandler(abc.ABC):
 
         for policy, value in policies.items():
             (status,) = await self.setPolicy(self.types.EzspPolicyId[policy], value)
-            assert status == self.types.EmberStatus.SUCCESS  # TODO: Better check
+            assert (
+                t.sl_Status.from_ember_status(status) == t.sl_Status.OK
+            )  # TODO: Better check
 
     def __call__(self, data: bytes) -> None:
         """Handler for received data frame."""

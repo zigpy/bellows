@@ -27,9 +27,9 @@ from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig, ValueConfig
 import bellows.types as t
 import bellows.uart
 
-from . import v4, v5, v6, v7, v8, v9, v10, v11, v12, v13
+from . import v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14
 
-EZSP_LATEST = v13.EZSPv13.VERSION
+EZSP_LATEST = v14.EZSPv14.VERSION
 LOGGER = logging.getLogger(__name__)
 MTOR_MIN_INTERVAL = 60
 MTOR_MAX_INTERVAL = 3600
@@ -56,6 +56,7 @@ class EZSP:
         v11.EZSPv11.VERSION: v11.EZSPv11,
         v12.EZSPv12.VERSION: v12.EZSPv12,
         v13.EZSPv13.VERSION: v13.EZSPv13,
+        v14.EZSPv14.VERSION: v14.EZSPv14,
     }
 
     def __init__(self, device_config: dict):
@@ -68,7 +69,7 @@ class EZSP:
         self._send_sem = PriorityDynamicBoundedSemaphore(value=MAX_COMMAND_CONCURRENCY)
 
         self._stack_status_listeners: collections.defaultdict[
-            t.EmberStatus, list[asyncio.Future]
+            t.sl_Status, list[asyncio.Future]
         ] = collections.defaultdict(list)
 
         self.add_callback(self.stack_status_callback)
@@ -81,10 +82,10 @@ class EZSP:
         status = args[0]
 
         for listener in self._stack_status_listeners[status]:
-            listener.set_result(status)
+            listener.set_result(t.sl_Status.from_ember_status(status))
 
     @contextlib.contextmanager
-    def wait_for_stack_status(self, status: t.EmberStatus) -> Generator[asyncio.Future]:
+    def wait_for_stack_status(self, status: t.sl_Status) -> Generator[asyncio.Future]:
         """Waits for a `stackStatusHandler` to come in with the provided status."""
         listeners = self._stack_status_listeners[status]
 
@@ -302,10 +303,10 @@ class EZSP:
         return functools.partial(self._command, name)
 
     async def formNetwork(self, parameters: t.EmberNetworkParameters) -> None:
-        with self.wait_for_stack_status(t.EmberStatus.NETWORK_UP) as stack_status:
+        with self.wait_for_stack_status(t.sl_Status.NETWORK_UP) as stack_status:
             v = await self._command("formNetwork", parameters)
 
-            if v[0] != self.types.EmberStatus.SUCCESS:
+            if t.sl_Status.from_ember_status(v[0]) != t.sl_Status.OK:
                 raise zigpy.exceptions.FormationFailure(f"Failure forming network: {v}")
 
             async with asyncio_timeout(NETWORK_OPS_TIMEOUT):
@@ -434,7 +435,7 @@ class EZSP:
             0,
             t.LVBytes32(t.EUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF").serialize()),
         )
-        assert status == t.EmberStatus.SUCCESS
+        assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
 
     async def write_custom_eui64(
         self, ieee: t.EUI64, *, burn_into_userdata: bool = False
@@ -460,12 +461,12 @@ class EZSP:
                 0,
                 t.LVBytes32(ieee.serialize()),
             )
-            assert status == t.EmberStatus.SUCCESS
+            assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
         elif mfg_custom_eui64 is None and burn_into_userdata:
             (status,) = await self.setMfgToken(
                 t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, ieee.serialize()
             )
-            assert status == t.EmberStatus.SUCCESS
+            assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
         elif mfg_custom_eui64 is None and not burn_into_userdata:
             raise EzspError(
                 f"Firmware does not support NV3 tokens. Custom IEEE {ieee} will not be"
