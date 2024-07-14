@@ -367,7 +367,7 @@ class AshProtocol(asyncio.Protocol):
         self._transport = transport
         self._ezsp_protocol.connection_made(self)
 
-    def connection_lost(self, exc):
+    def connection_lost(self, exc: Exception | None) -> None:
         self._ezsp_protocol.connection_lost(exc)
 
     def eof_received(self):
