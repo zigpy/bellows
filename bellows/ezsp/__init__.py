@@ -58,13 +58,14 @@ class EZSP:
         v13.EZSPv13.VERSION: v13.EZSPv13,
     }
 
-    def __init__(self, device_config: dict):
+    def __init__(self, device_config: dict, application: Any | None = None):
         self._config = device_config
         self._callbacks = {}
         self._ezsp_event = asyncio.Event()
         self._ezsp_version = v4.EZSPv4.VERSION
         self._gw = None
         self._protocol = None
+        self._application = application
         self._send_sem = PriorityDynamicBoundedSemaphore(value=MAX_COMMAND_CONCURRENCY)
 
         self._stack_status_listeners: collections.defaultdict[
@@ -126,24 +127,18 @@ class EZSP:
 
         await self.version()
 
-    @classmethod
-    async def initialize(cls, zigpy_config: dict) -> EZSP:
-        """Return initialized EZSP instance."""
-        ezsp = cls(zigpy_config[conf.CONF_DEVICE])
-        await ezsp.connect(use_thread=zigpy_config[conf.CONF_USE_THREAD])
-
-        try:
-            await ezsp.startup_reset()
-        except Exception:
-            ezsp.close()
-            raise
-
-        return ezsp
-
     async def connect(self, *, use_thread: bool = True) -> None:
         assert self._gw is None
         self._gw = await bellows.uart.connect(self._config, self, use_thread=use_thread)
         self._protocol = v4.EZSPv4(self.handle_callback, self._gw)
+        await self.startup_reset()
+
+    async def disconnect(self) -> None:
+        if self._gw is not None:
+            await self._gw.disconnect()
+            self._gw = None
+        elif self._application is not None:
+            self._application.connection_lost(None)
 
     async def reset(self):
         LOGGER.debug("Resetting EZSP")
@@ -282,18 +277,13 @@ class EZSP:
             self._config[conf.CONF_DEVICE_PATH],
             exc,
         )
-        self.enter_failed_state(f"Serial connection loss: {exc!r}")
+        if self._application is not None:
+            self._application.connection_lost(exc)
 
     def enter_failed_state(self, error):
         """UART received error frame."""
-        if len(self._callbacks) > 1:
-            LOGGER.error("NCP entered failed state. Requesting APP controller restart")
-            self.close()
-            self.handle_callback("_reset_controller_application", (error,))
-        else:
-            LOGGER.info(
-                "NCP entered failed state. No application handler registered, ignoring..."
-            )
+        if self._application is not None:
+            self._application.connection_lost(error)
 
     def __getattr__(self, name: str) -> Callable:
         if name not in self._protocol.COMMANDS:
