@@ -18,31 +18,22 @@ LOGGER = logging.getLogger(__name__)
 RESET_TIMEOUT = 5
 
 
-class Gateway(asyncio.Protocol):
-    def __init__(self, application, connected_future=None, connection_done_future=None):
+class Gateway(zigpy.serial.SerialProtocol):
+    def __init__(self, application, connection_done_future=None):
+        super().__init__()
         self._application = application
 
         self._reset_future = None
         self._startup_reset_future = None
-        self._connected_future = connected_future
         self._connection_done_future = connection_done_future
-
-        self._transport = None
-
-    def close(self):
-        self._transport.close()
-
-    def connection_made(self, transport):
-        """Callback when the uart is connected"""
-        self._transport = transport
-        if self._connected_future is not None:
-            self._connected_future.set_result(True)
 
     async def send_data(self, data: bytes) -> None:
         await self._transport.send_data(data)
 
     def data_received(self, data):
         """Callback when there is data received from the uart"""
+
+        # We intentionally do not call `SerialProtocol.data_received`
         self._application.frame_received(data)
 
     def reset_received(self, code: t.NcpResetCode) -> None:
@@ -77,12 +68,9 @@ class Gateway(asyncio.Protocol):
         """Delete reset future."""
         self._reset_future = None
 
-    def eof_received(self):
-        """Server gracefully closed its side of the connection."""
-        self.connection_lost(ConnectionResetError("Remote server closed connection"))
-
     def connection_lost(self, exc):
         """Port was closed unexpectedly."""
+        super().connection_lost(exc)
 
         LOGGER.debug("Connection lost: %r", exc)
         reason = exc or ConnectionResetError("Remote server closed connection")
@@ -102,11 +90,6 @@ class Gateway(asyncio.Protocol):
             self._reset_future.set_exception(reason)
             self._reset_future = None
 
-        if exc is None:
-            LOGGER.debug("Closed serial connection")
-            return
-
-        LOGGER.error("Lost serial connection: %r", exc)
         self._application.connection_lost(exc)
 
     async def reset(self):
@@ -129,10 +112,9 @@ class Gateway(asyncio.Protocol):
 async def _connect(config, application):
     loop = asyncio.get_event_loop()
 
-    connection_future = loop.create_future()
     connection_done_future = loop.create_future()
 
-    gateway = Gateway(application, connection_future, connection_done_future)
+    gateway = Gateway(application, connection_done_future)
     protocol = AshProtocol(gateway)
 
     if config[zigpy.config.CONF_DEVICE_FLOW_CONTROL] is None:
@@ -149,7 +131,7 @@ async def _connect(config, application):
         rtscts=rtscts,
     )
 
-    await connection_future
+    await gateway.wait_until_connected()
 
     thread_safe_protocol = ThreadsafeProxy(gateway, loop)
     return thread_safe_protocol, connection_done_future

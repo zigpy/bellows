@@ -141,22 +141,22 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         return None, None, None
 
     async def connect(self) -> None:
-        ezsp = bellows.ezsp.EZSP(self.config[zigpy.config.CONF_DEVICE])
-        await ezsp.connect(use_thread=self.config[CONF_USE_THREAD])
+        self._ezsp = bellows.ezsp.EZSP(self.config[zigpy.config.CONF_DEVICE], self)
 
         try:
-            await ezsp.startup_reset()
+            await self._ezsp.connect(use_thread=self.config[CONF_USE_THREAD])
+            await self._ezsp.startup_reset()
 
             # Writing config is required here because network info can't be loaded
-            await ezsp.write_config(self.config[CONF_EZSP_CONFIG])
-        except Exception:
-            ezsp.close()
+            await self._ezsp.write_config(self.config[CONF_EZSP_CONFIG])
+
+            self._created_device_endpoints.clear()
+            await self.register_endpoints()
+        except Exception as exc:
+            await self._ezsp.disconnect()
+            self._ezsp = None
+            self.connection_lost(exc)
             raise
-
-        self._ezsp = ezsp
-
-        self._created_device_endpoints.clear()
-        await self.register_endpoints()
 
     async def _ensure_network_running(self) -> bool:
         """Ensures the network is currently running and returns whether or not the network
@@ -436,7 +436,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         # TODO: how do you shut down the stack?
         self.controller_event.clear()
         if self._ezsp is not None:
-            self._ezsp.close()
+            await self._ezsp.disconnect()
             self._ezsp = None
 
     async def force_remove(self, dev):
@@ -519,8 +519,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             status, nwk = args
             status = t.sl_Status.from_ember_status(status)
             self.handle_route_error(status, nwk)
-        elif frame_name == "_reset_controller_application":
-            self.connection_lost(args[0])
         elif frame_name == "idConflictHandler":
             self._handle_id_conflict(*args)
 
