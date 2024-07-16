@@ -1,4 +1,4 @@
-from zigpy.types import EUI64, NWK, Struct
+from zigpy.types import EUI64, NWK, BroadcastAddress, Struct
 
 from . import types as t
 from ..v13.commands import COMMANDS as COMMANDS_v13
@@ -109,8 +109,46 @@ COMMANDS = {
                 "message_type": t.EmberOutgoingMessageType,
                 "nwk": NWK,
                 "aps_frame": t.EmberApsFrame,
-                "message_tag": t.uint8_t,
+                "message_tag": t.uint16_t,
                 "message": t.LVBytes,
+            }.values()
+        ),
+    ),
+    "sendUnicast": (
+        0x0034,
+        tuple(
+            {
+                "message_type": t.EmberOutgoingMessageType,
+                "nwk": NWK,
+                "aps_frame": t.EmberApsFrame,
+                "message_tag": t.uint16_t,
+                "message": t.LVBytes,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.sl_Status,
+                "sequence": t.uint8_t,
+            }.values()
+        ),
+    ),
+    "sendBroadcast": (
+        0x0034,
+        tuple(
+            {
+                "alias": t.uint16_t,
+                "destination": BroadcastAddress,
+                "sequence": t.uint8_t,
+                "aps_frame": t.EmberApsFrame,
+                "radius": t.uint8_t,
+                "message_tag": t.uint16_t,
+                "message": t.LVBytes,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.sl_Status,
+                "sequence": t.uint8_t,
             }.values()
         ),
     ),
