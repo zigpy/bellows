@@ -17,6 +17,20 @@ _REPLACEMENTS = {
 }
 
 COMMANDS = {
+    "setExtendedTimeout": (
+        0x007E,
+        tuple(
+            {
+                "remoteEui64": t.EUI64,
+                "extendedTimeout": t.Bool,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.sl_Status,
+            }.values()
+        ),
+    ),
     "getTokenData": (
         0x0102,
         tuple({"token": t.uint32_t, "index": t.uint32_t}.values()),
