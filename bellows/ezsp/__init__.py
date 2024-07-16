@@ -229,10 +229,10 @@ class EZSP:
         cbid = self.add_callback(cb)
         try:
             v = await self._command(name, *args)
-            if t.sl_Status.from_ember_status(v[0]) != t.sl_Status.SUCCESS:
+            if t.sl_Status.from_ember_status(v[0]) != t.sl_Status.OK:
                 raise Exception(v)
             v = await fut
-            if t.sl_Status.from_ember_status(v[spos]) != t.sl_Status.SUCCESS:
+            if t.sl_Status.from_ember_status(v[spos]) != t.sl_Status.OK:
                 raise Exception(v)
         finally:
             self.remove_callback(cbid)

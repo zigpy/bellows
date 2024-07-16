@@ -1569,9 +1569,17 @@ class sl_Status(basic.enum32):
             return status
 
         return {
-            EmberStatus.SUCCESS: sl_Status.OK,
-            EmberStatus.NETWORK_DOWN: sl_Status.NETWORK_DOWN,
-        }[status]
+            (EmberStatus, EmberStatus.SUCCESS): sl_Status.OK,
+            (EzspStatus, EzspStatus.SUCCESS): sl_Status.OK,
+            (EzspStatus, EzspStatus.ERROR_INVALID_ID): sl_Status.INVALID_PARAMETER,
+            (EmberStatus, EmberStatus.NOT_JOINED): sl_Status.NOT_JOINED,
+            (EmberStatus, EmberStatus.NETWORK_UP): sl_Status.NETWORK_UP,
+            (EmberStatus, EmberStatus.NETWORK_DOWN): sl_Status.NETWORK_DOWN,
+            (EmberStatus, EmberStatus.NETWORK_OPENED): sl_Status.ZIGBEE_NETWORK_OPENED,
+            (EmberStatus, EmberStatus.NETWORK_CLOSED): sl_Status.ZIGBEE_NETWORK_CLOSED,
+            (EmberStatus, EmberStatus.NOT_FOUND): sl_Status.NOT_FOUND,
+            (EmberStatus, EmberStatus.TABLE_ENTRY_ERASED): sl_Status.NOT_FOUND,
+        }[type(status), status]
 
 
 class EmberDistinguishedNodeId(basic.enum16):

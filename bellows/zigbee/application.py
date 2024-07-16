@@ -393,10 +393,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
                 if status == t.sl_Status.INVALID_INDEX:
                     break
-                elif status in (
-                    t.sl_Status.TABLE_ENTRY_ERASED,
-                    t.sl_Status.NOT_FOUND,
-                ):
+                elif status == t.sl_Status.NOT_FOUND:
                     continue
 
                 assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
@@ -671,7 +668,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 (
                     status,
                     message_type,
-                    nwk,
+                    destination,
                     aps_frame,
                     message_tag,
                     message,
@@ -689,7 +686,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
             self._handle_frame_sent(
                 message_type=message_type,
-                destination=nwk,
+                destination=destination,
                 aps_frame=aps_frame,
                 message_tag=message_tag,
                 status=status,
