@@ -37,9 +37,9 @@ class EZSPv5(EZSPv4):
 
     async def add_transient_link_key(
         self, ieee: t.EUI64, key: t.KeyData
-    ) -> t.EmberStatus:
+    ) -> t.sl_Status:
         (status,) = await self.addTransientLinkKey(ieee, key)
-        return status
+        return t.sl_Status.from_ember_status(status)
 
     async def pre_permit(self, time_s: int) -> None:
         """Add pre-shared TC Link key."""

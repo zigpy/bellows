@@ -676,22 +676,33 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     message_tag,
                     message,
                 ) = args
-                self._handle_frame_sent(
-                    message_type=message_type,
-                    destination=nwk,
-                    aps_frame=aps_frame,
-                    message_tag=message_tag,
-                    status=status,
-                    message=message,
-                )
             else:
-                self._handle_frame_sent(*args)
+                (
+                    message_type,
+                    destination,
+                    aps_frame,
+                    message_tag,
+                    status,
+                    message,
+                ) = args
+                status = t.sl_Status.from_ember_status(status)
+
+            self._handle_frame_sent(
+                message_type=message_type,
+                destination=nwk,
+                aps_frame=aps_frame,
+                message_tag=message_tag,
+                status=status,
+                message=message,
+            )
         elif frame_name == "trustCenterJoinHandler":
             self._handle_tc_join_handler(*args)
         elif frame_name == "incomingRouteRecordHandler":
             self.handle_route_record(*args)
         elif frame_name == "incomingRouteErrorHandler":
-            self.handle_route_error(*args)
+            status, nwk = args
+            status = t.sl_Status.from_ember_status(status)
+            self.handle_route_error(status, nwk)
         elif frame_name == "_reset_controller_application":
             self.connection_lost(args[0])
         elif frame_name == "idConflictHandler":
@@ -752,10 +763,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         destination: t.EmberNodeId,
         aps_frame: t.EmberApsFrame,
         message_tag: int,
-        status: t.EmberStatus,
+        status: t.sl_Status,
         message: bytes,
     ):
-        if status == t.EmberStatus.SUCCESS:
+        if status == t.sl_Status.OK:
             msg = "success"
         else:
             msg = "failure"
@@ -848,7 +859,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self, nwk: zigpy.types.NWK, relays: list[zigpy.types.NWK]
     ) -> bool:
         (res,) = await self._ezsp.setSourceRoute(nwk, relays)
-        return res == t.EmberStatus.SUCCESS
+        return t.sl_Status.from_ember_status(res) == t.sl_Status.OK
 
     async def energy_scan(
         self, channels: t.Channels, duration_exp: int, count: int
@@ -953,22 +964,32 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                                 packet.data.serialize(),
                             )
                         elif packet.dst.addr_mode == zigpy.types.AddrMode.Broadcast:
-                            status, _ = await self._ezsp.sendBroadcast(
-                                t.EmberNodeId(packet.dst.address),
-                                aps_frame,
-                                packet.radius,
-                                message_tag,
-                                packet.data.serialize(),
-                            )
+                            if self._ezsp.ezsp_version >= 14:
+                                status, _ = await self._ezsp.sendBroadcast(
+                                    0x0000,
+                                    packet.dst.address,
+                                    packet.tsn,
+                                    aps_frame,
+                                    packet.radius,
+                                    message_tag,
+                                    packet.data.serialize(),
+                                )
+                            else:
+                                status, _ = await self._ezsp.sendBroadcast(
+                                    t.EmberNodeId(packet.dst.address),
+                                    aps_frame,
+                                    packet.radius,
+                                    message_tag,
+                                    packet.data.serialize(),
+                                )
 
                     status = t.sl_Status.from_ember_status(status)
 
                     if status == t.sl_Status.OK:
                         break
                     elif status not in (
-                        t.sl_Status.MAX_MESSAGE_LIMIT_REACHED,
-                        t.sl_Status.NO_BUFFERS,
-                        t.sl_Status.NETWORK_BUSY,
+                        t.sl_Status.ZIGBEE_MAX_MESSAGE_LIMIT_REACHED,
+                        t.sl_Status.TRANSMIT_BUSY,
                     ):
                         raise zigpy.exceptions.DeliveryError(
                             f"Failed to enqueue message: {status!r}", status
@@ -1123,5 +1144,5 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         )
         self.handle_relays(nwk=nwk, relays=relays)
 
-    def handle_route_error(self, status: t.EmberStatus, nwk: t.EmberNodeId) -> None:
+    def handle_route_error(self, status: t.sl_Status, nwk: t.EmberNodeId) -> None:
         LOGGER.debug("Processing route error: status=%s, nwk=%s", status, nwk)

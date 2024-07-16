@@ -79,10 +79,10 @@ class EZSP:
         if frame_name != "stackStatusHandler":
             return
 
-        status = args[0]
+        status = t.sl_Status.from_ember_status(args[0])
 
         for listener in self._stack_status_listeners[status]:
-            listener.set_result(t.sl_Status.from_ember_status(status))
+            listener.set_result(status)
 
     @contextlib.contextmanager
     def wait_for_stack_status(self, status: t.sl_Status) -> Generator[asyncio.Future]:
@@ -229,10 +229,10 @@ class EZSP:
         cbid = self.add_callback(cb)
         try:
             v = await self._command(name, *args)
-            if v[0] != t.EmberStatus.SUCCESS:
+            if t.sl_Status.from_ember_status(v[0]) != t.sl_Status.SUCCESS:
                 raise Exception(v)
             v = await fut
-            if v[spos] != t.EmberStatus.SUCCESS:
+            if t.sl_Status.from_ember_status(v[spos]) != t.sl_Status.SUCCESS:
                 raise Exception(v)
         finally:
             self.remove_callback(cbid)
@@ -268,9 +268,9 @@ class EZSP:
         """Send leaveNetwork command and wait for stackStatusHandler frame."""
         stack_status = asyncio.Future()
 
-        with self.wait_for_stack_status(t.EmberStatus.NETWORK_DOWN) as stack_status:
+        with self.wait_for_stack_status(t.sl_Status.NETWORK_DOWN) as stack_status:
             (status,) = await self._command("leaveNetwork")
-            if status != t.EmberStatus.SUCCESS:
+            if status != t.sl_Status.OK:
                 raise EzspError(f"failed to leave network: {status.name}")
 
             async with asyncio_timeout(timeout):
@@ -362,7 +362,7 @@ class EZSP:
         )
         version = None
 
-        if status == t.EmberStatus.SUCCESS:
+        if t.sl_Status.from_ember_status(status) == t.sl_Status.OK:
             build, ver_info_bytes = t.uint16_t.deserialize(ver_info_bytes)
             major, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
             minor, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
@@ -389,7 +389,7 @@ class EZSP:
                 # is not implemented in the firmware
                 return None
 
-            if rsp.status == t.EmberStatus.SUCCESS:
+            if t.sl_Status.from_ember_status(rsp.status) == t.sl_Status.OK:
                 nv3_restored_eui64, _ = t.EUI64.deserialize(rsp.value)
                 LOGGER.debug("NV3 restored EUI64: %s=%s", key, nv3_restored_eui64)
 
@@ -508,7 +508,7 @@ class EZSP:
             0,
         )
         LOGGER.debug("Set concentrator type: %s", res)
-        if res[0] != self.types.EmberStatus.SUCCESS:
+        if t.sl_Status.from_ember_status(res[0]) != t.sl_Status.OK:
             LOGGER.warning("Couldn't set concentrator type %s: %s", True, res)
 
         if self._ezsp_version >= 8:
@@ -580,7 +580,7 @@ class EZSP:
             # XXX: A read failure does not mean the value is not writeable!
             status, current_value = await self.getValue(cfg.value_id)
 
-            if status == self.types.EmberStatus.SUCCESS:
+            if t.sl_Status.from_ember_status(status) == t.sl_Status.OK:
                 current_value, _ = type(cfg.value).deserialize(current_value)
             else:
                 current_value = None
@@ -594,7 +594,7 @@ class EZSP:
 
             (status,) = await self.setValue(cfg.value_id, cfg.value.serialize())
 
-            if status != self.types.EmberStatus.SUCCESS:
+            if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
                 LOGGER.debug(
                     "Could not set value %s = %s: %s",
                     cfg.value_id.name,
@@ -609,7 +609,7 @@ class EZSP:
 
             # Only grow some config entries, all others should be set
             if (
-                status == self.types.EmberStatus.SUCCESS
+                t.sl_Status.from_ember_status(status) == t.sl_Status.OK
                 and cfg.minimum
                 and current_value >= cfg.value
             ):
@@ -629,7 +629,7 @@ class EZSP:
             )
 
             (status,) = await self.setConfigurationValue(cfg.config_id, cfg.value)
-            if status != self.types.EmberStatus.SUCCESS:
+            if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
                 LOGGER.debug(
                     "Could not set config %s = %s: %s",
                     cfg.config_id,

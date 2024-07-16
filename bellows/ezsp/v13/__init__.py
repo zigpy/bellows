@@ -23,11 +23,11 @@ class EZSPv13(EZSPv12):
 
     async def add_transient_link_key(
         self, ieee: t.EUI64, key: t.KeyData
-    ) -> t.EmberStatus:
+    ) -> t.sl_Status:
         (status,) = await self.importTransientKey(
             ieee,
             key,
             v13_types.sl_zb_sec_man_flags_t.NONE,
         )
 
-        return status
+        return t.sl_Status.from_ember_status(status)
