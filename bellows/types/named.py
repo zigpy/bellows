@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import logging
+
 import zigpy.types as ztypes
 import zigpy.zdo.types as zdo_t
 
 from . import basic
+
+LOGGER = logging.getLogger(__name__)
 
 Channels = ztypes.Channels
 EmberEUI64 = ztypes.EUI64
@@ -1564,22 +1568,37 @@ class sl_Status(basic.enum32):
     ZIGBEE_EZSP_ERROR = 0x0C1E
 
     @classmethod
-    def from_ember_status(cls: type[sl_Status], status: EmberStatus) -> sl_Status:
+    def from_ember_status(
+        cls: type[sl_Status], status: EmberStatus | EzspStatus
+    ) -> sl_Status:
         if isinstance(status, cls):
             return status
 
-        return {
-            (EmberStatus, EmberStatus.SUCCESS): sl_Status.OK,
-            (EzspStatus, EzspStatus.SUCCESS): sl_Status.OK,
-            (EzspStatus, EzspStatus.ERROR_INVALID_ID): sl_Status.INVALID_PARAMETER,
-            (EmberStatus, EmberStatus.NOT_JOINED): sl_Status.NOT_JOINED,
-            (EmberStatus, EmberStatus.NETWORK_UP): sl_Status.NETWORK_UP,
-            (EmberStatus, EmberStatus.NETWORK_DOWN): sl_Status.NETWORK_DOWN,
-            (EmberStatus, EmberStatus.NETWORK_OPENED): sl_Status.ZIGBEE_NETWORK_OPENED,
-            (EmberStatus, EmberStatus.NETWORK_CLOSED): sl_Status.ZIGBEE_NETWORK_CLOSED,
-            (EmberStatus, EmberStatus.NOT_FOUND): sl_Status.NOT_FOUND,
-            (EmberStatus, EmberStatus.TABLE_ENTRY_ERASED): sl_Status.NOT_FOUND,
-        }[type(status), status]
+        key = type(status), status
+
+        if key not in SL_STATUS_MAP:
+            LOGGER.warning("Unknown status %r, converting to generic sl_Status.FAIL")
+            return cls.FAIL
+
+        return SL_STATUS_MAP[key]
+
+
+# Generic mapping that standardizes EzspStatus and EmberStatus into sl_Status
+SL_STATUS_MAP = {
+    (EzspStatus, EzspStatus.SUCCESS): sl_Status.OK,
+    (EzspStatus, EzspStatus.ERROR_INVALID_ID): sl_Status.INVALID_PARAMETER,
+    (EzspStatus, EzspStatus.ERROR_OUT_OF_MEMORY): sl_Status.NO_MORE_RESOURCE,
+    (EzspStatus, EzspStatus.ERROR_INVALID_CALL): sl_Status.INVALID_PARAMETER,
+    (EmberStatus, EmberStatus.SUCCESS): sl_Status.OK,
+    (EmberStatus, EmberStatus.NOT_JOINED): sl_Status.NOT_JOINED,
+    (EmberStatus, EmberStatus.NETWORK_UP): sl_Status.NETWORK_UP,
+    (EmberStatus, EmberStatus.NETWORK_DOWN): sl_Status.NETWORK_DOWN,
+    (EmberStatus, EmberStatus.NETWORK_OPENED): sl_Status.ZIGBEE_NETWORK_OPENED,
+    (EmberStatus, EmberStatus.NETWORK_CLOSED): sl_Status.ZIGBEE_NETWORK_CLOSED,
+    (EmberStatus, EmberStatus.DELIVERY_FAILED): sl_Status.ZIGBEE_DELIVERY_FAILED,
+    (EmberStatus, EmberStatus.NOT_FOUND): sl_Status.NOT_FOUND,
+    (EmberStatus, EmberStatus.TABLE_ENTRY_ERASED): sl_Status.NOT_FOUND,
+}
 
 
 class EmberDistinguishedNodeId(basic.enum16):
