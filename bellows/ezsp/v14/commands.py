@@ -1,4 +1,4 @@
-from zigpy.types import EUI64, NWK, Struct, StructField
+from zigpy.types import EUI64, NWK, Struct
 
 from . import types as t
 from ..v13.commands import COMMANDS as COMMANDS_v13
@@ -6,12 +6,11 @@ from ..v13.commands import COMMANDS as COMMANDS_v13
 
 class GetTokenDataRsp(Struct):
     status: t.sl_Status
-    value: t.LVBytes32 = StructField(
-        requires=lambda rsp: rsp.status == t.EmberStatus.SUCCESS
-    )
+    value: t.LVBytes32
 
 
-# EmberStatus and EzspStatus have been replaced with sl_Status globally
+# EmberStatus and EzspStatus have been replaced with sl_Status globally.
+# The `status` field is also moved to be the first parameter in most responses.
 _REPLACEMENTS = {
     t.EmberStatus: t.sl_Status,
     t.EzspStatus: t.sl_Status,
@@ -22,6 +21,22 @@ COMMANDS = {
         0x0102,
         tuple({"token": t.uint32_t, "index": t.uint32_t}.values()),
         GetTokenDataRsp,
+    ),
+    "exportLinkKeyByIndex": (
+        0x010F,
+        tuple(
+            {
+                "index": t.uint8_t,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.sl_Status,
+                "context": t.sl_zb_sec_man_context_t,
+                "plaintext_key": t.KeyData,
+                "key_data": t.sl_zb_sec_man_aps_key_metadata_t,
+            }.values()
+        ),
     ),
     "exportKey": (
         0x0114,
