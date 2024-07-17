@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import logging
+from typing import AsyncGenerator
 
-import voluptuous
+import voluptuous as vol
 
 import bellows.config
 import bellows.types as t
@@ -20,8 +21,8 @@ class EZSPv5(EZSPv4):
     VERSION = 5
     COMMANDS = commands.COMMANDS
     SCHEMAS = {
-        bellows.config.CONF_EZSP_CONFIG: voluptuous.Schema(config.EZSP_SCHEMA),
-        bellows.config.CONF_EZSP_POLICIES: voluptuous.Schema(config.EZSP_POLICIES_SCH),
+        bellows.config.CONF_EZSP_CONFIG: vol.Schema(config.EZSP_SCHEMA),
+        bellows.config.CONF_EZSP_POLICIES: vol.Schema(config.EZSP_POLICIES_SCH),
     }
     types = v5_types
 
@@ -43,6 +44,28 @@ class EZSPv5(EZSPv4):
 
     async def pre_permit(self, time_s: int) -> None:
         """Add pre-shared TC Link key."""
-        wild_card_ieee = v5_types.EUI64([0xFF] * 8)
-        tc_link_key = v5_types.KeyData(b"ZigBeeAlliance09")
+        wild_card_ieee = t.EUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF")
+        tc_link_key = t.KeyData(b"ZigBeeAlliance09")
         await self.add_transient_link_key(wild_card_ieee, tc_link_key)
+
+    async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64], None]:
+        (status, addr_table_size) = await self.getConfigurationValue(
+            self.types.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
+        )
+
+        for idx in range(addr_table_size):
+            (nwk,) = await self.getAddressTableRemoteNodeId(idx)
+
+            # Ignore invalid NWK entries
+            if nwk in t.EmberDistinguishedNodeId.__members__.values():
+                continue
+
+            (eui64,) = await self.getAddressTableRemoteEui64(idx)
+
+            if eui64 in (
+                t.EUI64.convert("00:00:00:00:00:00:00:00"),
+                t.EUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF"),
+            ):
+                continue
+
+            yield nwk, eui64

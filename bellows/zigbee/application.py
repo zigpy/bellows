@@ -382,93 +382,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if not load_devices:
             return
 
-        (status, key_table_size) = await ezsp.getConfigurationValue(
-            ezsp.types.EzspConfigId.CONFIG_KEY_TABLE_SIZE
-        )
+        async for link_key in ezsp.read_link_keys():
+            self.state.network_info.key_table.append(link_key)
 
-        if ezsp.ezsp_version < 13:
-            for index in range(key_table_size):
-                (status, key) = await ezsp.getKeyTableEntry(index)
-                status = t.sl_Status.from_ember_status(status)
-
-                if status == t.sl_Status.INVALID_INDEX:
-                    break
-                elif status == t.sl_Status.NOT_FOUND:
-                    continue
-
-                assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
-
-                self.state.network_info.key_table.append(
-                    util.ezsp_key_to_zigpy_key(key, ezsp)
-                )
-        else:
-            for index in range(key_table_size):
-                (
-                    eui64,
-                    plaintext_key,
-                    key_data,
-                    status,
-                ) = await ezsp.exportLinkKeyByIndex(index)
-                if status != t.sl_Status.OK:
-                    continue
-
-                self.state.network_info.key_table.append(
-                    zigpy.state.Key(
-                        key=plaintext_key,
-                        tx_counter=key_data.outgoing_frame_counter,
-                        rx_counter=key_data.incoming_frame_counter,
-                        partner_ieee=eui64,
-                    )
-                )
-
-        for idx in range(0, 255 + 1):
-            (status, *rsp) = await ezsp.getChildData(idx)
-            status = t.sl_Status.from_ember_status(status)
-
-            if status == t.sl_Status.NOT_JOINED:
-                continue
-
-            if ezsp.ezsp_version >= 7:
-                nwk = rsp[0].id
-                eui64 = rsp[0].eui64
-                node_type = rsp[0].type
-            else:
-                nwk, eui64, node_type = rsp
-
+        async for nwk, eui64, _node_type in ezsp.read_child_data():
             self.state.network_info.children.append(eui64)
             self.state.network_info.nwk_addresses[eui64] = nwk
 
-        # v4 can crash when getAddressTableRemoteNodeId(32) is received
-        # Error code: undefined_0x8a
-        if ezsp.ezsp_version > 4:
-            (status, addr_table_size) = await ezsp.getConfigurationValue(
-                ezsp.types.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
-            )
-
-            for idx in range(addr_table_size):
-                if ezsp.ezsp_version >= 14:
-                    (status, nwk, eui64) = await ezsp.getAddressTableInfo(idx)
-
-                    if status != t.sl_Status.OK:
-                        continue
-                else:
-                    (nwk,) = await ezsp.getAddressTableRemoteNodeId(idx)
-
-                    # Ignore invalid NWK entries
-                    if nwk in t.EmberDistinguishedNodeId.__members__.values():
-                        continue
-
-                    (eui64,) = await ezsp.getAddressTableRemoteEui64(idx)
-
-                if eui64 in (
-                    t.EUI64.convert("00:00:00:00:00:00:00:00"),
-                    t.EUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF"),
-                ):
-                    continue
-
-                self.state.network_info.nwk_addresses[
-                    zigpy.types.EUI64(eui64)
-                ] = zigpy.types.NWK(nwk)
+        async for nwk, eui64 in ezsp.read_address_table():
+            self.state.network_info.nwk_addresses[eui64] = nwk
 
     async def write_network_info(
         self, *, network_info: zigpy.state.NetworkInfo, node_info: zigpy.state.NodeInfo

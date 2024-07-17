@@ -1,7 +1,10 @@
 """"EZSP Protocol version 13 protocol handler."""
 from __future__ import annotations
 
+from typing import AsyncGenerator
+
 import voluptuous as vol
+import zigpy.state
 
 import bellows.config
 import bellows.types as t
@@ -27,7 +30,30 @@ class EZSPv13(EZSPv12):
         (status,) = await self.importTransientKey(
             ieee,
             key,
-            v13_types.sl_zb_sec_man_flags_t.NONE,
+            self.types.sl_zb_sec_man_flags_t.NONE,
         )
 
         return t.sl_Status.from_ember_status(status)
+
+    async def read_link_keys(self) -> AsyncGenerator[zigpy.state.Key, None]:
+        (status, key_table_size) = await self.getConfigurationValue(
+            self.types.EzspConfigId.CONFIG_KEY_TABLE_SIZE
+        )
+
+        for index in range(key_table_size):
+            (
+                eui64,
+                plaintext_key,
+                key_data,
+                status,
+            ) = await self.exportLinkKeyByIndex(index)
+
+            if status != t.sl_Status.OK:
+                continue
+
+            yield zigpy.state.Key(
+                key=plaintext_key,
+                tx_counter=key_data.outgoing_frame_counter,
+                rx_counter=key_data.incoming_frame_counter,
+                partner_ieee=eui64,
+            )
