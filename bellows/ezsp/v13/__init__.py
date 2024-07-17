@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import AsyncGenerator
 
 import voluptuous as vol
+from zigpy.exceptions import NetworkNotFormed
 import zigpy.state
 
 import bellows.config
@@ -57,3 +58,47 @@ class EZSPv13(EZSPv12):
                 rx_counter=key_data.incoming_frame_counter,
                 partner_ieee=eui64,
             )
+
+    async def get_network_key(self) -> zigpy.state.Key:
+        network_key_data, status = await self.exportKey(
+            self.types.sl_zb_sec_man_context_t(
+                core_key_type=self.types.sl_zb_sec_man_key_type_t.NETWORK,
+                key_index=0,
+                derived_type=self.types.sl_zb_sec_man_derived_key_type_t.NONE,
+                eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
+                multi_network_index=0,
+                flags=self.types.sl_zb_sec_man_flags_t.NONE,
+                psa_key_alg_permission=0,
+            )
+        )
+
+        assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
+
+        (status, network_key_info) = await self.getNetworkKeyInfo()
+        assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
+
+        if not network_key_info.network_key_set:
+            raise NetworkNotFormed("Network key is not set")
+
+        return zigpy.state.Key(
+            key=network_key_data,
+            tx_counter=network_key_info.network_key_frame_counter,
+            seq=network_key_info.network_key_sequence_number,
+        )
+
+    async def get_tc_link_key(self) -> zigpy.state.Key:
+        tc_link_key_data, status = await self.exportKey(
+            self.types.sl_zb_sec_man_context_t(
+                core_key_type=self.types.sl_zb_sec_man_key_type_t.TC_LINK,
+                key_index=0,
+                derived_type=self.types.sl_zb_sec_man_derived_key_type_t.NONE,
+                eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
+                multi_network_index=0,
+                flags=self.types.sl_zb_sec_man_flags_t.NONE,
+                psa_key_alg_permission=0,
+            )
+        )
+
+        assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
+
+        return zigpy.state.Key(key=tc_link_key_data)

@@ -271,70 +271,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
         security_level = zigpy.types.uint8_t(security_level)
 
-        if ezsp.ezsp_version < 13:
-            (status, ezsp_network_key) = await ezsp.getKey(
-                ezsp.types.EmberKeyType.CURRENT_NETWORK_KEY
-            )
-            assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
-            network_key = util.ezsp_key_to_zigpy_key(ezsp_network_key, ezsp)
-
-            (status, ezsp_tc_link_key) = await ezsp.getKey(
-                ezsp.types.EmberKeyType.TRUST_CENTER_LINK_KEY
-            )
-            assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
-            tc_link_key = util.ezsp_key_to_zigpy_key(ezsp_tc_link_key, ezsp)
-        else:
-            export_key_rsp = await ezsp.exportKey(
-                ezsp.types.sl_zb_sec_man_context_t(
-                    core_key_type=ezsp.types.sl_zb_sec_man_key_type_t.NETWORK,
-                    key_index=0,
-                    derived_type=ezsp.types.sl_zb_sec_man_derived_key_type_t.NONE,
-                    eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
-                    multi_network_index=0,
-                    flags=ezsp.types.sl_zb_sec_man_flags_t.NONE,
-                    psa_key_alg_permission=0,
-                )
-            )
-
-            if ezsp.ezsp_version >= 14:
-                status, network_key_data, _ = export_key_rsp
-            else:
-                network_key_data, status = export_key_rsp
-
-            assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
-
-            (status, network_key_info) = await ezsp.getNetworkKeyInfo()
-            assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
-
-            if not network_key_info.network_key_set:
-                raise NetworkNotFormed("Network key is not set")
-
-            network_key = zigpy.state.Key(
-                key=network_key_data,
-                tx_counter=network_key_info.network_key_frame_counter,
-                seq=network_key_info.network_key_sequence_number,
-            )
-
-            export_key_rsp = await ezsp.exportKey(
-                ezsp.types.sl_zb_sec_man_context_t(
-                    core_key_type=ezsp.types.sl_zb_sec_man_key_type_t.TC_LINK,
-                    key_index=0,
-                    derived_type=ezsp.types.sl_zb_sec_man_derived_key_type_t.NONE,
-                    eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
-                    multi_network_index=0,
-                    flags=ezsp.types.sl_zb_sec_man_flags_t.NONE,
-                    psa_key_alg_permission=0,
-                )
-            )
-
-            if ezsp.ezsp_version >= 14:
-                status, tc_link_key_data, _ = export_key_rsp
-            else:
-                tc_link_key_data, status = export_key_rsp
-
-            assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
-
-            tc_link_key = zigpy.state.Key(key=tc_link_key_data)
+        network_key = await ezsp.get_network_key()
+        tc_link_key = await ezsp.get_tc_link_key()
 
         (status, state) = await ezsp.getCurrentSecurityState()
         assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK

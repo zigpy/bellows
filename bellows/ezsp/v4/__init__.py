@@ -72,3 +72,17 @@ class EZSPv4(protocol.ProtocolHandler):
         # We need this function to be an async generator even if it does nothing
         if False:
             yield
+
+    async def get_network_key(self) -> zigpy.state.Key:
+        (status, ezsp_network_key) = await self.getKey(
+            self.types.EmberKeyType.CURRENT_NETWORK_KEY
+        )
+        assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
+        return ezsp_key_to_zigpy_key(ezsp_network_key, self)
+
+    async def get_tc_link_key(self) -> zigpy.state.Key:
+        (status, ezsp_tc_link_key) = await self.getKey(
+            self.types.EmberKeyType.TRUST_CENTER_LINK_KEY
+        )
+        assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
+        return ezsp_key_to_zigpy_key(ezsp_tc_link_key, self)
