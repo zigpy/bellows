@@ -110,3 +110,7 @@ class EZSPv4(protocol.ProtocolHandler):
     async def write_child_table(self, children: dict[t.EUI64, t.NWK]) -> None:
         # Not supported in EZSPv4
         pass
+
+    async def initialize_network(self) -> t.sl_Status:
+        (init_status,) = await self.networkInitExtended(0x0000)
+        return t.sl_Status.from_ember_status(init_status)

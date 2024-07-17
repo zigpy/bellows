@@ -169,12 +169,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             return False
 
         with self._ezsp.wait_for_stack_status(t.sl_Status.NETWORK_UP) as stack_status:
-            if self._ezsp.ezsp_version >= 6:
-                (init_status,) = await self._ezsp.networkInit(0x0000)
-            else:
-                (init_status,) = await self._ezsp.networkInitExtended(0x0000)
-
-            init_status = t.sl_Status.from_ember_status(init_status)
+            init_status = await self._ezsp.initialize_network()
 
             if init_status == t.sl_Status.NOT_JOINED:
                 raise NetworkNotFormed("Node is not part of a network")

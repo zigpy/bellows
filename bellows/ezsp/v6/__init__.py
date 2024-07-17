@@ -4,6 +4,7 @@ import logging
 import voluptuous
 
 import bellows.config
+import bellows.types as t
 
 from . import commands, config, types as v6_types
 from ..v5 import EZSPv5
@@ -21,3 +22,7 @@ class EZSPv6(EZSPv5):
         bellows.config.CONF_EZSP_POLICIES: voluptuous.Schema(config.EZSP_POLICIES_SCH),
     }
     types = v6_types
+
+    async def initialize_network(self) -> t.sl_Status:
+        (init_status,) = await self.networkInit(0x0000)
+        return t.sl_Status.from_ember_status(init_status)
