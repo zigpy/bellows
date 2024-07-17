@@ -86,3 +86,11 @@ class EZSPv4(protocol.ProtocolHandler):
         )
         assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
         return ezsp_key_to_zigpy_key(ezsp_tc_link_key, self)
+
+    async def write_nwk_frame_counter(self, frame_counter: t.uint32_t) -> None:
+        # Not supported in EZSPv4
+        pass
+
+    async def write_aps_frame_counter(self, frame_counter: t.uint32_t) -> None:
+        # Not supported in EZSPv4
+        pass

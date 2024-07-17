@@ -69,3 +69,25 @@ class EZSPv5(EZSPv4):
                 continue
 
             yield nwk, eui64
+
+    async def write_nwk_frame_counter(self, frame_counter: t.uint32_t) -> None:
+        # Frame counters can only be set *before* we have joined a network
+        (state,) = await self.networkState()
+        assert state == self.types.EmberNetworkStatus.NO_NETWORK
+
+        (status,) = await self.setValue(
+            self.types.EzspValueId.VALUE_NWK_FRAME_COUNTER,
+            t.uint32_t(frame_counter).serialize(),
+        )
+        assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
+
+    async def write_aps_frame_counter(self, frame_counter: t.uint32_t) -> None:
+        # Frame counters can only be set *before* we have joined a network
+        (state,) = await self.networkState()
+        assert state == self.types.EmberNetworkStatus.NO_NETWORK
+
+        (status,) = await self.setValue(
+            self.types.EzspValueId.VALUE_APS_FRAME_COUNTER,
+            t.uint32_t(frame_counter).serialize(),
+        )
+        assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
