@@ -1,7 +1,8 @@
 """"EZSP Protocol version 13 protocol handler."""
 from __future__ import annotations
 
-from typing import AsyncGenerator
+import logging
+from typing import AsyncGenerator, Iterable
 
 import voluptuous as vol
 from zigpy.exceptions import NetworkNotFormed
@@ -12,6 +13,8 @@ import bellows.types as t
 
 from . import commands, config, types as v13_types
 from ..v12 import EZSPv12
+
+LOGGER = logging.getLogger(__name__)
 
 
 class EZSPv13(EZSPv12):
@@ -102,3 +105,10 @@ class EZSPv13(EZSPv12):
         assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
 
         return zigpy.state.Key(key=tc_link_key_data)
+
+    async def write_link_keys(self, keys: Iterable[zigpy.state.Key]) -> None:
+        for index, key in enumerate(keys):
+            (status,) = await self.importLinkKey(index, key.partner_ieee, key.key)
+
+            if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
+                LOGGER.warning("Couldn't add %s key: %s", key, status)

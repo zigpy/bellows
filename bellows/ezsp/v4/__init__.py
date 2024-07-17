@@ -1,6 +1,8 @@
 """"EZSP Protocol version 4 command."""
+from __future__ import annotations
+
 import logging
-from typing import AsyncGenerator, Tuple
+from typing import AsyncGenerator, Iterable
 
 import voluptuous as vol
 import zigpy.state
@@ -31,7 +33,7 @@ class EZSPv4(protocol.ProtocolHandler):
         c = self.COMMANDS[name]
         return bytes([self._seq & 0xFF, 0, c[0]])
 
-    def _ezsp_frame_rx(self, data: bytes) -> Tuple[int, int, bytes]:
+    def _ezsp_frame_rx(self, data: bytes) -> tuple[int, int, bytes]:
         """Handler for received data frame."""
         return data[0], data[2], data[3:]
 
@@ -92,5 +94,19 @@ class EZSPv4(protocol.ProtocolHandler):
         pass
 
     async def write_aps_frame_counter(self, frame_counter: t.uint32_t) -> None:
+        # Not supported in EZSPv4
+        pass
+
+    async def write_link_keys(self, keys: Iterable[zigpy.state.Key]) -> None:
+        for key in keys:
+            # XXX: is there no way to set the outgoing frame counter or seq?
+            (status,) = await self.addOrUpdateKeyTableEntry(
+                key.partner_ieee, True, key.key
+            )
+
+            if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
+                LOGGER.warning("Couldn't add %s key: %s", key, status)
+
+    async def write_child_table(self, children: dict[t.EUI64, t.NWK]) -> None:
         # Not supported in EZSPv4
         pass

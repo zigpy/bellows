@@ -392,41 +392,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         (status,) = await ezsp.setInitialSecurityState(initial_security_state)
         assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
 
-        # Write APS link keys
-        for index, key in enumerate(network_info.key_table):
-            if ezsp.ezsp_version < 13:
-                # XXX: is there no way to set the outgoing frame counter or seq?
-                (status,) = await ezsp.addOrUpdateKeyTableEntry(
-                    key.partner_ieee, True, key.key
-                )
-            else:
-                (status,) = await ezsp.importLinkKey(index, key.partner_ieee, key.key)
+        await ezsp.write_link_keys(network_info.key_table)
 
-            if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
-                LOGGER.warning("Couldn't add %s key: %s", key, status)
+        children_with_nwk_addresses = {
+            eui64: network_info.nwk_addresses[eui64]
+            for eui64 in network_info.children
+            if eui64 in network_info.nwk_addresses
+        }
 
-        # Write the child table
-        if ezsp.ezsp_version >= 9:
-            index = 0
-
-            for child_eui64 in network_info.children:
-                if child_eui64 not in network_info.nwk_addresses:
-                    continue
-
-                await ezsp.setChildData(
-                    index,
-                    ezsp.types.EmberChildData(
-                        eui64=child_eui64,
-                        type=t.EmberNodeType.SLEEPY_END_DEVICE,
-                        id=network_info.nwk_addresses[child_eui64],
-                        # The rest are unused when setting child data
-                        phy=0,
-                        power=0,
-                        timeout=0,
-                        **({"timeout_remaining": 0} if ezsp.ezsp_version >= 10 else {}),
-                    ),
-                )
-                index += 1
+        await ezsp.write_child_table(children_with_nwk_addresses)
 
         # Set the network settings
         parameters = t.EmberNetworkParameters()
