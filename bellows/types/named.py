@@ -1577,7 +1577,9 @@ class sl_Status(basic.enum32):
         key = type(status), status
 
         if key not in SL_STATUS_MAP:
-            LOGGER.warning("Unknown status %r, converting to generic sl_Status.FAIL")
+            LOGGER.warning(
+                "Unknown status %r, converting to generic sl_Status.FAIL", status
+            )
             return cls.FAIL
 
         return SL_STATUS_MAP[key]
@@ -1590,6 +1592,7 @@ SL_STATUS_MAP = {
     (EzspStatus, EzspStatus.ERROR_OUT_OF_MEMORY): sl_Status.NO_MORE_RESOURCE,
     (EzspStatus, EzspStatus.ERROR_INVALID_CALL): sl_Status.INVALID_PARAMETER,
     (EmberStatus, EmberStatus.SUCCESS): sl_Status.OK,
+    (EmberStatus, EmberStatus.ERR_FATAL): sl_Status.FAIL,
     (EmberStatus, EmberStatus.NOT_JOINED): sl_Status.NOT_JOINED,
     (EmberStatus, EmberStatus.NETWORK_UP): sl_Status.NETWORK_UP,
     (EmberStatus, EmberStatus.NETWORK_DOWN): sl_Status.NETWORK_DOWN,
