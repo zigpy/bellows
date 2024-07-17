@@ -153,34 +153,44 @@ class ProtocolHandler(abc.ABC):
     ) -> t.sl_Status:
         """Add a transient link key."""
 
+    @abc.abstractmethod
     async def read_child_data(
         self,
     ) -> AsyncGenerator[tuple[t.NWK, t.EUI64, t.EmberNodeType], None]:
-        pass
+        raise NotImplementedError
 
+    @abc.abstractmethod
     async def read_link_keys(self) -> AsyncGenerator[zigpy.state.Key, None]:
-        pass
+        raise NotImplementedError
 
+    @abc.abstractmethod
     async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64], None]:
-        pass
+        raise NotImplementedError
 
+    @abc.abstractmethod
     async def get_network_key(self) -> zigpy.state.Key:
-        pass
+        raise NotImplementedError
 
+    @abc.abstractmethod
     async def get_tc_link_key(self) -> zigpy.state.Key:
-        pass
+        raise NotImplementedError
 
+    @abc.abstractmethod
     async def write_nwk_frame_counter(self, frame_counter: t.uint32_t) -> None:
-        pass
+        raise NotImplementedError
 
+    @abc.abstractmethod
     async def write_aps_frame_counter(self, frame_counter: t.uint32_t) -> None:
-        pass
+        raise NotImplementedError
 
+    @abc.abstractmethod
     async def write_link_keys(self, keys: Iterable[zigpy.state.Key]) -> None:
-        pass
+        raise NotImplementedError
 
+    @abc.abstractmethod
     async def write_child_table(self, children: dict[t.EUI64, t.NWK]) -> None:
-        pass
+        raise NotImplementedError
 
+    @abc.abstractmethod
     async def initialize_network(self) -> t.sl_Status:
-        pass
+        raise NotImplementedError
