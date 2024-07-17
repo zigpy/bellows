@@ -1578,31 +1578,42 @@ class sl_Status(basic.enum32):
 
         if key not in SL_STATUS_MAP:
             LOGGER.warning(
-                "Unknown status %r, converting to generic sl_Status.FAIL", status
+                "Unknown status %r, converting to generic %r", status, cls.FAIL
             )
             return cls.FAIL
 
         return SL_STATUS_MAP[key]
 
 
-# Generic mapping that standardizes EzspStatus and EmberStatus into sl_Status
-SL_STATUS_MAP = {
-    (EzspStatus, EzspStatus.SUCCESS): sl_Status.OK,
-    (EzspStatus, EzspStatus.ERROR_INVALID_ID): sl_Status.INVALID_PARAMETER,
-    (EzspStatus, EzspStatus.ERROR_OUT_OF_MEMORY): sl_Status.NO_MORE_RESOURCE,
-    (EzspStatus, EzspStatus.ERROR_INVALID_CALL): sl_Status.INVALID_PARAMETER,
-    (EmberStatus, EmberStatus.SUCCESS): sl_Status.OK,
-    (EmberStatus, EmberStatus.MAC_INDIRECT_TIMEOUT): sl_Status.MAC_INDIRECT_TIMEOUT,
-    (EmberStatus, EmberStatus.ERR_FATAL): sl_Status.FAIL,
-    (EmberStatus, EmberStatus.NOT_JOINED): sl_Status.NOT_JOINED,
-    (EmberStatus, EmberStatus.NETWORK_UP): sl_Status.NETWORK_UP,
-    (EmberStatus, EmberStatus.NETWORK_DOWN): sl_Status.NETWORK_DOWN,
-    (EmberStatus, EmberStatus.NETWORK_OPENED): sl_Status.ZIGBEE_NETWORK_OPENED,
-    (EmberStatus, EmberStatus.NETWORK_CLOSED): sl_Status.ZIGBEE_NETWORK_CLOSED,
-    (EmberStatus, EmberStatus.DELIVERY_FAILED): sl_Status.ZIGBEE_DELIVERY_FAILED,
-    (EmberStatus, EmberStatus.NOT_FOUND): sl_Status.NOT_FOUND,
-    (EmberStatus, EmberStatus.TABLE_ENTRY_ERASED): sl_Status.NOT_FOUND,
+# Generic mapping that standardizes status codes
+# fmt: off
+SL_STATUS_MAP: dict[EzspStatus | EmberStatus, sl_Status] = {
+    (type(k), k): v for k, v in [
+        # EZSP status
+        (EzspStatus.SUCCESS, sl_Status.OK),
+        (EzspStatus.ERROR_INVALID_ID, sl_Status.INVALID_PARAMETER),
+        (EzspStatus.ERROR_OUT_OF_MEMORY, sl_Status.NO_MORE_RESOURCE),
+        (EzspStatus.ERROR_INVALID_CALL, sl_Status.INVALID_PARAMETER),
+        # Ember status
+        (EmberStatus.SUCCESS, sl_Status.OK),
+        (EmberStatus.ERR_FATAL, sl_Status.FAIL),
+        (EmberStatus.NOT_FOUND, sl_Status.NOT_FOUND),
+        (EmberStatus.TABLE_ENTRY_ERASED, sl_Status.NOT_FOUND),
+        (EmberStatus.NOT_JOINED, sl_Status.NOT_JOINED),
+        (EmberStatus.NETWORK_UP, sl_Status.NETWORK_UP),
+        (EmberStatus.NETWORK_DOWN, sl_Status.NETWORK_DOWN),
+        (EmberStatus.NETWORK_OPENED, sl_Status.ZIGBEE_NETWORK_OPENED),
+        (EmberStatus.NETWORK_CLOSED, sl_Status.ZIGBEE_NETWORK_CLOSED),
+        # Network status codes
+        (EmberStatus.MAC_INDIRECT_TIMEOUT, sl_Status.MAC_INDIRECT_TIMEOUT),
+        (EmberStatus.SOURCE_ROUTE_FAILURE, sl_Status.ZIGBEE_SOURCE_ROUTE_FAILURE),
+        (EmberStatus.MANY_TO_ONE_ROUTE_FAILURE, sl_Status.ZIGBEE_MANY_TO_ONE_ROUTE_FAILURE),
+        (EmberStatus.MAX_MESSAGE_LIMIT_REACHED, sl_Status.ZIGBEE_MAX_MESSAGE_LIMIT_REACHED),
+        (EmberStatus.NETWORK_BUSY, sl_Status.ZIGBEE_MAX_MESSAGE_LIMIT_REACHED),
+        (EmberStatus.DELIVERY_FAILED, sl_Status.ZIGBEE_DELIVERY_FAILED),
+    ]
 }
+# fmt: on
 
 
 class EmberDistinguishedNodeId(basic.enum16):
