@@ -122,7 +122,7 @@ def _create_app_for_startup(
     nwk_type,
     ieee,
     auto_form=False,
-    init=0,
+    init=bellows.types.sl_Status.OK,
     ezsp_version=4,
     board_info=True,
     network_state=t.EmberNetworkStatus.JOINED_NETWORK,
@@ -162,8 +162,7 @@ def _create_app_for_startup(
     ezsp_mock._command = AsyncMock(return_value=t.EmberStatus.SUCCESS)
     ezsp_mock.addEndpoint = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp_mock.setConfigurationValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
-    ezsp_mock.networkInit = AsyncMock(return_value=[init])
-    ezsp_mock.networkInitExtended = AsyncMock(return_value=[init])
+    ezsp_mock.initialize_network = AsyncMock(return_value=init)
     ezsp_mock.getNetworkParameters = AsyncMock(
         return_value=[t.EmberStatus.SUCCESS, nwk_type, nwk_params]
     )
@@ -189,20 +188,25 @@ def _create_app_for_startup(
     ezsp_mock.getConfigurationValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS, 1])
     ezsp_mock.update_policies = AsyncMock()
     ezsp_mock.networkState = AsyncMock(return_value=[network_state])
-    ezsp_mock.getKey = AsyncMock(
-        return_value=[
-            t.EmberStatus.SUCCESS,
-            t.EmberKeyStruct(
-                bitmask=t.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER
-                | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER,
-                type=t.EmberKeyType.CURRENT_NETWORK_KEY,
-                key=t.KeyData(b"ActualNetworkKey"),
-                outgoingFrameCounter=t.uint32_t(0x12345678),
-                incomingFrameCounter=t.uint32_t(0x00000000),
-                sequenceNumber=t.uint8_t(1),
-                partnerEUI64=t.EUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),
-            ),
-        ]
+
+    ezsp_mock.get_network_key = AsyncMock(
+        return_value=zigpy.state.Key(
+            key=t.KeyData(b"ActualNetworkKey"),
+            tx_counter=t.uint32_t(0x12345678),
+            rx_counter=t.uint32_t(0x00000000),
+            seq=t.uint8_t(1),
+            partner_ieee=t.EUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),
+        )
+    )
+
+    ezsp_mock.get_tc_link_key = AsyncMock(
+        return_value=zigpy.state.Key(
+            key=t.KeyData(b"ZigBeeAlliance09"),
+            tx_counter=t.uint32_t(0x87654321),
+            rx_counter=t.uint32_t(0x00000000),
+            seq=t.uint8_t(0),
+            partner_ieee=t.EUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),
+        )
     )
 
     ezsp_mock.getCurrentSecurityState = AsyncMock(
@@ -276,11 +280,6 @@ async def _test_startup(
     ) as ezsp_mock:
         await app.startup(auto_form=auto_form)
 
-    if ezsp_version > 6:
-        assert ezsp_mock.networkInitExtended.call_count == 0
-    else:
-        assert ezsp_mock.networkInit.call_count == 0
-
     assert ezsp_mock.write_config.call_count == 1
     assert ezsp_mock.addEndpoint.call_count >= 2
 
@@ -323,7 +322,7 @@ async def test_startup_status_not_joined(app, ieee):
             t.EmberNodeType.COORDINATOR,
             ieee,
             auto_form=False,
-            init=t.EmberStatus.NOT_JOINED,
+            init=bellows.types.sl_Status.NOT_JOINED,
             network_state=t.EmberNetworkStatus.NO_NETWORK,
         )
 
@@ -336,7 +335,7 @@ async def test_startup_status_unknown(app, ieee):
             t.EmberNodeType.COORDINATOR,
             ieee,
             auto_form=False,
-            init=t.EmberStatus.ERR_FATAL,
+            init=bellows.types.sl_Status.FAIL,
             network_state=t.EmberNetworkStatus.NO_NETWORK,
         )
 
@@ -1492,8 +1491,11 @@ async def test_ensure_network_running_joined(app):
     ezsp = app._ezsp
 
     # Make initialization take two attempts
-    ezsp.networkInit = AsyncMock(
-        side_effect=[(t.EmberStatus.NETWORK_BUSY,), (t.EmberStatus.SUCCESS,)]
+    ezsp.initialize_network = AsyncMock(
+        side_effect=[
+            bellows.types.sl_Status.INVALID_PARAMETER,
+            bellows.types.sl_Status.OK,
+        ]
     )
     ezsp.networkState = AsyncMock(
         return_value=[ezsp.types.EmberNetworkStatus.JOINED_NETWORK]
@@ -1503,7 +1505,7 @@ async def test_ensure_network_running_joined(app):
 
     assert not rsp
 
-    ezsp.networkInit.assert_not_called()
+    ezsp.initialize_network.assert_not_called()
 
 
 async def test_ensure_network_running_not_joined_failure(app):
@@ -1511,13 +1513,15 @@ async def test_ensure_network_running_not_joined_failure(app):
     ezsp.networkState = AsyncMock(
         return_value=[ezsp.types.EmberNetworkStatus.NO_NETWORK]
     )
-    ezsp.networkInit = AsyncMock(return_value=[ezsp.types.EmberStatus.INVALID_CALL])
+    ezsp.initialize_network = AsyncMock(
+        return_value=bellows.types.sl_Status.INVALID_PARAMETER
+    )
 
     with pytest.raises(zigpy.exceptions.ControllerException):
         await app._ensure_network_running()
 
     ezsp.networkState.assert_called_once()
-    ezsp.networkInit.assert_called_once()
+    ezsp.initialize_network.assert_called_once()
 
 
 async def test_ensure_network_running_not_joined_success(app):
@@ -1525,13 +1529,13 @@ async def test_ensure_network_running_not_joined_success(app):
     ezsp.networkState = AsyncMock(
         return_value=[ezsp.types.EmberNetworkStatus.NO_NETWORK]
     )
-    ezsp.networkInit = AsyncMock(return_value=[ezsp.types.EmberStatus.SUCCESS])
+    ezsp.initialize_network = AsyncMock(return_value=bellows.types.sl_Status.OK)
 
     rsp = await app._ensure_network_running()
     assert rsp
 
     ezsp.networkState.assert_called_once()
-    ezsp.networkInit.assert_called_once()
+    ezsp.initialize_network.assert_called_once()
 
 
 async def test_startup_coordinator_existing_groups_joined(app, ieee):

@@ -6,7 +6,9 @@ import binascii
 import functools
 import logging
 import sys
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Callable, Iterable
+
+import zigpy.state
 
 if sys.version_info[:2] < (3, 11):
     from async_timeout import timeout as asyncio_timeout  # pragma: no cover
@@ -55,14 +57,6 @@ class ProtocolHandler(abc.ABC):
     @abc.abstractmethod
     def _ezsp_frame_tx(self, name: str) -> bytes:
         """Serialize the named frame."""
-
-    async def pre_permit(self, time_s: int) -> None:
-        """Schedule task before allowing new joins."""
-
-    async def add_transient_link_key(
-        self, ieee: t.EUI64, key: t.KeyData
-    ) -> t.sl_Status:
-        """Add a transient link key."""
 
     async def command(self, name, *args) -> Any:
         """Serialize command and send it."""
@@ -150,3 +144,43 @@ class ProtocolHandler(abc.ABC):
             raise AttributeError(f"{name} not found in COMMANDS")
 
         return functools.partial(self.command, name)
+
+    async def pre_permit(self, time_s: int) -> None:
+        """Schedule task before allowing new joins."""
+
+    async def add_transient_link_key(
+        self, ieee: t.EUI64, key: t.KeyData
+    ) -> t.sl_Status:
+        """Add a transient link key."""
+
+    async def read_child_data(
+        self,
+    ) -> AsyncGenerator[tuple[t.NWK, t.EUI64, t.EmberNodeType], None]:
+        pass
+
+    async def read_link_keys(self) -> AsyncGenerator[zigpy.state.Key, None]:
+        pass
+
+    async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64], None]:
+        pass
+
+    async def get_network_key(self) -> zigpy.state.Key:
+        pass
+
+    async def get_tc_link_key(self) -> zigpy.state.Key:
+        pass
+
+    async def write_nwk_frame_counter(self, frame_counter: t.uint32_t) -> None:
+        pass
+
+    async def write_aps_frame_counter(self, frame_counter: t.uint32_t) -> None:
+        pass
+
+    async def write_link_keys(self, keys: Iterable[zigpy.state.Key]) -> None:
+        pass
+
+    async def write_child_table(self, children: dict[t.EUI64, t.NWK]) -> None:
+        pass
+
+    async def initialize_network(self) -> t.sl_Status:
+        pass
