@@ -1,7 +1,9 @@
 """"EZSP Protocol version 9 protocol handler."""
+from __future__ import annotations
+
 import logging
 
-import voluptuous
+import voluptuous as vol
 
 import bellows.config
 import bellows.types as t
@@ -18,8 +20,8 @@ class EZSPv9(EZSPv8):
     VERSION = 9
     COMMANDS = commands.COMMANDS
     SCHEMAS = {
-        bellows.config.CONF_EZSP_CONFIG: voluptuous.Schema(config.EZSP_SCHEMA),
-        bellows.config.CONF_EZSP_POLICIES: voluptuous.Schema(config.EZSP_POLICIES_SCH),
+        bellows.config.CONF_EZSP_CONFIG: vol.Schema(config.EZSP_SCHEMA),
+        bellows.config.CONF_EZSP_POLICIES: vol.Schema(config.EZSP_POLICIES_SCH),
     }
     types = v9_types
 
