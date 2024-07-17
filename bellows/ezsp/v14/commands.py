@@ -152,6 +152,20 @@ COMMANDS = {
             }.values()
         ),
     ),
+    "launchStandaloneBootloader": (
+        0x008F,
+        tuple(
+            {
+                "mode": t.uint8_t,
+            }.values()
+        ),
+        tuple(
+            {
+                # XXX: One of the few commands that does *not* migrate to `sl_Status`!
+                "status": t.EmberStatus,
+            }.values()
+        ),
+    ),
 }
 
 
