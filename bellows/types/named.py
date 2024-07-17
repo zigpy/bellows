@@ -1578,7 +1578,10 @@ class sl_Status(basic.enum32):
 
         if key not in SL_STATUS_MAP:
             LOGGER.warning(
-                "Unknown status %r, converting to generic %r", status, cls.FAIL
+                "Unknown status %r, converting to generic %r",
+                status,
+                cls.FAIL,
+                stacklevel=2,
             )
             return cls.FAIL
 
