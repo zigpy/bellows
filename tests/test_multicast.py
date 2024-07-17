@@ -13,7 +13,9 @@ CUSTOM_SIZE = 12
 @pytest.fixture
 def ezsp_f():
     e = MagicMock()
-    e.getConfigurationValue = AsyncMock(return_value=[0, CUSTOM_SIZE])
+    e.getConfigurationValue = AsyncMock(
+        return_value=[t.EmberStatus.SUCCESS, CUSTOM_SIZE]
+    )
     return e
 
 

@@ -187,7 +187,7 @@ def _mock_app_for_load(app, ezsp_ver=7):
         ezsp.exportKey = AsyncMock(side_effect=export_key)
         ezsp.getNetworkKeyInfo = AsyncMock(
             return_value=[
-                ezsp.types.sl_Status.SL_STATUS_OK,
+                ezsp.types.sl_Status.OK,
                 ezsp.types.sl_zb_sec_man_network_key_info_t(
                     network_key_set=True,
                     alternate_network_key_set=False,
@@ -220,7 +220,7 @@ async def test_load_network_info_no_key_set(app, network_info, node_info):
 
     app._ezsp.getNetworkKeyInfo = AsyncMock(
         return_value=[
-            app._ezsp.types.sl_Status.SL_STATUS_OK,
+            app._ezsp.types.sl_Status.OK,
             app._ezsp.types.sl_zb_sec_man_network_key_info_t(
                 network_key_set=False,  # Not set
                 alternate_network_key_set=False,
@@ -357,7 +357,7 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
                         incoming_frame_counter=1083290572,
                         ttl_in_seconds=0,
                     ),
-                    app._ezsp.types.sl_Status.SL_STATUS_OK,
+                    app._ezsp.types.sl_Status.OK,
                 )
             elif index == 1:
                 return (
@@ -374,7 +374,7 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
                         incoming_frame_counter=824424412,
                         ttl_in_seconds=0,
                     ),
-                    app._ezsp.types.sl_Status.SL_STATUS_OK,
+                    app._ezsp.types.sl_Status.OK,
                 )
 
             return (
@@ -386,7 +386,7 @@ async def test_load_network_info_with_devices(app, network_info, node_info, ezsp
                     incoming_frame_counter=0,
                     ttl_in_seconds=0,
                 ),
-                app._ezsp.types.sl_Status.SL_STATUS_NOT_FOUND,
+                t.sl_Status.NOT_FOUND,
             )
 
         app._ezsp.exportLinkKeyByIndex = AsyncMock(side_effect=export_link_key_by_index)

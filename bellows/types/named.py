@@ -1602,6 +1602,7 @@ SL_STATUS_MAP: dict[EzspStatus | EmberStatus, sl_Status] = {
         (EmberStatus.ERR_FATAL, sl_Status.FAIL),
         (EmberStatus.NOT_FOUND, sl_Status.NOT_FOUND),
         (EmberStatus.TABLE_ENTRY_ERASED, sl_Status.NOT_FOUND),
+        (EmberStatus.INDEX_OUT_OF_RANGE, sl_Status.INVALID_INDEX),
         (EmberStatus.NOT_JOINED, sl_Status.NOT_JOINED),
         (EmberStatus.NETWORK_UP, sl_Status.NETWORK_UP),
         (EmberStatus.NETWORK_DOWN, sl_Status.NETWORK_DOWN),
@@ -1614,6 +1615,7 @@ SL_STATUS_MAP: dict[EzspStatus | EmberStatus, sl_Status] = {
         (EmberStatus.MAX_MESSAGE_LIMIT_REACHED, sl_Status.ZIGBEE_MAX_MESSAGE_LIMIT_REACHED),
         (EmberStatus.NETWORK_BUSY, sl_Status.ZIGBEE_MAX_MESSAGE_LIMIT_REACHED),
         (EmberStatus.DELIVERY_FAILED, sl_Status.ZIGBEE_DELIVERY_FAILED),
+        (EmberStatus.NO_BUFFERS, sl_Status.ALLOCATION_FAILED),  # TODO: see what the actual mapping is
     ]
 }
 # fmt: on

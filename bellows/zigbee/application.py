@@ -987,6 +987,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     elif status not in (
                         t.sl_Status.ZIGBEE_MAX_MESSAGE_LIMIT_REACHED,
                         t.sl_Status.TRANSMIT_BUSY,
+                        t.sl_Status.ALLOCATION_FAILED,
                     ):
                         raise zigpy.exceptions.DeliveryError(
                             f"Failed to enqueue message: {status!r}", status

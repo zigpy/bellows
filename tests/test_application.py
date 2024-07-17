@@ -19,6 +19,7 @@ import bellows.ezsp.v6.types as ezsp_t6
 import bellows.ezsp.v7.types as ezsp_t7
 import bellows.ezsp.v8.types as ezsp_t8
 from bellows.ezsp.v9.commands import GetTokenDataRsp
+import bellows.types
 import bellows.types.struct
 import bellows.uart as uart
 import bellows.zigbee.application
@@ -163,7 +164,9 @@ def _create_app_for_startup(
     ezsp_mock.setConfigurationValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp_mock.networkInit = AsyncMock(return_value=[init])
     ezsp_mock.networkInitExtended = AsyncMock(return_value=[init])
-    ezsp_mock.getNetworkParameters = AsyncMock(return_value=[0, nwk_type, nwk_params])
+    ezsp_mock.getNetworkParameters = AsyncMock(
+        return_value=[t.EmberStatus.SUCCESS, nwk_type, nwk_params]
+    )
     ezsp_mock.can_burn_userdata_custom_eui64 = AsyncMock(return_value=True)
     ezsp_mock.can_rewrite_custom_eui64 = AsyncMock(return_value=True)
     ezsp_mock.startScan = AsyncMock(return_value=[[c, 1] for c in range(11, 26 + 1)])
@@ -183,7 +186,7 @@ def _create_app_for_startup(
     ezsp_mock.leaveNetwork = AsyncMock(side_effect=mock_leave)
     ezsp_mock.reset = AsyncMock()
     ezsp_mock.version = AsyncMock()
-    ezsp_mock.getConfigurationValue = AsyncMock(return_value=(0, 1))
+    ezsp_mock.getConfigurationValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS, 1])
     ezsp_mock.update_policies = AsyncMock()
     ezsp_mock.networkState = AsyncMock(return_value=[network_state])
     ezsp_mock.getKey = AsyncMock(
@@ -227,7 +230,7 @@ def _create_app_for_startup(
 
     def form_network():
         ezsp_mock.getNetworkParameters.return_value = [
-            0,
+            t.EmberStatus.SUCCESS,
             t.EmberNodeType.COORDINATOR,
             nwk_params,
         ]
@@ -502,11 +505,11 @@ def test_frame_handler_ignored(app, aps_frame):
 def test_send_failure(app, aps, ieee, msg_type):
     req = app._pending[(0xBEED, 254)] = MagicMock()
     app.ezsp_callback_handler(
-        "messageSentHandler", [msg_type, 0xBEED, aps, 254, sentinel.status, b""]
+        "messageSentHandler", [msg_type, 0xBEED, aps, 254, t.EmberStatus.SUCCESS, b""]
     )
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
-    assert req.result.set_result.call_args[0][0][0] is sentinel.status
+    assert req.result.set_result.call_args[0][0][0] is bellows.types.sl_Status.OK
 
 
 def test_dup_send_failure(app, aps, ieee):
@@ -550,13 +553,13 @@ def test_send_success(app, aps, ieee):
             0xBEED,
             aps,
             253,
-            sentinel.success,
+            t.EmberStatus.SUCCESS,
             b"",
         ],
     )
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
-    assert req.result.set_result.call_args[0][0][0] is sentinel.success
+    assert req.result.set_result.call_args[0][0][0] is bellows.types.sl_Status.OK
 
 
 def test_unexpected_send_success(app, aps, ieee):
@@ -1226,15 +1229,13 @@ async def test_ezsp_add_to_group_ep(coordinator):
 
     grp_id = 0x2345
     assert grp_id not in coordinator.endpoints[1].member_of
-    ret = await coordinator.endpoints[1].add_to_group(grp_id)
-    assert ret == t.EmberStatus.SUCCESS
+    await coordinator.endpoints[1].add_to_group(grp_id)
     assert mc.subscribe.call_count == 1
     assert mc.subscribe.call_args[0][0] == grp_id
     assert grp_id in coordinator.endpoints[1].member_of
 
     mc.reset_mock()
-    ret = await coordinator.endpoints[1].add_to_group(grp_id)
-    assert ret == t.EmberStatus.SUCCESS
+    await coordinator.endpoints[1].add_to_group(grp_id)
     assert mc.subscribe.call_count == 0
 
 
@@ -1245,8 +1246,8 @@ async def test_ezsp_add_to_group_fail(coordinator):
 
     grp_id = 0x2345
     assert grp_id not in coordinator.endpoints[1].member_of
-    ret = await coordinator.add_to_group(grp_id)
-    assert ret is None
+    with pytest.raises(ValueError):
+        await coordinator.add_to_group(grp_id)
     assert mc.subscribe.call_count == 1
     assert mc.subscribe.call_args[0][0] == grp_id
     assert grp_id not in coordinator.endpoints[1].member_of
@@ -1259,9 +1260,8 @@ async def test_ezsp_add_to_group_ep_fail(coordinator):
 
     grp_id = 0x2345
     assert grp_id not in coordinator.endpoints[1].member_of
-    ret = await coordinator.endpoints[1].add_to_group(grp_id)
-    assert ret != t.EmberStatus.SUCCESS
-    assert ret is not None
+    with pytest.raises(ValueError):
+        await coordinator.endpoints[1].add_to_group(grp_id)
     assert mc.subscribe.call_count == 1
     assert mc.subscribe.call_args[0][0] == grp_id
     assert grp_id not in coordinator.endpoints[1].member_of
@@ -1277,8 +1277,7 @@ async def test_ezsp_remove_from_group(coordinator):
     grp.add_member(coordinator.endpoints[1])
 
     assert grp_id in coordinator.endpoints[1].member_of
-    ret = await coordinator.remove_from_group(grp_id)
-    assert ret is None
+    await coordinator.remove_from_group(grp_id)
     assert mc.unsubscribe.call_count == 1
     assert mc.unsubscribe.call_args[0][0] == grp_id
     assert grp_id not in coordinator.endpoints[1].member_of
@@ -1294,15 +1293,13 @@ async def test_ezsp_remove_from_group_ep(coordinator):
     grp.add_member(coordinator.endpoints[1])
 
     assert grp_id in coordinator.endpoints[1].member_of
-    ret = await coordinator.endpoints[1].remove_from_group(grp_id)
-    assert ret == t.EmberStatus.SUCCESS
+    await coordinator.endpoints[1].remove_from_group(grp_id)
     assert mc.unsubscribe.call_count == 1
     assert mc.unsubscribe.call_args[0][0] == grp_id
     assert grp_id not in coordinator.endpoints[1].member_of
 
     mc.reset_mock()
-    ret = await coordinator.endpoints[1].remove_from_group(grp_id)
-    assert ret == t.EmberStatus.SUCCESS
+    await coordinator.endpoints[1].remove_from_group(grp_id)
     assert mc.subscribe.call_count == 0
 
 
@@ -1316,8 +1313,9 @@ async def test_ezsp_remove_from_group_fail(coordinator):
     grp.add_member(coordinator.endpoints[1])
 
     assert grp_id in coordinator.endpoints[1].member_of
-    ret = await coordinator.remove_from_group(grp_id)
-    assert ret is None
+
+    with pytest.raises(ValueError):
+        await coordinator.remove_from_group(grp_id)
     assert mc.unsubscribe.call_count == 1
     assert mc.unsubscribe.call_args[0][0] == grp_id
 
@@ -1332,9 +1330,10 @@ async def test_ezsp_remove_from_group_fail_ep(coordinator):
     grp.add_member(coordinator.endpoints[1])
 
     assert grp_id in coordinator.endpoints[1].member_of
-    ret = await coordinator.endpoints[1].remove_from_group(grp_id)
-    assert ret != t.EmberStatus.SUCCESS
-    assert ret is not None
+
+    with pytest.raises(ValueError):
+        await coordinator.endpoints[1].remove_from_group(grp_id)
+
     assert mc.unsubscribe.call_count == 1
     assert mc.unsubscribe.call_args[0][0] == grp_id
 

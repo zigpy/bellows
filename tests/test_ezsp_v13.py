@@ -31,7 +31,7 @@ async def test_pre_permit(ezsp_f):
     p2 = patch.object(
         ezsp_f,
         "importTransientKey",
-        new=AsyncMock(return_value=[ezsp_f.types.sl_Status.SL_STATUS_OK]),
+        new=AsyncMock(return_value=[ezsp_f.types.sl_Status.OK]),
     )
     with p1 as pre_permit_mock, p2 as tclk_mock:
         await ezsp_f.pre_permit(-1.9)
