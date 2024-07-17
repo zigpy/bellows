@@ -1,4 +1,6 @@
 """"EZSP Protocol version 10 protocol handler."""
+from __future__ import annotations
+
 import logging
 
 import voluptuous
