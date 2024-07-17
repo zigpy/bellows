@@ -696,26 +696,26 @@ async def test_ezsp_init_zigbeed_timeout(conn_mock, reset_mock, version_mock):
 
 
 async def test_wait_for_stack_status(ezsp_f):
-    assert not ezsp_f._stack_status_listeners[t.EmberStatus.NETWORK_DOWN]
+    assert not ezsp_f._stack_status_listeners[t.sl_Status.NETWORK_DOWN]
 
     # Cancellation clears handlers
-    with ezsp_f.wait_for_stack_status(t.EmberStatus.NETWORK_DOWN) as stack_status:
+    with ezsp_f.wait_for_stack_status(t.sl_Status.NETWORK_DOWN) as stack_status:
         with pytest.raises(asyncio.TimeoutError):
             async with asyncio_timeout(0.1):
-                assert ezsp_f._stack_status_listeners[t.EmberStatus.NETWORK_DOWN]
+                assert ezsp_f._stack_status_listeners[t.sl_Status.NETWORK_DOWN]
                 await stack_status
 
-    assert not ezsp_f._stack_status_listeners[t.EmberStatus.NETWORK_DOWN]
+    assert not ezsp_f._stack_status_listeners[t.sl_Status.NETWORK_DOWN]
 
     # Receiving multiple also works
-    with ezsp_f.wait_for_stack_status(t.EmberStatus.NETWORK_DOWN) as stack_status:
+    with ezsp_f.wait_for_stack_status(t.sl_Status.NETWORK_DOWN) as stack_status:
         ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_UP])
         ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_DOWN])
         ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_DOWN])
 
         await stack_status
 
-    assert not ezsp_f._stack_status_listeners[t.EmberStatus.NETWORK_DOWN]
+    assert not ezsp_f._stack_status_listeners[t.sl_Status.NETWORK_DOWN]
 
 
 def test_ezsp_versions(ezsp_f):
