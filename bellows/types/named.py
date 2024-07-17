@@ -1592,6 +1592,7 @@ SL_STATUS_MAP = {
     (EzspStatus, EzspStatus.ERROR_OUT_OF_MEMORY): sl_Status.NO_MORE_RESOURCE,
     (EzspStatus, EzspStatus.ERROR_INVALID_CALL): sl_Status.INVALID_PARAMETER,
     (EmberStatus, EmberStatus.SUCCESS): sl_Status.OK,
+    (EmberStatus, EmberStatus.MAC_INDIRECT_TIMEOUT): sl_Status.MAC_INDIRECT_TIMEOUT,
     (EmberStatus, EmberStatus.ERR_FATAL): sl_Status.FAIL,
     (EmberStatus, EmberStatus.NOT_JOINED): sl_Status.NOT_JOINED,
     (EmberStatus, EmberStatus.NETWORK_UP): sl_Status.NETWORK_UP,
