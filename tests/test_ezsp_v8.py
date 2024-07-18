@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -53,12 +53,3 @@ def test_get_key_table_entry_fallback_parsing(ezsp_f):
     assert len(ezsp_f._handle_callback.mock_calls) == 1
     mock_call = ezsp_f._handle_callback.mock_calls[0]
     assert mock_call.args[0] == "getKeyTableEntry"
-
-
-async def test_factory_reset(ezsp_f) -> None:
-    ezsp_f.clearKeyTable = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
-    ezsp_f.tokenFactoryReset = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
-    await ezsp_f.factory_reset()
-
-    assert ezsp_f.clearKeyTable.mock_calls == [call()]
-    assert ezsp_f.tokenFactoryReset.mock_calls == [call(False, False)]

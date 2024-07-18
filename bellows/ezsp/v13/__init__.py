@@ -112,3 +112,7 @@ class EZSPv13(EZSPv12):
 
             if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
                 LOGGER.warning("Couldn't add %s key: %s", key, status)
+
+    async def factory_reset(self) -> None:
+        await self.tokenFactoryReset(False, False)
+        await self.clearKeyTable()

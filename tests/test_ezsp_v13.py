@@ -219,3 +219,12 @@ async def test_write_link_keys(ezsp_f):
             t.KeyData.convert("CA:02:E8:BB:75:7C:94:F8:93:39:D3:9C:B3:CD:A7:BE"),
         ),
     ]
+
+
+async def test_factory_reset(ezsp_f) -> None:
+    ezsp_f.clearKeyTable = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    ezsp_f.tokenFactoryReset = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    await ezsp_f.factory_reset()
+
+    assert ezsp_f.clearKeyTable.mock_calls == [call()]
+    assert ezsp_f.tokenFactoryReset.mock_calls == [call(False, False)]
