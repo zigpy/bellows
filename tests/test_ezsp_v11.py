@@ -1,8 +1,8 @@
+from unittest.mock import MagicMock
+
 import pytest
 
 import bellows.ezsp.v11
-
-from .async_mock import AsyncMock, MagicMock, patch
 
 
 @pytest.fixture

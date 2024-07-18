@@ -1,11 +1,11 @@
+from unittest.mock import AsyncMock, MagicMock, sentinel
+
 import pytest
 from zigpy.endpoint import Endpoint
 
 import bellows.ezsp
 import bellows.multicast
 import bellows.types as t
-
-from .async_mock import AsyncMock, MagicMock, sentinel
 
 CUSTOM_SIZE = 12
 
