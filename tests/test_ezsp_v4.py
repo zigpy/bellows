@@ -1,4 +1,5 @@
-from unittest.mock import AsyncMock, MagicMock
+import logging
+from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 import zigpy.state
@@ -182,3 +183,69 @@ async def test_get_network_key_and_tc_link_key(ezsp_f):
         tx_counter=8712428,
         partner_ieee=t.EUI64.convert("00:12:4b:00:1c:a1:b8:46"),
     )
+
+
+async def test_write_child_data(ezsp_f) -> None:
+    # It's a no-op
+    await ezsp_f.write_child_data(
+        {
+            t.EUI64.convert("00:0b:57:ff:fe:2b:d4:57"): 0xC06B,
+            t.EUI64.convert("00:18:4b:00:1c:a1:b8:46"): 0x1234,
+        }
+    )
+
+
+async def test_read_address_table(ezsp_f) -> None:
+    # It's a no-op but still an async generator
+    async for nwk, eui64 in ezsp_f.read_address_table():
+        pass
+
+
+async def test_write_link_keys(ezsp_f, caplog) -> None:
+    ezsp_f.addOrUpdateKeyTableEntry = AsyncMock(
+        side_effect=[(t.EmberStatus.SUCCESS,), (t.EmberStatus.ERR_FATAL,)]
+    )
+
+    with caplog.at_level(logging.WARNING):
+        await ezsp_f.write_link_keys(
+            [
+                zigpy.state.Key(
+                    key=t.KeyData.convert("2ccade06b3090c310315b3d574d3c85a"),
+                    seq=108,
+                    tx_counter=1234,
+                    rx_counter=5678,
+                    partner_ieee=t.EUI64.convert("11:11:11:11:11:11:11:11"),
+                ),
+                zigpy.state.Key(
+                    key=t.KeyData.convert("abcdabcdabcdabcdabcdabcdabcdabcd"),
+                    seq=123,
+                    tx_counter=2345,
+                    rx_counter=98314,
+                    partner_ieee=t.EUI64.convert("22:22:22:22:22:22:22:22"),
+                ),
+            ]
+        )
+
+    assert ezsp_f.addOrUpdateKeyTableEntry.mock_calls == [
+        call(
+            t.EUI64.convert("11:11:11:11:11:11:11:11"),
+            True,
+            t.KeyData.convert("2ccade06b3090c310315b3d574d3c85a"),
+        ),
+        call(
+            t.EUI64.convert("22:22:22:22:22:22:22:22"),
+            True,
+            t.KeyData.convert("abcdabcdabcdabcdabcdabcdabcdabcd"),
+        ),
+    ]
+
+    assert (
+        "Couldn't add Key(key=ab:cd:ab:cd:ab:cd:ab:cd:ab:cd:ab:cd:ab:cd:ab:cd"
+        in caplog.text
+    )
+
+
+async def test_initialize_network(ezsp_f) -> None:
+    ezsp_f.networkInitExtended = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    assert await ezsp_f.initialize_network() == t.sl_Status.OK
+    assert ezsp_f.networkInitExtended.mock_calls == [call(0x0000)]
