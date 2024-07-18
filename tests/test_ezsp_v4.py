@@ -48,8 +48,8 @@ async def test_read_child_data(ezsp_f):
 
     ezsp_f.getChildData = AsyncMock(side_effect=get_child_data)
 
-    child_table = [row async for row in ezsp_f.read_child_data()]
-    assert child_table == [
+    child_data = [row async for row in ezsp_f.read_child_data()]
+    assert child_data == [
         (
             0xC06B,
             t.EUI64.convert("00:0b:57:ff:fe:2b:d4:57"),

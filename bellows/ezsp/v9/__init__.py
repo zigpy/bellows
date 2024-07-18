@@ -25,7 +25,7 @@ class EZSPv9(EZSPv8):
     }
     types = v9_types
 
-    async def write_child_table(self, children: dict[t.EUI64, t.NWK]) -> None:
+    async def write_child_data(self, children: dict[t.EUI64, t.NWK]) -> None:
         for index, (eui64, nwk) in enumerate(children.items()):
             await self.setChildData(
                 index,

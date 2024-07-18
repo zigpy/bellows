@@ -107,7 +107,7 @@ class EZSPv4(protocol.ProtocolHandler):
             if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
                 LOGGER.warning("Couldn't add %s key: %s", key, status)
 
-    async def write_child_table(self, children: dict[t.EUI64, t.NWK]) -> None:
+    async def write_child_data(self, children: dict[t.EUI64, t.NWK]) -> None:
         # Not supported in EZSPv4
         pass
 

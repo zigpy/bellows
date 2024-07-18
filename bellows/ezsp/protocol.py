@@ -188,7 +188,7 @@ class ProtocolHandler(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def write_child_table(self, children: dict[t.EUI64, t.NWK]) -> None:
+    async def write_child_data(self, children: dict[t.EUI64, t.NWK]) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod

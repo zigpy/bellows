@@ -395,7 +395,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             if eui64 in network_info.nwk_addresses
         }
 
-        await ezsp.write_child_table(children_with_nwk_addresses)
+        await ezsp.write_child_data(children_with_nwk_addresses)
 
         # Set the network settings
         parameters = t.EmberNetworkParameters()
