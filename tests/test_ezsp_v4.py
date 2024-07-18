@@ -249,3 +249,20 @@ async def test_initialize_network(ezsp_f) -> None:
     ezsp_f.networkInitExtended = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
     assert await ezsp_f.initialize_network() == t.sl_Status.OK
     assert ezsp_f.networkInitExtended.mock_calls == [call(0x0000)]
+
+
+async def test_write_nwk_frame_counter(ezsp_f) -> None:
+    # No-op
+    await ezsp_f.write_nwk_frame_counter(12345678)
+
+
+async def test_write_aps_frame_counter(ezsp_f) -> None:
+    # No-op
+    await ezsp_f.write_aps_frame_counter(12345678)
+
+
+async def test_factory_reset(ezsp_f) -> None:
+    ezsp_f.clearKeyTable = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    await ezsp_f.factory_reset()
+
+    assert ezsp_f.clearKeyTable.mock_calls == [call()]

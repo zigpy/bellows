@@ -114,3 +114,6 @@ class EZSPv4(protocol.ProtocolHandler):
     async def initialize_network(self) -> t.sl_Status:
         (init_status,) = await self.networkInitExtended(0x0000)
         return t.sl_Status.from_ember_status(init_status)
+
+    async def factory_reset(self) -> None:
+        await self.clearKeyTable()

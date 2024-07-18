@@ -30,7 +30,7 @@ class EZSPv14(EZSPv13):
             self.types.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
         )
 
-        for idx in range(addr_table_size):
+        for idx in range(addr_table_size + 100):
             (status, nwk, eui64) = await self.getAddressTableInfo(idx)
 
             if status != t.sl_Status.OK:

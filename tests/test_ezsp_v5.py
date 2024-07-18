@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 import zigpy.state
@@ -72,4 +72,30 @@ async def test_read_address_table(ezsp_f):
     assert address_table == [
         (0x44CB, t.EUI64.convert("cc:cc:cc:ff:fe:e6:8e:ca")),
         (0x0702, t.EUI64.convert("ec:1b:bd:ff:fe:2f:41:a4")),
+    ]
+
+
+async def test_write_nwk_frame_counter(ezsp_f) -> None:
+    ezsp_f.networkState = AsyncMock(return_value=(t.EmberNetworkStatus.NO_NETWORK,))
+    ezsp_f.setValue = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    await ezsp_f.write_nwk_frame_counter(12345678)
+
+    assert ezsp_f.setValue.mock_calls == [
+        call(
+            ezsp_f.types.EzspValueId.VALUE_NWK_FRAME_COUNTER,
+            t.uint32_t(12345678).serialize(),
+        ),
+    ]
+
+
+async def test_write_aps_frame_counter(ezsp_f) -> None:
+    ezsp_f.networkState = AsyncMock(return_value=(t.EmberNetworkStatus.NO_NETWORK,))
+    ezsp_f.setValue = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    await ezsp_f.write_aps_frame_counter(12345678)
+
+    assert ezsp_f.setValue.mock_calls == [
+        call(
+            ezsp_f.types.EzspValueId.VALUE_APS_FRAME_COUNTER,
+            t.uint32_t(12345678).serialize(),
+        ),
     ]

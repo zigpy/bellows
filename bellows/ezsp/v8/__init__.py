@@ -50,3 +50,7 @@ class EZSPv8(EZSPv7):
             v8_types.EzspPolicyId.TRUST_CENTER_POLICY,
             self.tc_policy,
         )
+
+    async def factory_reset(self) -> None:
+        await self.tokenFactoryReset(False, False)
+        await self.clearKeyTable()

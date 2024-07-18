@@ -412,23 +412,21 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._ensure_network_running()
 
     async def reset_network_info(self):
-        # The network must be running before we can leave it
-        try:
-            await self._ensure_network_running()
-        except zigpy.exceptions.NetworkNotFormed:
-            return
-
-        await self._ezsp.leaveNetwork()
-
-        # Clear the key table
-        (status,) = await self._ezsp.clearKeyTable()
-        assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
+        await self._ezsp.factory_reset()
 
         # Reset the custom EUI64
         await self._ezsp.reset_custom_eui64()
 
         # We must reset when NV3 has changed
         await self._reset()
+
+        # The network must be running before we can leave it
+        try:
+            await self._ensure_network_running()
+        except zigpy.exceptions.NetworkNotFormed:
+            pass
+        else:
+            await self._ezsp.leaveNetwork()
 
     async def _reset(self):
         self._ezsp.stop_ezsp()

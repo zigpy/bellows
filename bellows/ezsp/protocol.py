@@ -194,3 +194,7 @@ class ProtocolHandler(abc.ABC):
     @abc.abstractmethod
     async def initialize_network(self) -> t.sl_Status:
         raise NotImplementedError
+
+    @abc.abstractmethod
+    async def factory_reset(self) -> None:
+        raise NotImplementedError
