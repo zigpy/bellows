@@ -57,10 +57,10 @@ class EZSPv14(EZSPv13):
             )
         )
 
-        assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
+        assert status == t.sl_Status.OK
 
         (status, network_key_info) = await self.getNetworkKeyInfo()
-        assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
+        assert status == t.sl_Status.OK
 
         if not network_key_info.network_key_set:
             raise NetworkNotFormed("Network key is not set")
@@ -84,6 +84,27 @@ class EZSPv14(EZSPv13):
             )
         )
 
-        assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
+        assert status == t.sl_Status.OK
 
         return zigpy.state.Key(key=tc_link_key_data)
+
+    async def send_broadcast(
+        self,
+        address: t.BroadcastAddress,
+        aps_frame: t.EmberApsFrame,
+        radius: t.uint8_t,
+        message_tag: t.uint8_t,
+        aps_sequence: t.uint8_t,
+        data: bytes,
+    ) -> tuple[t.sl_Status, t.uint8_t]:
+        status, sequence = await self.sendBroadcast(
+            0x0000,
+            address,
+            aps_sequence,
+            aps_frame,
+            radius,
+            message_tag,
+            data,
+        )
+
+        return status, sequence

@@ -765,42 +765,29 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                                     t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
                                 )
 
-                            status, _ = await self._ezsp.sendUnicast(
-                                t.EmberOutgoingMessageType.OUTGOING_DIRECT,
-                                t.EmberNodeId(packet.dst.address),
-                                aps_frame,
-                                message_tag,
-                                packet.data.serialize(),
+                            status, _ = await self._ezsp.send_unicast(
+                                nwk=packet.dst.address,
+                                aps_frame=aps_frame,
+                                message_tag=message_tag,
+                                data=packet.data.serialize(),
                             )
                         elif packet.dst.addr_mode == zigpy.types.AddrMode.Group:
-                            status, _ = await self._ezsp.sendMulticast(
-                                aps_frame,
-                                packet.radius,
-                                packet.non_member_radius,
-                                message_tag,
-                                packet.data.serialize(),
+                            status, _ = await self._ezsp.send_multicast(
+                                aps_frame=aps_frame,
+                                radius=packet.radius,
+                                non_member_radius=packet.non_member_radius,
+                                message_tag=message_tag,
+                                data=packet.data.serialize(),
                             )
                         elif packet.dst.addr_mode == zigpy.types.AddrMode.Broadcast:
-                            if self._ezsp.ezsp_version >= 14:
-                                status, _ = await self._ezsp.sendBroadcast(
-                                    0x0000,
-                                    packet.dst.address,
-                                    packet.tsn,
-                                    aps_frame,
-                                    packet.radius,
-                                    message_tag,
-                                    packet.data.serialize(),
-                                )
-                            else:
-                                status, _ = await self._ezsp.sendBroadcast(
-                                    t.EmberNodeId(packet.dst.address),
-                                    aps_frame,
-                                    packet.radius,
-                                    message_tag,
-                                    packet.data.serialize(),
-                                )
-
-                    status = t.sl_Status.from_ember_status(status)
+                            status, _ = await self._ezsp.send_broadcast(
+                                address=packet.dst.address,
+                                aps_frame=aps_frame,
+                                radius=packet.radius,
+                                message_tag=message_tag,
+                                aps_sequence=packet.tsn,
+                                data=packet.data.serialize(),
+                            )
 
                     if status == t.sl_Status.OK:
                         break

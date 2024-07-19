@@ -198,3 +198,36 @@ class ProtocolHandler(abc.ABC):
     @abc.abstractmethod
     async def factory_reset(self) -> None:
         raise NotImplementedError
+
+    @abc.abstractmethod
+    async def send_unicast(
+        self,
+        nwk: t.NWK,
+        aps_frame: t.EmberApsFrame,
+        message_tag: t.uint8_t,
+        data: bytes,
+    ) -> tuple[t.sl_Status, t.uint8_t]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def send_multicast(
+        self,
+        aps_frame: t.EmberApsFrame,
+        radius: t.uint8_t,
+        non_member_radius: t.uint8_t,
+        message_tag: t.uint8_t,
+        data: bytes,
+    ) -> tuple[t.sl_Status, t.uint8_t]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def send_broadcast(
+        self,
+        address: t.BroadcastAddress,
+        aps_frame: t.EmberApsFrame,
+        radius: t.uint8_t,
+        message_tag: t.uint8_t,
+        aps_sequence: t.uint8_t,
+        data: bytes,
+    ) -> tuple[t.sl_Status, t.uint8_t]:
+        raise NotImplementedError

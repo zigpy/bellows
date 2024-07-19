@@ -13,6 +13,7 @@ Channels = ztypes.Channels
 EmberEUI64 = ztypes.EUI64
 EUI64 = ztypes.EUI64
 NWK = ztypes.NWK
+BroadcastAddress = ztypes.BroadcastAddress
 
 
 class NcpResetCode(basic.enum8):

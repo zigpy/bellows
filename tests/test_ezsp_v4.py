@@ -266,3 +266,72 @@ async def test_factory_reset(ezsp_f) -> None:
     await ezsp_f.factory_reset()
 
     assert ezsp_f.clearKeyTable.mock_calls == [call()]
+
+
+async def test_send_unicast(ezsp_f) -> None:
+    ezsp_f.sendUnicast = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 0x42))
+    status, message_tag = await ezsp_f.send_unicast(
+        nwk=0x1234,
+        aps_frame=t.EmberApsFrame(),
+        message_tag=0x42,
+        data=b"hello",
+    )
+
+    assert status == t.sl_Status.OK
+    assert message_tag == 0x42
+    assert ezsp_f.sendUnicast.mock_calls == [
+        call(
+            t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+            t.EmberNodeId(0x1234),
+            t.EmberApsFrame(),
+            0x42,
+            b"hello",
+        )
+    ]
+
+
+async def test_send_multicast(ezsp_f) -> None:
+    ezsp_f.sendMulticast = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 0x42))
+    status, message_tag = await ezsp_f.send_multicast(
+        aps_frame=t.EmberApsFrame(),
+        radius=12,
+        non_member_radius=34,
+        message_tag=0x42,
+        data=b"hello",
+    )
+
+    assert status == t.sl_Status.OK
+    assert message_tag == 0x42
+    assert ezsp_f.sendMulticast.mock_calls == [
+        call(
+            t.EmberApsFrame(),
+            12,
+            34,
+            0x42,
+            b"hello",
+        )
+    ]
+
+
+async def test_send_broadcast(ezsp_f) -> None:
+    ezsp_f.sendBroadcast = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 0x42))
+    status, message_tag = await ezsp_f.send_broadcast(
+        address=t.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
+        aps_frame=t.EmberApsFrame(),
+        radius=12,
+        message_tag=0x42,
+        aps_sequence=34,
+        data=b"hello",
+    )
+
+    assert status == t.sl_Status.OK
+    assert message_tag == 0x42
+    assert ezsp_f.sendBroadcast.mock_calls == [
+        call(
+            t.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
+            t.EmberApsFrame(),
+            12,
+            0x42,
+            b"hello",
+        )
+    ]

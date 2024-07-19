@@ -117,3 +117,59 @@ class EZSPv4(protocol.ProtocolHandler):
 
     async def factory_reset(self) -> None:
         await self.clearKeyTable()
+
+    async def send_unicast(
+        self,
+        nwk: t.NWK,
+        aps_frame: t.EmberApsFrame,
+        message_tag: t.uint8_t,
+        data: bytes,
+    ) -> tuple[t.sl_Status, t.uint8_t]:
+        status, sequence = await self.sendUnicast(
+            t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+            t.EmberNodeId(nwk),
+            aps_frame,
+            message_tag,
+            data,
+        )
+
+        return t.sl_Status.from_ember_status(status), sequence
+
+    async def send_multicast(
+        self,
+        aps_frame: t.EmberApsFrame,
+        radius: t.uint8_t,
+        non_member_radius: t.uint8_t,
+        message_tag: t.uint8_t,
+        data: bytes,
+    ) -> tuple[t.sl_Status, t.uint8_t]:
+        status, sequence = await self.sendMulticast(
+            aps_frame,
+            radius,
+            non_member_radius,
+            message_tag,
+            data,
+        )
+
+        return t.sl_Status.from_ember_status(status), sequence
+
+    async def send_broadcast(
+        self,
+        address: t.BroadcastAddress,
+        aps_frame: t.EmberApsFrame,
+        radius: t.uint8_t,
+        message_tag: t.uint8_t,
+        aps_sequence: t.uint8_t,
+        data: bytes,
+    ) -> tuple[t.sl_Status, t.uint8_t]:
+        # `aps_sequence` is not used
+
+        status, sequence = await self.sendBroadcast(
+            address,
+            aps_frame,
+            radius,
+            message_tag,
+            data,
+        )
+
+        return t.sl_Status.from_ember_status(status), sequence
