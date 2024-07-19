@@ -695,7 +695,16 @@ def packet():
     )
 
 
-async def _test_send_packet_unicast(app, packet, *, statuses=(t.EmberStatus.SUCCESS,)):
+async def _test_send_packet_unicast(
+    app,
+    packet,
+    *,
+    statuses=(bellows.types.sl_Status.OK,),
+    options=(
+        t.EmberApsOption.APS_OPTION_RETRY
+        | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+    ),
+):
     def send_unicast(*args, **kwargs):
         nonlocal statuses
 
@@ -721,29 +730,30 @@ async def _test_send_packet_unicast(app, packet, *, statuses=(t.EmberStatus.SUCC
 
         return [status, 0x12]
 
-    app._ezsp.sendUnicast = AsyncMock(side_effect=send_unicast)
+    app._ezsp.send_unicast = AsyncMock(side_effect=send_unicast)
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
     expected_unicast_calls = len(statuses)
 
     await app.send_packet(packet)
-    assert app._ezsp.sendUnicast.call_count == expected_unicast_calls
-    assert (
-        app._ezsp.sendUnicast.mock_calls[-1].args[0]
-        == t.EmberOutgoingMessageType.OUTGOING_DIRECT
+    assert app._ezsp.send_unicast.call_count == expected_unicast_calls
+
+    assert app._ezsp.send_unicast.mock_calls[-1] == (
+        call(
+            nwk=t.EmberNodeId(0x1234),
+            aps_frame=t.EmberApsFrame(
+                profileId=packet.profile_id,
+                clusterId=packet.cluster_id,
+                sourceEndpoint=packet.src_ep,
+                destinationEndpoint=packet.dst_ep,
+                options=options,
+                groupId=0x0000,
+                sequence=packet.tsn,
+            ),
+            message_tag=sentinel.msg_tag,
+            data=b"some data",
+        )
     )
-    assert app._ezsp.sendUnicast.mock_calls[-1].args[1] == t.EmberNodeId(0x1234)
-
-    aps_frame = app._ezsp.sendUnicast.mock_calls[-1].args[2]
-    assert aps_frame.profileId == packet.profile_id
-    assert aps_frame.clusterId == packet.cluster_id
-    assert aps_frame.sourceEndpoint == packet.src_ep
-    assert aps_frame.destinationEndpoint == packet.dst_ep
-    assert aps_frame.sequence == packet.tsn
-    assert aps_frame.groupId == 0x0000
-
-    assert app._ezsp.sendUnicast.mock_calls[-1].args[3] == sentinel.msg_tag
-    assert app._ezsp.sendUnicast.mock_calls[-1].args[4] == b"some data"
 
     assert len(app._pending) == 0
 
@@ -777,7 +787,7 @@ async def test_send_packet_unicast_ieee_no_fallback(app, packet, caplog):
     with pytest.raises(ValueError):
         await _test_send_packet_unicast(app, packet)
 
-    assert app._ezsp.sendUnicast.call_count == 0
+    assert app._ezsp.send_unicast.call_count == 0
 
 
 async def test_send_packet_unicast_source_route_ezsp7(make_app, packet):
@@ -786,7 +796,9 @@ async def test_send_packet_unicast_source_route_ezsp7(make_app, packet):
     app._ezsp.setSourceRoute = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
 
     packet.source_route = [0x0001, 0x0002]
-    await _test_send_packet_unicast(app, packet)
+    await _test_send_packet_unicast(
+        app, packet, options=(t.EmberApsOption.APS_OPTION_RETRY)
+    )
 
     assert app._ezsp.setSourceRoute.await_count == 1
     app._ezsp.setSourceRoute.assert_called_once_with(
@@ -799,9 +811,9 @@ async def test_send_packet_unicast_retries_success(app, packet):
         app,
         packet,
         statuses=(
-            t.EmberStatus.NO_BUFFERS,
-            t.EmberStatus.NO_BUFFERS,
-            t.EmberStatus.SUCCESS,
+            bellows.types.sl_Status.ALLOCATION_FAILED,
+            bellows.types.sl_Status.ALLOCATION_FAILED,
+            bellows.types.sl_Status.OK,
         ),
     )
 
@@ -819,9 +831,9 @@ async def test_send_packet_unicast_retries_failure(app, packet):
             app,
             packet,
             statuses=(
-                t.EmberStatus.NO_BUFFERS,
-                t.EmberStatus.NO_BUFFERS,
-                t.EmberStatus.NO_BUFFERS,
+                bellows.types.sl_Status.ALLOCATION_FAILED,
+                bellows.types.sl_Status.ALLOCATION_FAILED,
+                bellows.types.sl_Status.ALLOCATION_FAILED,
             ),
         )
 
@@ -858,7 +870,7 @@ async def test_send_packet_unicast_concurrency(app, packet, monkeypatch):
             ),
         )
 
-    async def send_unicast(type, indexOrDestination, apsFrame, messageTag, message):
+    async def send_unicast(nwk, aps_frame, message_tag, data):
         nonlocal max_concurrency, in_flight_requests
 
         in_flight_requests += 1
@@ -866,13 +878,17 @@ async def test_send_packet_unicast_concurrency(app, packet, monkeypatch):
 
         asyncio.create_task(
             send_message_sent_reply(
-                type, indexOrDestination, apsFrame, messageTag, message
+                t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+                nwk,
+                aps_frame,
+                message_tag,
+                data,
             )
         )
 
-        return [t.EmberStatus.SUCCESS, 0x12]
+        return [bellows.types.sl_Status.OK, 0x12]
 
-    app._ezsp.sendUnicast = AsyncMock(side_effect=send_unicast)
+    app._ezsp.send_unicast = AsyncMock(side_effect=send_unicast)
 
     responses = await asyncio.gather(*[app.send_packet(packet) for _ in range(100)])
     assert len(responses) == 100
@@ -886,7 +902,9 @@ async def test_send_packet_broadcast(app, packet):
     )
     packet.radius = 30
 
-    app._ezsp.sendBroadcast = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 0x12))
+    app._ezsp.send_broadcast = AsyncMock(
+        return_value=(bellows.types.named.sl_Status.OK, 0x12)
+    )
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
     asyncio.get_running_loop().call_soon(
@@ -905,20 +923,27 @@ async def test_send_packet_broadcast(app, packet):
     )
 
     await app.send_packet(packet)
-    assert app._ezsp.sendBroadcast.call_count == 1
-    assert app._ezsp.sendBroadcast.mock_calls[0].args[0] == t.EmberNodeId(0xFFFE)
-
-    aps_frame = app._ezsp.sendBroadcast.mock_calls[0].args[1]
-    assert aps_frame.profileId == packet.profile_id
-    assert aps_frame.clusterId == packet.cluster_id
-    assert aps_frame.sourceEndpoint == packet.src_ep
-    assert aps_frame.destinationEndpoint == packet.dst_ep
-    assert aps_frame.sequence == packet.tsn
-    assert aps_frame.groupId == 0x0000
-
-    assert app._ezsp.sendBroadcast.mock_calls[0].args[2] == packet.radius
-    assert app._ezsp.sendBroadcast.mock_calls[0].args[3] == sentinel.msg_tag
-    assert app._ezsp.sendBroadcast.mock_calls[0].args[4] == b"some data"
+    assert app._ezsp.send_broadcast.mock_calls == [
+        call(
+            address=bellows.types.named.BroadcastAddress(0xFFFE),
+            aps_frame=t.EmberApsFrame(
+                profileId=packet.profile_id,
+                clusterId=packet.cluster_id,
+                sourceEndpoint=packet.src_ep,
+                destinationEndpoint=packet.dst_ep,
+                options=(
+                    t.EmberApsOption.APS_OPTION_RETRY
+                    | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                ),
+                groupId=0x0000,
+                sequence=packet.tsn,
+            ),
+            radius=packet.radius,
+            message_tag=sentinel.msg_tag,
+            aps_sequence=packet.tsn,
+            data=b"some data",
+        )
+    ]
 
     assert len(app._pending) == 0
 
@@ -929,7 +954,9 @@ async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
     )
     packet.radius = 30
 
-    app._ezsp.sendBroadcast = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 0x12))
+    app._ezsp.send_broadcast = AsyncMock(
+        return_value=(bellows.types.sl_Status.OK, 0x12)
+    )
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
     asyncio.get_running_loop().call_soon(
@@ -950,20 +977,27 @@ async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
     # Does not throw an error
     await app.send_packet(packet)
 
-    assert app._ezsp.sendBroadcast.call_count == 1
-    assert app._ezsp.sendBroadcast.mock_calls[0].args[0] == t.EmberNodeId(0xFFFE)
-
-    aps_frame = app._ezsp.sendBroadcast.mock_calls[0].args[1]
-    assert aps_frame.profileId == packet.profile_id
-    assert aps_frame.clusterId == packet.cluster_id
-    assert aps_frame.sourceEndpoint == packet.src_ep
-    assert aps_frame.destinationEndpoint == packet.dst_ep
-    assert aps_frame.sequence == packet.tsn
-    assert aps_frame.groupId == 0x0000
-
-    assert app._ezsp.sendBroadcast.mock_calls[0].args[2] == packet.radius
-    assert app._ezsp.sendBroadcast.mock_calls[0].args[3] == sentinel.msg_tag
-    assert app._ezsp.sendBroadcast.mock_calls[0].args[4] == b"some data"
+    assert app._ezsp.send_broadcast.mock_calls == [
+        call(
+            address=bellows.types.named.BroadcastAddress(0xFFFE),
+            aps_frame=t.EmberApsFrame(
+                profileId=packet.profile_id,
+                clusterId=packet.cluster_id,
+                sourceEndpoint=packet.src_ep,
+                destinationEndpoint=packet.dst_ep,
+                options=(
+                    t.EmberApsOption.APS_OPTION_RETRY
+                    | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                ),
+                groupId=0x0000,
+                sequence=packet.tsn,
+            ),
+            radius=packet.radius,
+            message_tag=sentinel.msg_tag,
+            aps_sequence=packet.tsn,
+            data=b"some data",
+        )
+    ]
 
     assert len(app._pending) == 0
 
@@ -975,7 +1009,9 @@ async def test_send_packet_multicast(app, packet):
     packet.radius = 5
     packet.non_member_radius = 6
 
-    app._ezsp.sendMulticast = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 0x12))
+    app._ezsp.send_multicast = AsyncMock(
+        return_value=(bellows.types.sl_Status.OK, 0x12)
+    )
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
     asyncio.get_running_loop().call_soon(
@@ -994,20 +1030,26 @@ async def test_send_packet_multicast(app, packet):
     )
 
     await app.send_packet(packet)
-    assert app._ezsp.sendMulticast.call_count == 1
-
-    aps_frame = app._ezsp.sendMulticast.mock_calls[0].args[0]
-    assert aps_frame.profileId == packet.profile_id
-    assert aps_frame.clusterId == packet.cluster_id
-    assert aps_frame.sourceEndpoint == packet.src_ep
-    assert aps_frame.destinationEndpoint == packet.dst_ep
-    assert aps_frame.sequence == packet.tsn
-    assert aps_frame.groupId == 0x1234
-
-    assert app._ezsp.sendMulticast.mock_calls[0].args[1] == packet.radius
-    assert app._ezsp.sendMulticast.mock_calls[0].args[2] == packet.non_member_radius
-    assert app._ezsp.sendMulticast.mock_calls[0].args[3] == sentinel.msg_tag
-    assert app._ezsp.sendMulticast.mock_calls[0].args[4] == b"some data"
+    assert app._ezsp.send_multicast.mock_calls == [
+        call(
+            aps_frame=t.EmberApsFrame(
+                profileId=packet.profile_id,
+                clusterId=packet.cluster_id,
+                sourceEndpoint=packet.src_ep,
+                destinationEndpoint=packet.dst_ep,
+                options=(
+                    t.EmberApsOption.APS_OPTION_RETRY
+                    | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                ),
+                groupId=0x1234,
+                sequence=packet.tsn,
+            ),
+            radius=packet.radius,
+            non_member_radius=packet.non_member_radius,
+            message_tag=sentinel.msg_tag,
+            data=b"some data",
+        )
+    ]
 
     assert len(app._pending) == 0
 
