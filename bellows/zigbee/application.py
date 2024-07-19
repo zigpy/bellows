@@ -450,30 +450,39 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if frame_name == "incomingMessageHandler":
             if self._ezsp.ezsp_version >= 14:
                 (
-                    msg_type,
+                    message_type,
                     aps_frame,
                     nwk,
-                    eui64,
+                    _eui64,
                     binding_index,
                     address_index,
                     lqi,
                     rssi,
-                    timestamp,
+                    _timestamp,
+                    message,
+                ) = args
+            else:
+                (
+                    message_type,
+                    aps_frame,
+                    lqi,
+                    rssi,
+                    nwk,
+                    binding_index,
+                    address_index,
                     message,
                 ) = args
 
-                self._handle_frame(
-                    message_type=msg_type,
-                    aps_frame=aps_frame,
-                    lqi=lqi,
-                    rssi=rssi,
-                    sender=nwk,
-                    binding_index=binding_index,
-                    address_index=address_index,
-                    message=message,
-                )
-            else:
-                self._handle_frame(*args)
+            self._handle_frame(
+                message_type=message_type,
+                aps_frame=aps_frame,
+                lqi=lqi,
+                rssi=rssi,
+                sender=nwk,
+                binding_index=binding_index,
+                address_index=address_index,
+                message=message,
+            )
         elif frame_name == "messageSentHandler":
             if self._ezsp.ezsp_version >= 14:
                 (
