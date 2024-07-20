@@ -5,6 +5,7 @@ import logging
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, call, patch, sentinel
 
 import pytest
+import zigpy.backups
 import zigpy.config
 import zigpy.device
 import zigpy.exceptions
@@ -189,6 +190,13 @@ def _create_app_for_startup(
     ezsp_mock.getConfigurationValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS, 1])
     ezsp_mock.update_policies = AsyncMock()
     ezsp_mock.networkState = AsyncMock(return_value=[network_state])
+    ezsp_mock.factory_reset = AsyncMock()
+    ezsp_mock.write_nwk_frame_counter = AsyncMock()
+    ezsp_mock.write_aps_frame_counter = AsyncMock()
+    ezsp_mock.setInitialSecurityState = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    ezsp_mock.write_link_keys = AsyncMock()
+    ezsp_mock.write_child_data = AsyncMock()
+    ezsp_mock.formNetwork = AsyncMock()
 
     ezsp_mock.get_network_key = AsyncMock(
         return_value=zigpy.state.Key(
@@ -1759,77 +1767,122 @@ async def test_repair_tclk_partner_ieee(
     assert len(app._reset.mock_calls) == 1
 
 
+@pytest.fixture
+def zigpy_backup() -> zigpy.backups.NetworkBackup:
+    return zigpy.backups.NetworkBackup(
+        node_info=zigpy.state.NodeInfo(
+            nwk=zigpy_t.NWK(0x0000),
+            ieee=t.EUI64.convert("07:06:05:04:03:02:01:00"),
+            logical_type=zdo_t.LogicalType.Coordinator,
+            model="Mock board",
+            manufacturer="Mock Manufacturer",
+            version="Mock version",
+        ),
+        network_info=zigpy.state.NetworkInfo(
+            extended_pan_id=zigpy_t.ExtendedPanId.convert("aa:bb:cc:dd:ee:ff:aa:bb"),
+            pan_id=zigpy_t.PanId(0x55AA),
+            nwk_update_id=1,
+            nwk_manager_id=zigpy_t.NWK(0x0000),
+            channel=t.uint8_t(25),
+            channel_mask=t.Channels.ALL_CHANNELS,
+            security_level=t.uint8_t(1),
+            network_key=zigpy.state.Key(
+                key=t.KeyData.convert(
+                    "41:63:74:75:61:6c:4e:65:74:77:6f:72:6b:4b:65:79"
+                ),
+                seq=1,
+                tx_counter=305419896,
+            ),
+            tc_link_key=zigpy.state.Key(
+                key=t.KeyData(b"ZigBeeAlliance09"),
+                partner_ieee=t.EUI64.convert("07:06:05:04:03:02:01:00"),
+                tx_counter=2271560481,
+            ),
+            key_table=[
+                zigpy.state.Key(
+                    key=t.KeyData.convert(
+                        "74:65:73:74:5f:6c:69:6e:6b:5f:6b:65:79:5f:30:31"
+                    ),
+                    tx_counter=12345,
+                    rx_counter=67890,
+                    seq=1,
+                    partner_ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+                ),
+                zigpy.state.Key(
+                    key=t.KeyData.convert(
+                        "74:65:73:74:5f:6c:69:6e:6b:5f:6b:65:79:5f:30:32"
+                    ),
+                    tx_counter=54321,
+                    rx_counter=98765,
+                    seq=2,
+                    partner_ieee=t.EUI64.convert("11:22:33:44:55:66:77:88"),
+                ),
+            ],
+            children=[
+                t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+                t.EUI64.convert("11:22:33:44:55:66:77:88"),
+            ],
+            nwk_addresses={
+                t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"): zigpy_t.NWK(0x1234),
+                t.EUI64.convert("dc:ba:00:11:22:33:44:55"): zigpy_t.NWK(0xDCBA),
+                t.EUI64.convert("ab:cd:00:11:22:33:44:55"): zigpy_t.NWK(0xABCD),
+                t.EUI64.convert("11:22:33:44:55:66:77:88"): zigpy_t.NWK(0x5678),
+            },
+            stack_specific={"ezsp": {"hashed_tclk": b"thehashedlinkkey".hex()}},
+            source=f"bellows@{importlib.metadata.version('bellows')}",
+            metadata={
+                "ezsp": {
+                    "stack_version": 4,
+                    "can_burn_userdata_custom_eui64": True,
+                    "can_rewrite_custom_eui64": True,
+                }
+            },
+        ),
+    )
+
+
 async def test_load_network_info(
-    app: ControllerApplication, ieee: zigpy_t.EUI64
+    app: ControllerApplication,
+    ieee: zigpy_t.EUI64,
+    zigpy_backup: zigpy.backups.NetworkBackup,
 ) -> None:
     with mock_for_startup(app, ieee):
         await app.connect()
         await app.load_network_info(load_devices=True)
 
-    assert app.state.node_info == zigpy.state.NodeInfo(
-        nwk=zigpy_t.NWK(0x0000),
-        ieee=t.EUI64.convert("07:06:05:04:03:02:01:00"),
-        logical_type=zdo_t.LogicalType.Coordinator,
-        model="Mock board",
-        manufacturer="Mock Manufacturer",
-        version="Mock version",
-    )
+    assert app.state.node_info == zigpy_backup.node_info
+    assert app.state.network_info == zigpy_backup.network_info
 
-    assert app.state.network_info == zigpy.state.NetworkInfo(
-        extended_pan_id=zigpy_t.ExtendedPanId.convert("aa:bb:cc:dd:ee:ff:aa:bb"),
-        pan_id=zigpy_t.PanId(0x55AA),
-        nwk_update_id=1,
-        nwk_manager_id=zigpy_t.NWK(0x0000),
-        channel=t.uint8_t(25),
-        channel_mask=t.Channels.ALL_CHANNELS,
-        security_level=t.uint8_t(1),
-        network_key=zigpy.state.Key(
-            key=t.KeyData.convert("41:63:74:75:61:6c:4e:65:74:77:6f:72:6b:4b:65:79"),
-            seq=1,
-            tx_counter=305419896,
-        ),
-        tc_link_key=zigpy.state.Key(
-            key=t.KeyData(b"ZigBeeAlliance09"),
-            partner_ieee=t.EUI64.convert("07:06:05:04:03:02:01:00"),
-            tx_counter=2271560481,
-        ),
-        key_table=[
-            zigpy.state.Key(
-                key=t.KeyData.convert(
-                    "74:65:73:74:5f:6c:69:6e:6b:5f:6b:65:79:5f:30:31"
-                ),
-                tx_counter=12345,
-                rx_counter=67890,
-                seq=1,
-                partner_ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
-            ),
-            zigpy.state.Key(
-                key=t.KeyData.convert(
-                    "74:65:73:74:5f:6c:69:6e:6b:5f:6b:65:79:5f:30:32"
-                ),
-                tx_counter=54321,
-                rx_counter=98765,
-                seq=2,
-                partner_ieee=t.EUI64.convert("11:22:33:44:55:66:77:88"),
-            ),
-        ],
-        children=[
-            t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
-            t.EUI64.convert("11:22:33:44:55:66:77:88"),
-        ],
-        nwk_addresses={
-            t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"): zigpy_t.NWK(0x1234),
-            t.EUI64.convert("dc:ba:00:11:22:33:44:55"): zigpy_t.NWK(0xDCBA),
-            t.EUI64.convert("ab:cd:00:11:22:33:44:55"): zigpy_t.NWK(0xABCD),
-            t.EUI64.convert("11:22:33:44:55:66:77:88"): zigpy_t.NWK(0x5678),
-        },
-        stack_specific={"ezsp": {"hashed_tclk": b"thehashedlinkkey".hex()}},
-        source=f"bellows@{importlib.metadata.version('bellows')}",
-        metadata={
-            "ezsp": {
-                "stack_version": 4,
-                "can_burn_userdata_custom_eui64": True,
-                "can_rewrite_custom_eui64": True,
-            }
-        },
-    )
+
+async def test_write_network_info(
+    app: ControllerApplication,
+    ieee: zigpy_t.EUI64,
+    zigpy_backup: zigpy.backups.NetworkBackup,
+) -> None:
+    with mock_for_startup(app, ieee):
+        await app.connect()
+        await app.write_network_info(
+            node_info=zigpy_backup.node_info,
+            network_info=zigpy_backup.network_info,
+        )
+
+    assert app._ezsp.write_nwk_frame_counter.mock_calls == [
+        call(zigpy_backup.network_info.network_key.tx_counter)
+    ]
+    assert app._ezsp.write_aps_frame_counter.mock_calls == [
+        call(zigpy_backup.network_info.tc_link_key.tx_counter)
+    ]
+    assert app._ezsp.formNetwork.mock_calls == [
+        call(
+            t.EmberNetworkParameters(
+                panId=zigpy_backup.network_info.pan_id,
+                extendedPanId=zigpy_backup.network_info.extended_pan_id,
+                radioTxPower=t.uint8_t(8),
+                radioChannel=zigpy_backup.network_info.channel,
+                joinMethod=t.EmberJoinMethod.USE_MAC_ASSOCIATION,
+                nwkManagerId=t.EmberNodeId(0x0000),
+                nwkUpdateId=zigpy_backup.network_info.nwk_update_id,
+                channels=zigpy_backup.network_info.channel_mask,
+            )
+        )
+    ]
