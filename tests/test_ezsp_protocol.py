@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
@@ -10,8 +11,6 @@ import bellows.ezsp.v9
 from bellows.ezsp.v9.commands import GetTokenDataRsp
 from bellows.types import NV3KeyId
 from bellows.uart import Gateway
-
-from .async_mock import ANY, AsyncMock, MagicMock, call, patch
 
 
 @pytest.fixture

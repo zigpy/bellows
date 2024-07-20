@@ -129,7 +129,7 @@ async def test_list_command(ezsp_f):
         ezsp_f.frame_received(b"\x02\x00\x1b" + b"\x00" * 20)
         ezsp_f.frame_received(b"\x03\x00\x1c" + b"\x00" * 20)
 
-        return [0]
+        return [t.EmberStatus.SUCCESS]
 
     result = await _test_list_command(ezsp_f, mockcommand)
     assert len(result) == 2
@@ -138,7 +138,7 @@ async def test_list_command(ezsp_f):
 async def test_list_command_initial_failure(ezsp_f):
     async def mockcommand(name, *args):
         assert name == "startScan"
-        return [1]
+        return [t.EmberStatus.FAILURE]
 
     with pytest.raises(Exception):
         await _test_list_command(ezsp_f, mockcommand)
@@ -151,7 +151,7 @@ async def test_list_command_later_failure(ezsp_f):
         ezsp_f.frame_received(b"\x02\x00\x1b" + b"\x00" * 20)
         ezsp_f.frame_received(b"\x03\x00\x1c\x01\x01")
 
-        return [0]
+        return [t.EmberStatus.SUCCESS]
 
     with pytest.raises(Exception):
         await _test_list_command(ezsp_f, mockcommand)
@@ -169,17 +169,17 @@ async def _test_form_network(ezsp_f, initial_result, final_result):
 
 
 async def test_form_network(ezsp_f):
-    await _test_form_network(ezsp_f, [0], b"\x90")
+    await _test_form_network(ezsp_f, [t.EmberStatus.SUCCESS], b"\x90")
 
 
 async def test_form_network_fail(ezsp_f):
     with pytest.raises(Exception):
-        await _test_form_network(ezsp_f, [1], b"\x90")
+        await _test_form_network(ezsp_f, [t.EmberStatus.FAILURE], b"\x90")
 
 
 async def test_form_network_fail_stack_status(ezsp_f):
     with pytest.raises(Exception):
-        await _test_form_network(ezsp_f, [0], b"\x00")
+        await _test_form_network(ezsp_f, [t.EmberStatus.SUCCESS], b"\x00")
 
 
 def test_receive_new(ezsp_f):
@@ -338,7 +338,7 @@ async def test_board_info(ezsp_f):
                     b"Manufacturer\xff\xff\xff",
                 ),
                 ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
-                    0x00,
+                    t.EmberStatus.SUCCESS,
                     b"\x01\x02\x03\x04\x05\x06",
                 ),
             }
@@ -362,7 +362,7 @@ async def test_board_info(ezsp_f):
                     b"Manufacturer\xff\xff\xff",
                 ),
                 ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
-                    0x01,
+                    t.EmberStatus.ERR_FATAL,
                     b"\x01\x02\x03\x04\x05\x06",
                 ),
             }
@@ -386,7 +386,7 @@ async def test_board_info(ezsp_f):
                     b"Nabu Casa\x00\xff\xff\xff\xff\xff\xff",
                 ),
                 ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
-                    0x00,
+                    t.EmberStatus.SUCCESS,
                     b"\xbf\x00\x07\x01\x00\x00\xaa",
                 ),
             }
@@ -406,7 +406,7 @@ async def test_board_info(ezsp_f):
                 ("getMfgToken", t.EzspMfgTokenId.MFG_BOARD_NAME): (b"\xff" * 16,),
                 ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (b"\xff" * 16,),
                 ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
-                    0x00,
+                    t.EmberStatus.SUCCESS,
                     b"\xbf\x00\x07\x01\x00\x00\xaa",
                 ),
             }
@@ -696,26 +696,26 @@ async def test_ezsp_init_zigbeed_timeout(conn_mock, reset_mock, version_mock):
 
 
 async def test_wait_for_stack_status(ezsp_f):
-    assert not ezsp_f._stack_status_listeners[t.EmberStatus.NETWORK_DOWN]
+    assert not ezsp_f._stack_status_listeners[t.sl_Status.NETWORK_DOWN]
 
     # Cancellation clears handlers
-    with ezsp_f.wait_for_stack_status(t.EmberStatus.NETWORK_DOWN) as stack_status:
+    with ezsp_f.wait_for_stack_status(t.sl_Status.NETWORK_DOWN) as stack_status:
         with pytest.raises(asyncio.TimeoutError):
             async with asyncio_timeout(0.1):
-                assert ezsp_f._stack_status_listeners[t.EmberStatus.NETWORK_DOWN]
+                assert ezsp_f._stack_status_listeners[t.sl_Status.NETWORK_DOWN]
                 await stack_status
 
-    assert not ezsp_f._stack_status_listeners[t.EmberStatus.NETWORK_DOWN]
+    assert not ezsp_f._stack_status_listeners[t.sl_Status.NETWORK_DOWN]
 
     # Receiving multiple also works
-    with ezsp_f.wait_for_stack_status(t.EmberStatus.NETWORK_DOWN) as stack_status:
+    with ezsp_f.wait_for_stack_status(t.sl_Status.NETWORK_DOWN) as stack_status:
         ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_UP])
         ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_DOWN])
         ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_DOWN])
 
         await stack_status
 
-    assert not ezsp_f._stack_status_listeners[t.EmberStatus.NETWORK_DOWN]
+    assert not ezsp_f._stack_status_listeners[t.sl_Status.NETWORK_DOWN]
 
 
 def test_ezsp_versions(ezsp_f):

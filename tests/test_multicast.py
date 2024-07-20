@@ -1,3 +1,5 @@
+from unittest.mock import AsyncMock, MagicMock, sentinel
+
 import pytest
 from zigpy.endpoint import Endpoint
 
@@ -5,15 +7,15 @@ import bellows.ezsp
 import bellows.multicast
 import bellows.types as t
 
-from .async_mock import AsyncMock, MagicMock, sentinel
-
 CUSTOM_SIZE = 12
 
 
 @pytest.fixture
 def ezsp_f():
     e = MagicMock()
-    e.getConfigurationValue = AsyncMock(return_value=[0, CUSTOM_SIZE])
+    e.getConfigurationValue = AsyncMock(
+        return_value=[t.EmberStatus.SUCCESS, CUSTOM_SIZE]
+    )
     return e
 
 

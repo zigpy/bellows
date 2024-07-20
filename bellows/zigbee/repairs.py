@@ -17,7 +17,7 @@ async def fix_invalid_tclk_partner_ieee(ezsp: EZSP) -> bool:
     ieee = zigpy.types.EUI64(ieee)
 
     (status, state) = await ezsp.getCurrentSecurityState()
-    assert status == t.EmberStatus.SUCCESS
+    assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
 
     if state.trustCenterLongAddress == ieee:
         return False
@@ -30,7 +30,7 @@ async def fix_invalid_tclk_partner_ieee(ezsp: EZSP) -> bool:
 
     try:
         rsp = await ezsp.getTokenData(t.NV3KeyId.NVM3KEY_STACK_TRUST_CENTER, 0)
-        assert rsp.status == t.EmberStatus.SUCCESS
+        assert t.sl_Status.from_ember_status(rsp.status) == t.sl_Status.OK
     except (InvalidCommandError, AttributeError, AssertionError):
         LOGGER.warning("NV3 interface not available in this firmware, please upgrade!")
         return False
@@ -44,6 +44,6 @@ async def fix_invalid_tclk_partner_ieee(ezsp: EZSP) -> bool:
         0,
         token.replace(eui64=ieee).serialize(),
     )
-    assert status == t.EmberStatus.SUCCESS
+    assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
 
     return True

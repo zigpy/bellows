@@ -56,29 +56,25 @@ class EZSPEndpoint(zigpy.endpoint.Endpoint):
         """Model."""
         return "EZSP"
 
-    async def add_to_group(self, grp_id: int, name: str = None) -> t.EmberStatus:
+    async def add_to_group(self, grp_id: int, name: str = None) -> None:
         if grp_id in self.member_of:
-            return t.EmberStatus.SUCCESS
+            return
 
         app = self.device.application
         status = await app.multicast.subscribe(grp_id)
-        if status != t.EmberStatus.SUCCESS:
-            self.debug("Couldn't subscribe to 0x%04x group", grp_id)
-            return status
+        if status != t.sl_Status.OK:
+            raise ValueError(f"Couldn't subscribe to 0x{grp_id:04x} group")
 
         group = app.groups.add_group(grp_id, name)
         group.add_member(self)
-        return status
 
-    async def remove_from_group(self, grp_id: int) -> t.EmberStatus:
+    async def remove_from_group(self, grp_id: int) -> None:
         if grp_id not in self.member_of:
-            return t.EmberStatus.SUCCESS
+            return
 
         app = self.device.application
         status = await app.multicast.unsubscribe(grp_id)
-        if status != t.EmberStatus.SUCCESS:
-            self.debug("Couldn't unsubscribe 0x%04x group", grp_id)
-            return status
+        if status != t.sl_Status.OK:
+            raise ValueError(f"Couldnt't unsubscribe from 0x{grp_id:04x} group")
 
         app.groups[grp_id].remove_member(self)
-        return status
