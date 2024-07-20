@@ -34,6 +34,9 @@ from bellows.types.named import (  # noqa: F401, F403
     EmberPrivateKeyData,
     EmberPublicKey283k1Data,
     EmberPublicKeyData,
+    EmberRf4ceApplicationCapabilities,
+    EmberRf4ceNodeCapabilities,
+    EmberRf4ceTxOption,
     EmberSignature283k1Data,
     EmberSignatureData,
     EmberSmacData,
@@ -53,21 +56,6 @@ from bellows.types.named import (  # noqa: F401, F403
     EzspZllNetworkOperation,
     KeyData,
 )
-
-
-class EmberRf4ceTxOption(basic.uint8_t):
-    # RF4CE transmission options.
-    pass
-
-
-class EmberRf4ceNodeCapabilities(basic.uint8_t):
-    # The RF4CE node capabilities.
-    pass
-
-
-class EmberRf4ceApplicationCapabilities(basic.uint8_t):
-    # The RF4CE application capabilities.
-    pass
 
 
 class EzspPolicyId(basic.enum8):

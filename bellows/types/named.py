@@ -2208,3 +2208,18 @@ class EzspValueId(basic.enum8):
     # Return activation state about TC Delayed Join on an NCP.  A return value of
     # 0 indicates that the feature is not activated.
     VALUE_DELAYED_JOIN_ACTIVATION = 0x45
+
+
+class EmberRf4ceTxOption(basic.uint8_t):
+    # RF4CE transmission options.
+    pass
+
+
+class EmberRf4ceNodeCapabilities(basic.uint8_t):
+    # The RF4CE node capabilities.
+    pass
+
+
+class EmberRf4ceApplicationCapabilities(basic.uint8_t):
+    # The RF4CE application capabilities.
+    pass
