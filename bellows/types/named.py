@@ -1851,3 +1851,195 @@ class sl_zb_sec_man_flags_t(basic.bitmap8):
     # dictates that we generate a new, unconfirmed key, send it to the requester,
     # and await for a Verify Key Confirm message.
     UNCONFIRMED_TRANSIENT_KEY = 0x04
+
+
+class EzspConfigId(basic.enum8):
+    # Identifies a configuration value.
+
+    # The number of packet buffers available to the stack.  When set to the
+    # special value 0xFF, the NCP will allocate all remaining configuration RAM
+    # towards packet buffers, such that the resulting count will be the largest
+    # whole number of packet buffers that can fit into the available memory.
+    CONFIG_PACKET_BUFFER_COUNT = 0x01
+    # The maximum number of router neighbors the stack can keep track of. A
+    # neighbor is a node within radio range.
+    CONFIG_NEIGHBOR_TABLE_SIZE = 0x02
+    # The maximum number of APS retried messages the stack can be transmitting
+    # at any time.
+    CONFIG_APS_UNICAST_MESSAGE_COUNT = 0x03
+    # The maximum number of non-volatile bindings supported by the stack.
+    CONFIG_BINDING_TABLE_SIZE = 0x04
+    # The maximum number of EUI64 to network address associations that the
+    # stack can maintain for the application. (Note, the total number of such
+    # address associations maintained by the NCP is the sum of the value of
+    # this setting and the value of ::CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE).
+    CONFIG_ADDRESS_TABLE_SIZE = 0x05
+    # The maximum number of multicast groups that the device may be a member
+    # of.
+    CONFIG_MULTICAST_TABLE_SIZE = 0x06
+    # The maximum number of destinations to which a node can route messages.
+    # This includes both messages originating at this node and those relayed
+    # for others.
+    CONFIG_ROUTE_TABLE_SIZE = 0x07
+    # The number of simultaneous route discoveries that a node will support.
+    CONFIG_DISCOVERY_TABLE_SIZE = 0x08
+    # The size of the alarm broadcast buffer.
+    CONFIG_BROADCAST_ALARM_DATA_SIZE = 0x09  # Removed in EZSPv5
+    # The size of the unicast alarm buffers allocated for end device children.
+    CONFIG_UNICAST_ALARM_DATA_SIZE = 0x0A  # Removed in EZSPv5
+    # Specifies the stack profile.
+    CONFIG_STACK_PROFILE = 0x0C
+    # The security level used for security at the MAC and network layers. The
+    # supported values are 0 (no security) and 5 (payload is encrypted and a
+    # four-byte MIC is used for authentication).
+    CONFIG_SECURITY_LEVEL = 0x0D
+    # The maximum number of hops for a message.
+    CONFIG_MAX_HOPS = 0x10
+    # The maximum number of end device children that a router will support.
+    CONFIG_MAX_END_DEVICE_CHILDREN = 0x11
+    # The maximum amount of time that the MAC will hold a message for indirect
+    # transmission to a child.
+    CONFIG_INDIRECT_TRANSMISSION_TIMEOUT = 0x12
+    # The maximum amount of time that an end device child can wait between
+    # polls. If no poll is heard within this timeout, then the parent removes
+    # the end device from its tables.
+    CONFIG_END_DEVICE_POLL_TIMEOUT = 0x13
+    # The maximum amount of time that a mobile node can wait between polls. If
+    # no poll is heard within this timeout, then the parent removes the mobile
+    # node from its tables.
+    CONFIG_MOBILE_NODE_POLL_TIMEOUT = 0x14  # Removed in EZSPv6
+    # The number of child table entries reserved for use only by mobile nodes.
+    CONFIG_RESERVED_MOBILE_CHILD_ENTRIES = 0x15  # Removed in EZSPv6
+    # Enables boost power mode and/or the alternate transmitter output.
+    CONFIG_TX_POWER_MODE = 0x17
+    # 0: Allow this node to relay messages. 1: Prevent this node from relaying
+    # messages.
+    CONFIG_DISABLE_RELAY = 0x18
+    # The maximum number of EUI64 to network address associations that the
+    # Trust Center can maintain.  These address cache entries are reserved for
+    # and reused by the Trust Center when processing device join/rejoin
+    # authentications. This cache size limits the number of overlapping joins
+    # the Trust Center can process within a narrow time window (e.g. two
+    # seconds), and thus should be set to the maximum number of near
+    # simultaneous joins the Trust Center is expected to accommodate. (Note,
+    # the total number of such address associations maintained by the NCP is
+    # the sum of the value of this setting and the value of
+    # ::CONFIG_ADDRESS_TABLE_SIZE.)
+    CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE = 0x19
+    # The size of the source route table.
+    CONFIG_SOURCE_ROUTE_TABLE_SIZE = 0x1A
+    # The units used for timing out end devices on their parents.
+    CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT = 0x1B  # Removed in EZSPv7
+    # The number of blocks of a fragmented message that can be sent in a single
+    # window.
+    CONFIG_FRAGMENT_WINDOW_SIZE = 0x1C
+    # The time the stack will wait (in milliseconds) between sending blocks of
+    # a fragmented message.
+    CONFIG_FRAGMENT_DELAY_MS = 0x1D
+    # The size of the Key Table used for storing individual link keys (if the
+    # device is a Trust Center) or Application Link Keys (if the device is a
+    # normal node).
+    CONFIG_KEY_TABLE_SIZE = 0x1E
+    # The APS ACK timeout value. The stack waits this amount of time between
+    # resends of APS retried messages.
+    CONFIG_APS_ACK_TIMEOUT = 0x1F
+    # The duration of an active scan, in the units used by the 15.4 scan
+    # parameter (((1 << duration) + 1) * 15ms). This also controls the jitter
+    # used when responding to a beacon request.
+    CONFIG_ACTIVE_SCAN_DURATION = 0x20
+    # The time the coordinator will wait (in seconds) for a second end device
+    # bind request to arrive.
+    CONFIG_END_DEVICE_BIND_TIMEOUT = 0x21
+    # The number of PAN id conflict reports that must be received by the
+    # network manager within one minute to trigger a PAN id change.
+    CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD = 0x22
+    # The timeout value in minutes for how long the Trust Center or a normal
+    # node waits for the ZigBee Request Key to complete. On the Trust Center
+    # this controls whether or not the device buffers the request, waiting for
+    # a matching pair of ZigBee Request Key. If the value is non-zero, the
+    # Trust Center buffers and waits for that amount of time. If the value is
+    # zero, the Trust Center does not buffer the request and immediately
+    # responds to the request.  Zero is the most compliant behavior.
+    CONFIG_REQUEST_KEY_TIMEOUT = 0x24
+    # This value indicates the size of the runtime modifiable certificate
+    # table. Normally certificates are stored in MFG tokens but this table can
+    # be used to field upgrade devices with new Smart Energy certificates.
+    # This value cannot be set, it can only be queried.
+    CONFIG_CERTIFICATE_TABLE_SIZE = 0x29
+    # This is a bitmask that controls which incoming ZDO request messages are
+    # passed to the application. The bits are defined in the
+    # EmberZdoConfigurationFlags enumeration. To see if the application is
+    # required to send a ZDO response in reply to an incoming message, the
+    # application must check the APS options bitfield within the
+    # incomingMessageHandler callback to see if the
+    # APS_OPTION_ZDO_RESPONSE_REQUIRED flag is set.
+    CONFIG_APPLICATION_ZDO_FLAGS = 0x2A
+    # The maximum number of broadcasts during a single broadcast timeout
+    # period.
+    CONFIG_BROADCAST_TABLE_SIZE = 0x2B
+    # The size of the MAC filter list table.
+    CONFIG_MAC_FILTER_TABLE_SIZE = 0x2C
+    # The number of supported networks.
+    CONFIG_SUPPORTED_NETWORKS = 0x2D
+    # Whether multicasts are sent to the RxOnWhenIdle=true address (0xFFFD) or
+    # the sleepy broadcast address (0xFFFF). The RxOnWhenIdle=true address is
+    # the ZigBee compliant destination for multicasts.
+    CONFIG_SEND_MULTICASTS_TO_SLEEPY_ADDRESS = 0x2E
+    # ZLL group address initial configuration.
+    CONFIG_ZLL_GROUP_ADDRESSES = 0x2F
+    # ZLL rssi threshold initial configuration.
+    CONFIG_ZLL_RSSI_THRESHOLD = 0x30
+    # The maximum number of pairings supported by the stack. Controllers
+    # must support at least one pairing table entry while targets must
+    # support at least five.
+    CONFIG_RF4CE_PAIRING_TABLE_SIZE = 0x31  # Removed in EZSPv6
+    # The maximum number of outgoing RF4CE packets supported by the stack.
+    CONFIG_RF4CE_PENDING_OUTGOING_PACKET_TABLE_SIZE = 0x32  # Removed in EZSPv6
+    # Toggles the mtorr flow control in the stack.
+    # The maximum number of pairings supported by the stack. Controllers
+    # must support at least one pairing table entry while targets must
+    # support at least five.
+    CONFIG_MTORR_FLOW_CONTROL = 0x33
+    # Setting the retry queue size.
+    CONFIG_RETRY_QUEUE_SIZE = 0x34
+    # Setting the new broadcast entry threshold.
+    CONFIG_NEW_BROADCAST_ENTRY_THRESHOLD = 0x35
+    # The length of time, in seconds, that a trust center will store a
+    # transient link key that a device can use to join its network. A transient
+    # key is added with a call to emberAddTransientLinkKey. After the transient
+    # key is added, it will be removed once this amount of time has passed. A
+    # joining device will not be able to use that key to join until it is added
+    # again on the trust center. The default value is 300 seconds, i.e., 5
+    # minutes.
+    CONFIG_TRANSIENT_KEY_TIMEOUT_S = 0x36
+    # The number of passive acknowledgements to record from neighbors before we stop
+    # re-transmitting broadcasts
+    CONFIG_BROADCAST_MIN_ACKS_NEEDED = 0x37  # Replaces below entry in EZSPv6+
+    # Whether the NCP has updated Green Power support. Both host and NCP software must
+    # be updated to fully support Green Power Proxy Basic functionality. The 5.10.1 host
+    # software calls new EZSP functions for Green Power.  If this configuration value is
+    # not present, the host will not call the new functions.
+    CONFIG_GREEN_POWER_ACTIVE = 0x37  # Added in EZSPv5 and removed in EZSPv6
+    # The length of time, in seconds, that a trust center will allow a Trust Center
+    # (insecure) rejoin for a device that is using the well-known link key. This timeout
+    # takes effect once rejoins using the well-known key has been allowed. This command
+    # updates the emAllowTcRejoinsUsingWellKnownKeyTimeoutSec value.
+    CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S = 0x38
+    # Valid range of a CTUNE value is 0x0000-0x01FF. Higher order bits (0xFE00) of the
+    # 16-bit value are ignored.
+    CONFIG_CTUNE_VALUE = 0x39
+    # To configure non trust center node to assume a concentrator type of the trust
+    # center it join to, until it receive many-to-one route request from the trust
+    # center. For the trust center node, concentrator type is configured from the
+    # concentrator plugin. The stack by default assumes trust center be a low RAM
+    # concentrator that make other devices send route record to the trust center even
+    # without receiving a many-to-one route request. The default concentrator type can
+    # be changed by setting appropriate EmberAssumeTrustCenterConcentratorType config
+    # value.
+    CONFIG_ASSUME_TC_CONCENTRATOR_TYPE = 0x40
+    # This is green power proxy table size. This value is readonly and cannot be set at
+    # runtime.
+    CONFIG_GP_PROXY_TABLE_SIZE = 0x41
+    # This is green power sink table size. This value is readonly and cannot be set at
+    # runtime.
+    EZSP_CONFIG_GP_SINK_TABLE_SIZE = 0x42
