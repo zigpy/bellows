@@ -20,6 +20,7 @@ from bellows.types.named import (  # noqa: F401, F403
     EmberJoinDecision,
     EmberKeyStatus,
     EmberKeyStructBitmask,
+    EmberKeyType,
     EmberLibraryId,
     EmberLibraryStatus,
     EmberMacPassthroughType,
@@ -155,21 +156,6 @@ class EzspDecisionId(basic.enum8):
     PACKET_VALIDATE_LIBRARY_CHECKS_ENABLED = 0x62
     # Indicates that packet validate library checks are NOT enabled on the NCP.
     PACKET_VALIDATE_LIBRARY_CHECKS_DISABLED = 0x63
-
-
-class EmberKeyType(basic.enum8):
-    # Describes the type of ZigBee security key.
-
-    # A shared key between the Trust Center and a device.
-    TRUST_CENTER_LINK_KEY = 0x01
-    # A shared secret used for deriving keys between the Trust Center and a
-    # device
-    CURRENT_NETWORK_KEY = 0x03
-    # The alternate Network Key that was previously in use, or the newer key
-    # that will be switched to.
-    NEXT_NETWORK_KEY = 0x04
-    # An Application Link Key shared with another (non-Trust Center) device.
-    APPLICATION_LINK_KEY = 0x05
 
 
 class EmberDeviceUpdate(basic.enum8):
