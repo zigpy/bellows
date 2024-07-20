@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import importlib.metadata
 import logging
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, call, patch, sentinel
 
@@ -201,7 +202,7 @@ def _create_app_for_startup(
 
     ezsp_mock.get_tc_link_key = AsyncMock(
         return_value=zigpy.state.Key(
-            key=t.KeyData(b"ZigBeeAlliance09"),
+            key=t.KeyData(b"thehashedlinkkey"),
             tx_counter=t.uint32_t(0x87654321),
             rx_counter=t.uint32_t(0x00000000),
             seq=t.uint8_t(0),
@@ -229,6 +230,44 @@ def _create_app_for_startup(
         ]
     )
     ezsp_mock.setMulticastTableEntry = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+
+    ezsp_mock.read_link_keys = MagicMock()
+    ezsp_mock.read_link_keys.return_value.__aiter__.return_value = [
+        zigpy.state.Key(
+            key=t.KeyData(b"test_link_key_01"),
+            tx_counter=12345,
+            rx_counter=67890,
+            seq=1,
+            partner_ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+        ),
+        zigpy.state.Key(
+            key=t.KeyData(b"test_link_key_02"),
+            tx_counter=54321,
+            rx_counter=98765,
+            seq=2,
+            partner_ieee=t.EUI64.convert("11:22:33:44:55:66:77:88"),
+        ),
+    ]
+
+    ezsp_mock.read_child_data = MagicMock()
+    ezsp_mock.read_child_data.return_value.__aiter__.return_value = [
+        (
+            0x1234,
+            t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+            t.EmberNodeType.END_DEVICE,
+        ),
+        (
+            0x5678,
+            t.EUI64.convert("11:22:33:44:55:66:77:88"),
+            t.EmberNodeType.END_DEVICE,
+        ),
+    ]
+
+    ezsp_mock.read_address_table = MagicMock()
+    ezsp_mock.read_address_table.return_value.__aiter__.return_value = [
+        (0xABCD, t.EUI64.convert("ab:cd:00:11:22:33:44:55")),
+        (0xDCBA, t.EUI64.convert("dc:ba:00:11:22:33:44:55")),
+    ]
 
     app.permit = AsyncMock()
 
@@ -1718,3 +1757,79 @@ async def test_repair_tclk_partner_ieee(
         await app.start_network()
 
     assert len(app._reset.mock_calls) == 1
+
+
+async def test_load_network_info(
+    app: ControllerApplication, ieee: zigpy_t.EUI64
+) -> None:
+    with mock_for_startup(app, ieee):
+        await app.connect()
+        await app.load_network_info(load_devices=True)
+
+    assert app.state.node_info == zigpy.state.NodeInfo(
+        nwk=zigpy_t.NWK(0x0000),
+        ieee=t.EUI64.convert("07:06:05:04:03:02:01:00"),
+        logical_type=zdo_t.LogicalType.Coordinator,
+        model="Mock board",
+        manufacturer="Mock Manufacturer",
+        version="Mock version",
+    )
+
+    assert app.state.network_info == zigpy.state.NetworkInfo(
+        extended_pan_id=zigpy_t.ExtendedPanId.convert("aa:bb:cc:dd:ee:ff:aa:bb"),
+        pan_id=zigpy_t.PanId(0x55AA),
+        nwk_update_id=1,
+        nwk_manager_id=zigpy_t.NWK(0x0000),
+        channel=t.uint8_t(25),
+        channel_mask=t.Channels.ALL_CHANNELS,
+        security_level=t.uint8_t(1),
+        network_key=zigpy.state.Key(
+            key=t.KeyData.convert("41:63:74:75:61:6c:4e:65:74:77:6f:72:6b:4b:65:79"),
+            seq=1,
+            tx_counter=305419896,
+        ),
+        tc_link_key=zigpy.state.Key(
+            key=t.KeyData(b"ZigBeeAlliance09"),
+            partner_ieee=t.EUI64.convert("07:06:05:04:03:02:01:00"),
+            tx_counter=2271560481,
+        ),
+        key_table=[
+            zigpy.state.Key(
+                key=t.KeyData.convert(
+                    "74:65:73:74:5f:6c:69:6e:6b:5f:6b:65:79:5f:30:31"
+                ),
+                tx_counter=12345,
+                rx_counter=67890,
+                seq=1,
+                partner_ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+            ),
+            zigpy.state.Key(
+                key=t.KeyData.convert(
+                    "74:65:73:74:5f:6c:69:6e:6b:5f:6b:65:79:5f:30:32"
+                ),
+                tx_counter=54321,
+                rx_counter=98765,
+                seq=2,
+                partner_ieee=t.EUI64.convert("11:22:33:44:55:66:77:88"),
+            ),
+        ],
+        children=[
+            t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+            t.EUI64.convert("11:22:33:44:55:66:77:88"),
+        ],
+        nwk_addresses={
+            t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"): zigpy_t.NWK(0x1234),
+            t.EUI64.convert("dc:ba:00:11:22:33:44:55"): zigpy_t.NWK(0xDCBA),
+            t.EUI64.convert("ab:cd:00:11:22:33:44:55"): zigpy_t.NWK(0xABCD),
+            t.EUI64.convert("11:22:33:44:55:66:77:88"): zigpy_t.NWK(0x5678),
+        },
+        stack_specific={"ezsp": {"hashed_tclk": b"thehashedlinkkey".hex()}},
+        source=f"bellows@{importlib.metadata.version('bellows')}",
+        metadata={
+            "ezsp": {
+                "stack_version": 4,
+                "can_burn_userdata_custom_eui64": True,
+                "can_rewrite_custom_eui64": True,
+            }
+        },
+    )
