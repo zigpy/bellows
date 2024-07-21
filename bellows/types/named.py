@@ -2269,7 +2269,7 @@ class EzspDecisionBitmask(basic.bitmap16):
     DEFER_JOINS = 0x0020
 
 
-class EzspDecisionId(basic.enum8):
+class BaseEzspDecisionId:
     # Identifies a policy decision.
 
     # Send the network key in the clear to all joining and rejoining devices.
@@ -2367,6 +2367,14 @@ class EzspDecisionId(basic.enum8):
     RF4CE_PAIR_REQUEST_ACCEPT = 0x76
     # Indicates that the RF4CE stack will NOT accept new pairings.
     RF4CE_PAIR_REQUEST_DENY = 0x77
+
+
+class EzspDecisionIdV4(BaseEzspDecisionId, basic.enum8):
+    pass
+
+
+class EzspDecisionIdV8(BaseEzspDecisionId, basic.enum8):
+    pass
 
 
 class EmberDeviceUpdate(basic.enum8):
