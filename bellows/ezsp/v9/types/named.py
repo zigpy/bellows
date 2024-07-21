@@ -1,6 +1,5 @@
 """Protocol version 9 named types."""
 
-import bellows.types.basic as basic
 from bellows.types.named import (  # noqa: F401, F403
     EUI64,
     Bool,
@@ -15,6 +14,7 @@ from bellows.types.named import (  # noqa: F401, F403
     EmberCurrentSecurityBitmask,
     EmberDeviceUpdate,
     EmberDutyCycleState,
+    EmberEntropySource,
     EmberEventUnits,
     EmberGpKeyType,
     EmberGpProxyTableEntryStatus,
@@ -70,16 +70,3 @@ from bellows.types.named import (  # noqa: F401, F403
     SecureEzspSecurityType,
     sl_Status,
 )
-
-
-class EmberEntropySource(basic.enum8):
-    """Entropy sources."""
-
-    # Entropy source error
-    ENTROPY_SOURCE_ERROR = 0
-    # Entropy source is the radio.
-    ENTROPY_SOURCE_RADIO = 1
-    # Entropy source is the TRNG powered by mbed TLS.
-    ENTROPY_SOURCE_MBEDTLS_TRNG = 2
-    # Entropy source is powered by mbed TLS, the source is not TRNG.
-    ENTROPY_SOURCE_MBEDTLS = 3

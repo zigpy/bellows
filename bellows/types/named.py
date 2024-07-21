@@ -2599,3 +2599,16 @@ class EmberJoinMethod(basic.enum8):
     # ahead of time, a router device may be commissioned such that it does not
     # need to send any messages to begin communicating on the network.
     USE_CONFIGURED_NWK_STATE = 0x3
+
+
+class EmberEntropySource(basic.enum8):
+    """Entropy sources."""
+
+    # Entropy source error
+    ENTROPY_SOURCE_ERROR = 0
+    # Entropy source is the radio.
+    ENTROPY_SOURCE_RADIO = 1
+    # Entropy source is the TRNG powered by mbed TLS.
+    ENTROPY_SOURCE_MBEDTLS_TRNG = 2
+    # Entropy source is powered by mbed TLS, the source is not TRNG.
+    ENTROPY_SOURCE_MBEDTLS = 3
