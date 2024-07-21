@@ -2524,3 +2524,16 @@ class EmberCounterType(basic.enum8):
     # The number of times an address conflict has caused node_id change, and an address
     # conflict error is sent
     COUNTER_ADDRESS_CONFLICT_SENT = 40
+
+
+class EmberNetworkInitBitmask(basic.bitmap16):
+    # Bitmask options for emberNetworkInit().
+
+    # No options for Network Init
+    NETWORK_INIT_NO_OPTIONS = 0x0000
+    # Save parent info (node ID and EUI64) in a token during joining/rejoin,
+    # and restore on reboot.
+    NETWORK_INIT_PARENT_INFO_IN_TOKEN = 0x0001
+    # Send a rejoin request as an end device on reboot if parent information is
+    # persisted. ZB3 end devices must rejoin on reboot.
+    NETWORK_INIT_END_DEVICE_REJOIN_ON_REBOOT = 0x0002
