@@ -1,6 +1,5 @@
 """Protocol version 5 named types."""
 
-import bellows.types.basic as basic
 from bellows.types.named import (  # noqa: F401, F403
     EUI64,
     Bool,
@@ -64,20 +63,3 @@ from bellows.types.named import (  # noqa: F401, F403
     SecureEzspSecurityLevel,
     SecureEzspSecurityType,
 )
-
-
-class SecureEzspRandomNumber(basic.FixedList[basic.uint8_t, 16]):
-    """Randomly generated 64-bit number.
-
-    Both NCP and Host contribute this number to create the Session ID,
-    which is used in the nonce.
-    """
-
-
-class SecureEzspSessionId(basic.FixedList[basic.uint8_t, 8]):
-    """Generated 64-bit Session ID, using random numbers from Host and NCP.
-
-    It is generated at each reboot (during negotiation phase). Having both sides
-    contribute to the value prevents one side from choosing a number that might have
-    been previously used (either because of a bug or by malicious intent).
-    """

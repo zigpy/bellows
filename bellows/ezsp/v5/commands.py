@@ -1223,8 +1223,8 @@ COMMANDS = {
     ),
     "setSecurityParameters": (
         0xCB,
-        (t.SecureEzspSecurityLevel, t.SecureEzspRandomNumber),
-        (t.EzspStatus, t.SecureEzspRandomNumber),
+        (t.SecureEzspSecurityLevel, t.uint128_t),
+        (t.EzspStatus, t.uint128_t),
     ),
     "resetToFactoryDefaults": (
         0xCC,

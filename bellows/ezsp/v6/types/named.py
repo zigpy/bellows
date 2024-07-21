@@ -112,20 +112,3 @@ class EmberGpSecurityFrameCounter(basic.uint32_t):
 
 class EmberGpSinkTableEntryStatus(basic.uint8_t):
     """The sink table entry status."""
-
-
-class SecureEzspRandomNumber(basic.FixedList[basic.uint8_t, 16]):
-    """Randomly generated 64-bit number.
-
-    Both NCP and Host contribute this number to create the Session ID,
-    which is used in the nonce.
-    """
-
-
-class SecureEzspSessionId(basic.FixedList[basic.uint8_t, 8]):
-    """Generated 64-bit Session ID, using random numbers from Host and NCP.
-
-    It is generated at each reboot (during negotiation phase). Having both sides
-    contribute to the value prevents one side from choosing a number that might have
-    been previously used (either because of a bug or by malicious intent).
-    """
