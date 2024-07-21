@@ -2407,3 +2407,17 @@ class EzspDecisionId(basic.enum8):
     RF4CE_PAIR_REQUEST_ACCEPT = 0x76
     # Indicates that the RF4CE stack will NOT accept new pairings.
     RF4CE_PAIR_REQUEST_DENY = 0x77
+
+
+class EmberDeviceUpdate(basic.enum8):
+    # The status of the device update.
+
+    STANDARD_SECURITY_SECURED_REJOIN = 0x0
+    STANDARD_SECURITY_UNSECURED_JOIN = 0x1
+    DEVICE_LEFT = 0x2
+    STANDARD_SECURITY_UNSECURED_REJOIN = 0x3
+
+    # Removed in EZSPv5
+    HIGH_SECURITY_SECURED_REJOIN = 0x4
+    HIGH_SECURITY_UNSECURED_JOIN = 0x5
+    HIGH_SECURITY_UNSECURED_REJOIN = 0x7

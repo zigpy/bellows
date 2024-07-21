@@ -12,6 +12,7 @@ from bellows.types.named import (  # noqa: F401, F403
     EmberConcentratorType,
     EmberConfigTxPowerMode,
     EmberCurrentSecurityBitmask,
+    EmberDeviceUpdate,
     EmberEventUnits,
     EmberGpKeyType,
     EmberGpSecurityLevel,
@@ -59,15 +60,6 @@ from bellows.types.named import (  # noqa: F401, F403
     EzspZllNetworkOperation,
     KeyData,
 )
-
-
-class EmberDeviceUpdate(basic.enum8):
-    # The status of the device update.
-
-    STANDARD_SECURITY_SECURED_REJOIN = 0x0
-    STANDARD_SECURITY_UNSECURED_JOIN = 0x1
-    DEVICE_LEFT = 0x2
-    STANDARD_SECURITY_UNSECURED_REJOIN = 0x3
 
 
 class EmberCounterType(basic.enum8):
