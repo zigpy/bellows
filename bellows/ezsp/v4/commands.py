@@ -33,13 +33,13 @@ COMMANDS = {
     ),
     "setPolicy": (
         0x55,
-        (t.EzspPolicyId, t.EzspDecisionIdV4),
+        (t.EzspPolicyId, t.EzspDecisionId),
         (t.EzspStatus,),
     ),
     "getPolicy": (
         0x56,
         (t.EzspPolicyId,),
-        (t.EzspStatus, t.EzspDecisionIdV4),
+        (t.EzspStatus, t.EzspDecisionId),
     ),
     "getValue": (
         0xAA,

@@ -157,15 +157,15 @@ async def basic_tc_permits(s):
 
     await set_policy(
         s.types.EzspPolicyId.TC_KEY_REQUEST_POLICY,
-        s.types.EzspDecisionIdV4.DENY_TC_KEY_REQUESTS,
+        s.types.EzspDecisionId.DENY_TC_KEY_REQUESTS,
     )
     await set_policy(
         s.types.EzspPolicyId.APP_KEY_REQUEST_POLICY,
-        s.types.EzspDecisionIdV4.ALLOW_APP_KEY_REQUESTS,
+        s.types.EzspDecisionId.ALLOW_APP_KEY_REQUESTS,
     )
     await set_policy(
         s.types.EzspPolicyId.TRUST_CENTER_POLICY,
-        s.types.EzspDecisionIdV4.ALLOW_PRECONFIGURED_KEY_JOINS,
+        s.types.EzspDecisionId.ALLOW_PRECONFIGURED_KEY_JOINS,
     )
 
 

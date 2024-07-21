@@ -1,7 +1,7 @@
 import voluptuous as vol
 
 from bellows.config import cv_optional_int, cv_uint16
-from bellows.types import EzspConfigId, EzspDecisionIdV4, EzspPolicyId
+from bellows.types import EzspConfigId, EzspDecisionId, EzspPolicyId
 
 EZSP_SCHEMA = {
     #
@@ -262,15 +262,15 @@ EZSP_SCHEMA = {
 EZSP_POLICIES_SHARED = {
     vol.Optional(
         EzspPolicyId.TC_KEY_REQUEST_POLICY.name,
-        default=EzspDecisionIdV4.ALLOW_TC_KEY_REQUESTS_AND_SEND_CURRENT_KEY,
+        default=EzspDecisionId.ALLOW_TC_KEY_REQUESTS_AND_SEND_CURRENT_KEY,
     ): cv_uint16,
     vol.Optional(
         EzspPolicyId.APP_KEY_REQUEST_POLICY.name,
-        default=EzspDecisionIdV4.DENY_APP_KEY_REQUESTS,
+        default=EzspDecisionId.DENY_APP_KEY_REQUESTS,
     ): cv_uint16,
     vol.Optional(
         EzspPolicyId.TRUST_CENTER_POLICY.name,
-        default=EzspDecisionIdV4.ALLOW_PRECONFIGURED_KEY_JOINS,
+        default=EzspDecisionId.ALLOW_PRECONFIGURED_KEY_JOINS,
     ): cv_uint16,
 }
 

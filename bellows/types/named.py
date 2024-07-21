@@ -2250,8 +2250,11 @@ class EzspPolicyId(basic.enum8):
     RF4CE_PAIR_REQUEST_POLICY = 0x0C  # Removed in EZSPv6
 
 
-class EzspDecisionBitmask(basic.bitmap16):
+class EzspDecisionBitmask(basic.bitmap8):
     """EZSP Decision bitmask."""
+
+    # XXX: this is intentionally an 8-bit bitmap! The SDK source treats it as a 16-bit
+    # value but it is always serialized to an 8-bit integer
 
     # Disallow joins and rejoins.
     DEFAULT_CONFIGURATION = 0x0000
@@ -2269,7 +2272,7 @@ class EzspDecisionBitmask(basic.bitmap16):
     DEFER_JOINS = 0x0020
 
 
-class BaseEzspDecisionId:
+class EzspDecisionId(basic.enum8):
     # Identifies a policy decision.
 
     # Send the network key in the clear to all joining and rejoining devices.
@@ -2367,14 +2370,6 @@ class BaseEzspDecisionId:
     RF4CE_PAIR_REQUEST_ACCEPT = 0x76
     # Indicates that the RF4CE stack will NOT accept new pairings.
     RF4CE_PAIR_REQUEST_DENY = 0x77
-
-
-class EzspDecisionIdV4(BaseEzspDecisionId, basic.enum8):
-    pass
-
-
-class EzspDecisionIdV8(BaseEzspDecisionId, basic.enum8):
-    pass
 
 
 class EmberDeviceUpdate(basic.enum8):

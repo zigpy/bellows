@@ -41,16 +41,6 @@ COMMANDS = {
         (t.EUI64,),
         (t.EmberStatus, t.EmberTransientKeyDataV8),
     ),
-    "setPolicy": (
-        0x0055,
-        (t.EzspPolicyId, t.EzspDecisionIdV8),
-        (t.EzspStatus,),
-    ),
-    "getPolicy": (
-        0x0056,
-        (t.EzspPolicyId,),
-        (t.EzspStatus, t.EzspDecisionIdV8),
-    ),
     "setSourceRoute": (
         0x00AE,
         (t.EmberNodeId, t.LVList[t.EmberNodeId]),
