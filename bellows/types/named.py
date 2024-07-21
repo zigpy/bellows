@@ -2288,3 +2288,22 @@ class EzspPolicyId(basic.enum8):
     RF4CE_DISCOVERY_POLICY = 0x0B  # Removed in EZSPv6
     # Controls whether the ZigBee RF4CE stack will accept or deny a pair request.
     RF4CE_PAIR_REQUEST_POLICY = 0x0C  # Removed in EZSPv6
+
+
+class EzspDecisionBitmask(basic.bitmap16):
+    """EZSP Decision bitmask."""
+
+    # Disallow joins and rejoins.
+    DEFAULT_CONFIGURATION = 0x0000
+    # Send the network key to all joining devices.
+    ALLOW_JOINS = 0x0001
+    # Send the network key to all rejoining devices.
+    ALLOW_UNSECURED_REJOINS = 0x0002
+    # Send the network key in the clear.
+    SEND_KEY_IN_CLEAR = 0x0004
+    # Do nothing for unsecured rejoins.
+    IGNORE_UNSECURED_REJOINS = 0x0008
+    # Allow joins if there is an entry in the transient key table.
+    JOINS_USE_INSTALL_CODE_KEY = 0x0010
+    # Delay sending the network key to a new joining device.
+    DEFER_JOINS = 0x0020
