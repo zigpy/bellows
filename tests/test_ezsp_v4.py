@@ -64,14 +64,14 @@ async def test_read_link_keys(ezsp_f):
         if index == 0:
             return (
                 t.EmberStatus.SUCCESS,
-                ezsp_f.types.EmberKeyStruct(
+                t.EmberKeyStruct(
                     bitmask=(
                         t.EmberKeyStructBitmask.KEY_IS_AUTHORIZED
                         | t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
                         | t.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER
                         | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
                     ),
-                    type=ezsp_f.types.EmberKeyType.APPLICATION_LINK_KEY,
+                    type=t.EmberKeyType.APPLICATION_LINK_KEY,
                     key=t.KeyData.convert("857C05003E761AF9689A49416A605C76"),
                     outgoingFrameCounter=3792973670,
                     incomingFrameCounter=1083290572,
@@ -82,14 +82,14 @@ async def test_read_link_keys(ezsp_f):
         elif index == 1:
             return (
                 t.EmberStatus.SUCCESS,
-                ezsp_f.types.EmberKeyStruct(
+                t.EmberKeyStruct(
                     bitmask=(
                         t.EmberKeyStructBitmask.KEY_IS_AUTHORIZED
                         | t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
                         | t.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER
                         | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
                     ),
-                    type=ezsp_f.types.EmberKeyType.APPLICATION_LINK_KEY,
+                    type=t.EmberKeyType.APPLICATION_LINK_KEY,
                     key=t.KeyData.convert("CA02E8BB757C94F89339D39CB3CDA7BE"),
                     outgoingFrameCounter=2597245184,
                     incomingFrameCounter=824424412,
@@ -104,9 +104,9 @@ async def test_read_link_keys(ezsp_f):
 
         return (
             status,
-            ezsp_f.types.EmberKeyStruct(
+            t.EmberKeyStruct(
                 bitmask=t.EmberKeyStructBitmask(244),
-                type=ezsp_f.types.EmberKeyType(0x46),
+                type=t.EmberKeyType(0x46),
                 key=t.KeyData.convert("b8a11c004b1200cdabcdabcdabcdabcd"),
                 outgoingFrameCounter=8192,
                 incomingFrameCounter=0,
@@ -140,25 +140,25 @@ async def test_read_link_keys(ezsp_f):
 async def test_get_network_key_and_tc_link_key(ezsp_f):
     def get_key(key_type):
         key = {
-            ezsp_f.types.EmberKeyType.CURRENT_NETWORK_KEY: ezsp_f.types.EmberKeyStruct(
+            t.EmberKeyType.CURRENT_NETWORK_KEY: t.EmberKeyStruct(
                 bitmask=(
                     t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
                     | t.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER
                 ),
-                type=ezsp_f.types.EmberKeyType.CURRENT_NETWORK_KEY,
+                type=t.EmberKeyType.CURRENT_NETWORK_KEY,
                 key=t.KeyData.convert("2ccade06b3090c310315b3d574d3c85a"),
                 outgoingFrameCounter=118785,
                 incomingFrameCounter=0,
                 sequenceNumber=108,
                 partnerEUI64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
             ),
-            ezsp_f.types.EmberKeyType.TRUST_CENTER_LINK_KEY: ezsp_f.types.EmberKeyStruct(
+            t.EmberKeyType.TRUST_CENTER_LINK_KEY: t.EmberKeyStruct(
                 bitmask=(
                     t.EmberKeyStructBitmask.KEY_IS_AUTHORIZED
                     | t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
                     | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
                 ),
-                type=ezsp_f.types.EmberKeyType.TRUST_CENTER_LINK_KEY,
+                type=t.EmberKeyType.TRUST_CENTER_LINK_KEY,
                 key=t.KeyData.convert("abcdabcdabcdabcdabcdabcdabcdabcd"),
                 outgoingFrameCounter=8712428,
                 incomingFrameCounter=0,

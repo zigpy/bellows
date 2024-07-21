@@ -3,7 +3,7 @@ import voluptuous as vol
 
 import bellows.config
 
-from . import commands, config, types as v11_types
+from . import commands, config
 from ..v10 import EZSPv10
 
 
@@ -16,4 +16,3 @@ class EZSPv11(EZSPv10):
         bellows.config.CONF_EZSP_CONFIG: vol.Schema(config.EZSP_SCHEMA),
         bellows.config.CONF_EZSP_POLICIES: vol.Schema(config.EZSP_POLICIES_SCH),
     }
-    types = v11_types

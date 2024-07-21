@@ -9,7 +9,7 @@ import voluptuous as vol
 import bellows.config
 import bellows.types as t
 
-from . import commands, config, types as v5_types
+from . import commands, config
 from ..v4 import EZSPv4
 
 LOGGER = logging.getLogger(__name__)
@@ -24,7 +24,6 @@ class EZSPv5(EZSPv4):
         bellows.config.CONF_EZSP_CONFIG: vol.Schema(config.EZSP_SCHEMA),
         bellows.config.CONF_EZSP_POLICIES: vol.Schema(config.EZSP_POLICIES_SCH),
     }
-    types = v5_types
 
     def _ezsp_frame_tx(self, name: str) -> bytes:
         """Serialize the frame id."""
@@ -50,7 +49,7 @@ class EZSPv5(EZSPv4):
 
     async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64], None]:
         (status, addr_table_size) = await self.getConfigurationValue(
-            self.types.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
+            t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
         )
 
         for idx in range(addr_table_size):
@@ -73,10 +72,10 @@ class EZSPv5(EZSPv4):
     async def write_nwk_frame_counter(self, frame_counter: t.uint32_t) -> None:
         # Frame counters can only be set *before* we have joined a network
         (state,) = await self.networkState()
-        assert state == self.types.EmberNetworkStatus.NO_NETWORK
+        assert state == t.EmberNetworkStatus.NO_NETWORK
 
         (status,) = await self.setValue(
-            self.types.EzspValueId.VALUE_NWK_FRAME_COUNTER,
+            t.EzspValueId.VALUE_NWK_FRAME_COUNTER,
             t.uint32_t(frame_counter).serialize(),
         )
         assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
@@ -84,10 +83,10 @@ class EZSPv5(EZSPv4):
     async def write_aps_frame_counter(self, frame_counter: t.uint32_t) -> None:
         # Frame counters can only be set *before* we have joined a network
         (state,) = await self.networkState()
-        assert state == self.types.EmberNetworkStatus.NO_NETWORK
+        assert state == t.EmberNetworkStatus.NO_NETWORK
 
         (status,) = await self.setValue(
-            self.types.EzspValueId.VALUE_APS_FRAME_COUNTER,
+            t.EzspValueId.VALUE_APS_FRAME_COUNTER,
             t.uint32_t(frame_counter).serialize(),
         )
         assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK

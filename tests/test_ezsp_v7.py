@@ -35,7 +35,7 @@ async def test_read_child_data(ezsp_f):
 
         return (
             status,
-            bellows.ezsp.v7.types.EmberChildData(
+            t.EmberChildDataV7(
                 eui64=t.EUI64.convert("00:0b:57:ff:fe:2b:d4:57"),
                 type=t.EmberNodeType.SLEEPY_END_DEVICE,
                 id=t.EmberNodeId(0xC06B),

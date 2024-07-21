@@ -32,7 +32,6 @@ from bellows.config import (
 )
 from bellows.exception import ControllerError, EzspError, StackAlreadyRunning
 import bellows.ezsp
-from bellows.ezsp.v8.types.named import EmberDeviceUpdate
 import bellows.multicast
 import bellows.types as t
 from bellows.zigbee import repairs
@@ -165,7 +164,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         """
         (state,) = await self._ezsp.networkState()
 
-        if state == self._ezsp.types.EmberNetworkStatus.JOINED_NETWORK:
+        if state == t.EmberNetworkStatus.JOINED_NETWORK:
             return False
 
         with self._ezsp.wait_for_stack_status(t.sl_Status.NETWORK_UP) as stack_status:
@@ -261,7 +260,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         )
 
         (status, security_level) = await ezsp.getConfigurationValue(
-            ezsp.types.EzspConfigId.CONFIG_SECURITY_LEVEL
+            t.EzspConfigId.CONFIG_SECURITY_LEVEL
         )
         assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
         security_level = zigpy.types.uint8_t(security_level)
@@ -275,7 +274,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         stack_specific = {}
 
         if (
-            ezsp.types.EmberCurrentSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
+            t.EmberCurrentSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
             in state.bitmask
         ):
             stack_specific["ezsp"] = {"hashed_tclk": tc_link_key.key.serialize().hex()}
@@ -642,16 +641,16 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self,
         nwk: t.EmberNodeId,
         ieee: t.EUI64,
-        device_update_status: EmberDeviceUpdate,
+        device_update_status: t.EmberDeviceUpdate,
         decision: t.EmberJoinDecision,
         parent_nwk: t.EmberNodeId,
     ) -> None:
         """Trust Center Join handler."""
-        if device_update_status == EmberDeviceUpdate.DEVICE_LEFT:
+        if device_update_status == t.EmberDeviceUpdate.DEVICE_LEFT:
             self.handle_leave(nwk, ieee)
             return
 
-        if device_update_status == EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN:
+        if device_update_status == t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN:
             self.create_task(self.cleanup_tc_link_key(ieee), "cleanup_tc_link_key")
 
         if decision == t.EmberJoinDecision.DENY_JOIN:
@@ -853,10 +852,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         if self._ezsp.ezsp_version >= 8:
             await self._ezsp.setPolicy(
-                self._ezsp.types.EzspPolicyId.TRUST_CENTER_POLICY,
+                t.EzspPolicyId.TRUST_CENTER_POLICY,
                 (
-                    self._ezsp.types.EzspDecisionBitmask.ALLOW_JOINS
-                    | self._ezsp.types.EzspDecisionBitmask.JOINS_USE_INSTALL_CODE_KEY
+                    t.EzspDecisionBitmask.ALLOW_JOINS
+                    | t.EzspDecisionBitmask.JOINS_USE_INSTALL_CODE_KEY
                 ),
             )
 
@@ -900,7 +899,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 else:
                     (res,) = await self._ezsp.readAndClearCounters()
 
-                for cnt_type, value in zip(self._ezsp.types.EmberCounterType, res):
+                for cnt_type, value in zip(t.EmberCounterType, res):
                     counters[cnt_type.name[8:]].update(value)
 
                 if remainder == 0:
@@ -924,9 +923,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._watchdog_failures = 0
 
     async def _get_free_buffers(self) -> int | None:
-        status, value = await self._ezsp.getValue(
-            self._ezsp.types.EzspValueId.VALUE_FREE_BUFFERS
-        )
+        status, value = await self._ezsp.getValue(t.EzspValueId.VALUE_FREE_BUFFERS)
 
         if status != t.EzspStatus.SUCCESS:
             return None

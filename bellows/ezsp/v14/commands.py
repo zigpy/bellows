@@ -1,6 +1,7 @@
 from zigpy.types import EUI64, NWK, BroadcastAddress, Struct
 
-from . import types as t
+import bellows.types as t
+
 from ..v13.commands import COMMANDS as COMMANDS_v13
 
 
@@ -46,9 +47,9 @@ COMMANDS = {
         tuple(
             {
                 "status": t.sl_Status,
-                "context": t.sl_zb_sec_man_context_t,
+                "context": t.SecurityManagerContextV13,
                 "plaintext_key": t.KeyData,
-                "key_data": t.sl_zb_sec_man_aps_key_metadata_t,
+                "key_data": t.SecurityManagerAPSKeyMetadata,
             }.values()
         ),
     ),
@@ -56,14 +57,14 @@ COMMANDS = {
         0x0114,
         tuple(
             {
-                "context": t.sl_zb_sec_man_context_t,
+                "context": t.SecurityManagerContextV13,
             }.values()
         ),
         tuple(
             {
                 "status": t.sl_Status,
                 "key": t.KeyData,
-                "context": t.sl_zb_sec_man_context_t,
+                "context": t.SecurityManagerContextV13,
             }.values()
         ),
     ),

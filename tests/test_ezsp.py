@@ -8,7 +8,6 @@ import zigpy.config
 
 from bellows import config, ezsp, uart
 from bellows.exception import EzspError, InvalidCommandError
-import bellows.ezsp.v4.types as v4_t
 import bellows.types as t
 
 if sys.version_info[:2] < (3, 11):
@@ -337,7 +336,7 @@ async def test_board_info(ezsp_f):
                 ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (
                     b"Manufacturer\xff\xff\xff",
                 ),
-                ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
+                ("getValue", t.EzspValueId.VALUE_VERSION_INFO): (
                     t.EmberStatus.SUCCESS,
                     b"\x01\x02\x03\x04\x05\x06",
                 ),
@@ -361,7 +360,7 @@ async def test_board_info(ezsp_f):
                 ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (
                     b"Manufacturer\xff\xff\xff",
                 ),
-                ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
+                ("getValue", t.EzspValueId.VALUE_VERSION_INFO): (
                     t.EmberStatus.ERR_FATAL,
                     b"\x01\x02\x03\x04\x05\x06",
                 ),
@@ -385,7 +384,7 @@ async def test_board_info(ezsp_f):
                 ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (
                     b"Nabu Casa\x00\xff\xff\xff\xff\xff\xff",
                 ),
-                ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
+                ("getValue", t.EzspValueId.VALUE_VERSION_INFO): (
                     t.EmberStatus.SUCCESS,
                     b"\xbf\x00\x07\x01\x00\x00\xaa",
                 ),
@@ -405,7 +404,7 @@ async def test_board_info(ezsp_f):
             {
                 ("getMfgToken", t.EzspMfgTokenId.MFG_BOARD_NAME): (b"\xff" * 16,),
                 ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (b"\xff" * 16,),
-                ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
+                ("getValue", t.EzspValueId.VALUE_VERSION_INFO): (
                     t.EmberStatus.SUCCESS,
                     b"\xbf\x00\x07\x01\x00\x00\xaa",
                 ),
@@ -436,11 +435,11 @@ async def test_update_policies(ezsp_f):
 async def test_set_source_routing_set_concentrator(ezsp_f):
     """Test enabling source routing."""
     with patch.object(ezsp_f, "setConcentrator", new=AsyncMock()) as cnc_mock:
-        cnc_mock.return_value = (ezsp_f.types.EmberStatus.SUCCESS,)
+        cnc_mock.return_value = (t.EmberStatus.SUCCESS,)
         await ezsp_f.set_source_routing()
         assert cnc_mock.await_count == 1
 
-        cnc_mock.return_value = (ezsp_f.types.EmberStatus.ERR_FATAL,)
+        cnc_mock.return_value = (t.EmberStatus.ERR_FATAL,)
         await ezsp_f.set_source_routing()
         assert cnc_mock.await_count == 2
 
@@ -449,7 +448,7 @@ async def test_set_source_routing_ezsp_v8(ezsp_f):
     """Test enabling source routing on EZSPv8."""
 
     ezsp_f._ezsp_version = 8
-    ezsp_f.setConcentrator = AsyncMock(return_value=(ezsp_f.types.EmberStatus.SUCCESS,))
+    ezsp_f.setConcentrator = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
     ezsp_f.setSourceRouteDiscoveryMode = AsyncMock()
 
     await ezsp_f.set_source_routing()
@@ -735,27 +734,27 @@ async def test_config_initialize_husbzb1(ezsp_f):
     ezsp_f.networkState = AsyncMock(return_value=(t.EmberNetworkStatus.JOINED_NETWORK,))
 
     expected_calls = [
-        call(v4_t.EzspConfigId.CONFIG_SOURCE_ROUTE_TABLE_SIZE, 16),
-        call(v4_t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, 60),
-        call(v4_t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8),
-        call(v4_t.EzspConfigId.CONFIG_INDIRECT_TRANSMISSION_TIMEOUT, 7680),
-        call(v4_t.EzspConfigId.CONFIG_STACK_PROFILE, 2),
-        call(v4_t.EzspConfigId.CONFIG_SUPPORTED_NETWORKS, 1),
-        call(v4_t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, 16),
-        call(v4_t.EzspConfigId.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2),
-        call(v4_t.EzspConfigId.CONFIG_SECURITY_LEVEL, 5),
-        call(v4_t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE, 16),
-        call(v4_t.EzspConfigId.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD, 2),
-        call(v4_t.EzspConfigId.CONFIG_KEY_TABLE_SIZE, 4),
-        call(v4_t.EzspConfigId.CONFIG_MAX_END_DEVICE_CHILDREN, 32),
+        call(t.EzspConfigId.CONFIG_SOURCE_ROUTE_TABLE_SIZE, 16),
+        call(t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, 60),
+        call(t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8),
+        call(t.EzspConfigId.CONFIG_INDIRECT_TRANSMISSION_TIMEOUT, 7680),
+        call(t.EzspConfigId.CONFIG_STACK_PROFILE, 2),
+        call(t.EzspConfigId.CONFIG_SUPPORTED_NETWORKS, 1),
+        call(t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, 16),
+        call(t.EzspConfigId.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2),
+        call(t.EzspConfigId.CONFIG_SECURITY_LEVEL, 5),
+        call(t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE, 16),
+        call(t.EzspConfigId.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD, 2),
+        call(t.EzspConfigId.CONFIG_KEY_TABLE_SIZE, 4),
+        call(t.EzspConfigId.CONFIG_MAX_END_DEVICE_CHILDREN, 32),
         call(
-            v4_t.EzspConfigId.CONFIG_APPLICATION_ZDO_FLAGS,
+            t.EzspConfigId.CONFIG_APPLICATION_ZDO_FLAGS,
             (
-                v4_t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
-                | v4_t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS
+                t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
+                | t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS
             ),
         ),
-        call(v4_t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT, 255),
+        call(t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT, 255),
     ]
 
     await ezsp_f.write_config({})
@@ -832,7 +831,7 @@ async def test_cfg_initialize_skip(ezsp_f):
         # Config not set when it is explicitly disabled
         with pytest.raises(AssertionError):
             ezsp_f.setConfigurationValue.assert_called_with(
-                v4_t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, ANY
+                t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, ANY
             )
 
     with p1, p2:
@@ -840,7 +839,7 @@ async def test_cfg_initialize_skip(ezsp_f):
 
         # Config is overridden
         ezsp_f.setConfigurationValue.assert_any_call(
-            v4_t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, 123
+            t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, 123
         )
 
     with p1, p2:
@@ -848,7 +847,7 @@ async def test_cfg_initialize_skip(ezsp_f):
 
         # Config is set by default
         ezsp_f.setConfigurationValue.assert_any_call(
-            v4_t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, ANY
+            t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, ANY
         )
 
 

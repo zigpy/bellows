@@ -8,7 +8,7 @@ import voluptuous as vol
 import bellows.config
 import bellows.types as t
 
-from . import commands, config, types as v9_types
+from . import commands, config
 from ..v8 import EZSPv8
 
 LOGGER = logging.getLogger(__name__)
@@ -23,13 +23,12 @@ class EZSPv9(EZSPv8):
         bellows.config.CONF_EZSP_CONFIG: vol.Schema(config.EZSP_SCHEMA),
         bellows.config.CONF_EZSP_POLICIES: vol.Schema(config.EZSP_POLICIES_SCH),
     }
-    types = v9_types
 
     async def write_child_data(self, children: dict[t.EUI64, t.NWK]) -> None:
         for index, (eui64, nwk) in enumerate(children.items()):
             await self.setChildData(
                 index,
-                self.types.EmberChildData(
+                t.EmberChildDataV7(
                     eui64=eui64,
                     type=t.EmberNodeType.SLEEPY_END_DEVICE,
                     id=nwk,

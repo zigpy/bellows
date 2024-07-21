@@ -1,6 +1,6 @@
+import bellows.types as t
 from bellows.types import KeyData
 
-from . import types as t
 from ..v11.commands import COMMANDS as COMMANDS_v11
 
 COMMANDS = {
@@ -90,7 +90,7 @@ COMMANDS = {
         0x0114,
         tuple(
             {
-                "context": t.sl_zb_sec_man_context_t,
+                "context": t.SecurityManagerContextV12,
             }.values()
         ),
         tuple(
@@ -111,7 +111,7 @@ COMMANDS = {
             {
                 "plaintext_key": KeyData,
                 "index": t.uint8_t,
-                "key_data": t.sl_zb_sec_man_aps_key_metadata_t,
+                "key_data": t.SecurityManagerAPSKeyMetadata,
                 "status": t.sl_Status,
             }.values()
         ),
@@ -127,7 +127,7 @@ COMMANDS = {
             {
                 "eui64": t.EUI64,
                 "plaintext_key": KeyData,
-                "key_data": t.sl_zb_sec_man_aps_key_metadata_t,
+                "key_data": t.SecurityManagerAPSKeyMetadata,
                 "status": t.sl_Status,
             }.values()
         ),
@@ -141,9 +141,9 @@ COMMANDS = {
         ),
         tuple(
             {
-                "context": t.sl_zb_sec_man_context_t,
+                "context": t.SecurityManagerContextV12,
                 "plaintext_key": KeyData,
-                "key_data": t.sl_zb_sec_man_aps_key_metadata_t,
+                "key_data": t.SecurityManagerAPSKeyMetadata,
                 "status": t.sl_Status,
             }.values()
         ),
@@ -157,9 +157,9 @@ COMMANDS = {
         ),
         tuple(
             {
-                "context": t.sl_zb_sec_man_context_t,
+                "context": t.SecurityManagerContextV12,
                 "plaintext_key": KeyData,
-                "key_data": t.sl_zb_sec_man_aps_key_metadata_t,
+                "key_data": t.SecurityManagerAPSKeyMetadata,
                 "status": t.sl_Status,
             }.values()
         ),
@@ -168,13 +168,13 @@ COMMANDS = {
         0x010C,
         tuple(
             {
-                "context_in": t.sl_zb_sec_man_context_t,
+                "context_in": t.SecurityManagerContextV12,
             }.values()
         ),
         tuple(
             {
                 "eui": t.EUI64,
-                "key_data": t.sl_zb_sec_man_aps_key_metadata_t,
+                "key_data": t.SecurityManagerAPSKeyMetadata,
                 "status": t.sl_Status,
             }.values()
         ),
@@ -204,7 +204,7 @@ COMMANDS = {
         0x0115,
         tuple(
             {
-                "context": t.sl_zb_sec_man_context_t,
+                "context": t.SecurityManagerContextV12,
                 "key": KeyData,
             }.values()
         ),
@@ -235,7 +235,7 @@ COMMANDS = {
             {
                 "eui64": t.EUI64,
                 "plaintext_key": KeyData,
-                "flags": t.sl_zb_sec_man_flags_t,
+                "flags": t.SecurityManagerContextFlags,
             }.values()
         ),
         tuple(

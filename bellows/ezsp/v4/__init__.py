@@ -11,7 +11,7 @@ import bellows.config
 import bellows.types as t
 from bellows.zigbee.util import ezsp_key_to_zigpy_key
 
-from . import commands, config, types as v4_types
+from . import commands, config
 from .. import protocol
 
 LOGGER = logging.getLogger(__name__)
@@ -26,7 +26,6 @@ class EZSPv4(protocol.ProtocolHandler):
         bellows.config.CONF_EZSP_CONFIG: vol.Schema(config.EZSP_SCHEMA),
         bellows.config.CONF_EZSP_POLICIES: vol.Schema(config.EZSP_POLICIES_SCH),
     }
-    types = v4_types
 
     def _ezsp_frame_tx(self, name: str) -> bytes:
         """Serialize the frame id."""
@@ -54,7 +53,7 @@ class EZSPv4(protocol.ProtocolHandler):
 
     async def read_link_keys(self) -> AsyncGenerator[zigpy.state.Key, None]:
         (status, key_table_size) = await self.getConfigurationValue(
-            self.types.EzspConfigId.CONFIG_KEY_TABLE_SIZE
+            t.EzspConfigId.CONFIG_KEY_TABLE_SIZE
         )
 
         for index in range(key_table_size):
@@ -67,7 +66,7 @@ class EZSPv4(protocol.ProtocolHandler):
                 continue
 
             assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
-            yield ezsp_key_to_zigpy_key(key, self)
+            yield ezsp_key_to_zigpy_key(key)
 
     async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64], None]:
         # v4 can crash when getAddressTableRemoteNodeId(32) is received: undefined_0x8a
@@ -77,17 +76,17 @@ class EZSPv4(protocol.ProtocolHandler):
 
     async def get_network_key(self) -> zigpy.state.Key:
         (status, ezsp_network_key) = await self.getKey(
-            self.types.EmberKeyType.CURRENT_NETWORK_KEY
+            t.EmberKeyType.CURRENT_NETWORK_KEY
         )
         assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
-        return ezsp_key_to_zigpy_key(ezsp_network_key, self)
+        return ezsp_key_to_zigpy_key(ezsp_network_key)
 
     async def get_tc_link_key(self) -> zigpy.state.Key:
         (status, ezsp_tc_link_key) = await self.getKey(
-            self.types.EmberKeyType.TRUST_CENTER_LINK_KEY
+            t.EmberKeyType.TRUST_CENTER_LINK_KEY
         )
         assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
-        return ezsp_key_to_zigpy_key(ezsp_tc_link_key, self)
+        return ezsp_key_to_zigpy_key(ezsp_tc_link_key)
 
     async def write_nwk_frame_counter(self, frame_counter: t.uint32_t) -> None:
         # Not supported in EZSPv4
