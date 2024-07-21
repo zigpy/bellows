@@ -2581,3 +2581,12 @@ class EmberRadioPowerMode(basic.enum8):
     RADIO_POWER_MODE_RX_ON = 0
     # The radio receiver is switched off.
     RADIO_POWER_MODE_OFF = 1
+
+
+class EmberGpProxyTableEntryStatus(basic.uint8_t):
+    """The proxy table entry status."""
+
+    # The GP table entry is in use for a Proxy Table Entry.
+    ACTIVE = 0x01
+    # The proxy table entry is not in use.
+    UNUSED = 0xFF

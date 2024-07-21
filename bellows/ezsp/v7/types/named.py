@@ -17,6 +17,7 @@ from bellows.types.named import (  # noqa: F401, F403
     EmberDutyCycleState,
     EmberEventUnits,
     EmberGpKeyType,
+    EmberGpProxyTableEntryStatus,
     EmberGpSecurityLevel,
     EmberIncomingMessageType,
     EmberInitialSecurityBitmask,
@@ -106,10 +107,6 @@ class EmberEntropySource(basic.enum8):
     ENTROPY_SOURCE_MBEDTLS_TRNG = 2
     # Entropy source is powered by mbed TLS, the source is not TRNG.
     ENTROPY_SOURCE_MBEDTLS = 3
-
-
-class EmberGpProxyTableEntryStatus(basic.uint8_t):
-    """The proxy table entry status."""
 
 
 class EmberGpSecurityFrameCounter(basic.uint32_t):

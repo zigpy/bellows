@@ -17,6 +17,7 @@ from bellows.types.named import (  # noqa: F401, F403
     EmberDutyCycleState,
     EmberEventUnits,
     EmberGpKeyType,
+    EmberGpProxyTableEntryStatus,
     EmberGpSecurityLevel,
     EmberIncomingMessageType,
     EmberInitialSecurityBitmask,
@@ -64,10 +65,6 @@ from bellows.types.named import (  # noqa: F401, F403
     SecureEzspSecurityLevel,
     SecureEzspSecurityType,
 )
-
-
-class EmberGpProxyTableEntryStatus(basic.uint8_t):
-    """The proxy table entry status."""
 
 
 class EmberGpSecurityFrameCounter(basic.uint32_t):
