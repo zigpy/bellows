@@ -40,6 +40,7 @@ from bellows.types.named import (  # noqa: F401, F403
     EmberPrivateKeyData,
     EmberPublicKey283k1Data,
     EmberPublicKeyData,
+    EmberRadioPowerMode,
     EmberSignature283k1Data,
     EmberSignatureData,
     EmberSmacData,
@@ -63,15 +64,6 @@ from bellows.types.named import (  # noqa: F401, F403
     SecureEzspSecurityLevel,
     SecureEzspSecurityType,
 )
-
-
-class EmberRadioPowerMode(basic.enum8):
-    """Radio power mode."""
-
-    # The radio receiver is switched on.
-    RADIO_POWER_MODE_RX_ON = 0
-    # The radio receiver is switched off.
-    RADIO_POWER_MODE_OFF = 1
 
 
 class EmberDutyCycleHectoPct(basic.uint16_t):

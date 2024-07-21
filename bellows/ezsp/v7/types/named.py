@@ -39,6 +39,7 @@ from bellows.types.named import (  # noqa: F401, F403
     EmberPrivateKeyData,
     EmberPublicKey283k1Data,
     EmberPublicKeyData,
+    EmberRadioPowerMode,
     EmberSignature283k1Data,
     EmberSignatureData,
     EmberSmacData,
@@ -92,15 +93,6 @@ class EmberJoinMethod(basic.enum8):
     # ahead of time, a router device may be commissioned such that it does not
     # need to send any messages to begin communicating on the network.
     USE_CONFIGURED_NWK_STATE = 0x3
-
-
-class EmberRadioPowerMode(basic.enum8):
-    """Radio power mode."""
-
-    # The radio receiver is switched on.
-    RADIO_POWER_MODE_RX_ON = 0
-    # The radio receiver is switched off.
-    RADIO_POWER_MODE_OFF = 1
 
 
 class EmberEntropySource(basic.enum8):

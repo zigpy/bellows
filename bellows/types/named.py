@@ -2572,3 +2572,12 @@ class EmberDutyCycleState(basic.enum8):
     DUTY_CYCLE_LBT_CRITICAL_THRESHOLD_REACHED = 3
     # We have reached the suspend limit and are blocking all outbound transmissions.
     DUTY_CYCLE_LBT_SUSPEND_LIMIT_REACHED = 4
+
+
+class EmberRadioPowerMode(basic.enum8):
+    """Radio power mode."""
+
+    # The radio receiver is switched on.
+    RADIO_POWER_MODE_RX_ON = 0
+    # The radio receiver is switched off.
+    RADIO_POWER_MODE_OFF = 1
