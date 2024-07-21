@@ -41,7 +41,7 @@ COMMANDS = {
         0x0114,
         tuple(
             {
-                "context": t.SecurityManagerContext,
+                "context": t.SecurityManagerContextV13,
             }.values()
         ),
         tuple(
@@ -60,7 +60,7 @@ COMMANDS = {
         ),
         tuple(
             {
-                "context": t.SecurityManagerContext,
+                "context": t.SecurityManagerContextV13,
                 "plaintext_key": t.KeyData,
                 "key_data": t.SecurityManagerAPSKeyMetadata,
                 "status": t.sl_Status,
@@ -76,7 +76,7 @@ COMMANDS = {
         ),
         tuple(
             {
-                "context": t.SecurityManagerContext,
+                "context": t.SecurityManagerContextV13,
                 "plaintext_key": t.KeyData,
                 "key_data": t.SecurityManagerAPSKeyMetadata,
                 "status": t.sl_Status,
@@ -87,7 +87,7 @@ COMMANDS = {
         0x010C,
         tuple(
             {
-                "context_in": t.SecurityManagerContext,
+                "context_in": t.SecurityManagerContextV13,
             }.values()
         ),
         tuple(
@@ -102,7 +102,7 @@ COMMANDS = {
         0x0115,
         tuple(
             {
-                "context": t.SecurityManagerContext,
+                "context": t.SecurityManagerContextV13,
                 "key": t.KeyData,
             }.values()
         ),

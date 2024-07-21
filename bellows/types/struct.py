@@ -637,3 +637,64 @@ class EmberChildDataV10(EzspStruct):
     # The timeout of the child
     timeout: basic.uint8_t
     timeout_remaining: basic.uint32_t
+
+
+class SecurityManagerContextV12(EzspStruct):
+    """Context for Zigbee Security Manager operations."""
+
+    # The type of key being referenced.
+    core_key_type: named.SecurityManagerKeyType
+    # The index of the referenced key.
+    key_index: basic.uint8_t
+    # The type of key derivation operation to perform on a key.
+    derived_type: named.SecurityManagerDerivedKeyTypeV12
+    # The EUI64 associated with this key.
+    eui64: named.EUI64
+    # Multi-network index.
+    multi_network_index: basic.uint8_t
+    # Flag bitmask.
+    flags: named.SecurityManagerContextFlags
+    # Algorithm to use with this key (for PSA APIs)
+    psa_key_alg_permission: basic.uint32_t
+
+
+class SecurityManagerContextV13(EzspStruct):
+    """Context for Zigbee Security Manager operations."""
+
+    # The type of key being referenced.
+    core_key_type: named.SecurityManagerKeyType
+    # The index of the referenced key.
+    key_index: basic.uint8_t
+    # The type of key derivation operation to perform on a key.
+    derived_type: named.SecurityManagerDerivedKeyTypeV13
+    # The EUI64 associated with this key.
+    eui64: named.EUI64
+    # Multi-network index.
+    multi_network_index: basic.uint8_t
+    # Flag bitmask.
+    flags: named.SecurityManagerContextFlags
+    # Algorithm to use with this key (for PSA APIs)
+    psa_key_alg_permission: basic.uint32_t
+
+
+class SecurityManagerAPSKeyMetadata(EzspStruct):
+    """Metadata for APS link keys."""
+
+    # Bitmask of key properties
+    bitmask: named.EmberKeyStructBitmask
+    # Outgoing frame counter.
+    outgoing_frame_counter: basic.uint32_t
+    # Incoming frame counter.
+    incoming_frame_counter: basic.uint32_t
+    # Remaining lifetime (for transient keys).
+    ttl_in_seconds: basic.uint16_t
+
+
+class SecurityManagerNetworkKeyInfo(EzspStruct):
+    """The metadata pertaining to an network key."""
+
+    network_key_set: named.Bool
+    alternate_network_key_set: named.Bool
+    network_key_sequence_number: basic.uint8_t
+    alt_network_key_sequence_number: basic.uint8_t
+    network_key_frame_counter: basic.uint32_t

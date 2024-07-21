@@ -64,10 +64,10 @@ class EZSPv13(EZSPv12):
 
     async def get_network_key(self) -> zigpy.state.Key:
         network_key_data, status = await self.exportKey(
-            self.types.SecurityManagerContext(
+            self.types.SecurityManagerContextV13(
                 core_key_type=self.types.SecurityManagerKeyType.NETWORK,
                 key_index=0,
-                derived_type=self.types.SecurityManagerDerivedKeyType.NONE,
+                derived_type=self.types.SecurityManagerDerivedKeyTypeV13.NONE,
                 eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
                 multi_network_index=0,
                 flags=self.types.SecurityManagerContextFlags.NONE,
@@ -91,10 +91,10 @@ class EZSPv13(EZSPv12):
 
     async def get_tc_link_key(self) -> zigpy.state.Key:
         tc_link_key_data, status = await self.exportKey(
-            self.types.SecurityManagerContext(
+            self.types.SecurityManagerContextV13(
                 core_key_type=self.types.SecurityManagerKeyType.TC_LINK,
                 key_index=0,
-                derived_type=self.types.SecurityManagerDerivedKeyType.NONE,
+                derived_type=self.types.SecurityManagerDerivedKeyTypeV13.NONE,
                 eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
                 multi_network_index=0,
                 flags=self.types.SecurityManagerContextFlags.NONE,

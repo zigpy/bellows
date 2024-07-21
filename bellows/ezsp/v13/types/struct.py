@@ -8,7 +8,7 @@ import bellows.types as t
 from bellows.types.struct import EzspStruct
 
 
-class SecurityManagerContext(EzspStruct):
+class SecurityManagerContextV13(EzspStruct):
     """Context for Zigbee Security Manager operations."""
 
     # The type of key being referenced.
@@ -16,7 +16,7 @@ class SecurityManagerContext(EzspStruct):
     # The index of the referenced key.
     key_index: t.uint8_t
     # The type of key derivation operation to perform on a key.
-    derived_type: named.SecurityManagerDerivedKeyType
+    derived_type: named.SecurityManagerDerivedKeyTypeV13
     # The EUI64 associated with this key.
     eui64: t.EUI64
     # Multi-network index.
