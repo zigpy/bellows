@@ -1,4 +1,4 @@
-from . import types as t
+import bellows.types as t
 
 COMMANDS = {
     # 4. Configuration frames

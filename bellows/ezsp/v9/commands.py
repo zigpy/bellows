@@ -1,8 +1,7 @@
 from zigpy.types import Struct, StructField
 
 from bellows.ezsp.v8.commands import COMMANDS as COMMANDS_v8
-
-from . import types as t
+import bellows.types as t
 
 
 class GetTokenDataRsp(Struct):

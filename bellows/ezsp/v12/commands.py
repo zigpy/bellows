@@ -1,6 +1,6 @@
+import bellows.types as t
 from bellows.types import KeyData
 
-from . import types as t
 from ..v11.commands import COMMANDS as COMMANDS_v11
 
 COMMANDS = {

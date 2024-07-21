@@ -32,7 +32,6 @@ from bellows.config import (
 )
 from bellows.exception import ControllerError, EzspError, StackAlreadyRunning
 import bellows.ezsp
-from bellows.ezsp.v8.types.named import EmberDeviceUpdate
 import bellows.multicast
 import bellows.types as t
 from bellows.zigbee import repairs
@@ -642,16 +641,16 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self,
         nwk: t.EmberNodeId,
         ieee: t.EUI64,
-        device_update_status: EmberDeviceUpdate,
+        device_update_status: t.EmberDeviceUpdate,
         decision: t.EmberJoinDecision,
         parent_nwk: t.EmberNodeId,
     ) -> None:
         """Trust Center Join handler."""
-        if device_update_status == EmberDeviceUpdate.DEVICE_LEFT:
+        if device_update_status == t.EmberDeviceUpdate.DEVICE_LEFT:
             self.handle_leave(nwk, ieee)
             return
 
-        if device_update_status == EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN:
+        if device_update_status == t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN:
             self.create_task(self.cleanup_tc_link_key(ieee), "cleanup_tc_link_key")
 
         if decision == t.EmberJoinDecision.DENY_JOIN:

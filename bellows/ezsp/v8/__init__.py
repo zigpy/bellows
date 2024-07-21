@@ -6,8 +6,9 @@ from typing import Tuple
 import voluptuous
 
 import bellows.config
+import bellows.types as t
 
-from . import commands, config, types as v8_types
+from . import commands, config
 from ..v7 import EZSPv7
 
 LOGGER = logging.getLogger(__name__)
@@ -22,7 +23,6 @@ class EZSPv8(EZSPv7):
         bellows.config.CONF_EZSP_CONFIG: voluptuous.Schema(config.EZSP_SCHEMA),
         bellows.config.CONF_EZSP_POLICIES: voluptuous.Schema(config.EZSP_POLICIES_SCH),
     }
-    types = v8_types
 
     def _ezsp_frame_tx(self, name: str) -> bytes:
         """Serialize the frame id."""
@@ -41,12 +41,12 @@ class EZSPv8(EZSPv7):
         """Temporarily change TC policy while allowing new joins."""
         await super().pre_permit(time_s)
         await self.setPolicy(
-            v8_types.EzspPolicyId.TRUST_CENTER_POLICY,
-            v8_types.EzspDecisionBitmask.ALLOW_JOINS
-            | v8_types.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS,
+            t.EzspPolicyId.TRUST_CENTER_POLICY,
+            t.EzspDecisionBitmask.ALLOW_JOINS
+            | t.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS,
         )
         await asyncio.sleep(time_s + 2)
         await self.setPolicy(
-            v8_types.EzspPolicyId.TRUST_CENTER_POLICY,
+            t.EzspPolicyId.TRUST_CENTER_POLICY,
             self.tc_policy,
         )

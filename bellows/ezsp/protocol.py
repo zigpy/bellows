@@ -31,6 +31,7 @@ class ProtocolHandler(abc.ABC):
 
     COMMANDS = {}
     VERSION = None
+    types = t
 
     def __init__(self, cb_handler: Callable, gateway: Gateway) -> None:
         self._handle_callback = cb_handler

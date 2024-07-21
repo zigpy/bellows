@@ -11,7 +11,7 @@ import bellows.config
 import bellows.types as t
 from bellows.zigbee.util import ezsp_key_to_zigpy_key
 
-from . import commands, config, types as v4_types
+from . import commands, config
 from .. import protocol
 
 LOGGER = logging.getLogger(__name__)
@@ -26,7 +26,6 @@ class EZSPv4(protocol.ProtocolHandler):
         bellows.config.CONF_EZSP_CONFIG: vol.Schema(config.EZSP_SCHEMA),
         bellows.config.CONF_EZSP_POLICIES: vol.Schema(config.EZSP_POLICIES_SCH),
     }
-    types = v4_types
 
     def _ezsp_frame_tx(self, name: str) -> bytes:
         """Serialize the frame id."""

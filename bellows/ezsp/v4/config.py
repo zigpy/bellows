@@ -1,8 +1,7 @@
 import voluptuous as vol
 
 from bellows.config import cv_optional_int, cv_uint16
-
-from .types import EzspConfigId, EzspDecisionId, EzspPolicyId
+from bellows.types import EzspConfigId, EzspDecisionId, EzspPolicyId
 
 EZSP_SCHEMA = {
     #

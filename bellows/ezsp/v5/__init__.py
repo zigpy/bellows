@@ -9,7 +9,7 @@ import voluptuous as vol
 import bellows.config
 import bellows.types as t
 
-from . import commands, config, types as v5_types
+from . import commands, config
 from ..v4 import EZSPv4
 
 LOGGER = logging.getLogger(__name__)
@@ -24,7 +24,6 @@ class EZSPv5(EZSPv4):
         bellows.config.CONF_EZSP_CONFIG: vol.Schema(config.EZSP_SCHEMA),
         bellows.config.CONF_EZSP_POLICIES: vol.Schema(config.EZSP_POLICIES_SCH),
     }
-    types = v5_types
 
     def _ezsp_frame_tx(self, name: str) -> bytes:
         """Serialize the frame id."""

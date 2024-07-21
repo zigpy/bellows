@@ -11,7 +11,7 @@ import zigpy.state
 import bellows.config
 import bellows.types as t
 
-from . import commands, config, types as v13_types
+from . import commands, config
 from ..v12 import EZSPv12
 
 LOGGER = logging.getLogger(__name__)
@@ -26,7 +26,6 @@ class EZSPv13(EZSPv12):
         bellows.config.CONF_EZSP_CONFIG: vol.Schema(config.EZSP_SCHEMA),
         bellows.config.CONF_EZSP_POLICIES: vol.Schema(config.EZSP_POLICIES_SCH),
     }
-    types = v13_types
 
     async def add_transient_link_key(
         self, ieee: t.EUI64, key: t.KeyData

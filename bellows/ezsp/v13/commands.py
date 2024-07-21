@@ -1,4 +1,5 @@
-from . import types as t
+import bellows.types as t
+
 from ..v12.commands import COMMANDS as COMMANDS_v12
 
 COMMANDS = {

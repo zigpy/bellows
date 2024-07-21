@@ -9,7 +9,7 @@ import voluptuous
 import bellows.config
 import bellows.types as t
 
-from . import commands, config, types as v7_types
+from . import commands, config
 from ..v6 import EZSPv6
 
 LOGGER = logging.getLogger(__name__)
@@ -24,7 +24,6 @@ class EZSPv7(EZSPv6):
         bellows.config.CONF_EZSP_CONFIG: voluptuous.Schema(config.EZSP_SCHEMA),
         bellows.config.CONF_EZSP_POLICIES: voluptuous.Schema(config.EZSP_POLICIES_SCH),
     }
-    types = v7_types
 
     async def read_child_data(
         self,

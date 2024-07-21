@@ -10,7 +10,7 @@ import zigpy.state
 import bellows.config
 import bellows.types as t
 
-from . import commands, config, types as v14_types
+from . import commands, config
 from ..v13 import EZSPv13
 
 
@@ -23,7 +23,6 @@ class EZSPv14(EZSPv13):
         bellows.config.CONF_EZSP_CONFIG: vol.Schema(config.EZSP_SCHEMA),
         bellows.config.CONF_EZSP_POLICIES: vol.Schema(config.EZSP_POLICIES_SCH),
     }
-    types = v14_types
 
     async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64], None]:
         (status, addr_table_size) = await self.getConfigurationValue(

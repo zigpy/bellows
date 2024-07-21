@@ -15,13 +15,9 @@ import zigpy.zdo.types as zdo_t
 import bellows.config as config
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp as ezsp
-import bellows.ezsp.v4.types as t
-import bellows.ezsp.v5.types as ezsp_t5
-import bellows.ezsp.v6.types as ezsp_t6
-import bellows.ezsp.v7.types as ezsp_t7
-import bellows.ezsp.v8.types as ezsp_t8
 from bellows.ezsp.v9.commands import GetTokenDataRsp
 import bellows.types
+import bellows.types as t
 import bellows.types.struct
 import bellows.uart as uart
 import bellows.zigbee.application
@@ -79,7 +75,6 @@ def ezsp_mock(ieee):
     mock_ezsp.add_transient_link_key = AsyncMock(return_value=t.EmberStatus.SUCCESS)
     mock_ezsp._protocol = AsyncMock()
 
-    type(mock_ezsp).types = ezsp_t7
     type(mock_ezsp).is_ezsp_running = PropertyMock(return_value=True)
 
     return mock_ezsp
@@ -149,7 +144,6 @@ def _create_app_for_startup(
 
     app._in_flight_msg = None
     ezsp_mock = MagicMock(spec=ezsp.EZSP)
-    ezsp_mock.types = ezsp_t7
     type(ezsp_mock).ezsp_version = PropertyMock(return_value=ezsp_version)
     ezsp_mock.initialize = AsyncMock(return_value=ezsp_mock)
     ezsp_mock.connect = AsyncMock()

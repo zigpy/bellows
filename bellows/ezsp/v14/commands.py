@@ -1,6 +1,7 @@
 from zigpy.types import EUI64, NWK, BroadcastAddress, Struct
 
-from . import types as t
+import bellows.types as t
+
 from ..v13.commands import COMMANDS as COMMANDS_v13
 
 
