@@ -8,26 +8,26 @@ import bellows.types as t
 from bellows.types.struct import EzspStruct
 
 
-class sl_zb_sec_man_context_t(EzspStruct):
+class SecurityManagerContext(EzspStruct):
     """Context for Zigbee Security Manager operations."""
 
     # The type of key being referenced.
-    core_key_type: named.sl_zb_sec_man_key_type_t
+    core_key_type: named.SecurityManagerKeyType
     # The index of the referenced key.
     key_index: t.uint8_t
     # The type of key derivation operation to perform on a key.
-    derived_type: named.sl_zb_sec_man_derived_key_type_t
+    derived_type: named.SecurityManagerDerivedKeyType
     # The EUI64 associated with this key.
     eui64: t.EUI64
     # Multi-network index.
     multi_network_index: t.uint8_t
     # Flag bitmask.
-    flags: named.sl_zb_sec_man_flags_t
+    flags: named.SecurityManagerContextFlags
     # Algorithm to use with this key (for PSA APIs)
     psa_key_alg_permission: t.uint32_t
 
 
-class sl_zb_sec_man_network_key_info_t(EzspStruct):
+class SecurityManagerNetworkKeyInfo(EzspStruct):
     """The metadata pertaining to an network key."""
 
     network_key_set: t.Bool

@@ -34,7 +34,7 @@ class EZSPv13(EZSPv12):
         (status,) = await self.importTransientKey(
             ieee,
             key,
-            self.types.sl_zb_sec_man_flags_t.NONE,
+            self.types.SecurityManagerContextFlags.NONE,
         )
 
         return t.sl_Status.from_ember_status(status)
@@ -64,13 +64,13 @@ class EZSPv13(EZSPv12):
 
     async def get_network_key(self) -> zigpy.state.Key:
         network_key_data, status = await self.exportKey(
-            self.types.sl_zb_sec_man_context_t(
-                core_key_type=self.types.sl_zb_sec_man_key_type_t.NETWORK,
+            self.types.SecurityManagerContext(
+                core_key_type=self.types.SecurityManagerKeyType.NETWORK,
                 key_index=0,
-                derived_type=self.types.sl_zb_sec_man_derived_key_type_t.NONE,
+                derived_type=self.types.SecurityManagerDerivedKeyType.NONE,
                 eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
                 multi_network_index=0,
-                flags=self.types.sl_zb_sec_man_flags_t.NONE,
+                flags=self.types.SecurityManagerContextFlags.NONE,
                 psa_key_alg_permission=0,
             )
         )
@@ -91,13 +91,13 @@ class EZSPv13(EZSPv12):
 
     async def get_tc_link_key(self) -> zigpy.state.Key:
         tc_link_key_data, status = await self.exportKey(
-            self.types.sl_zb_sec_man_context_t(
-                core_key_type=self.types.sl_zb_sec_man_key_type_t.TC_LINK,
+            self.types.SecurityManagerContext(
+                core_key_type=self.types.SecurityManagerKeyType.TC_LINK,
                 key_index=0,
-                derived_type=self.types.sl_zb_sec_man_derived_key_type_t.NONE,
+                derived_type=self.types.SecurityManagerDerivedKeyType.NONE,
                 eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
                 multi_network_index=0,
-                flags=self.types.sl_zb_sec_man_flags_t.NONE,
+                flags=self.types.SecurityManagerContextFlags.NONE,
                 psa_key_alg_permission=0,
             )
         )

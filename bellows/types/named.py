@@ -1749,7 +1749,7 @@ class NV3KeyId(basic.enum32):
     NVM3KEY_STACK_GP_INCOMING_FC_IN_SINK = 0x0001_0780
 
 
-class sl_zb_sec_man_key_type_t(basic.enum8):
+class SecurityManagerKeyType(basic.enum8):
     """The list of supported key types used by Zigbee Security Manager."""
 
     NONE = 0
@@ -1797,18 +1797,18 @@ class sl_zb_sec_man_key_type_t(basic.enum8):
     INTERNAL = 10
 
 
-class sl_zb_sec_man_flags_t(basic.bitmap8):
+class SecurityManagerContextFlags(basic.bitmap8):
     """Security Manager context flags."""
 
     NONE = 0x00
     # For export APIs, this flag indicates the key_index parameter is valid in
-    # the ::sl_zb_sec_man_context_t structure. This bit is set by the caller
+    # the ::SecurityManagerContext structure. This bit is set by the caller
     # when intending to search for a key by key_index. This flag has no
     # significance for import APIs.
     KEY_INDEX_IS_VALID = 0x01
 
     # For export APIs, this flag indicates the eui64 parameter is valid in the
-    # ::sl_zb_sec_man_context_t structure. This bit is set by the caller when
+    # ::SecurityManagerContext structure. This bit is set by the caller when
     # intending to search for a key by eui64. It is also set when searching by
     # key_index and an entry is found. This flag has no significance for import
     # APIs.

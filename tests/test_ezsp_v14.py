@@ -68,35 +68,35 @@ async def test_get_network_key_and_tc_link_key(ezsp_f):
     def export_key(security_context):
         if (
             security_context.core_key_type
-            == ezsp_f.types.sl_zb_sec_man_key_type_t.NETWORK
+            == ezsp_f.types.SecurityManagerKeyType.NETWORK
         ):
             return (
                 t.sl_Status.OK,
                 t.KeyData.convert("2ccade06b3090c310315b3d574d3c85a"),
-                ezsp_f.types.sl_zb_sec_man_context_t(
-                    core_key_type=ezsp_f.types.sl_zb_sec_man_key_type_t.NETWORK,
+                ezsp_f.types.SecurityManagerContext(
+                    core_key_type=ezsp_f.types.SecurityManagerKeyType.NETWORK,
                     key_index=0,
-                    derived_type=ezsp_f.types.sl_zb_sec_man_derived_key_type_t.NONE,
+                    derived_type=ezsp_f.types.SecurityManagerDerivedKeyType.NONE,
                     eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
                     multi_network_index=0,
-                    flags=ezsp_f.types.sl_zb_sec_man_flags_t.NONE,
+                    flags=ezsp_f.types.SecurityManagerContextFlags.NONE,
                     psa_key_alg_permission=0,
                 ),
             )
         elif (
             security_context.core_key_type
-            == ezsp_f.types.sl_zb_sec_man_key_type_t.TC_LINK
+            == ezsp_f.types.SecurityManagerKeyType.TC_LINK
         ):
             return (
                 t.sl_Status.OK,
                 t.KeyData.convert("abcdabcdabcdabcdabcdabcdabcdabcd"),
-                ezsp_f.types.sl_zb_sec_man_context_t(
-                    core_key_type=ezsp_f.types.sl_zb_sec_man_key_type_t.NETWORK,
+                ezsp_f.types.SecurityManagerContext(
+                    core_key_type=ezsp_f.types.SecurityManagerKeyType.NETWORK,
                     key_index=0,
-                    derived_type=ezsp_f.types.sl_zb_sec_man_derived_key_type_t.NONE,
+                    derived_type=ezsp_f.types.SecurityManagerDerivedKeyType.NONE,
                     eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
                     multi_network_index=0,
-                    flags=ezsp_f.types.sl_zb_sec_man_flags_t.NONE,
+                    flags=ezsp_f.types.SecurityManagerContextFlags.NONE,
                     psa_key_alg_permission=0,
                 ),
             )
@@ -107,7 +107,7 @@ async def test_get_network_key_and_tc_link_key(ezsp_f):
     ezsp_f.getNetworkKeyInfo = AsyncMock(
         return_value=[
             ezsp_f.types.sl_Status.OK,
-            ezsp_f.types.sl_zb_sec_man_network_key_info_t(
+            ezsp_f.types.SecurityManagerNetworkKeyInfo(
                 network_key_set=True,
                 alternate_network_key_set=False,
                 network_key_sequence_number=108,
@@ -132,7 +132,7 @@ async def test_get_network_key_without_network(ezsp_f):
     ezsp_f.getNetworkKeyInfo = AsyncMock(
         return_value=[
             ezsp_f.types.sl_Status.OK,
-            ezsp_f.types.sl_zb_sec_man_network_key_info_t(
+            ezsp_f.types.SecurityManagerNetworkKeyInfo(
                 network_key_set=False,  # Not set
                 alternate_network_key_set=False,
                 network_key_sequence_number=108,
@@ -146,13 +146,13 @@ async def test_get_network_key_without_network(ezsp_f):
         return_value=[
             t.sl_Status.OK,
             t.KeyData.convert("00000000000000000000000000000000"),
-            ezsp_f.types.sl_zb_sec_man_context_t(
-                core_key_type=ezsp_f.types.sl_zb_sec_man_key_type_t.NETWORK,
+            ezsp_f.types.SecurityManagerContext(
+                core_key_type=ezsp_f.types.SecurityManagerKeyType.NETWORK,
                 key_index=0,
-                derived_type=ezsp_f.types.sl_zb_sec_man_derived_key_type_t.NONE,
+                derived_type=ezsp_f.types.SecurityManagerDerivedKeyType.NONE,
                 eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
                 multi_network_index=0,
-                flags=ezsp_f.types.sl_zb_sec_man_flags_t.NONE,
+                flags=ezsp_f.types.SecurityManagerContextFlags.NONE,
                 psa_key_alg_permission=0,
             ),
         ]

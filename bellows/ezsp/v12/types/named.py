@@ -1,12 +1,12 @@
 import bellows.types as t
 from bellows.types.named import (  # noqa: F401
     EzspValueId,
-    sl_zb_sec_man_flags_t,
-    sl_zb_sec_man_key_type_t,
+    SecurityManagerContextFlags,
+    SecurityManagerKeyType,
 )
 
 
-class sl_zb_sec_man_derived_key_type_t(t.enum8):
+class SecurityManagerDerivedKeyType(t.enum8):
     """Derived keys are calculated when performing Zigbee crypto operations.
     The stack makes use of these derivations.
     """

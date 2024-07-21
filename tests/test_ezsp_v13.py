@@ -48,7 +48,7 @@ async def test_read_link_keys(ezsp_f):
             return (
                 t.EUI64.convert("CC:CC:CC:FF:FE:E6:8E:CA"),
                 t.KeyData.convert("857C05003E761AF9689A49416A605C76"),
-                ezsp_f.types.sl_zb_sec_man_aps_key_metadata_t(
+                ezsp_f.types.SecurityManagerAPSKeyMetadata(
                     bitmask=(
                         t.EmberKeyStructBitmask.KEY_IS_AUTHORIZED
                         | t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
@@ -65,7 +65,7 @@ async def test_read_link_keys(ezsp_f):
             return (
                 t.EUI64.convert("EC:1B:BD:FF:FE:2F:41:A4"),
                 t.KeyData.convert("CA02E8BB757C94F89339D39CB3CDA7BE"),
-                ezsp_f.types.sl_zb_sec_man_aps_key_metadata_t(
+                ezsp_f.types.SecurityManagerAPSKeyMetadata(
                     bitmask=(
                         t.EmberKeyStructBitmask.KEY_IS_AUTHORIZED
                         | t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
@@ -82,7 +82,7 @@ async def test_read_link_keys(ezsp_f):
         return (
             t.EUI64.convert("7f:c9:35:e1:b0:00:00:00"),
             t.KeyData.convert("80:45:38:73:55:00:00:00:08:e4:35:c9:7f:00:00:00"),
-            ezsp_f.types.sl_zb_sec_man_aps_key_metadata_t(
+            ezsp_f.types.SecurityManagerAPSKeyMetadata(
                 bitmask=t.EmberKeyStructBitmask(43976),
                 outgoing_frame_counter=85,
                 incoming_frame_counter=0,
@@ -116,10 +116,10 @@ async def test_read_link_keys(ezsp_f):
 async def test_get_network_key_and_tc_link_key(ezsp_f):
     def export_key(security_context):
         key = {
-            ezsp_f.types.sl_zb_sec_man_key_type_t.NETWORK: t.KeyData.convert(
+            ezsp_f.types.SecurityManagerKeyType.NETWORK: t.KeyData.convert(
                 "2ccade06b3090c310315b3d574d3c85a"
             ),
-            ezsp_f.types.sl_zb_sec_man_key_type_t.TC_LINK: t.KeyData.convert(
+            ezsp_f.types.SecurityManagerKeyType.TC_LINK: t.KeyData.convert(
                 "abcdabcdabcdabcdabcdabcdabcdabcd"
             ),
         }[security_context.core_key_type]
@@ -130,7 +130,7 @@ async def test_get_network_key_and_tc_link_key(ezsp_f):
     ezsp_f.getNetworkKeyInfo = AsyncMock(
         return_value=[
             ezsp_f.types.sl_Status.OK,
-            ezsp_f.types.sl_zb_sec_man_network_key_info_t(
+            ezsp_f.types.SecurityManagerNetworkKeyInfo(
                 network_key_set=True,
                 alternate_network_key_set=False,
                 network_key_sequence_number=108,
@@ -155,7 +155,7 @@ async def test_get_network_key_without_network(ezsp_f):
     ezsp_f.getNetworkKeyInfo = AsyncMock(
         return_value=[
             ezsp_f.types.sl_Status.OK,
-            ezsp_f.types.sl_zb_sec_man_network_key_info_t(
+            ezsp_f.types.SecurityManagerNetworkKeyInfo(
                 network_key_set=False,  # Not set
                 alternate_network_key_set=False,
                 network_key_sequence_number=108,
