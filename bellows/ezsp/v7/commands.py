@@ -853,12 +853,12 @@ COMMANDS = {
     "getTransientLinkKey": (
         0xCE,
         (t.EUI64,),
-        (t.EmberStatus, t.EmberTransientKeyData),
+        (t.EmberStatus, t.EmberTransientKeyDataV5),
     ),
     "getTransientKeyTableEntry": (
         0x6D,
         (t.uint8_t,),
-        (t.EmberStatus, t.EmberTransientKeyData),
+        (t.EmberStatus, t.EmberTransientKeyDataV5),
     ),
     # 10. Trust Center Frames
     "trustCenterJoinHandler": (
