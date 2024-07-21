@@ -28,6 +28,7 @@ from bellows.types.named import (  # noqa: F401, F403
     EmberMacPassthroughType,
     EmberMessageDigest,
     EmberMulticastId,
+    EmberMultiPhyNwkConfig,
     EmberNetworkInitBitmask,
     EmberNetworkStatus,
     EmberNodeId,
@@ -93,13 +94,6 @@ class EmberJoinMethod(basic.enum8):
     # ahead of time, a router device may be commissioned such that it does not
     # need to send any messages to begin communicating on the network.
     USE_CONFIGURED_NWK_STATE = 0x3
-
-
-class EmberMultiPhyNwkConfig(basic.enum8):
-    """Network configuration for the desired radio interface for multi phy network."""
-
-    # Enable broadcast support on Routers
-    BROADCAST_SUPPORT = 0x01
 
 
 class EmberDutyCycleState(basic.enum8):

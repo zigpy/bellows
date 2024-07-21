@@ -28,6 +28,7 @@ from bellows.types.named import (  # noqa: F401, F403
     EmberMacPassthroughType,
     EmberMessageDigest,
     EmberMulticastId,
+    EmberMultiPhyNwkConfig,
     EmberNetworkInitBitmask,
     EmberNetworkStatus,
     EmberNodeId,
@@ -61,13 +62,6 @@ from bellows.types.named import (  # noqa: F401, F403
     SecureEzspSecurityLevel,
     SecureEzspSecurityType,
 )
-
-
-class EmberMultiPhyNwkConfig(basic.enum8):
-    """Network configuration for the desired radio interface for multi phy network."""
-
-    # Enable broadcast support on Routers
-    BROADCAST_SUPPORT = 0x01
 
 
 class EmberDutyCycleState(basic.enum8):

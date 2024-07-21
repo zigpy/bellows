@@ -2550,3 +2550,10 @@ class SecureEzspSecurityLevel(basic.uint8_t):
     """Security level of the Secure EZSP Protocol."""
 
     ENC_MIC_32 = 0x05
+
+
+class EmberMultiPhyNwkConfig(basic.enum8):
+    """Network configuration for the desired radio interface for multi phy network."""
+
+    # Enable broadcast support on Routers
+    BROADCAST_SUPPORT = 0x01
