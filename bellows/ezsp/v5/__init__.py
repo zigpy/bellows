@@ -49,7 +49,7 @@ class EZSPv5(EZSPv4):
 
     async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64], None]:
         (status, addr_table_size) = await self.getConfigurationValue(
-            self.types.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
+            t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
         )
 
         for idx in range(addr_table_size):
@@ -72,10 +72,10 @@ class EZSPv5(EZSPv4):
     async def write_nwk_frame_counter(self, frame_counter: t.uint32_t) -> None:
         # Frame counters can only be set *before* we have joined a network
         (state,) = await self.networkState()
-        assert state == self.types.EmberNetworkStatus.NO_NETWORK
+        assert state == t.EmberNetworkStatus.NO_NETWORK
 
         (status,) = await self.setValue(
-            self.types.EzspValueId.VALUE_NWK_FRAME_COUNTER,
+            t.EzspValueId.VALUE_NWK_FRAME_COUNTER,
             t.uint32_t(frame_counter).serialize(),
         )
         assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
@@ -83,10 +83,10 @@ class EZSPv5(EZSPv4):
     async def write_aps_frame_counter(self, frame_counter: t.uint32_t) -> None:
         # Frame counters can only be set *before* we have joined a network
         (state,) = await self.networkState()
-        assert state == self.types.EmberNetworkStatus.NO_NETWORK
+        assert state == t.EmberNetworkStatus.NO_NETWORK
 
         (status,) = await self.setValue(
-            self.types.EzspValueId.VALUE_APS_FRAME_COUNTER,
+            t.EzspValueId.VALUE_APS_FRAME_COUNTER,
             t.uint32_t(frame_counter).serialize(),
         )
         assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK

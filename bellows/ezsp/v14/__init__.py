@@ -26,7 +26,7 @@ class EZSPv14(EZSPv13):
 
     async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64], None]:
         (status, addr_table_size) = await self.getConfigurationValue(
-            self.types.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
+            t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
         )
 
         for idx in range(addr_table_size + 100):
@@ -45,13 +45,13 @@ class EZSPv14(EZSPv13):
 
     async def get_network_key(self) -> zigpy.state.Key:
         status, network_key_data, _ = await self.exportKey(
-            self.types.SecurityManagerContextV13(
-                core_key_type=self.types.SecurityManagerKeyType.NETWORK,
+            t.SecurityManagerContextV13(
+                core_key_type=t.SecurityManagerKeyType.NETWORK,
                 key_index=0,
-                derived_type=self.types.SecurityManagerDerivedKeyTypeV13.NONE,
+                derived_type=t.SecurityManagerDerivedKeyTypeV13.NONE,
                 eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
                 multi_network_index=0,
-                flags=self.types.SecurityManagerContextFlags.NONE,
+                flags=t.SecurityManagerContextFlags.NONE,
                 psa_key_alg_permission=0,
             )
         )
@@ -72,13 +72,13 @@ class EZSPv14(EZSPv13):
 
     async def get_tc_link_key(self) -> zigpy.state.Key:
         status, tc_link_key_data, _ = await self.exportKey(
-            self.types.SecurityManagerContextV13(
-                core_key_type=self.types.SecurityManagerKeyType.TC_LINK,
+            t.SecurityManagerContextV13(
+                core_key_type=t.SecurityManagerKeyType.TC_LINK,
                 key_index=0,
-                derived_type=self.types.SecurityManagerDerivedKeyTypeV13.NONE,
+                derived_type=t.SecurityManagerDerivedKeyTypeV13.NONE,
                 eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
                 multi_network_index=0,
-                flags=self.types.SecurityManagerContextFlags.NONE,
+                flags=t.SecurityManagerContextFlags.NONE,
                 psa_key_alg_permission=0,
             )
         )

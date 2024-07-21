@@ -1580,9 +1580,7 @@ async def test_ensure_network_running_joined(app):
             bellows.types.sl_Status.OK,
         ]
     )
-    ezsp.networkState = AsyncMock(
-        return_value=[ezsp.types.EmberNetworkStatus.JOINED_NETWORK]
-    )
+    ezsp.networkState = AsyncMock(return_value=[t.EmberNetworkStatus.JOINED_NETWORK])
 
     rsp = await app._ensure_network_running()
 
@@ -1593,9 +1591,7 @@ async def test_ensure_network_running_joined(app):
 
 async def test_ensure_network_running_not_joined_failure(app):
     ezsp = app._ezsp
-    ezsp.networkState = AsyncMock(
-        return_value=[ezsp.types.EmberNetworkStatus.NO_NETWORK]
-    )
+    ezsp.networkState = AsyncMock(return_value=[t.EmberNetworkStatus.NO_NETWORK])
     ezsp.initialize_network = AsyncMock(
         return_value=bellows.types.sl_Status.INVALID_PARAMETER
     )
@@ -1609,9 +1605,7 @@ async def test_ensure_network_running_not_joined_failure(app):
 
 async def test_ensure_network_running_not_joined_success(app):
     ezsp = app._ezsp
-    ezsp.networkState = AsyncMock(
-        return_value=[ezsp.types.EmberNetworkStatus.NO_NETWORK]
-    )
+    ezsp.networkState = AsyncMock(return_value=[t.EmberNetworkStatus.NO_NETWORK])
     ezsp.initialize_network = AsyncMock(return_value=bellows.types.sl_Status.OK)
 
     rsp = await app._ensure_network_running()

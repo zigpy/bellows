@@ -28,12 +28,12 @@ class EZSPv8(EZSPv7):
         """Serialize the frame id."""
         cmd_id = self.COMMANDS[name][0]
         hdr = [self._seq, 0x00, 0x01]
-        return bytes(hdr) + self.types.uint16_t(cmd_id).serialize()
+        return bytes(hdr) + t.uint16_t(cmd_id).serialize()
 
     def _ezsp_frame_rx(self, data: bytes) -> Tuple[int, int, bytes]:
         """Handler for received data frame."""
         seq, data = data[0], data[3:]
-        frame_id, data = self.types.uint16_t.deserialize(data)
+        frame_id, data = t.uint16_t.deserialize(data)
 
         return seq, frame_id, data
 

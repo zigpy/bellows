@@ -336,7 +336,7 @@ async def test_board_info(ezsp_f):
                 ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (
                     b"Manufacturer\xff\xff\xff",
                 ),
-                ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
+                ("getValue", t.EzspValueId.VALUE_VERSION_INFO): (
                     t.EmberStatus.SUCCESS,
                     b"\x01\x02\x03\x04\x05\x06",
                 ),
@@ -360,7 +360,7 @@ async def test_board_info(ezsp_f):
                 ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (
                     b"Manufacturer\xff\xff\xff",
                 ),
-                ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
+                ("getValue", t.EzspValueId.VALUE_VERSION_INFO): (
                     t.EmberStatus.ERR_FATAL,
                     b"\x01\x02\x03\x04\x05\x06",
                 ),
@@ -384,7 +384,7 @@ async def test_board_info(ezsp_f):
                 ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (
                     b"Nabu Casa\x00\xff\xff\xff\xff\xff\xff",
                 ),
-                ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
+                ("getValue", t.EzspValueId.VALUE_VERSION_INFO): (
                     t.EmberStatus.SUCCESS,
                     b"\xbf\x00\x07\x01\x00\x00\xaa",
                 ),
@@ -404,7 +404,7 @@ async def test_board_info(ezsp_f):
             {
                 ("getMfgToken", t.EzspMfgTokenId.MFG_BOARD_NAME): (b"\xff" * 16,),
                 ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (b"\xff" * 16,),
-                ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
+                ("getValue", t.EzspValueId.VALUE_VERSION_INFO): (
                     t.EmberStatus.SUCCESS,
                     b"\xbf\x00\x07\x01\x00\x00\xaa",
                 ),
@@ -435,11 +435,11 @@ async def test_update_policies(ezsp_f):
 async def test_set_source_routing_set_concentrator(ezsp_f):
     """Test enabling source routing."""
     with patch.object(ezsp_f, "setConcentrator", new=AsyncMock()) as cnc_mock:
-        cnc_mock.return_value = (ezsp_f.types.EmberStatus.SUCCESS,)
+        cnc_mock.return_value = (t.EmberStatus.SUCCESS,)
         await ezsp_f.set_source_routing()
         assert cnc_mock.await_count == 1
 
-        cnc_mock.return_value = (ezsp_f.types.EmberStatus.ERR_FATAL,)
+        cnc_mock.return_value = (t.EmberStatus.ERR_FATAL,)
         await ezsp_f.set_source_routing()
         assert cnc_mock.await_count == 2
 
@@ -448,7 +448,7 @@ async def test_set_source_routing_ezsp_v8(ezsp_f):
     """Test enabling source routing on EZSPv8."""
 
     ezsp_f._ezsp_version = 8
-    ezsp_f.setConcentrator = AsyncMock(return_value=(ezsp_f.types.EmberStatus.SUCCESS,))
+    ezsp_f.setConcentrator = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
     ezsp_f.setSourceRouteDiscoveryMode = AsyncMock()
 
     await ezsp_f.set_source_routing()

@@ -32,7 +32,7 @@ async def test_pre_permit(ezsp_f):
     p2 = patch.object(
         ezsp_f,
         "addTransientLinkKey",
-        new=AsyncMock(return_value=[ezsp_f.types.EmberStatus.SUCCESS]),
+        new=AsyncMock(return_value=[t.EmberStatus.SUCCESS]),
     )
     with p2 as tclk_mock:
         await ezsp_f.pre_permit(1)
@@ -82,7 +82,7 @@ async def test_write_nwk_frame_counter(ezsp_f) -> None:
 
     assert ezsp_f.setValue.mock_calls == [
         call(
-            ezsp_f.types.EzspValueId.VALUE_NWK_FRAME_COUNTER,
+            t.EzspValueId.VALUE_NWK_FRAME_COUNTER,
             t.uint32_t(12345678).serialize(),
         ),
     ]
@@ -95,7 +95,7 @@ async def test_write_aps_frame_counter(ezsp_f) -> None:
 
     assert ezsp_f.setValue.mock_calls == [
         call(
-            ezsp_f.types.EzspValueId.VALUE_APS_FRAME_COUNTER,
+            t.EzspValueId.VALUE_APS_FRAME_COUNTER,
             t.uint32_t(12345678).serialize(),
         ),
     ]

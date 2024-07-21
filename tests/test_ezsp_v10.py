@@ -32,7 +32,7 @@ async def test_pre_permit(ezsp_f):
     p2 = patch.object(
         ezsp_f,
         "addTransientLinkKey",
-        new=AsyncMock(return_value=[ezsp_f.types.EmberStatus.SUCCESS]),
+        new=AsyncMock(return_value=[t.EmberStatus.SUCCESS]),
     )
     with p1 as pre_permit_mock, p2 as tclk_mock:
         await ezsp_f.pre_permit(-1.9)
@@ -41,7 +41,7 @@ async def test_pre_permit(ezsp_f):
 
 
 async def test_write_child_data(ezsp_f) -> None:
-    ezsp_f.setChildData = AsyncMock(return_value=[ezsp_f.types.EmberStatus.SUCCESS])
+    ezsp_f.setChildData = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
 
     await ezsp_f.write_child_data(
         {
@@ -53,7 +53,7 @@ async def test_write_child_data(ezsp_f) -> None:
     assert ezsp_f.setChildData.mock_calls == [
         call(
             0,
-            ezsp_f.types.EmberChildDataV10(
+            t.EmberChildDataV10(
                 eui64=t.EUI64.convert("00:0b:57:ff:fe:2b:d4:57"),
                 type=t.EmberNodeType.SLEEPY_END_DEVICE,
                 id=0xC06B,
@@ -65,7 +65,7 @@ async def test_write_child_data(ezsp_f) -> None:
         ),
         call(
             1,
-            ezsp_f.types.EmberChildDataV10(
+            t.EmberChildDataV10(
                 eui64=t.EUI64.convert("00:18:4b:00:1c:a1:b8:46"),
                 type=t.EmberNodeType.SLEEPY_END_DEVICE,
                 id=0x1234,

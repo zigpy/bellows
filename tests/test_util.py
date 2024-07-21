@@ -90,15 +90,14 @@ def zigpy_key(network_info, node_info):
 
 @pytest.fixture
 def ezsp_key(ezsp_mock, network_info, node_info, zigpy_key):
-    ezsp = ezsp_mock
-    return ezsp.types.EmberKeyStruct(
+    return t.EmberKeyStruct(
         bitmask=(
-            ezsp.types.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER
-            | ezsp.types.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
-            | ezsp.types.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER
-            | ezsp.types.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
+            t.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER
+            | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
+            | t.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER
+            | t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
         ),
-        key=ezsp.types.KeyData(network_info.network_key.key),
+        key=t.KeyData(network_info.network_key.key),
         sequenceNumber=zigpy_key.seq,
         outgoingFrameCounter=zigpy_key.tx_counter,
         incomingFrameCounter=zigpy_key.rx_counter,
@@ -159,12 +158,12 @@ def test_zha_security_hashed_nonstandard_tclk_warning(network_info, caplog):
     assert "Only the well-known TC Link Key is supported" in caplog.text
 
 
-def test_ezsp_key_to_zigpy_key(zigpy_key, ezsp_key, ezsp_mock):
-    assert util.ezsp_key_to_zigpy_key(ezsp_key, ezsp_mock) == zigpy_key
+def test_ezsp_key_to_zigpy_key(zigpy_key, ezsp_key):
+    assert util.ezsp_key_to_zigpy_key(ezsp_key) == zigpy_key
 
 
-def test_zigpy_key_to_ezsp_key(zigpy_key, ezsp_key, ezsp_mock):
-    assert util.zigpy_key_to_ezsp_key(zigpy_key, ezsp_mock) == ezsp_key
+def test_zigpy_key_to_ezsp_key(zigpy_key, ezsp_key):
+    assert util.zigpy_key_to_ezsp_key(zigpy_key) == ezsp_key
 
 
 def test_map_rssi_to_energy():

@@ -28,7 +28,7 @@ class EZSPv9(EZSPv8):
         for index, (eui64, nwk) in enumerate(children.items()):
             await self.setChildData(
                 index,
-                self.types.EmberChildDataV7(
+                t.EmberChildDataV7(
                     eui64=eui64,
                     type=t.EmberNodeType.SLEEPY_END_DEVICE,
                     id=nwk,

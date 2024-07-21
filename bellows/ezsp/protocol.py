@@ -31,7 +31,6 @@ class ProtocolHandler(abc.ABC):
 
     COMMANDS = {}
     VERSION = None
-    types = t
 
     def __init__(self, cb_handler: Callable, gateway: Gateway) -> None:
         self._handle_callback = cb_handler
@@ -48,7 +47,7 @@ class ProtocolHandler(abc.ABC):
         """Serialize the named frame and data."""
         c = self.COMMANDS[name]
         frame = self._ezsp_frame_tx(name)
-        data = self.types.serialize(args, c[1])
+        data = t.serialize(args, c[1])
         return frame + data
 
     @abc.abstractmethod
@@ -76,10 +75,10 @@ class ProtocolHandler(abc.ABC):
         """Set up the policies for what the NCP should do."""
 
         policies = self.SCHEMAS[CONF_EZSP_POLICIES](policy_config)
-        self.tc_policy = policies[self.types.EzspPolicyId.TRUST_CENTER_POLICY.name]
+        self.tc_policy = policies[t.EzspPolicyId.TRUST_CENTER_POLICY.name]
 
         for policy, value in policies.items():
-            (status,) = await self.setPolicy(self.types.EzspPolicyId[policy], value)
+            (status,) = await self.setPolicy(t.EzspPolicyId[policy], value)
             assert (
                 t.sl_Status.from_ember_status(status) == t.sl_Status.OK
             )  # TODO: Better check
@@ -102,7 +101,7 @@ class ProtocolHandler(abc.ABC):
 
         try:
             if isinstance(rx_schema, tuple):
-                result, data = self.types.deserialize(data, rx_schema)
+                result, data = t.deserialize(data, rx_schema)
             else:
                 result, data = rx_schema.deserialize(data)
         except Exception:

@@ -357,9 +357,7 @@ class EZSP:
 
             tokens[token] = result
 
-        (status, ver_info_bytes) = await self.getValue(
-            self.types.EzspValueId.VALUE_VERSION_INFO
-        )
+        (status, ver_info_bytes) = await self.getValue(t.EzspValueId.VALUE_VERSION_INFO)
         version = None
 
         if t.sl_Status.from_ember_status(status) == t.sl_Status.OK:
@@ -500,7 +498,7 @@ class EZSP:
         """Enable source routing on NCP."""
         res = await self.setConcentrator(
             True,
-            self.types.EmberConcentratorType.HIGH_RAM_CONCENTRATOR,
+            t.EmberConcentratorType.HIGH_RAM_CONCENTRATOR,
             MTOR_MIN_INTERVAL,
             MTOR_MAX_INTERVAL,
             MTOR_ROUTE_ERROR_THRESHOLD,
@@ -548,11 +546,11 @@ class EZSP:
         for cfg in DEFAULT_CONFIG[self._ezsp_version]:
             if isinstance(cfg, RuntimeConfig):
                 ezsp_config[cfg.config_id.name] = dataclasses.replace(
-                    cfg, config_id=self.types.EzspConfigId[cfg.config_id.name]
+                    cfg, config_id=t.EzspConfigId[cfg.config_id.name]
                 )
             elif isinstance(cfg, ValueConfig):
                 ezsp_values[cfg.value_id.name] = dataclasses.replace(
-                    cfg, value_id=self.types.EzspValueId[cfg.value_id.name]
+                    cfg, value_id=t.EzspValueId[cfg.value_id.name]
                 )
 
         # Override the defaults with user-specified values (or `None` for deletions)
@@ -562,16 +560,16 @@ class EZSP:
                 continue
 
             ezsp_config[name] = RuntimeConfig(
-                config_id=self.types.EzspConfigId[name],
+                config_id=t.EzspConfigId[name],
                 value=value,
             )
 
         # Make sure CONFIG_PACKET_BUFFER_COUNT is always set last
-        if self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name in ezsp_config:
+        if t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name in ezsp_config:
             ezsp_config = {
                 **ezsp_config,
-                self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name: ezsp_config[
-                    self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name
+                t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name: ezsp_config[
+                    t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name
                 ],
             }
 
