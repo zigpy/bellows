@@ -7,6 +7,7 @@ from typing import AsyncGenerator
 import voluptuous
 
 import bellows.config
+from bellows.ezsp.config import DEFAULT_CONFIG_NEW
 import bellows.types as t
 
 from . import commands, config
@@ -24,6 +25,7 @@ class EZSPv7(EZSPv6):
         bellows.config.CONF_EZSP_CONFIG: voluptuous.Schema(config.EZSP_SCHEMA),
         bellows.config.CONF_EZSP_POLICIES: voluptuous.Schema(config.EZSP_POLICIES_SCH),
     }
+    CONFIG = DEFAULT_CONFIG_NEW
 
     async def read_child_data(
         self,
