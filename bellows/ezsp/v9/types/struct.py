@@ -197,7 +197,7 @@ class EmberPerDeviceDutyCycle(EzspStruct):
     # Node Id of device whose duty cycle is reported.
     nodeId: named.EmberNodeId
     # Amount of overall duty cycle consumed (up to suspend limit).
-    dutyCycleConsumed: named.EmberDutyCycleHectoPct
+    dutyCycleConsumed: basic.uint16_t
 
 
 class EmberTransientKeyData(EzspStruct):
