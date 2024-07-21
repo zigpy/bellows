@@ -1,6 +1,5 @@
 """Protocol version 6 named types."""
 
-import bellows.types.basic as basic
 from bellows.types.named import (  # noqa: F401, F403
     EUI64,
     Bool,
@@ -19,6 +18,7 @@ from bellows.types.named import (  # noqa: F401, F403
     EmberGpKeyType,
     EmberGpProxyTableEntryStatus,
     EmberGpSecurityLevel,
+    EmberGpSinkTableEntryStatus,
     EmberIncomingMessageType,
     EmberInitialSecurityBitmask,
     EmberJoinDecision,
@@ -65,7 +65,3 @@ from bellows.types.named import (  # noqa: F401, F403
     SecureEzspSecurityLevel,
     SecureEzspSecurityType,
 )
-
-
-class EmberGpSinkTableEntryStatus(basic.uint8_t):
-    """The sink table entry status."""

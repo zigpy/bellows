@@ -19,6 +19,7 @@ from bellows.types.named import (  # noqa: F401, F403
     EmberGpKeyType,
     EmberGpProxyTableEntryStatus,
     EmberGpSecurityLevel,
+    EmberGpSinkTableEntryStatus,
     EmberIncomingMessageType,
     EmberInitialSecurityBitmask,
     EmberJoinDecision,
@@ -110,7 +111,3 @@ class EmberEntropySource(basic.enum8):
     ENTROPY_SOURCE_MBEDTLS_TRNG = 2
     # Entropy source is powered by mbed TLS, the source is not TRNG.
     ENTROPY_SOURCE_MBEDTLS = 3
-
-
-class EmberGpSinkTableEntryStatus(basic.uint8_t):
-    """The sink table entry status."""

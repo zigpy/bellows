@@ -2546,7 +2546,7 @@ class SecureEzspSecurityType(basic.uint32_t):
     PERMANENT = 0x12345678
 
 
-class SecureEzspSecurityLevel(basic.uint8_t):
+class SecureEzspSecurityLevel(basic.enum8):
     """Security level of the Secure EZSP Protocol."""
 
     ENC_MIC_32 = 0x05
@@ -2583,10 +2583,19 @@ class EmberRadioPowerMode(basic.enum8):
     RADIO_POWER_MODE_OFF = 1
 
 
-class EmberGpProxyTableEntryStatus(basic.uint8_t):
+class EmberGpProxyTableEntryStatus(basic.enum8):
     """The proxy table entry status."""
 
     # The GP table entry is in use for a Proxy Table Entry.
+    ACTIVE = 0x01
+    # The proxy table entry is not in use.
+    UNUSED = 0xFF
+
+
+class EmberGpSinkTableEntryStatus(basic.enum8):
+    """The sink table entry status."""
+
+    # The GP table entry is in use for a Sink Table Entry.
     ACTIVE = 0x01
     # The proxy table entry is not in use.
     UNUSED = 0xFF
