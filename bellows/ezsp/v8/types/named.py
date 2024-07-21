@@ -60,6 +60,7 @@ from bellows.types.named import (  # noqa: F401, F403
     EzspValueId,
     EzspZllNetworkOperation,
     KeyData,
+    SecureEzspSecurityLevel,
     SecureEzspSecurityType,
 )
 
@@ -156,10 +157,6 @@ class EmberGpSecurityFrameCounter(basic.uint32_t):
 
 class EmberGpSinkTableEntryStatus(basic.uint8_t):
     """The sink table entry status."""
-
-
-class SecureEzspSecurityLevel(basic.uint8_t):
-    """Security level of the Secure EZSP Protocol."""
 
 
 class SecureEzspRandomNumber(basic.FixedList[basic.uint8_t, 16]):

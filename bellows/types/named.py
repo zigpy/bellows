@@ -2544,3 +2544,9 @@ class SecureEzspSecurityType(basic.uint32_t):
 
     TEMPORARY = 0x00000000
     PERMANENT = 0x12345678
+
+
+class SecureEzspSecurityLevel(basic.uint8_t):
+    """Security level of the Secure EZSP Protocol."""
+
+    ENC_MIC_32 = 0x05

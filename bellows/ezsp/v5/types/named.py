@@ -61,12 +61,9 @@ from bellows.types.named import (  # noqa: F401, F403
     EzspValueId,
     EzspZllNetworkOperation,
     KeyData,
+    SecureEzspSecurityLevel,
     SecureEzspSecurityType,
 )
-
-
-class SecureEzspSecurityLevel(basic.uint8_t):
-    """Security level of the Secure EZSP Protocol."""
 
 
 class SecureEzspRandomNumber(basic.FixedList[basic.uint8_t, 16]):
