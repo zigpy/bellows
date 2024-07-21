@@ -47,6 +47,7 @@ from bellows.types.named import (  # noqa: F401, F403
     EmberZllState,
     ExtendedPanId,
     EzspConfigId,
+    EzspDecisionId,
     EzspEndpointFlags,
     EzspExtendedValueId,
     EzspMfgTokenId,
@@ -58,100 +59,6 @@ from bellows.types.named import (  # noqa: F401, F403
     EzspZllNetworkOperation,
     KeyData,
 )
-
-
-class EzspDecisionId(basic.enum8):
-    # Identifies a policy decision.
-
-    # Send the network key in the clear to all joining and rejoining devices.
-    ALLOW_JOINS = 0x00
-    # Send the network key in the clear to all joining devices.  Rejoining
-    # devices are sent the network key encrypted with their trust center link
-    # key. The trust center and any rejoining device are assumed to share a
-    # link key, either preconfigured or obtained under a previous policy.
-    ALLOW_JOINS_REJOINS_HAVE_LINK_KEY = 0x04
-    # Send the network key encrypted with the joining or rejoining device's
-    # trust center link key. The trust center and any joining or rejoining
-    # device are assumed to share a link key, either preconfigured or obtained
-    # under a previous policy. This is the default value for the
-    # TRUST_CENTER_POLICY.
-    ALLOW_PRECONFIGURED_KEY_JOINS = 0x01
-    # Send the network key encrypted with the rejoining device's trust center
-    # link key. The trust center and any rejoining device are assumed to share
-    # a link key, either preconfigured or obtained under a previous policy. No
-    # new devices are allowed to join.
-    ALLOW_REJOINS_ONLY = 0x02
-    # Reject all unsecured join and rejoin attempts.
-    DISALLOW_ALL_JOINS_AND_REJOINS = 0x03
-    # Take no action on trust center rejoin attempts.
-    IGNORE_TRUST_CENTER_REJOINS = 0x05
-    # BINDING_MODIFICATION_POLICY default decision. Do not allow the local
-    # binding table to be changed by remote nodes.
-    DISALLOW_BINDING_MODIFICATION = 0x10
-    # BINDING_MODIFICATION_POLICY decision.  Allow remote nodes to change
-    # the local binding table.
-    ALLOW_BINDING_MODIFICATION = 0x11
-    # BINDING_MODIFICATION_POLICY decision.  Allows remote nodes to set local
-    # binding entries only if the entries correspond to endpoints defined on
-    # the device, and for output clusters bound to those endpoints.
-    CHECK_BINDING_MODIFICATIONS_ARE_VALID_ENDPOINT_CLUSTERS = 0x12
-    # UNICAST_REPLIES_POLICY default decision.  The NCP will automatically send
-    # an empty reply (containing no payload) for every unicast received.
-    HOST_WILL_NOT_SUPPLY_REPLY = 0x20
-    # UNICAST_REPLIES_POLICY decision. The NCP will only send a reply if it
-    # receives a sendReply command from the Host.
-    HOST_WILL_SUPPLY_REPLY = 0x21
-    # POLL_HANDLER_POLICY default decision. Do not inform the Host when a child polls.
-    POLL_HANDLER_IGNORE = 0x30
-    # POLL_HANDLER_POLICY decision. Generate a pollHandler callback when a child polls.
-    POLL_HANDLER_CALLBACK = 0x31
-    # MESSAGE_CONTENTS_IN_CALLBACK_POLICY default decision. Include only the
-    # message tag in the messageSentHandler callback.
-    MESSAGE_TAG_ONLY_IN_CALLBACK = 0x40
-    # MESSAGE_CONTENTS_IN_CALLBACK_POLICY decision. Include both the message
-    # tag and the message contents in the messageSentHandler callback.
-    MESSAGE_TAG_AND_CONTENTS_IN_CALLBACK = 0x41
-    # TC_KEY_REQUEST_POLICY decision. When the Trust Center receives a request
-    # for a Trust Center link key, it will be ignored.
-    DENY_TC_KEY_REQUESTS = 0x50
-    # TC_KEY_REQUEST_POLICY decision. When the Trust Center receives a request for a
-    # Trust Center link key, it will reply to it with the corresponding key.
-    ALLOW_TC_KEY_REQUESTS = 0x51
-    # TC_KEY_REQUEST_POLICY decision. When the Trust Center receives a request
-    # for a Trust Center link key, it will generate a key to send to the joiner.
-    GENERATE_NEW_TC_LINK_KEY = 0x52
-    # APP_KEY_REQUEST_POLICY decision. When the Trust Center receives a request
-    # for an application link key, it will be ignored.
-    DENY_APP_KEY_REQUESTS = 0x60
-    # APP_KEY_REQUEST_POLICY decision. When the Trust Center receives a request
-    # for an application link key, it will randomly generate a key and send it
-    # to both partners.
-    ALLOW_APP_KEY_REQUESTS = 0x61
-    # Indicates that packet validate library checks are enabled on the NCP.
-    PACKET_VALIDATE_LIBRARY_CHECKS_ENABLED = 0x62
-    # Indicates that packet validate library checks are NOT enabled on the NCP.
-    PACKET_VALIDATE_LIBRARY_CHECKS_DISABLED = 0x63
-    # Indicates that the RF4CE stack during discovery and pairing will use standard
-    # profile-dependent behavior for the profiles ZRC 1.1 and MSO, while it will fall
-    # back to the on/off policies for any other profile.
-    RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_ENABLED = 0x70
-    # Indicates that the RF4CE stack during discovery and pairing will always use the
-    # on/off policies.
-    RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_DISABLED = 0x71
-    # Indicates that the RF4CE stack will respond to incoming discovery requests.
-    RF4CE_DISCOVERY_REQUEST_RESPOND = 0x72
-    # Indicates that the RF4CE stack will ignore incoming discovery requests.
-    RF4CE_DISCOVERY_REQUEST_IGNORE = 0x73
-    # Indicates that the RF4CE stack will perform all the discovery trials the
-    # application specified in the ezspRf4ceDiscovery() call.
-    RF4CE_DISCOVERY_MAX_DISCOVERY_TRIALS = 0x74
-    # Indicates that the RF4CE stack will prematurely stop the discovery process if a
-    # matching discovery response is received.
-    RF4CE_DISCOVERY_STOP_ON_MATCHING_RESPONSE = 0x75
-    # Indicates that the RF4CE stack will accept new pairings.
-    RF4CE_PAIR_REQUEST_ACCEPT = 0x76
-    # Indicates that the RF4CE stack will NOT accept new pairings.
-    RF4CE_PAIR_REQUEST_DENY = 0x77
 
 
 class EmberDeviceUpdate(basic.enum8):

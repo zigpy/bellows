@@ -263,7 +263,7 @@ EZSP_SCHEMA = {
 EZSP_POLICIES_SHARED = {
     vol.Optional(
         EzspPolicyId.TC_KEY_REQUEST_POLICY.name,
-        default=EzspDecisionId.ALLOW_TC_KEY_REQUESTS,
+        default=EzspDecisionId.ALLOW_TC_KEY_REQUESTS_AND_SEND_CURRENT_KEY,
     ): cv_uint16,
     vol.Optional(
         EzspPolicyId.APP_KEY_REQUEST_POLICY.name,
