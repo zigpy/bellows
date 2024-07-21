@@ -53,7 +53,7 @@ async def test_write_child_data(ezsp_f) -> None:
     assert ezsp_f.setChildData.mock_calls == [
         call(
             0,
-            ezsp_f.types.EmberChildData(
+            ezsp_f.types.EmberChildDataV8(
                 eui64=t.EUI64.convert("00:0b:57:ff:fe:2b:d4:57"),
                 type=t.EmberNodeType.SLEEPY_END_DEVICE,
                 id=0xC06B,
@@ -65,7 +65,7 @@ async def test_write_child_data(ezsp_f) -> None:
         ),
         call(
             1,
-            ezsp_f.types.EmberChildData(
+            ezsp_f.types.EmberChildDataV8(
                 eui64=t.EUI64.convert("00:18:4b:00:1c:a1:b8:46"),
                 type=t.EmberNodeType.SLEEPY_END_DEVICE,
                 id=0x1234,

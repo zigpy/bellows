@@ -7,11 +7,11 @@ COMMANDS = {
     "getChildData": (
         0x004A,
         (t.uint8_t,),
-        (t.EmberStatus, t.EmberChildData),
+        (t.EmberStatus, t.EmberChildDataV10),
     ),
     "setChildData": (
         0x00AC,
-        (t.uint8_t, t.EmberChildData),
+        (t.uint8_t, t.EmberChildDataV10),
         (t.EmberStatus,),
     ),
 }

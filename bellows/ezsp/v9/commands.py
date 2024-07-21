@@ -16,7 +16,7 @@ COMMANDS = {
     **COMMANDS_v8,
     "setChildData": (
         0x00AC,
-        (t.uint8_t, t.EmberChildData),
+        (t.uint8_t, t.EmberChildDataV8),
         (t.EmberStatus,),
     ),
     "setNeighborFrameCounter": (
