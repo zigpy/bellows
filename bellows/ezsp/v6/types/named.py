@@ -67,9 +67,5 @@ from bellows.types.named import (  # noqa: F401, F403
 )
 
 
-class EmberGpSecurityFrameCounter(basic.uint32_t):
-    """The security frame counter"""
-
-
 class EmberGpSinkTableEntryStatus(basic.uint8_t):
     """The sink table entry status."""

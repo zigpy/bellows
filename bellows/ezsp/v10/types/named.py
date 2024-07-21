@@ -113,9 +113,5 @@ class EmberEntropySource(basic.enum8):
     ENTROPY_SOURCE_MBEDTLS = 3
 
 
-class EmberGpSecurityFrameCounter(basic.uint32_t):
-    """The security frame counter"""
-
-
 class EmberGpSinkTableEntryStatus(basic.uint8_t):
     """The sink table entry status."""

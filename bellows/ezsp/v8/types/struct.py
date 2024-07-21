@@ -137,7 +137,7 @@ class EmberGpProxyTableEntry(EzspStruct):
     # The security options field.
     securityOptions: basic.uint8_t
     # The security frame counter of the GPD.
-    gpdSecurityFrameCounter: named.EmberGpSecurityFrameCounter
+    gpdSecurityFrameCounter: basic.uint32_t
     # The key to use for GPD.
     gpdKey: named.KeyData
     # The list of sinks (hardcoded to 2 which is the spec minimum).
@@ -169,7 +169,7 @@ class EmberGpSinkTableEntry(EzspStruct):
     # The security options field.
     securityOptions: basic.uint8_t
     # The security frame counter of the GPD.
-    gpdSecurityFrameCounter: named.EmberGpSecurityFrameCounter
+    gpdSecurityFrameCounter: basic.uint32_t
     # The key to use for GPD.
     gpdKey: named.KeyData
 
