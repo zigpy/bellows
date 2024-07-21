@@ -604,7 +604,7 @@ class EmberBeaconClassificationParams(EzspStruct):
     beaconClassificationMask: basic.uint16_t
 
 
-class EmberChildDataV8(EzspStruct):
+class EmberChildDataV7(EzspStruct):
     """A structure containing a child node's data."""
 
     # The EUI64 of the child

@@ -68,15 +68,15 @@ async def test_get_network_key_and_tc_link_key(ezsp_f):
     def export_key(security_context):
         if (
             security_context.core_key_type
-            == ezsp_f.types.SecurityManagerKeyTypeV13.NETWORK
+            == ezsp_f.types.SecurityManagerKeyType.NETWORK
         ):
             return (
                 t.sl_Status.OK,
                 t.KeyData.convert("2ccade06b3090c310315b3d574d3c85a"),
                 ezsp_f.types.SecurityManagerContextV13(
-                    core_key_type=ezsp_f.types.SecurityManagerKeyTypeV13.NETWORK,
+                    core_key_type=ezsp_f.types.SecurityManagerKeyType.NETWORK,
                     key_index=0,
-                    derived_type=ezsp_f.types.SecurityManagerDerivedKeyType.NONE,
+                    derived_type=ezsp_f.types.SecurityManagerDerivedKeyTypeV13.NONE,
                     eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
                     multi_network_index=0,
                     flags=ezsp_f.types.SecurityManagerContextFlags.NONE,
@@ -85,15 +85,15 @@ async def test_get_network_key_and_tc_link_key(ezsp_f):
             )
         elif (
             security_context.core_key_type
-            == ezsp_f.types.SecurityManagerKeyTypeV13.TC_LINK
+            == ezsp_f.types.SecurityManagerKeyType.TC_LINK
         ):
             return (
                 t.sl_Status.OK,
                 t.KeyData.convert("abcdabcdabcdabcdabcdabcdabcdabcd"),
                 ezsp_f.types.SecurityManagerContextV13(
-                    core_key_type=ezsp_f.types.SecurityManagerKeyTypeV13.NETWORK,
+                    core_key_type=ezsp_f.types.SecurityManagerKeyType.NETWORK,
                     key_index=0,
-                    derived_type=ezsp_f.types.SecurityManagerDerivedKeyType.NONE,
+                    derived_type=ezsp_f.types.SecurityManagerDerivedKeyTypeV13.NONE,
                     eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
                     multi_network_index=0,
                     flags=ezsp_f.types.SecurityManagerContextFlags.NONE,
@@ -147,9 +147,9 @@ async def test_get_network_key_without_network(ezsp_f):
             t.sl_Status.OK,
             t.KeyData.convert("00000000000000000000000000000000"),
             ezsp_f.types.SecurityManagerContextV13(
-                core_key_type=ezsp_f.types.SecurityManagerKeyTypeV13.NETWORK,
+                core_key_type=ezsp_f.types.SecurityManagerKeyType.NETWORK,
                 key_index=0,
-                derived_type=ezsp_f.types.SecurityManagerDerivedKeyType.NONE,
+                derived_type=ezsp_f.types.SecurityManagerDerivedKeyTypeV13.NONE,
                 eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
                 multi_network_index=0,
                 flags=ezsp_f.types.SecurityManagerContextFlags.NONE,
