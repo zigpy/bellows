@@ -2537,3 +2537,10 @@ class EmberNetworkInitBitmask(basic.bitmap16):
     # Send a rejoin request as an end device on reboot if parent information is
     # persisted. ZB3 end devices must rejoin on reboot.
     NETWORK_INIT_END_DEVICE_REJOIN_ON_REBOOT = 0x0002
+
+
+class SecureEzspSecurityType(basic.uint32_t):
+    """Security type of the Secure EZSP Protocol."""
+
+    TEMPORARY = 0x00000000
+    PERMANENT = 0x12345678

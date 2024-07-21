@@ -61,11 +61,8 @@ from bellows.types.named import (  # noqa: F401, F403
     EzspValueId,
     EzspZllNetworkOperation,
     KeyData,
+    SecureEzspSecurityType,
 )
-
-
-class SecureEzspSecurityType(basic.uint32_t):
-    """Security type of the Secure EZSP Protocol."""
 
 
 class SecureEzspSecurityLevel(basic.uint8_t):
