@@ -26,8 +26,13 @@ from zigpy.types import (  # noqa: F401
     uint48_t,
     uint56_t,
     uint64_t,
+    uint_t,
 )
 
 
 class LVBytes32(LVBytes):
     _prefix_length = 4
+
+
+class uint128_t(uint_t, bits=128):
+    pass

@@ -27,9 +27,9 @@ from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig, ValueConfig
 import bellows.types as t
 import bellows.uart
 
-from . import v4, v5, v6, v7, v8, v9, v10, v11, v12, v13
+from . import v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14
 
-EZSP_LATEST = v13.EZSPv13.VERSION
+EZSP_LATEST = v14.EZSPv14.VERSION
 LOGGER = logging.getLogger(__name__)
 MTOR_MIN_INTERVAL = 60
 MTOR_MAX_INTERVAL = 3600
@@ -56,6 +56,7 @@ class EZSP:
         v11.EZSPv11.VERSION: v11.EZSPv11,
         v12.EZSPv12.VERSION: v12.EZSPv12,
         v13.EZSPv13.VERSION: v13.EZSPv13,
+        v14.EZSPv14.VERSION: v14.EZSPv14,
     }
 
     def __init__(self, device_config: dict):
@@ -68,7 +69,7 @@ class EZSP:
         self._send_sem = PriorityDynamicBoundedSemaphore(value=MAX_COMMAND_CONCURRENCY)
 
         self._stack_status_listeners: collections.defaultdict[
-            t.EmberStatus, list[asyncio.Future]
+            t.sl_Status, list[asyncio.Future]
         ] = collections.defaultdict(list)
 
         self.add_callback(self.stack_status_callback)
@@ -78,13 +79,13 @@ class EZSP:
         if frame_name != "stackStatusHandler":
             return
 
-        status = args[0]
+        status = t.sl_Status.from_ember_status(args[0])
 
         for listener in self._stack_status_listeners[status]:
             listener.set_result(status)
 
     @contextlib.contextmanager
-    def wait_for_stack_status(self, status: t.EmberStatus) -> Generator[asyncio.Future]:
+    def wait_for_stack_status(self, status: t.sl_Status) -> Generator[asyncio.Future]:
         """Waits for a `stackStatusHandler` to come in with the provided status."""
         listeners = self._stack_status_listeners[status]
 
@@ -228,10 +229,10 @@ class EZSP:
         cbid = self.add_callback(cb)
         try:
             v = await self._command(name, *args)
-            if v[0] != t.EmberStatus.SUCCESS:
+            if t.sl_Status.from_ember_status(v[0]) != t.sl_Status.OK:
                 raise Exception(v)
             v = await fut
-            if v[spos] != t.EmberStatus.SUCCESS:
+            if t.sl_Status.from_ember_status(v[spos]) != t.sl_Status.OK:
                 raise Exception(v)
         finally:
             self.remove_callback(cbid)
@@ -267,9 +268,9 @@ class EZSP:
         """Send leaveNetwork command and wait for stackStatusHandler frame."""
         stack_status = asyncio.Future()
 
-        with self.wait_for_stack_status(t.EmberStatus.NETWORK_DOWN) as stack_status:
+        with self.wait_for_stack_status(t.sl_Status.NETWORK_DOWN) as stack_status:
             (status,) = await self._command("leaveNetwork")
-            if status != t.EmberStatus.SUCCESS:
+            if status != t.sl_Status.OK:
                 raise EzspError(f"failed to leave network: {status.name}")
 
             async with asyncio_timeout(timeout):
@@ -302,10 +303,10 @@ class EZSP:
         return functools.partial(self._command, name)
 
     async def formNetwork(self, parameters: t.EmberNetworkParameters) -> None:
-        with self.wait_for_stack_status(t.EmberStatus.NETWORK_UP) as stack_status:
+        with self.wait_for_stack_status(t.sl_Status.NETWORK_UP) as stack_status:
             v = await self._command("formNetwork", parameters)
 
-            if v[0] != self.types.EmberStatus.SUCCESS:
+            if t.sl_Status.from_ember_status(v[0]) != t.sl_Status.OK:
                 raise zigpy.exceptions.FormationFailure(f"Failure forming network: {v}")
 
             async with asyncio_timeout(NETWORK_OPS_TIMEOUT):
@@ -356,12 +357,10 @@ class EZSP:
 
             tokens[token] = result
 
-        (status, ver_info_bytes) = await self.getValue(
-            self.types.EzspValueId.VALUE_VERSION_INFO
-        )
+        (status, ver_info_bytes) = await self.getValue(t.EzspValueId.VALUE_VERSION_INFO)
         version = None
 
-        if status == t.EmberStatus.SUCCESS:
+        if t.sl_Status.from_ember_status(status) == t.sl_Status.OK:
             build, ver_info_bytes = t.uint16_t.deserialize(ver_info_bytes)
             major, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
             minor, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
@@ -388,7 +387,7 @@ class EZSP:
                 # is not implemented in the firmware
                 return None
 
-            if rsp.status == t.EmberStatus.SUCCESS:
+            if t.sl_Status.from_ember_status(rsp.status) == t.sl_Status.OK:
                 nv3_restored_eui64, _ = t.EUI64.deserialize(rsp.value)
                 LOGGER.debug("NV3 restored EUI64: %s=%s", key, nv3_restored_eui64)
 
@@ -434,7 +433,7 @@ class EZSP:
             0,
             t.LVBytes32(t.EUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF").serialize()),
         )
-        assert status == t.EmberStatus.SUCCESS
+        assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
 
     async def write_custom_eui64(
         self, ieee: t.EUI64, *, burn_into_userdata: bool = False
@@ -460,12 +459,12 @@ class EZSP:
                 0,
                 t.LVBytes32(ieee.serialize()),
             )
-            assert status == t.EmberStatus.SUCCESS
+            assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
         elif mfg_custom_eui64 is None and burn_into_userdata:
             (status,) = await self.setMfgToken(
                 t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, ieee.serialize()
             )
-            assert status == t.EmberStatus.SUCCESS
+            assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
         elif mfg_custom_eui64 is None and not burn_into_userdata:
             raise EzspError(
                 f"Firmware does not support NV3 tokens. Custom IEEE {ieee} will not be"
@@ -499,7 +498,7 @@ class EZSP:
         """Enable source routing on NCP."""
         res = await self.setConcentrator(
             True,
-            self.types.EmberConcentratorType.HIGH_RAM_CONCENTRATOR,
+            t.EmberConcentratorType.HIGH_RAM_CONCENTRATOR,
             MTOR_MIN_INTERVAL,
             MTOR_MAX_INTERVAL,
             MTOR_ROUTE_ERROR_THRESHOLD,
@@ -507,7 +506,7 @@ class EZSP:
             0,
         )
         LOGGER.debug("Set concentrator type: %s", res)
-        if res[0] != self.types.EmberStatus.SUCCESS:
+        if t.sl_Status.from_ember_status(res[0]) != t.sl_Status.OK:
             LOGGER.warning("Couldn't set concentrator type %s: %s", True, res)
 
         if self._ezsp_version >= 8:
@@ -547,11 +546,11 @@ class EZSP:
         for cfg in DEFAULT_CONFIG[self._ezsp_version]:
             if isinstance(cfg, RuntimeConfig):
                 ezsp_config[cfg.config_id.name] = dataclasses.replace(
-                    cfg, config_id=self.types.EzspConfigId[cfg.config_id.name]
+                    cfg, config_id=t.EzspConfigId[cfg.config_id.name]
                 )
             elif isinstance(cfg, ValueConfig):
                 ezsp_values[cfg.value_id.name] = dataclasses.replace(
-                    cfg, value_id=self.types.EzspValueId[cfg.value_id.name]
+                    cfg, value_id=t.EzspValueId[cfg.value_id.name]
                 )
 
         # Override the defaults with user-specified values (or `None` for deletions)
@@ -561,16 +560,16 @@ class EZSP:
                 continue
 
             ezsp_config[name] = RuntimeConfig(
-                config_id=self.types.EzspConfigId[name],
+                config_id=t.EzspConfigId[name],
                 value=value,
             )
 
         # Make sure CONFIG_PACKET_BUFFER_COUNT is always set last
-        if self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name in ezsp_config:
+        if t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name in ezsp_config:
             ezsp_config = {
                 **ezsp_config,
-                self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name: ezsp_config[
-                    self.types.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name
+                t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name: ezsp_config[
+                    t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT.name
                 ],
             }
 
@@ -579,7 +578,7 @@ class EZSP:
             # XXX: A read failure does not mean the value is not writeable!
             status, current_value = await self.getValue(cfg.value_id)
 
-            if status == self.types.EmberStatus.SUCCESS:
+            if t.sl_Status.from_ember_status(status) == t.sl_Status.OK:
                 current_value, _ = type(cfg.value).deserialize(current_value)
             else:
                 current_value = None
@@ -593,7 +592,7 @@ class EZSP:
 
             (status,) = await self.setValue(cfg.value_id, cfg.value.serialize())
 
-            if status != self.types.EmberStatus.SUCCESS:
+            if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
                 LOGGER.debug(
                     "Could not set value %s = %s: %s",
                     cfg.value_id.name,
@@ -608,7 +607,7 @@ class EZSP:
 
             # Only grow some config entries, all others should be set
             if (
-                status == self.types.EmberStatus.SUCCESS
+                t.sl_Status.from_ember_status(status) == t.sl_Status.OK
                 and cfg.minimum
                 and current_value >= cfg.value
             ):
@@ -628,7 +627,7 @@ class EZSP:
             )
 
             (status,) = await self.setConfigurationValue(cfg.config_id, cfg.value)
-            if status != self.types.EmberStatus.SUCCESS:
+            if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
                 LOGGER.debug(
                     "Could not set config %s = %s: %s",
                     cfg.config_id,

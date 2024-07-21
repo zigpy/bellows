@@ -1,8 +1,10 @@
+from unittest.mock import AsyncMock, MagicMock, call, patch
+
 import pytest
+import zigpy.state
 
 import bellows.ezsp.v5
-
-from .async_mock import AsyncMock, MagicMock, patch
+import bellows.types as t
 
 
 @pytest.fixture
@@ -30,240 +32,70 @@ async def test_pre_permit(ezsp_f):
     p2 = patch.object(
         ezsp_f,
         "addTransientLinkKey",
-        new=AsyncMock(return_value=[ezsp_f.types.EmberStatus.SUCCESS]),
+        new=AsyncMock(return_value=[t.EmberStatus.SUCCESS]),
     )
     with p2 as tclk_mock:
         await ezsp_f.pre_permit(1)
     assert tclk_mock.await_count == 1
 
 
-command_frames = {
-    "addEndpoint": 0x02,
-    "addOrUpdateKeyTableEntry": 0x66,
-    "addTransientLinkKey": 0xAF,
-    "addressTableEntryIsActive": 0x5B,
-    "aesEncrypt": 0x94,
-    "aesMmoHash": 0x6F,
-    "becomeTrustCenter": 0x77,
-    "bindingIsActive": 0x2E,
-    "bootloadTransmitCompleteHandler": 0x93,
-    "broadcastNetworkKeySwitch": 0x74,
-    "broadcastNextNetworkKey": 0x73,
-    "calculateSmacs": 0x9F,
-    "calculateSmacs283k1": 0xEA,
-    "calculateSmacsHandler": 0xA0,
-    "calculateSmacsHandler283k1": 0xEB,
-    "callback": 0x06,
-    "changeSourceRouteHandler": 0xC4,
-    "childJoinHandler": 0x23,
-    "clearBindingTable": 0x2A,
-    "clearKeyTable": 0xB1,
-    "clearTemporaryDataMaybeStoreLinkKey": 0xA1,
-    "clearTemporaryDataMaybeStoreLinkKey283k1": 0xEE,
-    "clearTransientLinkKeys": 0x6B,
-    "counterRolloverHandler": 0xF2,
-    "customFrame": 0x47,
-    "customFrameHandler": 0x54,
-    "dGpSend": 0xC6,
-    "dGpSentHandler": 0xC7,
-    "debugWrite": 0x12,
-    "delayTest": 0x9D,
-    "deleteBinding": 0x2D,
-    "dsaSign": 0xA6,
-    "dsaSignHandler": 0xA7,
-    "dsaVerify": 0xA3,
-    "dsaVerify283k1": 0xB0,
-    "dsaVerifyHandler": 0x78,
-    "echo": 0x81,
-    "energyScanRequest": 0x9C,
-    "energyScanResultHandler": 0x48,
-    "eraseKeyTableEntry": 0x76,
-    "findAndRejoinNetwork": 0x21,
-    "findKeyTableEntry": 0x75,
-    "formNetwork": 0x1E,
-    "generateCbkeKeys": 0xA4,
-    "generateCbkeKeys283k1": 0xE8,
-    "generateCbkeKeysHandler": 0x9E,
-    "generateCbkeKeysHandler283k1": 0xE9,
-    "getAddressTableRemoteEui64": 0x5E,
-    "getAddressTableRemoteNodeId": 0x5F,
-    "getBinding": 0x2C,
-    "getBindingRemoteNodeId": 0x2F,
-    "getCertificate": 0xA5,
-    "getCertificate283k1": 0xEC,
-    "getChildData": 0x4A,
-    "getConfigurationValue": 0x52,
-    "getCtune": 0xF6,
-    "getCurrentSecurityState": 0x69,
-    "getEui64": 0x26,
-    "getExtendedTimeout": 0x7F,
-    "getExtendedValue": 0x03,
-    "getKey": 0x6A,
-    "getKeyTableEntry": 0x71,
-    "getLibraryStatus": 0x01,
-    "getLogicalChannel": 0xBA,
-    "getMfgToken": 0x0B,
-    "getMulticastTableEntry": 0x63,
-    "getNeighbor": 0x79,
-    "getNetworkParameters": 0x28,
-    "getNodeId": 0x27,
-    "getParentChildParameters": 0x29,
-    "getPolicy": 0x56,
-    "getRandomNumber": 0x49,
-    "getRouteTableEntry": 0x7B,
-    "getSecurityKeyStatus": 0xCD,
-    "getStandaloneBootloaderVersionPlatMicroPhy": 0x91,
-    "getTimer": 0x4E,
-    "getToken": 0x0A,
-    "getTransientLinkKey": 0xCE,
-    "getValue": 0xAA,
-    "getXncpInfo": 0x13,
-    "gpProxyTableProcessGpPairing": 0xC9,
-    "gpepIncomingMessageHandler": 0xC5,
-    "idConflictHandler": 0x7C,
-    "incomingBootloadMessageHandler": 0x92,
-    "incomingManyToOneRouteRequestHandler": 0x7D,
-    "incomingMessageHandler": 0x45,
-    "incomingRouteErrorHandler": 0x80,
-    "incomingRouteRecordHandler": 0x59,
-    "incomingSenderEui64Handler": 0x62,
-    "invalidCommand": 0x58,
-    "isZllNetwork": 0xBE,
-    "joinNetwork": 0x1F,
-    "launchStandaloneBootloader": 0x8F,
-    "leaveNetwork": 0x20,
-    "lookupEui64ByNodeId": 0x61,
-    "lookupNodeIdByEui64": 0x60,
-    "macFilterMatchMessageHandler": 0x46,
-    "macPassthroughMessageHandler": 0x97,
-    "maximumPayloadLength": 0x33,
-    "messageSentHandler": 0x3F,
-    "mfglibEnd": 0x84,
-    "mfglibGetChannel": 0x8B,
-    "mfglibGetPower": 0x8D,
-    "mfglibRxHandler": 0x8E,
-    "mfglibSendPacket": 0x89,
-    "mfglibSetChannel": 0x8A,
-    "mfglibSetPower": 0x8C,
-    "mfglibStart": 0x83,
-    "mfglibStartStream": 0x87,
-    "mfglibStartTone": 0x85,
-    "mfglibStopStream": 0x88,
-    "mfglibStopTone": 0x86,
-    "neighborCount": 0x7A,
-    "networkFoundHandler": 0x1B,
-    "networkInit": 0x17,
-    "networkInitExtended": 0x70,
-    "networkState": 0x18,
-    "noCallbacks": 0x07,
-    "nop": 0x05,
-    "overrideCurrentChannel": 0x95,
-    "permitJoining": 0x22,
-    "pollCompleteHandler": 0x43,
-    "pollForData": 0x42,
-    "pollHandler": 0x44,
-    "proxyBroadcast": 0x37,
-    "rawTransmitCompleteHandler": 0x98,
-    "readAndClearCounters": 0x65,
-    "readCounters": 0xF1,
-    "remoteDeleteBindingHandler": 0x32,
-    "remoteSetBindingHandler": 0x31,
-    "removeDevice": 0xA8,
-    "replaceAddressTableEntry": 0x82,
-    "requestLinkKey": 0x14,
-    "resetToFactoryDefaults": 0xCC,
-    "rf4ceAutoDiscoveryResponseCompleteHandler": 0xDE,
-    "rf4ceDeletePairingTableEntry": 0xD2,
-    "rf4ceDiscovery": 0xD9,
-    "rf4ceDiscoveryCompleteHandler": 0xDA,
-    "rf4ceDiscoveryRequestHandler": 0xDB,
-    "rf4ceDiscoveryResponseHandler": 0xDC,
-    "rf4ceEnableAutoDiscoveryResponse": 0xDD,
-    "rf4ceGetApplicationInfo": 0xEF,
-    "rf4ceGetMaxPayload": 0xF3,
-    "rf4ceGetNetworkParameters": 0xF4,
-    "rf4ceGetPairingTableEntry": 0xD1,
-    "rf4ceIncomingMessageHandler": 0xD5,
-    "rf4ceKeyUpdate": 0xD3,
-    "rf4ceMessageSentHandler": 0xD6,
-    "rf4cePair": 0xDF,
-    "rf4cePairCompleteHandler": 0xE0,
-    "rf4cePairRequestHandler": 0xE1,
-    "rf4ceSend": 0xD4,
-    "rf4ceSetApplicationInfo": 0xE7,
-    "rf4ceSetFrequencyAgilityParameters": 0xE6,
-    "rf4ceSetPairingTableEntry": 0xD0,
-    "rf4ceSetPowerSavingParameters": 0xE5,
-    "rf4ceStart": 0xD7,
-    "rf4ceStop": 0xD8,
-    "rf4ceUnpair": 0xE2,
-    "rf4ceUnpairCompleteHandler": 0xE4,
-    "rf4ceUnpairHandler": 0xE3,
-    "scanCompleteHandler": 0x1C,
-    "sendBootloadMessage": 0x90,
-    "sendBroadcast": 0x36,
-    "sendManyToOneRouteRequest": 0x41,
-    "sendMulticast": 0x38,
-    "sendRawMessage": 0x96,
-    "sendReply": 0x39,
-    "sendUnicast": 0x34,
-    "setAddressTableRemoteEui64": 0x5C,
-    "setAddressTableRemoteNodeId": 0x5D,
-    "setBinding": 0x2B,
-    "setBindingRemoteNodeId": 0x30,
-    "setChannelMap": 0xF7,
-    "setConcentrator": 0x10,
-    "setConfigurationValue": 0x53,
-    "setCtune": 0xF5,
-    "setExtendedTimeout": 0x7E,
-    "setGpioCurrentConfiguration": 0xAC,
-    "setGpioPowerUpDownConfiguration": 0xAD,
-    "setGpioRadioPowerMask": 0xAE,
-    "setInitialSecurityState": 0x68,
-    "setKeyTableEntry": 0x72,
-    "setLogicalAndRadioChannel": 0xB9,
-    "setManufacturerCode": 0x15,
-    "setMfgToken": 0x0C,
-    "setMulticastTableEntry": 0x64,
-    "setPolicy": 0x55,
-    "setPowerDescriptor": 0x16,
-    "setPreinstalledCbkeData": 0xA2,
-    "setPreinstalledCbkeData283k1": 0xED,
-    "setRadioChannel": 0x9A,
-    "setRadioPower": 0x99,
-    "setSecurityKey": 0xCA,
-    "setSecurityParameters": 0xCB,
-    "setSourceRoute": 0x5A,
-    "setTimer": 0x0E,
-    "setToken": 0x09,
-    "setValue": 0xAB,
-    "stackStatusHandler": 0x19,
-    "stackTokenChangedHandler": 0x0D,
-    "startScan": 0x1A,
-    "stopScan": 0x1D,
-    "switchNetworkKeyHandler": 0x6E,
-    "timerHandler": 0x0F,
-    "trustCenterJoinHandler": 0x24,
-    "unicastNwkKeyUpdate": 0xA9,
-    "version": 0x00,
-    "zigbeeKeyEstablishmentHandler": 0x9B,
-    "zllAddressAssignmentHandler": 0xB8,
-    "zllGetTokens": 0xBC,
-    "zllNetworkFoundHandler": 0xB6,
-    "zllNetworkOps": 0xB2,
-    "zllScanCompleteHandler": 0xB7,
-    "zllSetDataToken": 0xBD,
-    "zllSetInitialSecurityState": 0xB3,
-    "zllSetNonZllNetwork": 0xBF,
-    "zllSetRxOnWhenIdle": 0xB5,
-    "zllStartScan": 0xB4,
-    "zllTouchLinkTargetHandler": 0xBB,
-}
+async def test_read_address_table(ezsp_f):
+    def get_addr_table_node_id(index):
+        return (
+            {
+                16: t.EmberNodeId(0x44CB),
+                17: t.EmberNodeId(0x0702),
+                18: t.EmberNodeId(0x0000),  # bogus entry
+            }.get(index, t.EmberNodeId(0xFFFF)),
+        )
+
+    ezsp_f.getAddressTableRemoteNodeId = AsyncMock(side_effect=get_addr_table_node_id)
+
+    def get_addr_table_eui64(index):
+        if index < 16:
+            return (t.EUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),)
+        elif 16 <= index <= 18:
+            return (
+                {
+                    16: t.EUI64.convert("cc:cc:cc:ff:fe:e6:8e:ca"),
+                    17: t.EUI64.convert("ec:1b:bd:ff:fe:2f:41:a4"),
+                    18: t.EUI64.convert("00:00:00:00:00:00:00:00"),
+                }[index],
+            )
+        else:
+            return (t.EUI64.convert("00:00:00:00:00:00:00:00"),)
+
+    ezsp_f.getConfigurationValue = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 20))
+    ezsp_f.getAddressTableRemoteEui64 = AsyncMock(side_effect=get_addr_table_eui64)
+
+    address_table = [key async for key in ezsp_f.read_address_table()]
+    assert address_table == [
+        (0x44CB, t.EUI64.convert("cc:cc:cc:ff:fe:e6:8e:ca")),
+        (0x0702, t.EUI64.convert("ec:1b:bd:ff:fe:2f:41:a4")),
+    ]
 
 
-def test_command_frames(ezsp_f):
-    """Test alphabetical list of frames matches the commands."""
-    assert set(command_frames) == set(ezsp_f.COMMANDS)
-    for name, frame_id in command_frames.items():
-        assert ezsp_f.COMMANDS[name][0] == frame_id
-        assert ezsp_f.COMMANDS_BY_ID[frame_id][0] == name
+async def test_write_nwk_frame_counter(ezsp_f) -> None:
+    ezsp_f.networkState = AsyncMock(return_value=(t.EmberNetworkStatus.NO_NETWORK,))
+    ezsp_f.setValue = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    await ezsp_f.write_nwk_frame_counter(12345678)
+
+    assert ezsp_f.setValue.mock_calls == [
+        call(
+            t.EzspValueId.VALUE_NWK_FRAME_COUNTER,
+            t.uint32_t(12345678).serialize(),
+        ),
+    ]
+
+
+async def test_write_aps_frame_counter(ezsp_f) -> None:
+    ezsp_f.networkState = AsyncMock(return_value=(t.EmberNetworkStatus.NO_NETWORK,))
+    ezsp_f.setValue = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    await ezsp_f.write_aps_frame_counter(12345678)
+
+    assert ezsp_f.setValue.mock_calls == [
+        call(
+            t.EzspValueId.VALUE_APS_FRAME_COUNTER,
+            t.uint32_t(12345678).serialize(),
+        ),
+    ]

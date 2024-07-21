@@ -8,7 +8,6 @@ import zigpy.config
 
 from bellows import config, ezsp, uart
 from bellows.exception import EzspError, InvalidCommandError
-import bellows.ezsp.v4.types as v4_t
 import bellows.types as t
 
 if sys.version_info[:2] < (3, 11):
@@ -129,7 +128,7 @@ async def test_list_command(ezsp_f):
         ezsp_f.frame_received(b"\x02\x00\x1b" + b"\x00" * 20)
         ezsp_f.frame_received(b"\x03\x00\x1c" + b"\x00" * 20)
 
-        return [0]
+        return [t.EmberStatus.SUCCESS]
 
     result = await _test_list_command(ezsp_f, mockcommand)
     assert len(result) == 2
@@ -138,7 +137,7 @@ async def test_list_command(ezsp_f):
 async def test_list_command_initial_failure(ezsp_f):
     async def mockcommand(name, *args):
         assert name == "startScan"
-        return [1]
+        return [t.EmberStatus.FAILURE]
 
     with pytest.raises(Exception):
         await _test_list_command(ezsp_f, mockcommand)
@@ -151,7 +150,7 @@ async def test_list_command_later_failure(ezsp_f):
         ezsp_f.frame_received(b"\x02\x00\x1b" + b"\x00" * 20)
         ezsp_f.frame_received(b"\x03\x00\x1c\x01\x01")
 
-        return [0]
+        return [t.EmberStatus.SUCCESS]
 
     with pytest.raises(Exception):
         await _test_list_command(ezsp_f, mockcommand)
@@ -169,17 +168,17 @@ async def _test_form_network(ezsp_f, initial_result, final_result):
 
 
 async def test_form_network(ezsp_f):
-    await _test_form_network(ezsp_f, [0], b"\x90")
+    await _test_form_network(ezsp_f, [t.EmberStatus.SUCCESS], b"\x90")
 
 
 async def test_form_network_fail(ezsp_f):
     with pytest.raises(Exception):
-        await _test_form_network(ezsp_f, [1], b"\x90")
+        await _test_form_network(ezsp_f, [t.EmberStatus.FAILURE], b"\x90")
 
 
 async def test_form_network_fail_stack_status(ezsp_f):
     with pytest.raises(Exception):
-        await _test_form_network(ezsp_f, [0], b"\x00")
+        await _test_form_network(ezsp_f, [t.EmberStatus.SUCCESS], b"\x00")
 
 
 def test_receive_new(ezsp_f):
@@ -337,8 +336,8 @@ async def test_board_info(ezsp_f):
                 ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (
                     b"Manufacturer\xff\xff\xff",
                 ),
-                ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
-                    0x00,
+                ("getValue", t.EzspValueId.VALUE_VERSION_INFO): (
+                    t.EmberStatus.SUCCESS,
                     b"\x01\x02\x03\x04\x05\x06",
                 ),
             }
@@ -361,8 +360,8 @@ async def test_board_info(ezsp_f):
                 ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (
                     b"Manufacturer\xff\xff\xff",
                 ),
-                ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
-                    0x01,
+                ("getValue", t.EzspValueId.VALUE_VERSION_INFO): (
+                    t.EmberStatus.ERR_FATAL,
                     b"\x01\x02\x03\x04\x05\x06",
                 ),
             }
@@ -385,8 +384,8 @@ async def test_board_info(ezsp_f):
                 ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (
                     b"Nabu Casa\x00\xff\xff\xff\xff\xff\xff",
                 ),
-                ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
-                    0x00,
+                ("getValue", t.EzspValueId.VALUE_VERSION_INFO): (
+                    t.EmberStatus.SUCCESS,
                     b"\xbf\x00\x07\x01\x00\x00\xaa",
                 ),
             }
@@ -405,8 +404,8 @@ async def test_board_info(ezsp_f):
             {
                 ("getMfgToken", t.EzspMfgTokenId.MFG_BOARD_NAME): (b"\xff" * 16,),
                 ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (b"\xff" * 16,),
-                ("getValue", ezsp_f.types.EzspValueId.VALUE_VERSION_INFO): (
-                    0x00,
+                ("getValue", t.EzspValueId.VALUE_VERSION_INFO): (
+                    t.EmberStatus.SUCCESS,
                     b"\xbf\x00\x07\x01\x00\x00\xaa",
                 ),
             }
@@ -436,11 +435,11 @@ async def test_update_policies(ezsp_f):
 async def test_set_source_routing_set_concentrator(ezsp_f):
     """Test enabling source routing."""
     with patch.object(ezsp_f, "setConcentrator", new=AsyncMock()) as cnc_mock:
-        cnc_mock.return_value = (ezsp_f.types.EmberStatus.SUCCESS,)
+        cnc_mock.return_value = (t.EmberStatus.SUCCESS,)
         await ezsp_f.set_source_routing()
         assert cnc_mock.await_count == 1
 
-        cnc_mock.return_value = (ezsp_f.types.EmberStatus.ERR_FATAL,)
+        cnc_mock.return_value = (t.EmberStatus.ERR_FATAL,)
         await ezsp_f.set_source_routing()
         assert cnc_mock.await_count == 2
 
@@ -449,7 +448,7 @@ async def test_set_source_routing_ezsp_v8(ezsp_f):
     """Test enabling source routing on EZSPv8."""
 
     ezsp_f._ezsp_version = 8
-    ezsp_f.setConcentrator = AsyncMock(return_value=(ezsp_f.types.EmberStatus.SUCCESS,))
+    ezsp_f.setConcentrator = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
     ezsp_f.setSourceRouteDiscoveryMode = AsyncMock()
 
     await ezsp_f.set_source_routing()
@@ -696,26 +695,26 @@ async def test_ezsp_init_zigbeed_timeout(conn_mock, reset_mock, version_mock):
 
 
 async def test_wait_for_stack_status(ezsp_f):
-    assert not ezsp_f._stack_status_listeners[t.EmberStatus.NETWORK_DOWN]
+    assert not ezsp_f._stack_status_listeners[t.sl_Status.NETWORK_DOWN]
 
     # Cancellation clears handlers
-    with ezsp_f.wait_for_stack_status(t.EmberStatus.NETWORK_DOWN) as stack_status:
+    with ezsp_f.wait_for_stack_status(t.sl_Status.NETWORK_DOWN) as stack_status:
         with pytest.raises(asyncio.TimeoutError):
             async with asyncio_timeout(0.1):
-                assert ezsp_f._stack_status_listeners[t.EmberStatus.NETWORK_DOWN]
+                assert ezsp_f._stack_status_listeners[t.sl_Status.NETWORK_DOWN]
                 await stack_status
 
-    assert not ezsp_f._stack_status_listeners[t.EmberStatus.NETWORK_DOWN]
+    assert not ezsp_f._stack_status_listeners[t.sl_Status.NETWORK_DOWN]
 
     # Receiving multiple also works
-    with ezsp_f.wait_for_stack_status(t.EmberStatus.NETWORK_DOWN) as stack_status:
+    with ezsp_f.wait_for_stack_status(t.sl_Status.NETWORK_DOWN) as stack_status:
         ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_UP])
         ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_DOWN])
         ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_DOWN])
 
         await stack_status
 
-    assert not ezsp_f._stack_status_listeners[t.EmberStatus.NETWORK_DOWN]
+    assert not ezsp_f._stack_status_listeners[t.sl_Status.NETWORK_DOWN]
 
 
 def test_ezsp_versions(ezsp_f):
@@ -735,27 +734,27 @@ async def test_config_initialize_husbzb1(ezsp_f):
     ezsp_f.networkState = AsyncMock(return_value=(t.EmberNetworkStatus.JOINED_NETWORK,))
 
     expected_calls = [
-        call(v4_t.EzspConfigId.CONFIG_INDIRECT_TRANSMISSION_TIMEOUT, 7680),
-        call(v4_t.EzspConfigId.CONFIG_STACK_PROFILE, 2),
-        call(v4_t.EzspConfigId.CONFIG_SECURITY_LEVEL, 5),
-        call(v4_t.EzspConfigId.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD, 2),
-        call(v4_t.EzspConfigId.CONFIG_MAX_END_DEVICE_CHILDREN, 32),
+        call(t.EzspConfigId.CONFIG_INDIRECT_TRANSMISSION_TIMEOUT, 7680),
+        call(t.EzspConfigId.CONFIG_STACK_PROFILE, 2),
+        call(t.EzspConfigId.CONFIG_SECURITY_LEVEL, 5),
+        call(t.EzspConfigId.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD, 2),
+        call(t.EzspConfigId.CONFIG_MAX_END_DEVICE_CHILDREN, 32),
         call(
-            v4_t.EzspConfigId.CONFIG_APPLICATION_ZDO_FLAGS,
+            t.EzspConfigId.CONFIG_APPLICATION_ZDO_FLAGS,
             (
-                v4_t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
-                | v4_t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS
+                t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
+                | t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS
             ),
         ),
-        call(v4_t.EzspConfigId.CONFIG_SOURCE_ROUTE_TABLE_SIZE, 16),
-        call(v4_t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, 60),
-        call(v4_t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8),
-        call(v4_t.EzspConfigId.CONFIG_SUPPORTED_NETWORKS, 1),
-        call(v4_t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, 16),
-        call(v4_t.EzspConfigId.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2),
-        call(v4_t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE, 16),
-        call(v4_t.EzspConfigId.CONFIG_KEY_TABLE_SIZE, 4),
-        call(v4_t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT, 255),
+        call(t.EzspConfigId.CONFIG_SOURCE_ROUTE_TABLE_SIZE, 16),
+        call(t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, 60),
+        call(t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8),
+        call(t.EzspConfigId.CONFIG_SUPPORTED_NETWORKS, 1),
+        call(t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, 16),
+        call(t.EzspConfigId.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2),
+        call(t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE, 16),
+        call(t.EzspConfigId.CONFIG_KEY_TABLE_SIZE, 4),
+        call(t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT, 255),
     ]
 
     await ezsp_f.write_config({})
@@ -832,7 +831,7 @@ async def test_cfg_initialize_skip(ezsp_f):
         # Config not set when it is explicitly disabled
         with pytest.raises(AssertionError):
             ezsp_f.setConfigurationValue.assert_called_with(
-                v4_t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, ANY
+                t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, ANY
             )
 
     with p1, p2:
@@ -840,7 +839,7 @@ async def test_cfg_initialize_skip(ezsp_f):
 
         # Config is overridden
         ezsp_f.setConfigurationValue.assert_any_call(
-            v4_t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, 123
+            t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, 123
         )
 
     with p1, p2:
@@ -848,7 +847,7 @@ async def test_cfg_initialize_skip(ezsp_f):
 
         # Config is set by default
         ezsp_f.setConfigurationValue.assert_any_call(
-            v4_t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, ANY
+            t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, ANY
         )
 
 

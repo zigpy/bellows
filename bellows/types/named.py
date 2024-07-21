@@ -1,11 +1,19 @@
+from __future__ import annotations
+
+import logging
+
 import zigpy.types as ztypes
 import zigpy.zdo.types as zdo_t
 
 from . import basic
 
+LOGGER = logging.getLogger(__name__)
+
 Channels = ztypes.Channels
 EmberEUI64 = ztypes.EUI64
 EUI64 = ztypes.EUI64
+NWK = ztypes.NWK
+BroadcastAddress = ztypes.BroadcastAddress
 
 
 class NcpResetCode(basic.enum8):
@@ -1119,36 +1127,6 @@ class EmberKeyStatus(basic.enum8):
     VERIFY_LINK_KEY_SUCCESS = 0x65
 
 
-class EmberJoinMethod(basic.enum8):
-    # The type of method used for joining.
-
-    # Normally devices use MAC Association to join a network, which respects
-    # the "permit joining" flag in the MAC Beacon. For mobile nodes this value
-    # causes the device to use an Ember Mobile Node Join, which is functionally
-    # equivalent to a MAC association. This value should be used by default.
-    USE_MAC_ASSOCIATION = 0x0
-    # For those networks where the "permit joining" flag is never turned on,
-    # they will need to use a ZigBee NWK Rejoin. This value causes the rejoin
-    # to be sent without NWK security and the Trust Center will be asked to
-    # send the NWK key to the device. The NWK key sent to the device can be
-    # encrypted with the device's corresponding Trust Center link key. That is
-    # determined by the ::EmberJoinDecision on the Trust Center returned by the
-    # ::emberTrustCenterJoinHandler(). For a mobile node this value will cause
-    # it to use an Ember Mobile node rejoin, which is functionally equivalent.
-    USE_NWK_REJOIN = 0x1
-    # For those networks where the "permit joining" flag is never turned on,
-    # they will need to use a NWK Rejoin. If those devices have been
-    # preconfigured with the NWK key (including sequence number) they can use a
-    # secured rejoin. This is only necessary for end devices since they need a
-    # parent. Routers can simply use the ::USE_NWK_COMMISSIONING join method
-    # below.
-    USE_NWK_REJOIN_HAVE_NWK_KEY = 0x2
-    # For those networks where all network and security information is known
-    # ahead of time, a router device may be commissioned such that it does not
-    # need to send any messages to begin communicating on the network.
-    USE_NWK_COMMISSIONING = 0x3
-
-
 class EmberZdoConfigurationFlags(basic.bitmap8):
     # Flags for controlling which incoming ZDO requests are passed to the
     # application. To see if the application is required to send a ZDO response
@@ -1284,571 +1262,334 @@ class EmberMessageDigest(basic.FixedList[basic.uint8_t, 16]):
 
 
 class sl_Status(basic.enum32):
-    # SL Status Codes.
-    #
-    # Status Defines
-    # Generic Errors
-    #  No error.
-    SL_STATUS_OK = 0x0000
-    #  Generic error.
-    SL_STATUS_FAIL = 0x0001
-    # State Errors
-    #  Generic invalid state error.
-    SL_STATUS_INVALID_STATE = 0x0002
-    #  Module is not ready for requested operation.
-    SL_STATUS_NOT_READY = 0x0003
-    #  Module is busy and cannot carry out requested operation.
-    SL_STATUS_BUSY = 0x0004
-    #  Operation is in progress and not yet complete (pass or fail).
-    SL_STATUS_IN_PROGRESS = 0x0005
-    #  Operation aborted.
-    SL_STATUS_ABORT = 0x0006
-    #  Operation timed out.
-    SL_STATUS_TIMEOUT = 0x0007
-    #  Operation not allowed per permissions.
-    SL_STATUS_PERMISSION = 0x0008
-    #  Non-blocking operation would block.
-    SL_STATUS_WOULD_BLOCK = 0x0009
-    #  Operation/module is Idle, cannot carry requested operation.
-    SL_STATUS_IDLE = 0x000A
-    #  Operation cannot be done while construct is waiting.
-    SL_STATUS_IS_WAITING = 0x000B
-    #  No task/construct waiting/pending for that action/event.
-    SL_STATUS_NONE_WAITING = 0x000C
-    #  Operation cannot be done while construct is suspended.
-    SL_STATUS_SUSPENDED = 0x000D
-    #  Feature not available due to software configuration.
-    SL_STATUS_NOT_AVAILABLE = 0x000E
-    #  Feature not supported.
-    SL_STATUS_NOT_SUPPORTED = 0x000F
-    #  Initialization failed.
-    SL_STATUS_INITIALIZATION = 0x0010
-    #  Module has not been initialized.
-    SL_STATUS_NOT_INITIALIZED = 0x0011
-    #  Module has already been initialized.
-    SL_STATUS_ALREADY_INITIALIZED = 0x0012
-    #  Object/construct has been deleted.
-    SL_STATUS_DELETED = 0x0013
-    #  Illegal call from ISR.
-    SL_STATUS_ISR = 0x0014
-    #  Illegal call because network is up.
-    SL_STATUS_NETWORK_UP = 0x0015
-    #  Illegal call because network is down.
-    SL_STATUS_NETWORK_DOWN = 0x0016
-    #  Failure due to not being joined in a network.
-    SL_STATUS_NOT_JOINED = 0x0017
-    #  Invalid operation as there are no beacons.
-    SL_STATUS_NO_BEACONS = 0x0018
-    # Allocation/ownership Errors
-    #  Generic allocation error.
-    SL_STATUS_ALLOCATION_FAILED = 0x0019
-    #  No more resource available to perform the operation.
-    SL_STATUS_NO_MORE_RESOURCE = 0x001A
-    #  Item/list/queue is empty.
-    SL_STATUS_EMPTY = 0x001B
-    #  Item/list/queue is full.
-    SL_STATUS_FULL = 0x001C
-    #  Item would overflow.
-    SL_STATUS_WOULD_OVERFLOW = 0x001D
-    #  Item/list/queue has been overflowed.
-    SL_STATUS_HAS_OVERFLOWED = 0x001E
-    #  Generic ownership error.
-    SL_STATUS_OWNERSHIP = 0x001F
-    #  Already/still owning resource.
-    SL_STATUS_IS_OWNER = 0x0020
-    # Invalid Parameters Errors
-    #  Generic invalid argument or consequence of invalid argument.
-    SL_STATUS_INVALID_PARAMETER = 0x0021
-    #  Invalid null pointer received as argument.
-    SL_STATUS_NULL_POINTER = 0x0022
-    #  Invalid configuration provided.
-    SL_STATUS_INVALID_CONFIGURATION = 0x0023
-    #  Invalid mode.
-    SL_STATUS_INVALID_MODE = 0x0024
-    #  Invalid handle.
-    SL_STATUS_INVALID_HANDLE = 0x0025
-    #  Invalid type for operation.
-    SL_STATUS_INVALID_TYPE = 0x0026
-    #  Invalid index.
-    SL_STATUS_INVALID_INDEX = 0x0027
-    #  Invalid range.
-    SL_STATUS_INVALID_RANGE = 0x0028
-    #  Invalid key.
-    SL_STATUS_INVALID_KEY = 0x0029
-    #  Invalid credentials.
-    SL_STATUS_INVALID_CREDENTIALS = 0x002A
-    #  Invalid count.
-    SL_STATUS_INVALID_COUNT = 0x002B
-    #  Invalid signature / verification failed.
-    SL_STATUS_INVALID_SIGNATURE = 0x002C
-    #  Item could not be found.
-    SL_STATUS_NOT_FOUND = 0x002D
-    #  Item already exists.
-    SL_STATUS_ALREADY_EXISTS = 0x002E
-    # IO/Communication Errors
-    #  Generic I/O failure.
-    SL_STATUS_IO = 0x002F
-    #  I/O failure due to timeout.
-    SL_STATUS_IO_TIMEOUT = 0x0030
-    #  Generic transmission error.
-    SL_STATUS_TRANSMIT = 0x0031
-    #  Transmit underflowed.
-    SL_STATUS_TRANSMIT_UNDERFLOW = 0x0032
-    #  Transmit is incomplete.
-    SL_STATUS_TRANSMIT_INCOMPLETE = 0x0033
-    #  Transmit is busy.
-    SL_STATUS_TRANSMIT_BUSY = 0x0034
-    #  Generic reception error.
-    SL_STATUS_RECEIVE = 0x0035
-    #  Failed to read on/via given object.
-    SL_STATUS_OBJECT_READ = 0x0036
-    #  Failed to write on/via given object.
-    SL_STATUS_OBJECT_WRITE = 0x0037
-    #  Message is too long.
-    SL_STATUS_MESSAGE_TOO_LONG = 0x0038
-    # EEPROM/Flash Errors
-    SL_STATUS_EEPROM_MFG_VERSION_MISMATCH = 0x0039
-    SL_STATUS_EEPROM_STACK_VERSION_MISMATCH = 0x003A
-    #  Flash write is inhibited.
-    SL_STATUS_FLASH_WRITE_INHIBITED = 0x003B
-    #  Flash verification failed.
-    SL_STATUS_FLASH_VERIFY_FAILED = 0x003C
-    #  Flash programming failed.
-    SL_STATUS_FLASH_PROGRAM_FAILED = 0x003D
-    #  Flash erase failed.
-    SL_STATUS_FLASH_ERASE_FAILED = 0x003E
-    # MAC Errors
-    SL_STATUS_MAC_NO_DATA = 0x003F
-    SL_STATUS_MAC_NO_ACK_RECEIVED = 0x0040
-    SL_STATUS_MAC_INDIRECT_TIMEOUT = 0x0041
-    SL_STATUS_MAC_UNKNOWN_HEADER_TYPE = 0x0042
-    SL_STATUS_MAC_ACK_HEADER_TYPE = 0x0043
-    SL_STATUS_MAC_COMMAND_TRANSMIT_FAILURE = 0x0044
-    # CLI_STORAGE Errors
-    #  Error in open NVM
-    SL_STATUS_CLI_STORAGE_NVM_OPEN_ERROR = 0x0045
-    # Security status codes
-    #  Image checksum is not valid.
-    SL_STATUS_SECURITY_IMAGE_CHECKSUM_ERROR = 0x0046
-    #  Decryption failed
-    SL_STATUS_SECURITY_DECRYPT_ERROR = 0x0047
-    # Command status codes
-    #  Command was not recognized
-    SL_STATUS_COMMAND_IS_INVALID = 0x0048
-    #  Command or parameter maximum length exceeded
-    SL_STATUS_COMMAND_TOO_LONG = 0x0049
-    #  Data received does not form a complete command
-    SL_STATUS_COMMAND_INCOMPLETE = 0x004A
-    # Misc Errors
-    #  Bus error, e.g. invalid DMA address
-    SL_STATUS_BUS_ERROR = 0x004B
-    # Unified MAC Errors
-    SL_STATUS_CCA_FAILURE = 0x004C  #
-    # Scan errors
-    SL_STATUS_MAC_SCANNING = 0x004D
-    SL_STATUS_MAC_INCORRECT_SCAN_TYPE = 0x004E
-    SL_STATUS_INVALID_CHANNEL_MASK = 0x004F
-    SL_STATUS_BAD_SCAN_DURATION = 0x0050
-    # Bluetooth status codes
-    #  Bonding procedure can't be started because device has no space
-    #  left for bond.
-    SL_STATUS_BT_OUT_OF_BONDS = 0x0402
-    #  Unspecified error
-    SL_STATUS_BT_UNSPECIFIED = 0x0403
-    #  Hardware failure
-    SL_STATUS_BT_HARDWARE = 0x0404
-    #  The bonding does not exist.
-    SL_STATUS_BT_NO_BONDING = 0x0406
-    #  Error using crypto functions
-    SL_STATUS_BT_CRYPTO = 0x0407
-    #  Data was corrupted.
-    SL_STATUS_BT_DATA_CORRUPTED = 0x0408
-    #  Invalid periodic advertising sync handle
-    SL_STATUS_BT_INVALID_SYNC_HANDLE = 0x040A
-    #  Bluetooth cannot be used on this hardware
-    SL_STATUS_BT_INVALID_MODULE_ACTION = 0x040B
-    #  Error received from radio
-    SL_STATUS_BT_RADIO = 0x040C
-    #  Returned when remote disconnects the connection-oriented channel by sending
-    #  disconnection request.
-    SL_STATUS_BT_L2CAP_REMOTE_DISCONNECTED = 0x040D
-    #  Returned when local host disconnect the connection-oriented channel by sending
-    #  disconnection request.
-    SL_STATUS_BT_L2CAP_LOCAL_DISCONNECTED = 0x040E
-    #  Returned when local host did not find a connection-oriented channel with given
-    #  destination CID.
-    SL_STATUS_BT_L2CAP_CID_NOT_EXIST = 0x040F
-    #  Returned when connection-oriented channel disconnected due to LE connection is dropped.
-    SL_STATUS_BT_L2CAP_LE_DISCONNECTED = 0x0410
-    #  Returned when connection-oriented channel disconnected due to remote end send data
-    #  even without credit.
-    SL_STATUS_BT_L2CAP_FLOW_CONTROL_VIOLATED = 0x0412
-    #  Returned when connection-oriented channel disconnected due to remote end send flow
-    #  control credits exceed 65535.
-    SL_STATUS_BT_L2CAP_FLOW_CONTROL_CREDIT_OVERFLOWED = 0x0413
-    #  Returned when connection-oriented channel has run out of flow control credit and
-    #  local application still trying to send data.
-    SL_STATUS_BT_L2CAP_NO_FLOW_CONTROL_CREDIT = 0x0414
-    #  Returned when connection-oriented channel has not received connection response message
-    #  within maximum timeout.
-    SL_STATUS_BT_L2CAP_CONNECTION_REQUEST_TIMEOUT = 0x0415
-    #  Returned when local host received a connection-oriented channel connection response
-    #  with an invalid destination CID.
-    SL_STATUS_BT_L2CAP_INVALID_CID = 0x0416
-    #  Returned when local host application tries to send a command which is not suitable
-    #  for L2CAP channel's current state.
-    SL_STATUS_BT_L2CAP_WRONG_STATE = 0x0417
-    #  Flash reserved for PS store is full
-    SL_STATUS_BT_PS_STORE_FULL = 0x041B
-    #  PS key not found
-    SL_STATUS_BT_PS_KEY_NOT_FOUND = 0x041C
-    #  Mismatched or insufficient security level
-    SL_STATUS_BT_APPLICATION_MISMATCHED_OR_INSUFFICIENT_SECURITY = 0x041D
-    #  Encrypion/decryption operation failed.
-    SL_STATUS_BT_APPLICATION_ENCRYPTION_DECRYPTION_ERROR = 0x041E
-    # Bluetooth controller status codes
-    #  Connection does not exist, or connection open request was cancelled.
-    SL_STATUS_BT_CTRL_UNKNOWN_CONNECTION_IDENTIFIER = 0x1002
-    #  Pairing or authentication failed due to incorrect results in the pairing or
-    #  authentication procedure. This could be due to an incorrect PIN or Link Key
-    SL_STATUS_BT_CTRL_AUTHENTICATION_FAILURE = 0x1005
-    #  Pairing failed because of missing PIN, or authentication failed because of missing Key
-    SL_STATUS_BT_CTRL_PIN_OR_KEY_MISSING = 0x1006
-    #  Controller is out of memory.
-    SL_STATUS_BT_CTRL_MEMORY_CAPACITY_EXCEEDED = 0x1007
-    #  Link supervision timeout has expired.
-    SL_STATUS_BT_CTRL_CONNECTION_TIMEOUT = 0x1008
-    #  Controller is at limit of connections it can support.
-    SL_STATUS_BT_CTRL_CONNECTION_LIMIT_EXCEEDED = 0x1009
-    #  The Synchronous Connection Limit to a Device Exceeded error code indicates that
-    #  the Controller has reached the limit to the number of synchronous connections that
-    #  can be achieved to a device.
-    SL_STATUS_BT_CTRL_SYNCHRONOUS_CONNECTION_LIMIT_EXCEEDED = 0x100A
-    #  The ACL Connection Already Exists error code indicates that an attempt to create
-    #  a new ACL Connection to a device when there is already a connection to this device.
-    SL_STATUS_BT_CTRL_ACL_CONNECTION_ALREADY_EXISTS = 0x100B
-    #  Command requested cannot be executed because the Controller is in a state where
-    #  it cannot process this command at this time.
-    SL_STATUS_BT_CTRL_COMMAND_DISALLOWED = 0x100C
-    #  The Connection Rejected Due To Limited Resources error code indicates that an
-    #  incoming connection was rejected due to limited resources.
-    SL_STATUS_BT_CTRL_CONNECTION_REJECTED_DUE_TO_LIMITED_RESOURCES = 0x100D
-    #  The Connection Rejected Due To Security Reasons error code indicates that a
-    #  connection was rejected due to security requirements not being fulfilled, like
-    #  authentication or pairing.
-    SL_STATUS_BT_CTRL_CONNECTION_REJECTED_DUE_TO_SECURITY_REASONS = 0x100E
-    #  The Connection was rejected because this device does not accept the BD_ADDR.
-    #  This may be because the device will only accept connections from specific BD_ADDRs.
-    SL_STATUS_BT_CTRL_CONNECTION_REJECTED_DUE_TO_UNACCEPTABLE_BD_ADDR = 0x100F
-    #  The Connection Accept Timeout has been exceeded for this connection attempt.
-    SL_STATUS_BT_CTRL_CONNECTION_ACCEPT_TIMEOUT_EXCEEDED = 0x1010
-    #  A feature or parameter value in the HCI command is not supported.
-    SL_STATUS_BT_CTRL_UNSUPPORTED_FEATURE_OR_PARAMETER_VALUE = 0x1011
-    #  Command contained invalid parameters.
-    SL_STATUS_BT_CTRL_INVALID_COMMAND_PARAMETERS = 0x1012
-    #  User on the remote device terminated the connection.
-    SL_STATUS_BT_CTRL_REMOTE_USER_TERMINATED = 0x1013
-    #  The remote device terminated the connection because of low resources
-    SL_STATUS_BT_CTRL_REMOTE_DEVICE_TERMINATED_CONNECTION_DUE_TO_LOW_RESOURCES = 0x1014
-    #  Remote Device Terminated Connection due to Power Off
-    SL_STATUS_BT_CTRL_REMOTE_POWERING_OFF = 0x1015
-    #  Local device terminated the connection.
-    SL_STATUS_BT_CTRL_CONNECTION_TERMINATED_BY_LOCAL_HOST = 0x1016
-    #  The Controller is disallowing an authentication or pairing procedure because
-    #  too little time has elapsed since the last authentication or pairing attempt failed.
-    SL_STATUS_BT_CTRL_REPEATED_ATTEMPTS = 0x1017
-    #  The device does not allow pairing. This can be for example, when a device only
-    #  allows pairing during a certain time window after some user input allows pairing
-    SL_STATUS_BT_CTRL_PAIRING_NOT_ALLOWED = 0x1018
-    #  The remote device does not support the feature associated with the issued command.
-    SL_STATUS_BT_CTRL_UNSUPPORTED_REMOTE_FEATURE = 0x101A
-    #  No other error code specified is appropriate to use.
-    SL_STATUS_BT_CTRL_UNSPECIFIED_ERROR = 0x101F
-    #  Connection terminated due to link-layer procedure timeout.
-    SL_STATUS_BT_CTRL_LL_RESPONSE_TIMEOUT = 0x1022
-    #  LL procedure has collided with the same transaction or procedure that is already
-    #  in progress.
-    SL_STATUS_BT_CTRL_LL_PROCEDURE_COLLISION = 0x1023
-    #  The requested encryption mode is not acceptable at this time.
-    SL_STATUS_BT_CTRL_ENCRYPTION_MODE_NOT_ACCEPTABLE = 0x1025
-    #  Link key cannot be changed because a fixed unit key is being used.
-    SL_STATUS_BT_CTRL_LINK_KEY_CANNOT_BE_CHANGED = 0x1026
-    #  LMP PDU or LL PDU that includes an instant cannot be performed because the instan
-    #  when this would have occurred has passed.
-    SL_STATUS_BT_CTRL_INSTANT_PASSED = 0x1028
-    #  It was not possible to pair as a unit key was requested and it is not supported.
-    SL_STATUS_BT_CTRL_PAIRING_WITH_UNIT_KEY_NOT_SUPPORTED = 0x1029
-    #  LMP transaction was started that collides with an ongoing transaction.
-    SL_STATUS_BT_CTRL_DIFFERENT_TRANSACTION_COLLISION = 0x102A
-    #  The Controller cannot perform channel assessment because it is not supported.
-    SL_STATUS_BT_CTRL_CHANNEL_ASSESSMENT_NOT_SUPPORTED = 0x102E
-    #  The HCI command or LMP PDU sent is only possible on an encrypted link.
-    SL_STATUS_BT_CTRL_INSUFFICIENT_SECURITY = 0x102F
-    #  A parameter value requested is outside the mandatory range of parameters for the
-    #  given HCI command or LMP PDU.
-    SL_STATUS_BT_CTRL_PARAMETER_OUT_OF_MANDATORY_RANGE = 0x1030
-    #  The IO capabilities request or response was rejected because the sending Host does
-    #  not support Secure Simple Pairing even though the receiving Link Manager does.
-    SL_STATUS_BT_CTRL_SIMPLE_PAIRING_NOT_SUPPORTED_BY_HOST = 0x1037
-    #  The Host is busy with another pairing operation and unable to support the requested
-    #  pairing. The receiving device should retry pairing again later.
-    SL_STATUS_BT_CTRL_HOST_BUSY_PAIRING = 0x1038
-    #  The Controller could not calculate an appropriate value for the Channel selection operation.
-    SL_STATUS_BT_CTRL_CONNECTION_REJECTED_DUE_TO_NO_SUITABLE_CHANNEL_FOUND = 0x1039
-    #  Operation was rejected because the controller is busy and unable to process the request.
-    SL_STATUS_BT_CTRL_CONTROLLER_BUSY = 0x103A
-    #  Remote device terminated the connection because of an unacceptable connection interval.
-    SL_STATUS_BT_CTRL_UNACCEPTABLE_CONNECTION_INTERVAL = 0x103B
-    #  Ddvertising for a fixed duration completed or, for directed advertising, that advertising
-    #  completed without a connection being created.
-    SL_STATUS_BT_CTRL_ADVERTISING_TIMEOUT = 0x103C
-    #  Connection was terminated because the Message Integrity Check (MIC) failed on a
-    #  received packet.
-    SL_STATUS_BT_CTRL_CONNECTION_TERMINATED_DUE_TO_MIC_FAILURE = 0x103D
-    #  LL initiated a connection but the connection has failed to be established. Controller did not receive
-    #  any packets from remote end.
-    SL_STATUS_BT_CTRL_CONNECTION_FAILED_TO_BE_ESTABLISHED = 0x103E
-    #  The MAC of the 802.11 AMP was requested to connect to a peer, but the connection failed.
-    SL_STATUS_BT_CTRL_MAC_CONNECTION_FAILED = 0x103F
-    #  The master, at this time, is unable to make a coarse adjustment to the piconet clock,
-    #  using the supplied parameters. Instead the master will attempt to move the clock using clock dragging.
-    SL_STATUS_BT_CTRL_COARSE_CLOCK_ADJUSTMENT_REJECTED_BUT_WILL_TRY_TO_ADJUST_USING_CLOCK_DRAGGING = (
-        0x1040
-    )
-    #  A command was sent from the Host that should identify an Advertising or Sync handle, but the
-    #  Advertising or Sync handle does not exist.
-    SL_STATUS_BT_CTRL_UNKNOWN_ADVERTISING_IDENTIFIER = 0x1042
-    #  Number of operations requested has been reached and has indicated the completion of the activity
-    #  (e.g., advertising or scanning).
-    SL_STATUS_BT_CTRL_LIMIT_REACHED = 0x1043
-    #  A request to the Controller issued by the Host and still pending was successfully canceled.
-    SL_STATUS_BT_CTRL_OPERATION_CANCELLED_BY_HOST = 0x1044
-    #  An attempt was made to send or receive a packet that exceeds the maximum allowed packet l
-    SL_STATUS_BT_CTRL_PACKET_TOO_LONG = 0x1045
-    # Bluetooth attribute status codes
-    #  The attribute handle given was not valid on this server
-    SL_STATUS_BT_ATT_INVALID_HANDLE = 0x1101
-    #  The attribute cannot be read
-    SL_STATUS_BT_ATT_READ_NOT_PERMITTED = 0x1102
-    #  The attribute cannot be written
-    SL_STATUS_BT_ATT_WRITE_NOT_PERMITTED = 0x1103
-    #  The attribute PDU was invalid
-    SL_STATUS_BT_ATT_INVALID_PDU = 0x1104
-    #  The attribute requires authentication before it can be read or written.
-    SL_STATUS_BT_ATT_INSUFFICIENT_AUTHENTICATION = 0x1105
-    #  Attribute Server does not support the request received from the client.
-    SL_STATUS_BT_ATT_REQUEST_NOT_SUPPORTED = 0x1106
-    #  Offset specified was past the end of the attribute
-    SL_STATUS_BT_ATT_INVALID_OFFSET = 0x1107
-    #  The attribute requires authorization before it can be read or written.
-    SL_STATUS_BT_ATT_INSUFFICIENT_AUTHORIZATION = 0x1108
-    #  Too many prepare writes have been queued
-    SL_STATUS_BT_ATT_PREPARE_QUEUE_FULL = 0x1109
-    #  No attribute found within the given attribute handle range.
-    SL_STATUS_BT_ATT_ATT_NOT_FOUND = 0x110A
-    #  The attribute cannot be read or written using the Read Blob Request
-    SL_STATUS_BT_ATT_ATT_NOT_LONG = 0x110B
-    #  The Encryption Key Size used for encrypting this link is insufficient.
-    SL_STATUS_BT_ATT_INSUFFICIENT_ENC_KEY_SIZE = 0x110C
-    #  The attribute value length is invalid for the operation
-    SL_STATUS_BT_ATT_INVALID_ATT_LENGTH = 0x110D
-    #  The attribute request that was requested has encountered an error that was unlikely, and
-    #  therefore could not be completed as requested.
-    SL_STATUS_BT_ATT_UNLIKELY_ERROR = 0x110E
-    #  The attribute requires encryption before it can be read or written.
-    SL_STATUS_BT_ATT_INSUFFICIENT_ENCRYPTION = 0x110F
-    #  The attribute type is not a supported grouping attribute as defined by a higher layer
-    #  specification.
-    SL_STATUS_BT_ATT_UNSUPPORTED_GROUP_TYPE = 0x1110
-    #  Insufficient Resources to complete the request
-    SL_STATUS_BT_ATT_INSUFFICIENT_RESOURCES = 0x1111
-    #  The server requests the client to rediscover the database.
-    SL_STATUS_BT_ATT_OUT_OF_SYNC = 0x1112
-    #  The attribute parameter value was not allowed.
-    SL_STATUS_BT_ATT_VALUE_NOT_ALLOWED = 0x1113
-    #  When this is returned in a BGAPI response, the application tried to read or write the
-    #  value of a user attribute from the GATT databa
-    SL_STATUS_BT_ATT_APPLICATION = 0x1180
-    #  The requested write operation cannot be fulfilled for reasons other than permissions.
-    SL_STATUS_BT_ATT_WRITE_REQUEST_REJECTED = 0x11FC
-    #  The Client Characteristic Configuration descriptor is not configured according to the
-    #  requirements of the profile or service.
-    SL_STATUS_BT_ATT_CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR_IMPROPERLY_CONFIGURED = (
-        0x11FD
-    )
-    #  The profile or service request cannot be serviced because an operation that has been
-    #  previously triggered is still in progress.
-    SL_STATUS_BT_ATT_PROCEDURE_ALREADY_IN_PROGRESS = 0x11FE
-    #  The attribute value is out of range as defined by a profile or service specification.
-    SL_STATUS_BT_ATT_OUT_OF_RANGE = 0x11FF
-    # Bluetooth Security Manager Protocol status codes
-    #  The user input of passkey failed, for example, the user cancelled the operation
-    SL_STATUS_BT_SMP_PASSKEY_ENTRY_FAILED = 0x1201
-    #  Out of Band data is not available for authentication
-    SL_STATUS_BT_SMP_OOB_NOT_AVAILABLE = 0x1202
-    #  The pairing procedure cannot be performed as authentication requirements cannot be
-    #  met due to IO capabilities of one or both devices
-    SL_STATUS_BT_SMP_AUTHENTICATION_REQUIREMENTS = 0x1203
-    #  The confirm value does not match the calculated compare value
-    SL_STATUS_BT_SMP_CONFIRM_VALUE_FAILED = 0x1204
-    #  Pairing is not supported by the device
-    SL_STATUS_BT_SMP_PAIRING_NOT_SUPPORTED = 0x1205
-    #  The resultant encryption key size is insufficient for the security requirements of this device
-    SL_STATUS_BT_SMP_ENCRYPTION_KEY_SIZE = 0x1206
-    #  The SMP command received is not supported on this device
-    SL_STATUS_BT_SMP_COMMAND_NOT_SUPPORTED = 0x1207
-    #  Pairing failed due to an unspecified reason
-    SL_STATUS_BT_SMP_UNSPECIFIED_REASON = 0x1208
-    #  Pairing or authentication procedure is disallowed because too little time has elapsed
-    #  since last pairing request or security request
-    SL_STATUS_BT_SMP_REPEATED_ATTEMPTS = 0x1209
-    #  The Invalid Parameters error code indicates: the command length is invalid or a parameter
-    #  is outside of the specified range.
-    SL_STATUS_BT_SMP_INVALID_PARAMETERS = 0x120A
-    #  Indicates to the remote device that the DHKey Check value received doesn't match the one
-    #  calculated by the local device.
-    SL_STATUS_BT_SMP_DHKEY_CHECK_FAILED = 0x120B
-    #  Indicates that the confirm values in the numeric comparison protocol do not match.
-    SL_STATUS_BT_SMP_NUMERIC_COMPARISON_FAILED = 0x120C
-    #  Indicates that the pairing over the LE transport failed due to a Pairing Request
-    #  sent over the BR/EDR transport in process.
-    SL_STATUS_BT_SMP_BREDR_PAIRING_IN_PROGRESS = 0x120D
-    #  Indicates that the BR/EDR Link Key generated on the BR/EDR transport cannot be used
-    #  to derive and distribute keys for the LE transport.
-    SL_STATUS_BT_SMP_CROSS_TRANSPORT_KEY_DERIVATION_GENERATION_NOT_ALLOWED = 0x120E
-    #  Indicates that the device chose not to accept a distributed key.
-    SL_STATUS_BT_SMP_KEY_REJECTED = 0x120F
-    # Bluetooth Mesh status codes
-    #  Returned when trying to add a key or some other unique resource with an ID which already exists
-    SL_STATUS_BT_MESH_ALREADY_EXISTS = 0x0501
-    #  Returned when trying to manipulate a key or some other resource with an ID which does not exist
-    SL_STATUS_BT_MESH_DOES_NOT_EXIST = 0x0502
-    #  Returned when an operation cannot be executed because a pre-configured limit for keys,
-    #  key bindings, elements, models, virtual addresses, provisioned devices, or provisioning sessions is reached
-    SL_STATUS_BT_MESH_LIMIT_REACHED = 0x0503
-    #  Returned when trying to use a reserved address or add a "pre-provisioned" device
-    #  using an address already used by some other device
-    SL_STATUS_BT_MESH_INVALID_ADDRESS = 0x0504
-    #  In a BGAPI response, the user supplied malformed data; in a BGAPI event, the remote
-    #  end responded with malformed or unrecognized data
-    SL_STATUS_BT_MESH_MALFORMED_DATA = 0x0505
-    #  An attempt was made to initialize a subsystem that was already initialized.
-    SL_STATUS_BT_MESH_ALREADY_INITIALIZED = 0x0506
-    #  An attempt was made to use a subsystem that wasn't initialized yet. Call the
-    #  subsystem's init function first.
-    SL_STATUS_BT_MESH_NOT_INITIALIZED = 0x0507
-    #  Returned when trying to establish a friendship as a Low Power Node, but no acceptable
-    #  friend offer message was received.
-    SL_STATUS_BT_MESH_NO_FRIEND_OFFER = 0x0508
-    #  Provisioning link was unexpectedly closed before provisioning was complete.
-    SL_STATUS_BT_MESH_PROV_LINK_CLOSED = 0x0509
-    #  An unrecognized provisioning PDU was received.
-    SL_STATUS_BT_MESH_PROV_INVALID_PDU = 0x050A
-    #  A provisioning PDU with wrong length or containing field values that are out of
-    #  bounds was received.
-    SL_STATUS_BT_MESH_PROV_INVALID_PDU_FORMAT = 0x050B
-    #  An unexpected (out of sequence) provisioning PDU was received.
-    SL_STATUS_BT_MESH_PROV_UNEXPECTED_PDU = 0x050C
-    #  The computed confirmation value did not match the expected value.
-    SL_STATUS_BT_MESH_PROV_CONFIRMATION_FAILED = 0x050D
-    #  Provisioning could not be continued due to insufficient resources.
-    SL_STATUS_BT_MESH_PROV_OUT_OF_RESOURCES = 0x050E
-    #  The provisioning data block could not be decrypted.
-    SL_STATUS_BT_MESH_PROV_DECRYPTION_FAILED = 0x050F
-    #  An unexpected error happened during provisioning.
-    SL_STATUS_BT_MESH_PROV_UNEXPECTED_ERROR = 0x0510
-    #  Device could not assign unicast addresses to all of its elements.
-    SL_STATUS_BT_MESH_PROV_CANNOT_ASSIGN_ADDR = 0x0511
-    #  Returned when trying to reuse an address of a previously deleted device before an
-    #  IV Index Update has been executed.
-    SL_STATUS_BT_MESH_ADDRESS_TEMPORARILY_UNAVAILABLE = 0x0512
-    #  Returned when trying to assign an address that is used by one of the devices in the
-    #  Device Database, or by the Provisioner itself.
-    SL_STATUS_BT_MESH_ADDRESS_ALREADY_USED = 0x0513
-    #  Application key or publish address are not set
-    SL_STATUS_BT_MESH_PUBLISH_NOT_CONFIGURED = 0x0514
-    #  Application key is not bound to a model
-    SL_STATUS_BT_MESH_APP_KEY_NOT_BOUND = 0x0515
-    # Bluetooth Mesh foundation status codes
-    #  Returned when address in request was not valid
-    SL_STATUS_BT_MESH_FOUNDATION_INVALID_ADDRESS = 0x1301
-    #  Returned when model identified is not found for a given element
-    SL_STATUS_BT_MESH_FOUNDATION_INVALID_MODEL = 0x1302
-    #  Returned when the key identified by AppKeyIndex is not stored in the node
-    SL_STATUS_BT_MESH_FOUNDATION_INVALID_APP_KEY = 0x1303
-    #  Returned when the key identified by NetKeyIndex is not stored in the node
-    SL_STATUS_BT_MESH_FOUNDATION_INVALID_NET_KEY = 0x1304
-    #  Returned when The node cannot serve the request due to insufficient resources
-    SL_STATUS_BT_MESH_FOUNDATION_INSUFFICIENT_RESOURCES = 0x1305
-    #  Returned when the key identified is already stored in the node and the new
-    #  NetKey value is different
-    SL_STATUS_BT_MESH_FOUNDATION_KEY_INDEX_EXISTS = 0x1306
-    #  Returned when the model does not support the publish mechanism
-    SL_STATUS_BT_MESH_FOUNDATION_INVALID_PUBLISH_PARAMS = 0x1307
-    #  Returned when  the model does not support the subscribe mechanism
-    SL_STATUS_BT_MESH_FOUNDATION_NOT_SUBSCRIBE_MODEL = 0x1308
-    #  Returned when storing of the requested parameters failed
-    SL_STATUS_BT_MESH_FOUNDATION_STORAGE_FAILURE = 0x1309
-    #  Returned when requested setting is not supported
-    SL_STATUS_BT_MESH_FOUNDATION_NOT_SUPPORTED = 0x130A
-    #  Returned when the requested update operation cannot be performed due to general constraints
-    SL_STATUS_BT_MESH_FOUNDATION_CANNOT_UPDATE = 0x130B
-    #  Returned when the requested delete operation cannot be performed due to general constraints
-    SL_STATUS_BT_MESH_FOUNDATION_CANNOT_REMOVE = 0x130C
-    #  Returned when the requested bind operation cannot be performed due to general constraints
-    SL_STATUS_BT_MESH_FOUNDATION_CANNOT_BIND = 0x130D
-    #  Returned when The node cannot start advertising with Node Identity or Proxy since the
-    #  maximum number of parallel advertising is reached
-    SL_STATUS_BT_MESH_FOUNDATION_TEMPORARILY_UNABLE = 0x130E
-    #  Returned when the requested state cannot be set
-    SL_STATUS_BT_MESH_FOUNDATION_CANNOT_SET = 0x130F
-    #  Returned when an unspecified error took place
-    SL_STATUS_BT_MESH_FOUNDATION_UNSPECIFIED = 0x1310
-    #  Returned when the NetKeyIndex and AppKeyIndex combination is not valid for a Config AppKey Update
-    SL_STATUS_BT_MESH_FOUNDATION_INVALID_BINDING = 0x1311
-    # Wi-Fi Errors
-    #  Invalid firmware keyset
-    SL_STATUS_WIFI_INVALID_KEY = 0x0B01
-    #  The firmware download took too long
-    SL_STATUS_WIFI_FIRMWARE_DOWNLOAD_TIMEOUT = 0x0B02
-    #  Unknown request ID or wrong interface ID used
-    SL_STATUS_WIFI_UNSUPPORTED_MESSAGE_ID = 0x0B03
-    #  The request is successful but some parameters have been ignored
-    SL_STATUS_WIFI_WARNING = 0x0B04
-    #  No Packets waiting to be received
-    SL_STATUS_WIFI_NO_PACKET_TO_RECEIVE = 0x0B05
-    #  The sleep mode is granted
-    SL_STATUS_WIFI_SLEEP_GRANTED = 0x0B08
-    #  The WFx does not go back to sleep
-    SL_STATUS_WIFI_SLEEP_NOT_GRANTED = 0x0B09
-    #  The SecureLink MAC key was not found
-    SL_STATUS_WIFI_SECURE_LINK_MAC_KEY_ERROR = 0x0B10
-    #  The SecureLink MAC key is already installed in OTP
-    SL_STATUS_WIFI_SECURE_LINK_MAC_KEY_ALREADY_BURNED = 0x0B11
-    #  The SecureLink MAC key cannot be installed in RAM
-    SL_STATUS_WIFI_SECURE_LINK_RAM_MODE_NOT_ALLOWED = 0x0B12
-    #  The SecureLink MAC key installation failed
-    SL_STATUS_WIFI_SECURE_LINK_FAILED_UNKNOWN_MODE = 0x0B13
-    #  SecureLink key (re)negotiation failed
-    SL_STATUS_WIFI_SECURE_LINK_EXCHANGE_FAILED = 0x0B14
-    #  The device is in an inappropriate state to perform the request
-    SL_STATUS_WIFI_WRONG_STATE = 0x0B18
-    #  The request failed due to regulatory limitations
-    SL_STATUS_WIFI_CHANNEL_NOT_ALLOWED = 0x0B19
-    #  The connection request failed because no suitable AP was found
-    SL_STATUS_WIFI_NO_MATCHING_AP = 0x0B1A
-    #  The connection request was aborted by host
-    SL_STATUS_WIFI_CONNECTION_ABORTED = 0x0B1B
-    #  The connection request failed because of a timeout
-    SL_STATUS_WIFI_CONNECTION_TIMEOUT = 0x0B1C
-    #  The connection request failed because the AP rejected the device
-    SL_STATUS_WIFI_CONNECTION_REJECTED_BY_AP = 0x0B1D
-    #  The connection request failed because the WPA handshake did not complete successfully
-    SL_STATUS_WIFI_CONNECTION_AUTH_FAILURE = 0x0B1E
-    #  The request failed because the retry limit was exceeded
-    SL_STATUS_WIFI_RETRY_EXCEEDED = 0x0B1F
-    #  The request failed because the MSDU life time was exceeded
-    SL_STATUS_WIFI_TX_LIFETIME_EXCEEDED = 0x0B20
+    ## Generic Errors
+    # No error.
+    OK = 0x0000
+    # Generic error.
+    FAIL = 0x0001
+
+    ## State Errors
+    # Generic invalid state error.
+    INVALID_STATE = 0x0002
+    # Module is not ready for requested operation.
+    NOT_READY = 0x0003
+    # Module is busy and cannot carry out requested operation.
+    BUSY = 0x0004
+    # Operation is in progress and not yet complete (pass or fail).
+    IN_PROGRESS = 0x0005
+    # Operation aborted.
+    ABORT = 0x0006
+    # Operation timed out.
+    TIMEOUT = 0x0007
+    # Operation not allowed per permissions.
+    PERMISSION = 0x0008
+    # Non-blocking operation would block.
+    WOULD_BLOCK = 0x0009
+    # Operation/module is Idle, cannot carry requested operation.
+    IDLE = 0x000A
+    # Operation cannot be done while construct is waiting.
+    IS_WAITING = 0x000B
+    # No task/construct waiting/pending for that action/event.
+    NONE_WAITING = 0x000C
+    # Operation cannot be done while construct is suspended.
+    SUSPENDED = 0x000D
+    # Feature not available due to software configuration.
+    NOT_AVAILABLE = 0x000E
+    # Feature not supported.
+    NOT_SUPPORTED = 0x000F
+    # Initialization failed.
+    INITIALIZATION = 0x0010
+    # Module has not been initialized.
+    NOT_INITIALIZED = 0x0011
+    # Module has already been initialized.
+    ALREADY_INITIALIZED = 0x0012
+    # Object/construct has been deleted.
+    DELETED = 0x0013
+    # Illegal call from ISR.
+    ISR = 0x0014
+    # Illegal call because network is up.
+    NETWORK_UP = 0x0015
+    # Illegal call because network is down.
+    NETWORK_DOWN = 0x0016
+    # Failure due to not being joined in a network.
+    NOT_JOINED = 0x0017
+    # Invalid operation as there are no beacons.
+    NO_BEACONS = 0x0018
+
+    ## Allocation/ownership Errors
+    # Generic allocation error.
+    ALLOCATION_FAILED = 0x0019
+    # No more resource available to perform the operation.
+    NO_MORE_RESOURCE = 0x001A
+    # Item/list/queue is empty.
+    EMPTY = 0x001B
+    # Item/list/queue is full.
+    FULL = 0x001C
+    # Item would overflow.
+    WOULD_OVERFLOW = 0x001D
+    # Item/list/queue has been overflowed.
+    HAS_OVERFLOWED = 0x001E
+    # Generic ownership error.
+    OWNERSHIP = 0x001F
+    # Already/still owning resource.
+    IS_OWNER = 0x0020
+
+    ## Invalid Parameters Errors
+    # Generic invalid argument or consequence of invalid argument.
+    INVALID_PARAMETER = 0x0021
+    # Invalid null pointer received as argument.
+    NULL_POINTER = 0x0022
+    # Invalid configuration provided.
+    INVALID_CONFIGURATION = 0x0023
+    # Invalid mode.
+    INVALID_MODE = 0x0024
+    # Invalid handle.
+    INVALID_HANDLE = 0x0025
+    # Invalid type for operation.
+    INVALID_TYPE = 0x0026
+    # Invalid index.
+    INVALID_INDEX = 0x0027
+    # Invalid range.
+    INVALID_RANGE = 0x0028
+    # Invalid key.
+    INVALID_KEY = 0x0029
+    # Invalid credentials.
+    INVALID_CREDENTIALS = 0x002A
+    # Invalid count.
+    INVALID_COUNT = 0x002B
+    # Invalid signature / verification failed.
+    INVALID_SIGNATURE = 0x002C
+    # Item could not be found.
+    NOT_FOUND = 0x002D
+    # Item already exists.
+    ALREADY_EXISTS = 0x002E
+
+    ## IO/Communication Errors
+    # Generic I/O failure.
+    IO = 0x002F
+    # I/O failure due to timeout.
+    IO_TIMEOUT = 0x0030
+    # Generic transmission error.
+    TRANSMIT = 0x0031
+    # Transmit underflowed.
+    TRANSMIT_UNDERFLOW = 0x0032
+    # Transmit is incomplete.
+    TRANSMIT_INCOMPLETE = 0x0033
+    # Transmit is busy.
+    TRANSMIT_BUSY = 0x0034
+    # Generic reception error.
+    RECEIVE = 0x0035
+    # Failed to read on/via given object.
+    OBJECT_READ = 0x0036
+    # Failed to write on/via given object.
+    OBJECT_WRITE = 0x0037
+    # Message is too long.
+    MESSAGE_TOO_LONG = 0x0038
+
+    ## EEPROM/Flash Errors
+    # EEPROM MFG version mismatch.
+    EEPROM_MFG_VERSION_MISMATCH = 0x0039
+    # EEPROM Stack version mismatch.
+    EEPROM_STACK_VERSION_MISMATCH = 0x003A
+    # Flash write is inhibited.
+    FLASH_WRITE_INHIBITED = 0x003B
+    # Flash verification failed.
+    FLASH_VERIFY_FAILED = 0x003C
+    # Flash programming failed.
+    FLASH_PROGRAM_FAILED = 0x003D
+    # Flash erase failed.
+    FLASH_ERASE_FAILED = 0x003E
+
+    ## MAC Errors
+    # MAC no data.
+    MAC_NO_DATA = 0x003F
+    # MAC no ACK received.
+    MAC_NO_ACK_RECEIVED = 0x0040
+    # MAC indirect timeout.
+    MAC_INDIRECT_TIMEOUT = 0x0041
+    # MAC unknown header type.
+    MAC_UNKNOWN_HEADER_TYPE = 0x0042
+    # MAC ACK unknown header type.
+    MAC_ACK_HEADER_TYPE = 0x0043
+    # MAC command transmit failure.
+    MAC_COMMAND_TRANSMIT_FAILURE = 0x0044
+
+    ## CLI_STORAGE Errors
+    # Error in open NVM
+    CLI_STORAGE_NVM_OPEN_ERROR = 0x0045
+
+    ## Security status codes
+    # Image checksum is not valid.
+    SECURITY_IMAGE_CHECKSUM_ERROR = 0x0046
+    # Decryption failed
+    SECURITY_DECRYPT_ERROR = 0x0047
+
+    ## Command status codes
+    # Command was not recognized
+    COMMAND_IS_INVALID = 0x0048
+    # Command or parameter maximum length exceeded
+    COMMAND_TOO_LONG = 0x0049
+    # Data received does not form a complete command
+    COMMAND_INCOMPLETE = 0x004A
+
+    ## Misc Errors
+    # Bus error, e.g. invalid DMA address
+    BUS_ERROR = 0x004B
+
+    ## Unified MAC Errors
+    # CCA failure.
+    CCA_FAILURE = 0x004C
+
+    ## Scan errors
+    # MAC scanning.
+    MAC_SCANNING = 0x004D
+    # MAC incorrect scan type.
+    MAC_INCORRECT_SCAN_TYPE = 0x004E
+    # Invalid channel mask.
+    INVALID_CHANNEL_MASK = 0x004F
+    # Bad scan duration.
+    BAD_SCAN_DURATION = 0x0050
+
+    ## MAC transmit related status
+    # The MAC transmit queue is full
+    MAC_TRANSMIT_QUEUE_FULL = 0x0053
+    # The transmit attempt failed because the radio scheduler could not find a slot to transmit this packet in or a higher priority event interrupted it
+    TRANSMIT_SCHEDULER_FAIL = 0x0054
+    # An unsupported channel setting was specified
+    TRANSMIT_INVALID_CHANNEL = 0x0055
+    # An unsupported power setting was specified
+    TRANSMIT_INVALID_POWER = 0x0056
+    # The expected ACK was received after the last transmission
+    TRANSMIT_ACK_RECEIVED = 0x0057
+    # The transmit attempt was blocked from going over the air. Typically this is due to the Radio Hold Off (RHO) or Coexistence plugins as they can prevent transmits based on external signals.
+    TRANSMIT_BLOCKED = 0x0058
+
+    ## NVM3 specific errors
+    # The initialization was aborted as the NVM3 instance is not aligned properly in memory
+    NVM3_ALIGNMENT_INVALID = 0x0059
+    # The initialization was aborted as the size of the NVM3 instance is too small
+    NVM3_SIZE_TOO_SMALL = 0x005A
+    # The initialization was aborted as the NVM3 page size is not supported
+    NVM3_PAGE_SIZE_NOT_SUPPORTED = 0x005B
+    # The application that there was an error initializing some of the tokens
+    NVM3_TOKEN_INIT_FAILED = 0x005C
+    # The initialization was aborted as the NVM3 instance was already opened with other parameters
+    NVM3_OPENED_WITH_OTHER_PARAMETERS = 0x005D
+
+    ## Zigbee status codes
+    # Packet is dropped by packet-handoff callbacks
+    ZIGBEE_PACKET_HANDOFF_DROPPED = 0x0C01
+    # The APS layer attempted to send or deliver a message and failed
+    ZIGBEE_DELIVERY_FAILED = 0x0C02
+    # The maximum number of in-flight messages ::EMBER_APS_UNICAST_MESSAGE_COUNT has been reached
+    ZIGBEE_MAX_MESSAGE_LIMIT_REACHED = 0x0C03
+    # The application is trying to delete or overwrite a binding that is in use
+    ZIGBEE_BINDING_IS_ACTIVE = 0x0C04
+    # The application is trying to overwrite an address table entry that is in use
+    ZIGBEE_ADDRESS_TABLE_ENTRY_IS_ACTIVE = 0x0C05
+    # After moving, a mobile node's attempt to re-establish contact with the network failed
+    ZIGBEE_MOVE_FAILED = 0x0C06
+    # The local node ID has changed. The application can get the new node ID by calling ::sl_zigbee_get_node_id()
+    ZIGBEE_NODE_ID_CHANGED = 0x0C07
+    # The chosen security level is not supported by the stack
+    ZIGBEE_INVALID_SECURITY_LEVEL = 0x0C08
+    # An error occurred when trying to encrypt at the APS Level
+    ZIGBEE_IEEE_ADDRESS_DISCOVERY_IN_PROGRESS = 0x0C09
+    # An error occurred when trying to encrypt at the APS Level
+    ZIGBEE_APS_ENCRYPTION_ERROR = 0x0C0A
+    # There was an attempt to form or join a network with security without calling ::sl_zigbee_set_initial_security_state() first
+    ZIGBEE_SECURITY_STATE_NOT_SET = 0x0C0B
+    # There was an attempt to broadcast a key switch too quickly after broadcasting the next network key. The Trust Center must wait at least a period equal to the broadcast timeout so that all routers have a chance to receive the broadcast of the new network key
+    ZIGBEE_TOO_SOON_FOR_SWITCH_KEY = 0x0C0C
+    # The received signature corresponding to the message that was passed to the CBKE Library failed verification and is not valid
+    ZIGBEE_SIGNATURE_VERIFY_FAILURE = 0x0C0D
+    # The message could not be sent because the link key corresponding to the destination is not authorized for use in APS data messages
+    ZIGBEE_KEY_NOT_AUTHORIZED = 0x0C0E
+    # The application tried to use a binding that has been remotely modified and the change has not yet been reported to the application
+    ZIGBEE_BINDING_HAS_CHANGED = 0x0C0F
+    # The EUI of the Trust center has changed due to a successful rejoin after TC Swapout
+    ZIGBEE_TRUST_CENTER_SWAP_EUI_HAS_CHANGED = 0x0C10
+    # A Trust Center Swapout Rejoin has occurred without the EUI of the TC changing
+    ZIGBEE_TRUST_CENTER_SWAP_EUI_HAS_NOT_CHANGED = 0x0C11
+    # An attempt to generate random bytes failed because of insufficient random data from the radio
+    ZIGBEE_INSUFFICIENT_RANDOM_DATA = 0x0C12
+    # A Zigbee route error command frame was received indicating that a source routed message from this node failed en route
+    ZIGBEE_SOURCE_ROUTE_FAILURE = 0x0C13
+    # A Zigbee route error command frame was received indicating that a message sent to this node along a many-to-one route failed en route
+    ZIGBEE_MANY_TO_ONE_ROUTE_FAILURE = 0x0C14
+    # A critical and fatal error indicating that the version of the stack trying to run does not match with the chip it's running on
+    ZIGBEE_STACK_AND_HARDWARE_MISMATCH = 0x0C15
+    # The local PAN ID has changed. The application can get the new PAN ID by calling ::emberGetPanId()
+    ZIGBEE_PAN_ID_CHANGED = 0x0C16
+    # The channel has changed.
+    ZIGBEE_CHANNEL_CHANGED = 0x0C17
+    # The network has been opened for joining.
+    ZIGBEE_NETWORK_OPENED = 0x0C18
+    # The network has been closed for joining.
+    ZIGBEE_NETWORK_CLOSED = 0x0C19
+    # An attempt was made to join a Secured Network using a pre-configured key, but the Trust Center sent back a Network Key in-the-clear when an encrypted Network Key was required. (::EMBER_REQUIRE_ENCRYPTED_KEY)
+    ZIGBEE_RECEIVED_KEY_IN_THE_CLEAR = 0x0C1A
+    # An attempt was made to join a Secured Network, but the device did not receive a Network Key.
+    ZIGBEE_NO_NETWORK_KEY_RECEIVED = 0x0C1B
+    # After a device joined a Secured Network, a Link Key was requested (::EMBER_GET_LINK_KEY_WHEN_JOINING) but no response was ever received.
+    ZIGBEE_NO_LINK_KEY_RECEIVED = 0x0C1C
+    # An attempt was made to join a Secured Network without a pre-configured key, but the Trust Center sent encrypted data using a pre-configured key.
+    ZIGBEE_PRECONFIGURED_KEY_REQUIRED = 0x0C1D
+    # A Zigbee EZSP error has occurred. Track the origin and corresponding EzspStatus for more info.
+    ZIGBEE_EZSP_ERROR = 0x0C1E
+
+    @classmethod
+    def from_ember_status(
+        cls: type[sl_Status], status: EmberStatus | EzspStatus
+    ) -> sl_Status:
+        if isinstance(status, cls):
+            return status
+
+        key = type(status), status
+
+        if key not in SL_STATUS_MAP:
+            LOGGER.warning(
+                "Unknown status %r, converting to generic %r",
+                status,
+                cls.FAIL,
+                stacklevel=2,
+            )
+            return cls.FAIL
+
+        return SL_STATUS_MAP[key]
+
+
+# Generic mapping that standardizes status codes
+# fmt: off
+SL_STATUS_MAP: dict[EzspStatus | EmberStatus, sl_Status] = {
+    (type(k), k): v for k, v in [
+        # EZSP status
+        (EzspStatus.SUCCESS, sl_Status.OK),
+        (EzspStatus.ERROR_INVALID_ID, sl_Status.INVALID_PARAMETER),
+        (EzspStatus.ERROR_OUT_OF_MEMORY, sl_Status.NO_MORE_RESOURCE),
+        (EzspStatus.ERROR_INVALID_CALL, sl_Status.INVALID_PARAMETER),
+        # Ember status
+        (EmberStatus.SUCCESS, sl_Status.OK),
+        (EmberStatus.ERR_FATAL, sl_Status.FAIL),
+        (EmberStatus.NOT_FOUND, sl_Status.NOT_FOUND),
+        (EmberStatus.TABLE_ENTRY_ERASED, sl_Status.NOT_FOUND),
+        (EmberStatus.INDEX_OUT_OF_RANGE, sl_Status.INVALID_INDEX),
+        (EmberStatus.NOT_JOINED, sl_Status.NOT_JOINED),
+        (EmberStatus.NETWORK_UP, sl_Status.NETWORK_UP),
+        (EmberStatus.NETWORK_DOWN, sl_Status.NETWORK_DOWN),
+        (EmberStatus.NETWORK_OPENED, sl_Status.ZIGBEE_NETWORK_OPENED),
+        (EmberStatus.NETWORK_CLOSED, sl_Status.ZIGBEE_NETWORK_CLOSED),
+        # Network status codes
+        (EmberStatus.MAC_INDIRECT_TIMEOUT, sl_Status.MAC_INDIRECT_TIMEOUT),
+        (EmberStatus.SOURCE_ROUTE_FAILURE, sl_Status.ZIGBEE_SOURCE_ROUTE_FAILURE),
+        (EmberStatus.MANY_TO_ONE_ROUTE_FAILURE, sl_Status.ZIGBEE_MANY_TO_ONE_ROUTE_FAILURE),
+        (EmberStatus.MAX_MESSAGE_LIMIT_REACHED, sl_Status.ZIGBEE_MAX_MESSAGE_LIMIT_REACHED),
+        (EmberStatus.NETWORK_BUSY, sl_Status.ZIGBEE_MAX_MESSAGE_LIMIT_REACHED),
+        (EmberStatus.DELIVERY_FAILED, sl_Status.ZIGBEE_DELIVERY_FAILED),
+        (EmberStatus.NO_BUFFERS, sl_Status.ALLOCATION_FAILED),  # TODO: see what the actual mapping is
+    ]
+}
+# fmt: on
 
 
 class EmberDistinguishedNodeId(basic.enum16):
@@ -2006,3 +1747,908 @@ class NV3KeyId(basic.enum32):
 
     # This key is used for an indexed token and the subsequent 0x7F keys are also reserved
     NVM3KEY_STACK_GP_INCOMING_FC_IN_SINK = 0x0001_0780
+
+
+class SecurityManagerKeyType(basic.enum8):
+    """The list of supported key types used by Zigbee Security Manager."""
+
+    NONE = 0
+    # This is the network key, used for encrypting and decrypting network
+    # payloads.
+    # There is only one of these keys in storage.
+    NETWORK = 1
+    # This is the Trust Center Link Key. On the joining device, this is the APS
+    # key used to communicate with the trust center. On the trust center, this
+    # key can be used as a root key for APS encryption and decryption when
+    # communicating with joining devices (if the security policy has the
+    # EMBER_TRUST_CENTER_USES_HASHED_LINK_KEY bit set).
+    # There is only one of these keys in storage.
+    TC_LINK = 2
+    # This is a Trust Center Link Key, but it times out after either
+    # ::EMBER_TRANSIENT_KEY_TIMEOUT_S or
+    # ::EMBER_AF_PLUGIN_NETWORK_CREATOR_SECURITY_NETWORK_OPEN_TIME_S (if
+    # defined), whichever is longer. This type of key is set on trust centers
+    # who wish to open joining with a temporary, or transient, APS key for
+    # devices to join with. Joiners who wish to try several keys when joining a
+    # network may set several of these types of keys before attempting to join.
+    # This is an indexed key, and local storage can fit as many keys as
+    # available RAM allows.
+    TC_LINK_WITH_TIMEOUT = 3
+    # This is an Application link key. On both joining devices and the trust
+    # center, this key is used in APS encryption and decryption when
+    # communicating to a joining device.
+    # This is an indexed key table of size EMBER_KEY_TABLE_SIZE, so long as there
+    # is sufficient nonvolatile memory to store keys.
+    APP_LINK = 4
+    # Key type used to store Secure EZSP keys
+    SECURE_EZSP_KEY = 5
+    # This is the ZLL encryption key for use by algorithms that require it.
+    ZLL_ENCRYPTION_KEY = 6
+    # For ZLL, this is the pre-configured link key used during classical ZigBee
+    # commissioning.
+    ZLL_PRECONFIGURED_KEY = 7
+    # This is a Green Power Device (GPD) key used on a Proxy device.
+    GREEN_POWER_PROXY_TABLE_KEY = 8
+    # This is a Green Power Device (GPD) key used on a Sink device.
+    GREEN_POWER_SINK_TABLE_KEY = 9
+    # This is a generic key type intended to be loaded for one-time hashing or
+    # crypto operations. This key is not persisted.  Intended for use by the Zigbee
+    # stack.
+    INTERNAL = 10
+
+
+class SecurityManagerContextFlags(basic.bitmap8):
+    """Security Manager context flags."""
+
+    NONE = 0x00
+    # For export APIs, this flag indicates the key_index parameter is valid in
+    # the ::SecurityManagerContext structure. This bit is set by the caller
+    # when intending to search for a key by key_index. This flag has no
+    # significance for import APIs.
+    KEY_INDEX_IS_VALID = 0x01
+
+    # For export APIs, this flag indicates the eui64 parameter is valid in the
+    # ::SecurityManagerContext structure. This bit is set by the caller when
+    # intending to search for a key by eui64. It is also set when searching by
+    # key_index and an entry is found. This flag has no significance for import
+    # APIs.
+    EUI_IS_VALID = 0x02
+
+    # Internal use only. This indicates that the transient key being added is an
+    # unconfirmed, updated key. This bit is set when we add a transient key and
+    # the ::EmberTcLinkKeyRequestPolicy policy
+    # is ::EMBER_ALLOW_TC_LINK_KEY_REQUEST_AND_GENERATE_NEW_KEY, whose behavior
+    # dictates that we generate a new, unconfirmed key, send it to the requester,
+    # and await for a Verify Key Confirm message.
+    UNCONFIRMED_TRANSIENT_KEY = 0x04
+
+
+class EzspConfigId(basic.enum8):
+    # Identifies a configuration value.
+
+    # The number of packet buffers available to the stack.  When set to the
+    # special value 0xFF, the NCP will allocate all remaining configuration RAM
+    # towards packet buffers, such that the resulting count will be the largest
+    # whole number of packet buffers that can fit into the available memory.
+    CONFIG_PACKET_BUFFER_COUNT = 0x01
+    # The maximum number of router neighbors the stack can keep track of. A
+    # neighbor is a node within radio range.
+    CONFIG_NEIGHBOR_TABLE_SIZE = 0x02
+    # The maximum number of APS retried messages the stack can be transmitting
+    # at any time.
+    CONFIG_APS_UNICAST_MESSAGE_COUNT = 0x03
+    # The maximum number of non-volatile bindings supported by the stack.
+    CONFIG_BINDING_TABLE_SIZE = 0x04
+    # The maximum number of EUI64 to network address associations that the
+    # stack can maintain for the application. (Note, the total number of such
+    # address associations maintained by the NCP is the sum of the value of
+    # this setting and the value of ::CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE).
+    CONFIG_ADDRESS_TABLE_SIZE = 0x05
+    # The maximum number of multicast groups that the device may be a member
+    # of.
+    CONFIG_MULTICAST_TABLE_SIZE = 0x06
+    # The maximum number of destinations to which a node can route messages.
+    # This includes both messages originating at this node and those relayed
+    # for others.
+    CONFIG_ROUTE_TABLE_SIZE = 0x07
+    # The number of simultaneous route discoveries that a node will support.
+    CONFIG_DISCOVERY_TABLE_SIZE = 0x08
+    # The size of the alarm broadcast buffer.
+    CONFIG_BROADCAST_ALARM_DATA_SIZE = 0x09  # Removed in EZSPv5
+    # The size of the unicast alarm buffers allocated for end device children.
+    CONFIG_UNICAST_ALARM_DATA_SIZE = 0x0A  # Removed in EZSPv5
+    # Specifies the stack profile.
+    CONFIG_STACK_PROFILE = 0x0C
+    # The security level used for security at the MAC and network layers. The
+    # supported values are 0 (no security) and 5 (payload is encrypted and a
+    # four-byte MIC is used for authentication).
+    CONFIG_SECURITY_LEVEL = 0x0D
+    # The maximum number of hops for a message.
+    CONFIG_MAX_HOPS = 0x10
+    # The maximum number of end device children that a router will support.
+    CONFIG_MAX_END_DEVICE_CHILDREN = 0x11
+    # The maximum amount of time that the MAC will hold a message for indirect
+    # transmission to a child.
+    CONFIG_INDIRECT_TRANSMISSION_TIMEOUT = 0x12
+    # The maximum amount of time that an end device child can wait between
+    # polls. If no poll is heard within this timeout, then the parent removes
+    # the end device from its tables.
+    CONFIG_END_DEVICE_POLL_TIMEOUT = 0x13
+    # The maximum amount of time that a mobile node can wait between polls. If
+    # no poll is heard within this timeout, then the parent removes the mobile
+    # node from its tables.
+    CONFIG_MOBILE_NODE_POLL_TIMEOUT = 0x14  # Removed in EZSPv6
+    # The number of child table entries reserved for use only by mobile nodes.
+    CONFIG_RESERVED_MOBILE_CHILD_ENTRIES = 0x15  # Removed in EZSPv6
+    # Enables boost power mode and/or the alternate transmitter output.
+    CONFIG_TX_POWER_MODE = 0x17
+    # 0: Allow this node to relay messages. 1: Prevent this node from relaying
+    # messages.
+    CONFIG_DISABLE_RELAY = 0x18
+    # The maximum number of EUI64 to network address associations that the
+    # Trust Center can maintain.  These address cache entries are reserved for
+    # and reused by the Trust Center when processing device join/rejoin
+    # authentications. This cache size limits the number of overlapping joins
+    # the Trust Center can process within a narrow time window (e.g. two
+    # seconds), and thus should be set to the maximum number of near
+    # simultaneous joins the Trust Center is expected to accommodate. (Note,
+    # the total number of such address associations maintained by the NCP is
+    # the sum of the value of this setting and the value of
+    # ::CONFIG_ADDRESS_TABLE_SIZE.)
+    CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE = 0x19
+    # The size of the source route table.
+    CONFIG_SOURCE_ROUTE_TABLE_SIZE = 0x1A
+    # The units used for timing out end devices on their parents.
+    CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT = 0x1B  # Removed in EZSPv7
+    # The number of blocks of a fragmented message that can be sent in a single
+    # window.
+    CONFIG_FRAGMENT_WINDOW_SIZE = 0x1C
+    # The time the stack will wait (in milliseconds) between sending blocks of
+    # a fragmented message.
+    CONFIG_FRAGMENT_DELAY_MS = 0x1D
+    # The size of the Key Table used for storing individual link keys (if the
+    # device is a Trust Center) or Application Link Keys (if the device is a
+    # normal node).
+    CONFIG_KEY_TABLE_SIZE = 0x1E
+    # The APS ACK timeout value. The stack waits this amount of time between
+    # resends of APS retried messages.
+    CONFIG_APS_ACK_TIMEOUT = 0x1F
+    # The duration of an active scan, in the units used by the 15.4 scan
+    # parameter (((1 << duration) + 1) * 15ms). This also controls the jitter
+    # used when responding to a beacon request.
+    CONFIG_ACTIVE_SCAN_DURATION = 0x20
+    # The time the coordinator will wait (in seconds) for a second end device
+    # bind request to arrive.
+    CONFIG_END_DEVICE_BIND_TIMEOUT = 0x21
+    # The number of PAN id conflict reports that must be received by the
+    # network manager within one minute to trigger a PAN id change.
+    CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD = 0x22
+    # The timeout value in minutes for how long the Trust Center or a normal
+    # node waits for the ZigBee Request Key to complete. On the Trust Center
+    # this controls whether or not the device buffers the request, waiting for
+    # a matching pair of ZigBee Request Key. If the value is non-zero, the
+    # Trust Center buffers and waits for that amount of time. If the value is
+    # zero, the Trust Center does not buffer the request and immediately
+    # responds to the request.  Zero is the most compliant behavior.
+    CONFIG_REQUEST_KEY_TIMEOUT = 0x24
+    # This value indicates the size of the runtime modifiable certificate
+    # table. Normally certificates are stored in MFG tokens but this table can
+    # be used to field upgrade devices with new Smart Energy certificates.
+    # This value cannot be set, it can only be queried.
+    CONFIG_CERTIFICATE_TABLE_SIZE = 0x29
+    # This is a bitmask that controls which incoming ZDO request messages are
+    # passed to the application. The bits are defined in the
+    # EmberZdoConfigurationFlags enumeration. To see if the application is
+    # required to send a ZDO response in reply to an incoming message, the
+    # application must check the APS options bitfield within the
+    # incomingMessageHandler callback to see if the
+    # APS_OPTION_ZDO_RESPONSE_REQUIRED flag is set.
+    CONFIG_APPLICATION_ZDO_FLAGS = 0x2A
+    # The maximum number of broadcasts during a single broadcast timeout
+    # period.
+    CONFIG_BROADCAST_TABLE_SIZE = 0x2B
+    # The size of the MAC filter list table.
+    CONFIG_MAC_FILTER_TABLE_SIZE = 0x2C
+    # The number of supported networks.
+    CONFIG_SUPPORTED_NETWORKS = 0x2D
+    # Whether multicasts are sent to the RxOnWhenIdle=true address (0xFFFD) or
+    # the sleepy broadcast address (0xFFFF). The RxOnWhenIdle=true address is
+    # the ZigBee compliant destination for multicasts.
+    CONFIG_SEND_MULTICASTS_TO_SLEEPY_ADDRESS = 0x2E
+    # ZLL group address initial configuration.
+    CONFIG_ZLL_GROUP_ADDRESSES = 0x2F
+    # ZLL rssi threshold initial configuration.
+    CONFIG_ZLL_RSSI_THRESHOLD = 0x30
+    # The maximum number of pairings supported by the stack. Controllers
+    # must support at least one pairing table entry while targets must
+    # support at least five.
+    CONFIG_RF4CE_PAIRING_TABLE_SIZE = 0x31  # Removed in EZSPv6
+    # The maximum number of outgoing RF4CE packets supported by the stack.
+    CONFIG_RF4CE_PENDING_OUTGOING_PACKET_TABLE_SIZE = 0x32  # Removed in EZSPv6
+    # Toggles the mtorr flow control in the stack.
+    # The maximum number of pairings supported by the stack. Controllers
+    # must support at least one pairing table entry while targets must
+    # support at least five.
+    CONFIG_MTORR_FLOW_CONTROL = 0x33
+    # Setting the retry queue size.
+    CONFIG_RETRY_QUEUE_SIZE = 0x34
+    # Setting the new broadcast entry threshold.
+    CONFIG_NEW_BROADCAST_ENTRY_THRESHOLD = 0x35
+    # The length of time, in seconds, that a trust center will store a
+    # transient link key that a device can use to join its network. A transient
+    # key is added with a call to emberAddTransientLinkKey. After the transient
+    # key is added, it will be removed once this amount of time has passed. A
+    # joining device will not be able to use that key to join until it is added
+    # again on the trust center. The default value is 300 seconds, i.e., 5
+    # minutes.
+    CONFIG_TRANSIENT_KEY_TIMEOUT_S = 0x36
+    # The number of passive acknowledgements to record from neighbors before we stop
+    # re-transmitting broadcasts
+    CONFIG_BROADCAST_MIN_ACKS_NEEDED = 0x37  # Replaces below entry in EZSPv6+
+    # Whether the NCP has updated Green Power support. Both host and NCP software must
+    # be updated to fully support Green Power Proxy Basic functionality. The 5.10.1 host
+    # software calls new EZSP functions for Green Power.  If this configuration value is
+    # not present, the host will not call the new functions.
+    CONFIG_GREEN_POWER_ACTIVE = 0x37  # Added in EZSPv5 and removed in EZSPv6
+    # The length of time, in seconds, that a trust center will allow a Trust Center
+    # (insecure) rejoin for a device that is using the well-known link key. This timeout
+    # takes effect once rejoins using the well-known key has been allowed. This command
+    # updates the emAllowTcRejoinsUsingWellKnownKeyTimeoutSec value.
+    CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S = 0x38
+    # Valid range of a CTUNE value is 0x0000-0x01FF. Higher order bits (0xFE00) of the
+    # 16-bit value are ignored.
+    CONFIG_CTUNE_VALUE = 0x39
+    # To configure non trust center node to assume a concentrator type of the trust
+    # center it join to, until it receive many-to-one route request from the trust
+    # center. For the trust center node, concentrator type is configured from the
+    # concentrator plugin. The stack by default assumes trust center be a low RAM
+    # concentrator that make other devices send route record to the trust center even
+    # without receiving a many-to-one route request. The default concentrator type can
+    # be changed by setting appropriate EmberAssumeTrustCenterConcentratorType config
+    # value.
+    CONFIG_ASSUME_TC_CONCENTRATOR_TYPE = 0x40
+    # This is green power proxy table size. This value is readonly and cannot be set at
+    # runtime.
+    CONFIG_GP_PROXY_TABLE_SIZE = 0x41
+    # This is green power sink table size. This value is readonly and cannot be set at
+    # runtime.
+    EZSP_CONFIG_GP_SINK_TABLE_SIZE = 0x42
+
+
+class EzspValueId(basic.enum8):
+    # Identifies a value.
+
+    # The contents of the node data stack token.
+    VALUE_TOKEN_STACK_NODE_DATA = 0x00
+    # The types of MAC passthrough messages that the host wishes to receive.
+    VALUE_MAC_PASSTHROUGH_FLAGS = 0x01
+    # The source address used to filter legacy EmberNet messages when the
+    # MAC_PASSTHROUGH_EMBERNET_SOURCE flag is set in VALUE_MAC_PASSTHROUGH_FLAGS.
+    VALUE_EMBERNET_PASSTHROUGH_SOURCE_ADDRESS = 0x02
+    # The number of available message buffers.
+    VALUE_FREE_BUFFERS = 0x03
+    # Selects sending synchronous callbacks in ezsp-uart.
+    VALUE_UART_SYNCH_CALLBACKS = 0x04
+    # The maximum incoming transfer size for the local node.
+    VALUE_MAXIMUM_INCOMING_TRANSFER_SIZE = 0x05
+    # The maximum outgoing transfer size for the local node.
+    VALUE_MAXIMUM_OUTGOING_TRANSFER_SIZE = 0x06
+    # A boolean indicating whether stack tokens are written to persistent
+    # storage as they change.
+    VALUE_STACK_TOKEN_WRITING = 0x07
+    # A read-only value indicating whether the stack is currently performing a rejoin.
+    VALUE_STACK_IS_PERFORMING_REJOIN = 0x08
+    # A list of EmberMacFilterMatchData values.
+    VALUE_MAC_FILTER_LIST = 0x09
+    # The Ember Extended Security Bitmask.
+    VALUE_EXTENDED_SECURITY_BITMASK = 0x0A
+    # The node short ID.
+    VALUE_NODE_SHORT_ID = 0x0B
+    # The descriptor capability of the local node.
+    VALUE_DESCRIPTOR_CAPABILITY = 0x0C
+    # The stack device request sequence number of the local node.
+    VALUE_STACK_DEVICE_REQUEST_SEQUENCE_NUMBER = 0x0D
+    # Enable or disable radio hold-off.
+    VALUE_RADIO_HOLD_OFF = 0x0E
+    # The flags field associated with the endpoint data.
+    VALUE_ENDPOINT_FLAGS = 0x0F
+    # Enable/disable the Mfg security config key settings.
+    VALUE_MFG_SECURITY_CONFIG = 0x10
+    # Retrieves the version information from the stack on the NCP.
+    VALUE_VERSION_INFO = 0x11
+    # This will get/set the rejoin reason noted by the host for a subsequent call to
+    # emberFindAndRejoinNetwork(). After a call to emberFindAndRejoinNetwork() the
+    # host's rejoin reason will be set to REJOIN_REASON_NONE. The NCP will store the
+    # rejoin reason used by the call to emberFindAndRejoinNetwork()
+    VALUE_NEXT_HOST_REJOIN_REASON = 0x12
+    # This is the reason that the last rejoin took place. This value may only be
+    # retrieved, not set. The rejoin may have been initiated by the stack (NCP) or the
+    # application (host). If a host initiated a rejoin the reason will be set by default
+    # to REJOIN_DUE_TO_APP_EVENT_1. If the application wishes to denote its own rejoin
+    # reasons it can do so by calling ezspSetValue(VALUE_HOST_REJOIN_REASON,
+    # REJOIN_DUE_TO_APP_EVENT_X). X is a number corresponding to one of the app events
+    # defined. If the NCP initiated a rejoin it will record this value internally for
+    # retrieval by ezspGetValue(VALUE_REAL_REJOIN_REASON).
+    VALUE_LAST_REJOIN_REASON = 0x13
+    # The next ZigBee sequence number.
+    VALUE_NEXT_ZIGBEE_SEQUENCE_NUMBER = 0x14
+    # CCA energy detect threshold for radio.
+    VALUE_CCA_THRESHOLD = 0x15
+    # The RF4CE discovery LQI threshold parameter.
+    VALUE_RF4CE_DISCOVERY_LQI_THRESHOLD = 0x16
+    # The threshold value for a counter
+    VALUE_SET_COUNTER_THRESHOLD = 0x17
+    # Resets all counters thresholds to 0xFF
+    VALUE_RESET_COUNTER_THRESHOLDS = 0x18
+    # Clears all the counters
+    VALUE_CLEAR_COUNTERS = 0x19
+    # The node's new certificate signed by the CA.
+    VALUE_CERTIFICATE_283K1 = 0x1A
+    # The Certificate Authority's public key.
+    VALUE_PUBLIC_KEY_283K1 = 0x1B
+    # The node's new static private key.
+    VALUE_PRIVATE_KEY_283K1 = 0x1C
+    # The GDP binding recipient parameters
+    VALUE_RF4CE_GDP_BINDING_RECIPIENT_PARAMETERS = 0x1D
+    # The GDP binding push button stimulus received pending flag
+    VALUE_RF4CE_GDP_PUSH_BUTTON_STIMULUS_RECEIVED_PENDING_FLAG = 0x1E
+    # The GDP originator proxy flag in the advanced binding options
+    VALUE_RF4CE_GDP_BINDING_PROXY_FLAG = 0x1F
+    # 0x21 The MSO user string
+    VALUE_RF4CE_GDP_APPLICATION_SPECIFIC_USER_STRING = 0x20
+    # The MSO user string
+    VALUE_RF4CE_MSO_USER_STRING = 0x21
+    # The MSO binding recipient parameters
+    VALUE_RF4CE_MSO_BINDING_RECIPIENT_PARAMETERS = 0x22
+    # The NWK layer security frame counter value
+    VALUE_NWK_FRAME_COUNTER = 0x23
+    # The APS layer security frame counter value
+    VALUE_APS_FRAME_COUNTER = 0x24
+    # Sets the device type to use on the next rejoin using device type
+    VALUE_RETRY_DEVICE_TYPE = 0x25
+    # The device RF4CE base channel
+    VALUE_RF4CE_BASE_CHANNEL = 0x26
+    # The RF4CE device types supported by the node
+    VALUE_RF4CE_SUPPORTED_DEVICE_TYPES_LIST = 0x27
+    # The RF4CE profiles supported by the node
+    VALUE_RF4CE_SUPPORTED_PROFILES_LIST = 0x28
+    # Setting this byte enables R21 behavior on the NCP.
+    VALUE_ENABLE_R21_BEHAVIOR = 0x29
+    # Configure the antenna mode(0-primary,1-secondary,2- toggle on tx ack fail).
+    VALUE_ANTENNA_MODE = 0x30
+    # Enable or disable packet traffic arbitration.
+    VALUE_ENABLE_PTA = 0x31
+    # Set packet traffic arbitration configuration options.
+    VALUE_PTA_OPTIONS = 0x32
+    # Configure manufacturing library options(0-non-CSMA transmits,1-CSMA transmits).
+    VALUE_MFGLIB_OPTIONS = 0x33
+    # Sets the flag to use either negotiated power by link power delta (LPD) or fixed
+    # power value provided by user while forming/joining a network for packet
+    # transmissions on subghz interface. This is mainly for testing purposes.
+    VALUE_USE_NEGOTIATED_POWER_BY_LPD = 0x34
+    # Set packet traffic arbitration configuration PWM options.
+    VALUE_PTA_PWM_OPTIONS = 0x35
+    # Legacy aliases only for EZSPv6?, these were renumbered!
+    # VALUE_END_DEVICE_TIMEOUT_OPTIONS_MASK = 0x36
+    # VALUE_END_DEVICE_KEEP_ALIVE_SUPPORT_MODE = 0x37
+    VALUE_PTA_DIRECTIONAL_PRIORITY_PULSE_WIDTH = 0x36
+    # Set packet traffic arbitration phy select timeout(ms)
+    VALUE_PTA_PHY_SELECT_TIMEOUT = 0x37
+    # Configure the RX antenna mode: (0-do not switch; 1- primary; 2-secondary;
+    # 3-RX antenna diversity).
+    VALUE_ANTENNA_RX_MODE = 0x38
+    # Configure the timeout to wait for the network key before failing a join.
+    VALUE_NWK_KEY_TIMEOUT = 0x39
+    # The number of failed CSMA attempts due to failed CCA made by the MAC before
+    # continuing transmission with CCA disabled. This is the same as calling the
+    # emberForceTxAfterFailedCca(uint8_t csmaAttempts) API. A value of 0 disables the
+    # feature
+    VALUE_FORCE_TX_AFTER_FAILED_CCA_ATTEMPTS = 0x3A
+    # The length of time, in seconds, that a trust center will store a transient link
+    # key that a device can use to join its network. A transient key is added with a
+    # call to emberAddTransientLinkKey. After the transient key is added, it will be
+    # removed once this amount of time has passed. A joining device will not be able to
+    # use that key to join until it is added again on the trust center. The default
+    # value is 300 seconds (5 minutes).
+    VALUE_TRANSIENT_KEY_TIMEOUT_S = 0x3B
+    # Cumulative energy usage metric since the last value reset of the coulomb counter
+    # plugin. Setting this value will reset the coulomb counter.
+    VALUE_COULOMB_COUNTER_USAGE = 0x3C
+    # When scanning, configure the maximum number of beacons to store in cache. Each
+    # beacon consumes one packet buffer in RAM.
+    VALUE_MAX_BEACONS_TO_STORE = 0x3D
+    # Set the mask to filter out unacceptable child timeout options on a router.
+    VALUE_END_DEVICE_TIMEOUT_OPTIONS_MASK = 0x3E
+    # The end device keep alive mode supported by the parent.
+    VALUE_END_DEVICE_KEEP_ALIVE_SUPPORT_MODE = 0x3F
+    # Sets the mask that controls which pins will have their GPIO configuration and
+    # output values set to their power-up and power-down values when the NCP powers
+    # the radio up and down.
+    VALUE_GPIO_RADIO_POWER_MASK = 0x40
+    # Return the active radio config.
+    VALUE_ACTIVE_RADIO_CONFIG = 0x41
+    # Timeout in milliseconds to store entries in the transient device table.
+    # If the devices are not authenticated before the timeout, the entry shall be
+    # purged.
+    VALUE_TRANSIENT_DEVICE_TIMEOUT = 0x43
+    # Return information about the key storage on an NCP.
+    # Returns 0 if keys are in classic key storage, and 1 if they
+    # are located in PSA key storage. Read only.
+    VALUE_KEY_STORAGE_VERSION = 0x44
+    # Return activation state about TC Delayed Join on an NCP.  A return value of
+    # 0 indicates that the feature is not activated.
+    VALUE_DELAYED_JOIN_ACTIVATION = 0x45
+
+
+class EmberRf4ceTxOption(basic.uint8_t):
+    # RF4CE transmission options.
+    pass
+
+
+class EmberRf4ceNodeCapabilities(basic.uint8_t):
+    # The RF4CE node capabilities.
+    pass
+
+
+class EmberRf4ceApplicationCapabilities(basic.uint8_t):
+    # The RF4CE application capabilities.
+    pass
+
+
+class EmberKeyType(basic.enum8):
+    # Describes the type of ZigBee security key.
+
+    # A shared key between the Trust Center and a device.
+    TRUST_CENTER_LINK_KEY = 0x01
+    # A shared secret used for deriving keys between the Trust Center and a
+    # device
+    TRUST_CENTER_MASTER_KEY = 0x02
+    # The current active Network Key used by all devices in the network.
+    CURRENT_NETWORK_KEY = 0x03
+    # The alternate Network Key that was previously in use, or the newer key
+    # that will be switched to.
+    NEXT_NETWORK_KEY = 0x04
+    # An Application Link Key shared with another (non-Trust Center) device.
+    APPLICATION_LINK_KEY = 0x05
+    # An Application Master Key shared secret used to derive an Application
+    # Link Key.
+    APPLICATION_MASTER_KEY = 0x06
+
+
+class EzspPolicyId(basic.enum8):
+    # Identifies a policy.
+
+    # Controls trust center behavior.
+    TRUST_CENTER_POLICY = 0x00
+    # Controls how external binding modification requests are handled.
+    BINDING_MODIFICATION_POLICY = 0x01
+    # Controls whether the Host supplies unicast replies.
+    UNICAST_REPLIES_POLICY = 0x02
+    # Controls whether pollHandler callbacks are generated.
+    POLL_HANDLER_POLICY = 0x03
+    # Controls whether the message contents are included in the
+    # messageSentHandler callback.
+    MESSAGE_CONTENTS_IN_CALLBACK_POLICY = 0x04
+    # Controls whether the Trust Center will respond to Trust Center link key
+    # requests.
+    TC_KEY_REQUEST_POLICY = 0x05
+    # Controls whether the Trust Center will respond to application link key
+    # requests.
+    APP_KEY_REQUEST_POLICY = 0x06
+    # Controls whether ZigBee packets that appear invalid are automatically
+    # dropped by the stack. A counter will be incremented when this occurs.
+    PACKET_VALIDATE_LIBRARY_POLICY = 0x07
+    # Controls whether the stack will process ZLL messages.
+    ZLL_POLICY = 0x08
+    # Controls whether Trust Center (insecure) rejoins for devices using the well-known
+    # link key are accepted. If rejoining using the well-known key is allowed, it is
+    # disabled again after emAllowTcRejoinsUsingWellKnownKeyTimeoutSec seconds.
+    TC_REJOINS_USING_WELL_KNOWN_KEY_POLICY = 0x09
+    # Controls whether the ZigBee RF4CE stack will use standard profile-dependent
+    # behavior during the discovery and pairing process. The profiles supported at the
+    # NCP at the moment are ZRC 1.1 and MSO. If this policy is enabled the stack will
+    # use standard behavior for the profiles ZRC 1.1 and MSO while it will fall back to
+    # the on/off RF4CE policies for other profiles. If this policy is disabled the
+    # on/off RF4CE policies are used for all profiles.
+    RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_POLICY = 0x09  # Removed in EZSPv6
+    # Controls whether the ZigBee RF4CE stack will respond to an incoming discovery
+    # request or not.
+    RF4CE_DISCOVERY_REQUEST_POLICY = 0x0A  # Removed in EZSPv6
+    # Controls the behavior of the ZigBee RF4CE stack discovery process.
+    RF4CE_DISCOVERY_POLICY = 0x0B  # Removed in EZSPv6
+    # Controls whether the ZigBee RF4CE stack will accept or deny a pair request.
+    RF4CE_PAIR_REQUEST_POLICY = 0x0C  # Removed in EZSPv6
+
+
+class EzspDecisionBitmask(basic.bitmap16):
+    """EZSP Decision bitmask."""
+
+    # Disallow joins and rejoins.
+    DEFAULT_CONFIGURATION = 0x0000
+    # Send the network key to all joining devices.
+    ALLOW_JOINS = 0x0001
+    # Send the network key to all rejoining devices.
+    ALLOW_UNSECURED_REJOINS = 0x0002
+    # Send the network key in the clear.
+    SEND_KEY_IN_CLEAR = 0x0004
+    # Do nothing for unsecured rejoins.
+    IGNORE_UNSECURED_REJOINS = 0x0008
+    # Allow joins if there is an entry in the transient key table.
+    JOINS_USE_INSTALL_CODE_KEY = 0x0010
+    # Delay sending the network key to a new joining device.
+    DEFER_JOINS = 0x0020
+
+
+class EzspDecisionId(basic.enum8):
+    # Identifies a policy decision.
+
+    # Send the network key in the clear to all joining and rejoining devices.
+    ALLOW_JOINS = 0x00
+    # Send the network key in the clear to all joining devices.  Rejoining
+    # devices are sent the network key encrypted with their trust center link
+    # key. The trust center and any rejoining device are assumed to share a
+    # link key, either preconfigured or obtained under a previous policy.
+    ALLOW_JOINS_REJOINS_HAVE_LINK_KEY = 0x04
+    # Send the network key encrypted with the joining or rejoining device's
+    # trust center link key. The trust center and any joining or rejoining
+    # device are assumed to share a link key, either preconfigured or obtained
+    # under a previous policy. This is the default value for the
+    # TRUST_CENTER_POLICY.
+    ALLOW_PRECONFIGURED_KEY_JOINS = 0x01
+    # Send the network key encrypted with the rejoining device's trust center
+    # link key. The trust center and any rejoining device are assumed to share
+    # a link key, either preconfigured or obtained under a previous policy. No
+    # new devices are allowed to join.
+    ALLOW_REJOINS_ONLY = 0x02
+    # Reject all unsecured join and rejoin attempts.
+    DISALLOW_ALL_JOINS_AND_REJOINS = 0x03
+    # Take no action on trust center rejoin attempts.
+    IGNORE_TRUST_CENTER_REJOINS = 0x05
+    # Admit joins only if there is an entry in the transient key table. This corresponds
+    # to the Base Device Behavior specification where a Trust Center enforces all
+    # devices to join with an install code-derived link key.
+    BDB_JOIN_USES_INSTALL_CODE_KEY = 0x06
+    # Delay sending the network key to a new joining device.
+    DEFER_JOINS_REJOINS_HAVE_LINK_KEY = 0x07
+    # BINDING_MODIFICATION_POLICY default decision. Do not allow the local
+    # binding table to be changed by remote nodes.
+    DISALLOW_BINDING_MODIFICATION = 0x10
+    # BINDING_MODIFICATION_POLICY decision.  Allow remote nodes to change
+    # the local binding table.
+    ALLOW_BINDING_MODIFICATION = 0x11
+    # BINDING_MODIFICATION_POLICY decision.  Allows remote nodes to set local
+    # binding entries only if the entries correspond to endpoints defined on
+    # the device, and for output clusters bound to those endpoints.
+    CHECK_BINDING_MODIFICATIONS_ARE_VALID_ENDPOINT_CLUSTERS = 0x12
+    # UNICAST_REPLIES_POLICY default decision.  The NCP will automatically send
+    # an empty reply (containing no payload) for every unicast received.
+    HOST_WILL_NOT_SUPPLY_REPLY = 0x20
+    # UNICAST_REPLIES_POLICY decision. The NCP will only send a reply if it
+    # receives a sendReply command from the Host.
+    HOST_WILL_SUPPLY_REPLY = 0x21
+    # POLL_HANDLER_POLICY default decision. Do not inform the Host when a child polls.
+    POLL_HANDLER_IGNORE = 0x30
+    # POLL_HANDLER_POLICY decision. Generate a pollHandler callback when a child polls.
+    POLL_HANDLER_CALLBACK = 0x31
+    # MESSAGE_CONTENTS_IN_CALLBACK_POLICY default decision. Include only the
+    # message tag in the messageSentHandler callback.
+    MESSAGE_TAG_ONLY_IN_CALLBACK = 0x40
+    # MESSAGE_CONTENTS_IN_CALLBACK_POLICY decision. Include both the message
+    # tag and the message contents in the messageSentHandler callback.
+    MESSAGE_TAG_AND_CONTENTS_IN_CALLBACK = 0x41
+    # TC_KEY_REQUEST_POLICY decision. When the Trust Center receives a request
+    # for a Trust Center link key, it will be ignored.
+    DENY_TC_KEY_REQUESTS = 0x50
+    # TC_KEY_REQUEST_POLICY decision. When the Trust Center receives a request for a
+    # Trust Center link key, it will reply to it with the corresponding key.
+    ALLOW_TC_KEY_REQUESTS_AND_SEND_CURRENT_KEY = 0x51
+    # TC_KEY_REQUEST_POLICY decision. When the Trust Center receives a request
+    # for a Trust Center link key, it will generate a key to send to the joiner.
+    ALLOW_TC_KEY_REQUEST_AND_GENERATE_NEW_KEY = 0x52
+    # APP_KEY_REQUEST_POLICY decision. When the Trust Center receives a request
+    # for an application link key, it will be ignored.
+    DENY_APP_KEY_REQUESTS = 0x60
+    # APP_KEY_REQUEST_POLICY decision. When the Trust Center receives a request
+    # for an application link key, it will randomly generate a key and send it
+    # to both partners.
+    ALLOW_APP_KEY_REQUESTS = 0x61
+    # Indicates that packet validate library checks are enabled on the NCP.
+    PACKET_VALIDATE_LIBRARY_CHECKS_ENABLED = 0x62
+    # Indicates that packet validate library checks are NOT enabled on the NCP.
+    PACKET_VALIDATE_LIBRARY_CHECKS_DISABLED = 0x63
+    # Indicates that the RF4CE stack during discovery and pairing will use standard
+    # profile-dependent behavior for the profiles ZRC 1.1 and MSO, while it will fall
+    # back to the on/off policies for any other profile.
+    RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_ENABLED = 0x70
+    # Indicates that the RF4CE stack during discovery and pairing will always use the
+    # on/off policies.
+    RF4CE_DISCOVERY_AND_PAIRING_PROFILE_BEHAVIOR_DISABLED = 0x71
+    # Indicates that the RF4CE stack will respond to incoming discovery requests.
+    RF4CE_DISCOVERY_REQUEST_RESPOND = 0x72
+    # Indicates that the RF4CE stack will ignore incoming discovery requests.
+    RF4CE_DISCOVERY_REQUEST_IGNORE = 0x73
+    # Indicates that the RF4CE stack will perform all the discovery trials the
+    # application specified in the ezspRf4ceDiscovery() call.
+    RF4CE_DISCOVERY_MAX_DISCOVERY_TRIALS = 0x74
+    # Indicates that the RF4CE stack will prematurely stop the discovery process if a
+    # matching discovery response is received.
+    RF4CE_DISCOVERY_STOP_ON_MATCHING_RESPONSE = 0x75
+    # Indicates that the RF4CE stack will accept new pairings.
+    RF4CE_PAIR_REQUEST_ACCEPT = 0x76
+    # Indicates that the RF4CE stack will NOT accept new pairings.
+    RF4CE_PAIR_REQUEST_DENY = 0x77
+
+
+class EmberDeviceUpdate(basic.enum8):
+    # The status of the device update.
+
+    STANDARD_SECURITY_SECURED_REJOIN = 0x0
+    STANDARD_SECURITY_UNSECURED_JOIN = 0x1
+    DEVICE_LEFT = 0x2
+    STANDARD_SECURITY_UNSECURED_REJOIN = 0x3
+
+    # Removed in EZSPv5
+    HIGH_SECURITY_SECURED_REJOIN = 0x4
+    HIGH_SECURITY_UNSECURED_JOIN = 0x5
+    HIGH_SECURITY_UNSECURED_REJOIN = 0x7
+
+
+class EmberCounterType(basic.enum8):
+    # Defines the events reported to the application by the
+    # readAndClearCounters command.
+
+    # The MAC received a broadcast.
+    COUNTER_MAC_RX_BROADCAST = 0
+    # The MAC transmitted a broadcast.
+    COUNTER_MAC_TX_BROADCAST = 1
+    # The MAC received a unicast.
+    COUNTER_MAC_RX_UNICAST = 2
+    # The MAC successfully transmitted a unicast.
+    COUNTER_MAC_TX_UNICAST_SUCCESS = 3
+    # The MAC retried a unicast.
+    COUNTER_MAC_TX_UNICAST_RETRY = 4
+    # The MAC unsuccessfully transmitted a unicast.
+    COUNTER_MAC_TX_UNICAST_FAILED = 5
+    # The APS layer received a data broadcast.
+    COUNTER_APS_DATA_RX_BROADCAST = 6
+    # The APS layer transmitted a data broadcast.
+    COUNTER_APS_DATA_TX_BROADCAST = 7
+    # The APS layer received a data unicast.
+    COUNTER_APS_DATA_RX_UNICAST = 8
+    # The APS layer successfully transmitted a data unicast.
+    COUNTER_APS_DATA_TX_UNICAST_SUCCESS = 9
+    # The APS layer retried a data unicast.
+    COUNTER_APS_DATA_TX_UNICAST_RETRY = 10
+    # The APS layer unsuccessfully transmitted a data unicast.
+    COUNTER_APS_DATA_TX_UNICAST_FAILED = 11
+    # The network layer successfully submitted a new route discovery to the MAC.
+    COUNTER_ROUTE_DISCOVERY_INITIATED = 12
+    # An entry was added to the neighbor table.
+    COUNTER_NEIGHBOR_ADDED = 13
+    # An entry was removed from the neighbor table.
+    COUNTER_NEIGHBOR_REMOVED = 14
+    # A neighbor table entry became stale because it had not been heard from.
+    COUNTER_NEIGHBOR_STALE = 15
+    # A node joined or rejoined to the network via this node.
+    COUNTER_JOIN_INDICATION = 16
+    # An entry was removed from the child table.
+    COUNTER_CHILD_REMOVED = 17
+    # EZSP-UART only. An overflow error occurred in the UART.
+    COUNTER_ASH_OVERFLOW_ERROR = 18
+    # EZSP-UART only. A framing error occurred in the UART.
+    COUNTER_ASH_FRAMING_ERROR = 19
+    # EZSP-UART only. An overrun error occurred in the UART.
+    COUNTER_ASH_OVERRUN_ERROR = 20
+    # A message was dropped at the network layer because the NWK frame counter
+    # was not higher than the last message seen from that source.
+    COUNTER_NWK_FRAME_COUNTER_FAILURE = 21
+    # A message was dropped at the APS layer because the APS frame counter was
+    # not higher than the last message seen from that source.
+    COUNTER_APS_FRAME_COUNTER_FAILURE = 22
+    # Utility counter for general debugging use.
+    COUNTER_UTILITY = 23
+    # A message was dropped at the APS layer because it had APS encryption but
+    # the key associated with the sender has not been authenticated, and thus
+    # the key is not authorized for use in APS data messages.
+    COUNTER_APS_LINK_KEY_NOT_AUTHORIZED = 24
+    # A NWK encrypted message was received but dropped because decryption
+    # failed.
+    COUNTER_NWK_DECRYPTION_FAILURE = 25
+    # An APS encrypted message was received but dropped because decryption
+    # failed.
+    COUNTER_APS_DECRYPTION_FAILURE = 26
+    # The number of times we failed to allocate a set of linked packet buffers.
+    # This doesn't necessarily mean that the packet buffer count was 0 at the
+    # time, but that the number requested was greater than the number free.
+    COUNTER_ALLOCATE_PACKET_BUFFER_FAILURE = 27
+    # The number of relayed unicast packets.
+    COUNTER_RELAYED_UNICAST = 28
+    # The number of times we dropped a packet due to reaching
+    # the preset PHY to MAC queue limit (emMaxPhyToMacQueueLength).
+    COUNTER_PHY_TO_MAC_QUEUE_LIMIT_REACHED = 29
+    # The number of times we dropped a packet due to the
+    # packet-validate library checking a packet and rejecting it
+    # due to length or other formatting problems.
+    COUNTER_PACKET_VALIDATE_LIBRARY_DROPPED_COUNT = 30
+    # The number of times the NWK retry queue is full and a
+    # new message failed to be added.
+    COUNTER_TYPE_NWK_RETRY_OVERFLOW = 31
+    # The number of times the PHY layer was unable to transmit
+    # due to a failed CCA.
+    COUNTER_PHY_CCA_FAIL_COUNT = 32
+    # The number of times a NWK broadcast was dropped because
+    # the broadcast table was full.
+    COUNTER_BROADCAST_TABLE_FULL = 33
+    # The number of low priority packet traffic arbitration requests.
+    COUNTER_PTA_LO_PRI_REQUESTED = 34
+    # The number of high priority packet traffic arbitration requests.
+    COUNTER_PTA_HI_PRI_REQUESTED = 35
+    # The number of low priority packet traffic arbitration requests denied.
+    COUNTER_PTA_LO_PRI_DENIED = 36
+    # The number of high priority packet traffic arbitration requests denied.
+    COUNTER_PTA_HI_PRI_DENIED = 37
+    # The number of aborted low priority packet traffic arbitration transmissions.
+    COUNTER_PTA_LO_PRI_TX_ABORTED = 38
+    # The number of aborted high priority packet traffic arbitration transmissions.
+    COUNTER_PTA_HI_PRI_TX_ABORTED = 39
+    # The number of times an address conflict has caused node_id change, and an address
+    # conflict error is sent
+    COUNTER_ADDRESS_CONFLICT_SENT = 40
+
+
+class EmberNetworkInitBitmask(basic.bitmap16):
+    # Bitmask options for emberNetworkInit().
+
+    # No options for Network Init
+    NETWORK_INIT_NO_OPTIONS = 0x0000
+    # Save parent info (node ID and EUI64) in a token during joining/rejoin,
+    # and restore on reboot.
+    NETWORK_INIT_PARENT_INFO_IN_TOKEN = 0x0001
+    # Send a rejoin request as an end device on reboot if parent information is
+    # persisted. ZB3 end devices must rejoin on reboot.
+    NETWORK_INIT_END_DEVICE_REJOIN_ON_REBOOT = 0x0002
+
+
+class SecureEzspSecurityType(basic.uint32_t):
+    """Security type of the Secure EZSP Protocol."""
+
+    TEMPORARY = 0x00000000
+    PERMANENT = 0x12345678
+
+
+class SecureEzspSecurityLevel(basic.enum8):
+    """Security level of the Secure EZSP Protocol."""
+
+    ENC_MIC_32 = 0x05
+
+
+class EmberMultiPhyNwkConfig(basic.enum8):
+    """Network configuration for the desired radio interface for multi phy network."""
+
+    # Enable broadcast support on Routers
+    BROADCAST_SUPPORT = 0x01
+
+
+class EmberDutyCycleState(basic.enum8):
+    """Duty cycle states."""
+
+    # No Duty cycle tracking or metrics are taking place
+    DUTY_CYCLE_TRACKING_OFF = 0
+    # Duty Cycle is tracked and has not exceeded any thresholds.
+    DUTY_CYCLE_LBT_NORMAL = 1
+    # We have exceeded the limited threshold of our total duty cycle allotment.
+    DUTY_CYCLE_LBT_LIMITED_THRESHOLD_REACHED = 2
+    # We have exceeded the critical threshold of our total duty cycle allotment.
+    DUTY_CYCLE_LBT_CRITICAL_THRESHOLD_REACHED = 3
+    # We have reached the suspend limit and are blocking all outbound transmissions.
+    DUTY_CYCLE_LBT_SUSPEND_LIMIT_REACHED = 4
+
+
+class EmberRadioPowerMode(basic.enum8):
+    """Radio power mode."""
+
+    # The radio receiver is switched on.
+    RADIO_POWER_MODE_RX_ON = 0
+    # The radio receiver is switched off.
+    RADIO_POWER_MODE_OFF = 1
+
+
+class EmberGpProxyTableEntryStatus(basic.enum8):
+    """The proxy table entry status."""
+
+    # The GP table entry is in use for a Proxy Table Entry.
+    ACTIVE = 0x01
+    # The proxy table entry is not in use.
+    UNUSED = 0xFF
+
+
+class EmberGpSinkTableEntryStatus(basic.enum8):
+    """The sink table entry status."""
+
+    # The GP table entry is in use for a Sink Table Entry.
+    ACTIVE = 0x01
+    # The proxy table entry is not in use.
+    UNUSED = 0xFF
+
+
+class EmberJoinMethod(basic.enum8):
+    # The type of method used for joining.
+
+    # Normally devices use MAC Association to join a network, which respects
+    # the "permit joining" flag in the MAC Beacon. For mobile nodes this value
+    # causes the device to use an Ember Mobile Node Join, which is functionally
+    # equivalent to a MAC association. This value should be used by default.
+    USE_MAC_ASSOCIATION = 0x0
+    # For those networks where the "permit joining" flag is never turned on,
+    # they will need to use a ZigBee NWK Rejoin. This value causes the rejoin
+    # to be sent without NWK security and the Trust Center will be asked to
+    # send the NWK key to the device. The NWK key sent to the device can be
+    # encrypted with the device's corresponding Trust Center link key. That is
+    # determined by the ::EmberJoinDecision on the Trust Center returned by the
+    # ::emberTrustCenterJoinHandler(). For a mobile node this value will cause
+    # it to use an Ember Mobile node rejoin, which is functionally equivalent.
+    USE_NWK_REJOIN = 0x1
+    # For those networks where the "permit joining" flag is never turned on,
+    # they will need to use a NWK Rejoin. If those devices have been
+    # preconfigured with the NWK key (including sequence number) they can use a
+    # secured rejoin. This is only necessary for end devices since they need a
+    # parent. Routers can simply use the ::USE_NWK_COMMISSIONING join method
+    # below.
+    USE_NWK_REJOIN_HAVE_NWK_KEY = 0x2
+    # For those networks where all network and security information is known
+    # ahead of time, a router device may be commissioned such that it does not
+    # need to send any messages to begin communicating on the network.
+    USE_CONFIGURED_NWK_STATE = 0x3
+
+
+class EmberEntropySource(basic.enum8):
+    """Entropy sources."""
+
+    # Entropy source error
+    ENTROPY_SOURCE_ERROR = 0
+    # Entropy source is the radio.
+    ENTROPY_SOURCE_RADIO = 1
+    # Entropy source is the TRNG powered by mbed TLS.
+    ENTROPY_SOURCE_MBEDTLS_TRNG = 2
+    # Entropy source is powered by mbed TLS, the source is not TRNG.
+    ENTROPY_SOURCE_MBEDTLS = 3
+
+
+class SecurityManagerDerivedKeyTypeV12(basic.enum8):
+    """Derived keys are calculated when performing Zigbee crypto operations.
+    The stack makes use of these derivations.
+    """
+
+    # Perform no derivation; use the key as is.
+    NONE = 0
+    # Perform the Key-Transport-Key hash.
+    KEY_TRANSPORT_KEY = 1
+    # Perform the Key-Load-Key hash.
+    KEY_LOAD_KEY = 2
+    # Perform the Verify Key hash.
+    VERIFY_KEY = 3
+    # Perform a simple AES hash of the key for TC backup.
+    TC_SWAP_OUT_KEY = 4
+    # For a TC using hashed link keys, hashed the root key against the supplied EUI in
+    # context.
+    TC_HASHED_LINK_KEY = 5
+
+
+class SecurityManagerDerivedKeyTypeV13(basic.enum16):
+    """Derived keys are calculated when performing Zigbee crypto operations.
+    The stack makes use of these derivations.
+    """
+
+    # Perform no derivation; use the key as is.
+    NONE = 0
+    # Perform the Key-Transport-Key hash.
+    KEY_TRANSPORT_KEY = 1
+    # Perform the Key-Load-Key hash.
+    KEY_LOAD_KEY = 2
+    # Perform the Verify Key hash.
+    VERIFY_KEY = 3
+    # Perform a simple AES hash of the key for TC backup.
+    TC_SWAP_OUT_KEY = 4
+    # For a TC using hashed link keys, hashed the root key against the supplied EUI in
+    # context.
+    TC_HASHED_LINK_KEY = 5

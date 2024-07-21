@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from zigpy.types import Struct as EzspStruct, StructField
 
 from . import basic, named
@@ -100,8 +102,9 @@ class EmberMulticastTableEntry(EzspStruct):
     networkIndex: basic.uint8_t = StructField(optional=True)
 
 
-class EmberTransientKeyData(EzspStruct):
-    # The transient key data structure. Added in ver. 5
+class EmberTransientKeyDataV5(EzspStruct):
+    """The transient key data structure, introduced in EZSPv5."""
+
     # The IEEE address paired with the transient link key.
     eui64: named.EUI64
     # The key data structure matching the transient key.
@@ -111,6 +114,20 @@ class EmberTransientKeyData(EzspStruct):
     # The number of milliseconds remaining before the key
     # is automatically timed out of the transient key table.
     countdownTimerMs: basic.uint32_t
+
+
+class EmberTransientKeyDataV8(EzspStruct):
+    """The transient key data structure, revised in EZSPv8."""
+
+    # The IEEE address paired with the transient link key.
+    eui64: named.EUI64
+    # The key data structure matching the transient key.
+    keyData: named.KeyData
+    # This bitmask indicates whether various fields in the structure contain valid data.
+    bitmask: named.EmberKeyStructBitmask
+    # The number of seconds remaining before the key is automatically timed out of the
+    # transient key table.
+    remainingTimeSeconds: basic.uint16_t
 
 
 class EmberAesMmoHashContext(EzspStruct):
@@ -357,3 +374,327 @@ class NV3StackTrustCenterToken(EzspStruct):
     mode: basic.uint16_t
     eui64: named.EUI64
     key: named.KeyData
+
+
+class EmberKeyStruct(EzspStruct):
+    # A structure containing a key and its associated data.
+    # A bitmask indicating the presence of data within the various fields
+    # in the structure.
+    bitmask: named.EmberKeyStructBitmask
+    # The type of the key.
+    type: named.EmberKeyType
+    # The actual key data.
+    key: named.KeyData
+    # The outgoing frame counter associated with the key.
+    outgoingFrameCounter: basic.uint32_t
+    # The frame counter of the partner device associated with the key.
+    incomingFrameCounter: basic.uint32_t
+    # The sequence number associated with the key.
+    sequenceNumber: basic.uint8_t
+    # The IEEE address of the partner device also in possession of the key.
+    partnerEUI64: named.EUI64
+
+    @classmethod
+    def deserialize(cls, data: bytes) -> tuple[EmberKeyStruct, bytes]:
+        if len(data) == 24:
+            # XXX: `key` can seemingly be replaced with the uint32_t `psa_id` field in
+            # an invalid response. Pad it with zeroes so it deserializes.
+            data = data[:7] + b"\x00" * 12 + data[7:]
+
+        return super().deserialize(data)
+
+
+class EmberRf4ceVendorInfo(EzspStruct):
+    # The RF4CE vendor information block.
+    # The vendor identifier field shall contain the vendor identifier of
+    # the node.
+    vendorId: basic.uint16_t
+    # The vendor string field shall contain the vendor string of the node.
+    vendorString: basic.FixedList[basic.uint8_t, 7]
+
+
+class EmberRf4ceApplicationInfo(EzspStruct):
+    # The RF4CE application information block.
+    # The application capabilities field shall contain information relating
+    # to the capabilities of the application of the node.
+    capabilities: named.EmberRf4ceApplicationCapabilities
+    # The user string field shall contain the user specified identification
+    # string.
+    userString: basic.FixedList[basic.uint8_t, 15]
+    # The device type list field shall contain the list of device types
+    # supported by the node.
+    deviceTypeList: basic.FixedList[basic.uint8_t, 3]
+    # The profile ID list field shall contain the list of profile
+    # identifiers disclosed as supported by the node.
+    profileIdList: basic.FixedList[basic.uint8_t, 7]
+
+
+class EmberRf4cePairingTableEntry(EzspStruct):
+    # The internal representation of an RF4CE pairing table entry.
+    # The link key to be used to secure this pairing link.
+    securityLinkKey: named.KeyData
+    # The IEEE address of the destination device.
+    destLongId: named.EUI64
+    # The frame counter last received from the recipient node.
+    frameCounter: basic.uint32_t
+    # The network address to be assumed by the source device.
+    sourceNodeId: named.EmberNodeId
+    # The PAN identifier of the destination device.
+    destPanId: named.EmberPanId
+    # The network address of the destination device.
+    destNodeId: named.EmberNodeId
+    # The vendor ID of the destination device.
+    destVendorId: basic.uint16_t
+    # The list of profiles supported by the destination device.
+    destProfileIdList: basic.FixedList[basic.uint8_t, 7]
+    # The length of the list of supported profiles.
+    destProfileIdListLength: basic.uint8_t
+    # Info byte.
+    info: basic.uint8_t
+    # The expected channel of the destination device.
+    channel: basic.uint8_t
+    # The node capabilities of the recipient node.
+    capabilities: basic.uint8_t
+    # Last MAC sequence number seen on this pairing link.
+    lastSeqn: basic.uint8_t
+
+
+class EmberGpSinkListEntry(EzspStruct):
+    # A sink list entry
+    # The sink list type.
+    type: basic.uint8_t
+    # The EUI64 of the target sink.
+    sinkEUI: named.EUI64
+    # The short address of the target sink.
+    sinkNodeId: named.EmberNodeId
+
+
+class EmberGpProxyTableEntry(EzspStruct):
+    """The internal representation of a proxy table entry."""
+
+    # The link key to be used to secure this pairing link.
+    securityLinkKey: named.KeyData
+    # Internal status of the proxy table entry.
+    status: named.EmberGpProxyTableEntryStatus
+    # The tunneling options
+    # (this contains both options and extendedOptions from the spec).
+    options: basic.uint32_t
+    # The addressing info of the GPD.
+    gpd: EmberGpAddress
+    # The assigned alias for the GPD.
+    assignedAlias: named.EmberNodeId
+    # The security options field.
+    securityOptions: basic.uint8_t
+    # The security frame counter of the GPD.
+    gpdSecurityFrameCounter: basic.uint32_t
+    # The key to use for GPD.
+    gpdKey: named.KeyData
+    # The list of sinks (hardcoded to 2 which is the spec minimum).
+    sinkList: basic.FixedList[EmberGpSinkListEntry, 2]
+    # The groupcast radius.
+    groupcastRadius: basic.uint8_t
+    # The search counter
+    searchCounter: basic.uint8_t
+
+
+class EmberGpSinkTableEntry(EzspStruct):
+    """The internal representation of a sink table entry."""
+
+    # Internal status of the sink table entry
+    status: named.EmberGpSinkTableEntryStatus
+    # The tunneling options
+    # (this contains both options and extendedOptions from the spec).
+    options: basic.uint32_t
+    # The addressing info of the GPD.
+    gpd: EmberGpAddress
+    # The device id for the GPD.
+    deviceId: basic.uint8_t
+    # The list of sinks (hardcoded to 2 which is the spec minimum).
+    sinkList: basic.FixedList[EmberGpSinkListEntry, 2]
+    # The assigned alias for the GPD.
+    assignedAlias: named.EmberNodeId
+    # The groupcast radius.
+    groupcastRadius: basic.uint8_t
+    # The security options field.
+    securityOptions: basic.uint8_t
+    # The security frame counter of the GPD.
+    gpdSecurityFrameCounter: basic.uint32_t
+    # The key to use for GPD.
+    gpdKey: named.KeyData
+
+
+class EmberDutyCycleLimits(EzspStruct):
+    """A structure containing duty cycle limit configurations.
+
+    All limits are absolute, and are required to be as follows:
+    suspLimit > critThresh > limitThresh
+    For example:
+    suspLimit = 250 (2.5%), critThresh = 180 (1.8%), limitThresh 100 (1.00%).
+    """
+
+    # The vendor identifier field shall contain the vendor identifier of the node.
+    vendorId: basic.uint16_t
+    # The vendor string field shall contain the vendor string of the node.
+    vendorString: basic.FixedList[basic.uint8_t, 7]
+
+
+class EmberPerDeviceDutyCycle(EzspStruct):
+    """A structure containing per device overall duty cycle consumed
+
+    up to the suspend limit).
+    """
+
+    # Node Id of device whose duty cycle is reported.
+    nodeId: named.EmberNodeId
+    # Amount of overall duty cycle consumed (up to suspend limit).
+    dutyCycleConsumed: basic.uint16_t
+
+
+class EmberBeaconData(EzspStruct):
+    """Beacon data structure."""
+
+    # The channel of the received beacon.
+    channel: basic.uint8_t
+    # The LQI of the received beacon.
+    lqi: basic.uint8_t
+    # The RSSI of the received beacon.
+    rssi: basic.int8s
+    # The depth of the received beacon.
+    depth: basic.uint8_t
+    # The network update ID of the received beacon.
+    nwkUpdateId: basic.uint8_t
+    # The power level of the received beacon. This field is valid only if the beacon is
+    # an enhanced beacon
+    power: basic.int8s
+    # The TC connectivity and long uptime from capacity field.
+    parentPriority: basic.int8s
+    # The PAN ID of the received beacon.
+    panId: named.EmberPanId
+    # The extended PAN ID of the received beacon.
+    extendedPanId: named.ExtendedPanId
+    # The sender of the received beacon.
+    sender: named.EmberNodeId
+    # Whether or not the beacon is enhanced.
+    enhanced: named.Bool
+    # Whether the beacon is advertising permit join.
+    permitJoin: named.Bool
+    # Whether the beacon is advertising capacity.
+    hasCapacity: named.Bool
+
+
+class EmberBeaconIterator(EzspStruct):
+    """Defines an iterator that is used to loop over cached beacons. Do not write to
+    fields denoted as Private.
+    """
+
+    # The retrieved beacon.
+    beacon: EmberBeaconData
+    # (Private) The index of the retrieved beacon.
+    index: basic.uint8_t
+
+
+class EmberBeaconClassificationParams(EzspStruct):
+    """The parameters related to beacon prioritization."""
+
+    # The minimum RSSI value for receiving packets that is used in some beacon
+    # prioritization algorithms.
+    minRssiForReceivingPkts: basic.int8s
+    # The beacon classification mask that identifies which beacon prioritization
+    # algorithm to pick and defines the relevant parameters.
+    beaconClassificationMask: basic.uint16_t
+
+
+class EmberChildDataV7(EzspStruct):
+    """A structure containing a child node's data."""
+
+    # The EUI64 of the child
+    eui64: named.EUI64
+    # The node type of the child
+    type: named.EmberNodeType
+    # The short address of the child
+    id: named.EmberNodeId
+    # The phy of the child
+    phy: basic.uint8_t
+    # The power of the child
+    power: basic.uint8_t
+    # The timeout of the child
+    timeout: basic.uint8_t
+
+
+class EmberChildDataV10(EzspStruct):
+    """A structure containing a child node's data."""
+
+    # The EUI64 of the child
+    eui64: named.EUI64
+    # The node type of the child
+    type: named.EmberNodeType
+    # The short address of the child
+    id: named.EmberNodeId
+    # The phy of the child
+    phy: basic.uint8_t
+    # The power of the child
+    power: basic.uint8_t
+    # The timeout of the child
+    timeout: basic.uint8_t
+    timeout_remaining: basic.uint32_t
+
+
+class SecurityManagerContextV12(EzspStruct):
+    """Context for Zigbee Security Manager operations."""
+
+    # The type of key being referenced.
+    core_key_type: named.SecurityManagerKeyType
+    # The index of the referenced key.
+    key_index: basic.uint8_t
+    # The type of key derivation operation to perform on a key.
+    derived_type: named.SecurityManagerDerivedKeyTypeV12
+    # The EUI64 associated with this key.
+    eui64: named.EUI64
+    # Multi-network index.
+    multi_network_index: basic.uint8_t
+    # Flag bitmask.
+    flags: named.SecurityManagerContextFlags
+    # Algorithm to use with this key (for PSA APIs)
+    psa_key_alg_permission: basic.uint32_t
+
+
+class SecurityManagerContextV13(EzspStruct):
+    """Context for Zigbee Security Manager operations."""
+
+    # The type of key being referenced.
+    core_key_type: named.SecurityManagerKeyType
+    # The index of the referenced key.
+    key_index: basic.uint8_t
+    # The type of key derivation operation to perform on a key.
+    derived_type: named.SecurityManagerDerivedKeyTypeV13
+    # The EUI64 associated with this key.
+    eui64: named.EUI64
+    # Multi-network index.
+    multi_network_index: basic.uint8_t
+    # Flag bitmask.
+    flags: named.SecurityManagerContextFlags
+    # Algorithm to use with this key (for PSA APIs)
+    psa_key_alg_permission: basic.uint32_t
+
+
+class SecurityManagerAPSKeyMetadata(EzspStruct):
+    """Metadata for APS link keys."""
+
+    # Bitmask of key properties
+    bitmask: named.EmberKeyStructBitmask
+    # Outgoing frame counter.
+    outgoing_frame_counter: basic.uint32_t
+    # Incoming frame counter.
+    incoming_frame_counter: basic.uint32_t
+    # Remaining lifetime (for transient keys).
+    ttl_in_seconds: basic.uint16_t
+
+
+class SecurityManagerNetworkKeyInfo(EzspStruct):
+    """The metadata pertaining to an network key."""
+
+    network_key_set: named.Bool
+    alternate_network_key_set: named.Bool
+    network_key_sequence_number: basic.uint8_t
+    alt_network_key_sequence_number: basic.uint8_t
+    network_key_frame_counter: basic.uint32_t

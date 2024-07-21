@@ -32,7 +32,6 @@ from bellows.config import (
 )
 from bellows.exception import ControllerError, EzspError, StackAlreadyRunning
 import bellows.ezsp
-from bellows.ezsp.v8.types.named import EmberDeviceUpdate
 import bellows.multicast
 import bellows.types as t
 from bellows.zigbee import repairs
@@ -65,6 +64,7 @@ IEEE_PREFIX_MFG_ID = {
     "54:EF:44": 0x115F,  # Lumi
 }
 
+LIB_VERSION = importlib.metadata.version("bellows")
 LOGGER = logging.getLogger(__name__)
 
 
@@ -118,7 +118,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             descriptor.output_clusters,
         )
 
-        if status != t.EmberStatus.SUCCESS:
+        if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
             raise StackAlreadyRunning()
 
         self._created_device_endpoints.append(descriptor)
@@ -164,18 +164,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         """
         (state,) = await self._ezsp.networkState()
 
-        if state == self._ezsp.types.EmberNetworkStatus.JOINED_NETWORK:
+        if state == t.EmberNetworkStatus.JOINED_NETWORK:
             return False
 
-        with self._ezsp.wait_for_stack_status(t.EmberStatus.NETWORK_UP) as stack_status:
-            if self._ezsp.ezsp_version >= 6:
-                (init_status,) = await self._ezsp.networkInit(0x0000)
-            else:
-                (init_status,) = await self._ezsp.networkInitExtended(0x0000)
+        with self._ezsp.wait_for_stack_status(t.sl_Status.NETWORK_UP) as stack_status:
+            init_status = await self._ezsp.initialize_network()
 
-            if init_status == t.EmberStatus.NOT_JOINED:
+            if init_status == t.sl_Status.NOT_JOINED:
                 raise NetworkNotFormed("Node is not part of a network")
-            elif init_status != t.EmberStatus.SUCCESS:
+            elif init_status != t.sl_Status.OK:
                 raise ControllerError(f"Failed to initialize network: {init_status!r}")
 
             async with asyncio_timeout(NETWORK_UP_TIMEOUT_S):
@@ -243,7 +240,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._ensure_network_running()
 
         status, node_type, nwk_params = await ezsp.getNetworkParameters()
-        assert status == t.EmberStatus.SUCCESS
+        assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
 
         if node_type != t.EmberNodeType.COORDINATOR:
             raise NetworkNotFormed("Device not configured as coordinator")
@@ -263,71 +260,21 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         )
 
         (status, security_level) = await ezsp.getConfigurationValue(
-            ezsp.types.EzspConfigId.CONFIG_SECURITY_LEVEL
+            t.EzspConfigId.CONFIG_SECURITY_LEVEL
         )
-        assert status == t.EmberStatus.SUCCESS
+        assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
         security_level = zigpy.types.uint8_t(security_level)
 
-        if ezsp.ezsp_version < 13:
-            (status, ezsp_network_key) = await ezsp.getKey(
-                ezsp.types.EmberKeyType.CURRENT_NETWORK_KEY
-            )
-            assert status == t.EmberStatus.SUCCESS
-            network_key = util.ezsp_key_to_zigpy_key(ezsp_network_key, ezsp)
-
-            (status, ezsp_tc_link_key) = await ezsp.getKey(
-                ezsp.types.EmberKeyType.TRUST_CENTER_LINK_KEY
-            )
-            assert status == t.EmberStatus.SUCCESS
-            tc_link_key = util.ezsp_key_to_zigpy_key(ezsp_tc_link_key, ezsp)
-        else:
-            (network_key_data, status) = await ezsp.exportKey(
-                ezsp.types.sl_zb_sec_man_context_t(
-                    core_key_type=ezsp.types.sl_zb_sec_man_key_type_t.NETWORK,
-                    key_index=0,
-                    derived_type=ezsp.types.sl_zb_sec_man_derived_key_type_t.NONE,
-                    eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
-                    multi_network_index=0,
-                    flags=ezsp.types.sl_zb_sec_man_flags_t.NONE,
-                    psa_key_alg_permission=0,
-                )
-            )
-            assert status == t.EmberStatus.SUCCESS
-
-            (status, network_key_info) = await ezsp.getNetworkKeyInfo()
-            assert status == t.EmberStatus.SUCCESS
-
-            if not network_key_info.network_key_set:
-                raise NetworkNotFormed("Network key is not set")
-
-            network_key = zigpy.state.Key(
-                key=network_key_data,
-                tx_counter=network_key_info.network_key_frame_counter,
-                seq=network_key_info.network_key_sequence_number,
-            )
-
-            (tc_link_key_data, status) = await ezsp.exportKey(
-                ezsp.types.sl_zb_sec_man_context_t(
-                    core_key_type=ezsp.types.sl_zb_sec_man_key_type_t.TC_LINK,
-                    key_index=0,
-                    derived_type=ezsp.types.sl_zb_sec_man_derived_key_type_t.NONE,
-                    eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
-                    multi_network_index=0,
-                    flags=ezsp.types.sl_zb_sec_man_flags_t.NONE,
-                    psa_key_alg_permission=0,
-                )
-            )
-            assert status == t.EmberStatus.SUCCESS
-
-            tc_link_key = zigpy.state.Key(key=tc_link_key_data)
+        network_key = await ezsp.get_network_key()
+        tc_link_key = await ezsp.get_tc_link_key()
 
         (status, state) = await ezsp.getCurrentSecurityState()
-        assert status == t.EmberStatus.SUCCESS
+        assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
 
         stack_specific = {}
 
         if (
-            ezsp.types.EmberCurrentSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
+            t.EmberCurrentSecurityBitmask.TRUST_CENTER_USES_HASHED_LINK_KEY
             in state.bitmask
         ):
             stack_specific["ezsp"] = {"hashed_tclk": tc_link_key.key.serialize().hex()}
@@ -341,7 +288,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         can_rewrite_custom_eui64 = await ezsp.can_rewrite_custom_eui64()
 
         self.state.network_info = zigpy.state.NetworkInfo(
-            source=f"bellows@{importlib.metadata.version('bellows')}",
+            source=f"bellows@{LIB_VERSION}",
             extended_pan_id=zigpy.types.ExtendedPanId(nwk_params.extendedPanId),
             pan_id=zigpy.types.PanId(nwk_params.panId),
             nwk_update_id=zigpy.types.uint8_t(nwk_params.nwkUpdateId),
@@ -367,84 +314,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if not load_devices:
             return
 
-        (status, key_table_size) = await ezsp.getConfigurationValue(
-            ezsp.types.EzspConfigId.CONFIG_KEY_TABLE_SIZE
-        )
+        async for link_key in ezsp.read_link_keys():
+            self.state.network_info.key_table.append(link_key)
 
-        if ezsp.ezsp_version < 13:
-            for index in range(key_table_size):
-                (status, key) = await ezsp.getKeyTableEntry(index)
-
-                if status == t.EmberStatus.INDEX_OUT_OF_RANGE:
-                    break
-                elif status in (
-                    t.EmberStatus.TABLE_ENTRY_ERASED,
-                    t.EmberStatus.NOT_FOUND,
-                ):
-                    continue
-
-                assert status == t.EmberStatus.SUCCESS
-
-                self.state.network_info.key_table.append(
-                    util.ezsp_key_to_zigpy_key(key, ezsp)
-                )
-        else:
-            for index in range(key_table_size):
-                (
-                    eui64,
-                    plaintext_key,
-                    key_data,
-                    status,
-                ) = await ezsp.exportLinkKeyByIndex(index)
-                if status != t.sl_Status.SL_STATUS_OK:
-                    continue
-
-                self.state.network_info.key_table.append(
-                    zigpy.state.Key(
-                        key=plaintext_key,
-                        tx_counter=key_data.outgoing_frame_counter,
-                        rx_counter=key_data.incoming_frame_counter,
-                        partner_ieee=eui64,
-                    )
-                )
-
-        for idx in range(0, 255 + 1):
-            (status, *rsp) = await ezsp.getChildData(idx)
-
-            if status == t.EmberStatus.NOT_JOINED:
-                continue
-
-            if ezsp.ezsp_version >= 7:
-                nwk = rsp[0].id
-                eui64 = rsp[0].eui64
-                node_type = rsp[0].type
-            else:
-                nwk, eui64, node_type = rsp
-
+        async for nwk, eui64, _node_type in ezsp.read_child_data():
             self.state.network_info.children.append(eui64)
             self.state.network_info.nwk_addresses[eui64] = nwk
 
-        # v4 can crash when getAddressTableRemoteNodeId(32) is received
-        # Error code: undefined_0x8a
-        if ezsp.ezsp_version > 4:
-            (status, addr_table_size) = await ezsp.getConfigurationValue(
-                ezsp.types.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
-            )
-
-            for idx in range(addr_table_size):
-                (nwk,) = await ezsp.getAddressTableRemoteNodeId(idx)
-
-                # Ignore invalid NWK entries
-                if nwk in t.EmberDistinguishedNodeId.__members__.values():
-                    continue
-
-                (eui64,) = await ezsp.getAddressTableRemoteEui64(idx)
-                if eui64 == t.EUI64.convert("00:00:00:00:00:00:00:00"):
-                    continue
-
-                self.state.network_info.nwk_addresses[
-                    zigpy.types.EUI64(eui64)
-                ] = zigpy.types.NWK(nwk)
+        async for nwk, eui64 in ezsp.read_address_table():
+            self.state.network_info.nwk_addresses[eui64] = nwk
 
     async def write_network_info(
         self, *, network_info: zigpy.state.NetworkInfo, node_info: zigpy.state.NodeInfo
@@ -490,24 +368,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             node_info.ieee = current_eui64
             network_info.tc_link_key.partner_ieee = current_eui64
 
-        if ezsp.ezsp_version > 4:
-            # Frame counters can only be set *before* we have joined a network
-            (state,) = await self._ezsp.networkState()
-            assert state == ezsp.types.EmberNetworkStatus.NO_NETWORK
-
-            # Set NWK frame counter
-            (status,) = await ezsp.setValue(
-                ezsp.types.EzspValueId.VALUE_NWK_FRAME_COUNTER,
-                t.uint32_t(network_info.network_key.tx_counter).serialize(),
-            )
-            assert status == t.EmberStatus.SUCCESS
-
-            # Set APS frame counter
-            (status,) = await ezsp.setValue(
-                ezsp.types.EzspValueId.VALUE_APS_FRAME_COUNTER,
-                t.uint32_t(network_info.tc_link_key.tx_counter).serialize(),
-            )
-            assert status == t.EmberStatus.SUCCESS
+        await self._ezsp.write_nwk_frame_counter(network_info.network_key.tx_counter)
+        await self._ezsp.write_aps_frame_counter(network_info.tc_link_key.tx_counter)
 
         use_hashed_tclk = ezsp.ezsp_version > 4
 
@@ -522,43 +384,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             use_hashed_tclk=use_hashed_tclk,
         )
         (status,) = await ezsp.setInitialSecurityState(initial_security_state)
-        assert status == t.EmberStatus.SUCCESS
+        assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
 
-        # Write APS link keys
-        for index, key in enumerate(network_info.key_table):
-            if ezsp.ezsp_version < 13:
-                # XXX: is there no way to set the outgoing frame counter or seq?
-                (status,) = await ezsp.addOrUpdateKeyTableEntry(
-                    key.partner_ieee, True, key.key
-                )
-            else:
-                (status,) = await ezsp.importLinkKey(index, key.partner_ieee, key.key)
+        await ezsp.write_link_keys(network_info.key_table)
 
-            if status != t.EmberStatus.SUCCESS:
-                LOGGER.warning("Couldn't add %s key: %s", key, status)
+        children_with_nwk_addresses = {
+            eui64: network_info.nwk_addresses[eui64]
+            for eui64 in network_info.children
+            if eui64 in network_info.nwk_addresses
+        }
 
-        # Write the child table
-        if ezsp.ezsp_version >= 9:
-            index = 0
-
-            for child_eui64 in network_info.children:
-                if child_eui64 not in network_info.nwk_addresses:
-                    continue
-
-                await ezsp.setChildData(
-                    index,
-                    ezsp.types.EmberChildData(
-                        eui64=child_eui64,
-                        type=t.EmberNodeType.SLEEPY_END_DEVICE,
-                        id=network_info.nwk_addresses[child_eui64],
-                        # The rest are unused when setting child data
-                        phy=0,
-                        power=0,
-                        timeout=0,
-                        **({"timeout_remaining": 0} if ezsp.ezsp_version >= 10 else {}),
-                    ),
-                )
-                index += 1
+        await ezsp.write_child_data(children_with_nwk_addresses)
 
         # Set the network settings
         parameters = t.EmberNetworkParameters()
@@ -575,23 +411,21 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._ensure_network_running()
 
     async def reset_network_info(self):
-        # The network must be running before we can leave it
-        try:
-            await self._ensure_network_running()
-        except zigpy.exceptions.NetworkNotFormed:
-            return
-
-        await self._ezsp.leaveNetwork()
-
-        # Clear the key table
-        (status,) = await self._ezsp.clearKeyTable()
-        assert status == t.EmberStatus.SUCCESS
+        await self._ezsp.factory_reset()
 
         # Reset the custom EUI64
         await self._ezsp.reset_custom_eui64()
 
         # We must reset when NV3 has changed
         await self._reset()
+
+        # The network must be running before we can leave it
+        try:
+            await self._ensure_network_running()
+        except zigpy.exceptions.NetworkNotFormed:
+            pass
+        else:
+            await self._ezsp.leaveNetwork()
 
     async def _reset(self):
         self._ezsp.stop_ezsp()
@@ -613,15 +447,78 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     def ezsp_callback_handler(self, frame_name, args):
         LOGGER.debug("Received %s frame with %s", frame_name, args)
         if frame_name == "incomingMessageHandler":
-            self._handle_frame(*args)
+            if self._ezsp.ezsp_version >= 14:
+                (
+                    message_type,
+                    aps_frame,
+                    nwk,
+                    _eui64,
+                    binding_index,
+                    address_index,
+                    lqi,
+                    rssi,
+                    _timestamp,
+                    message,
+                ) = args
+            else:
+                (
+                    message_type,
+                    aps_frame,
+                    lqi,
+                    rssi,
+                    nwk,
+                    binding_index,
+                    address_index,
+                    message,
+                ) = args
+
+            self._handle_frame(
+                message_type=message_type,
+                aps_frame=aps_frame,
+                lqi=lqi,
+                rssi=rssi,
+                sender=nwk,
+                binding_index=binding_index,
+                address_index=address_index,
+                message=message,
+            )
         elif frame_name == "messageSentHandler":
-            self._handle_frame_sent(*args)
+            if self._ezsp.ezsp_version >= 14:
+                (
+                    status,
+                    message_type,
+                    destination,
+                    aps_frame,
+                    message_tag,
+                    message,
+                ) = args
+            else:
+                (
+                    message_type,
+                    destination,
+                    aps_frame,
+                    message_tag,
+                    status,
+                    message,
+                ) = args
+                status = t.sl_Status.from_ember_status(status)
+
+            self._handle_frame_sent(
+                message_type=message_type,
+                destination=destination,
+                aps_frame=aps_frame,
+                message_tag=message_tag,
+                status=status,
+                message=message,
+            )
         elif frame_name == "trustCenterJoinHandler":
             self._handle_tc_join_handler(*args)
         elif frame_name == "incomingRouteRecordHandler":
             self.handle_route_record(*args)
         elif frame_name == "incomingRouteErrorHandler":
-            self.handle_route_error(*args)
+            status, nwk = args
+            status = t.sl_Status.from_ember_status(status)
+            self.handle_route_error(status, nwk)
         elif frame_name == "_reset_controller_application":
             self.connection_lost(args[0])
         elif frame_name == "idConflictHandler":
@@ -682,10 +579,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         destination: t.EmberNodeId,
         aps_frame: t.EmberApsFrame,
         message_tag: int,
-        status: t.EmberStatus,
+        status: t.sl_Status,
         message: bytes,
     ):
-        if status == t.EmberStatus.SUCCESS:
+        if status == t.sl_Status.OK:
             msg = "success"
         else:
             msg = "failure"
@@ -732,7 +629,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def _handle_no_such_device(self, sender: int) -> None:
         """Try to match unknown device by its EUI64 address."""
         status, ieee = await self._ezsp.lookupEui64ByNodeId(sender)
-        if status == t.EmberStatus.SUCCESS:
+        status = t.sl_Status.from_ember_status(status)
+
+        if status == t.sl_Status.OK:
             LOGGER.debug("Found %s ieee for %s sender", ieee, sender)
             self.handle_join(sender, ieee, 0)
             return
@@ -742,16 +641,16 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self,
         nwk: t.EmberNodeId,
         ieee: t.EUI64,
-        device_update_status: EmberDeviceUpdate,
+        device_update_status: t.EmberDeviceUpdate,
         decision: t.EmberJoinDecision,
         parent_nwk: t.EmberNodeId,
     ) -> None:
         """Trust Center Join handler."""
-        if device_update_status == EmberDeviceUpdate.DEVICE_LEFT:
+        if device_update_status == t.EmberDeviceUpdate.DEVICE_LEFT:
             self.handle_leave(nwk, ieee)
             return
 
-        if device_update_status == EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN:
+        if device_update_status == t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN:
             self.create_task(self.cleanup_tc_link_key(ieee), "cleanup_tc_link_key")
 
         if decision == t.EmberJoinDecision.DENY_JOIN:
@@ -776,7 +675,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self, nwk: zigpy.types.NWK, relays: list[zigpy.types.NWK]
     ) -> bool:
         (res,) = await self._ezsp.setSourceRoute(nwk, relays)
-        return res == t.EmberStatus.SUCCESS
+        return t.sl_Status.from_ember_status(res) == t.sl_Status.OK
 
     async def energy_scan(
         self, channels: t.Channels, duration_exp: int, count: int
@@ -865,36 +764,36 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                                     t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
                                 )
 
-                            status, _ = await self._ezsp.sendUnicast(
-                                t.EmberOutgoingMessageType.OUTGOING_DIRECT,
-                                t.EmberNodeId(packet.dst.address),
-                                aps_frame,
-                                message_tag,
-                                packet.data.serialize(),
+                            status, _ = await self._ezsp.send_unicast(
+                                nwk=packet.dst.address,
+                                aps_frame=aps_frame,
+                                message_tag=message_tag,
+                                data=packet.data.serialize(),
                             )
                         elif packet.dst.addr_mode == zigpy.types.AddrMode.Group:
-                            status, _ = await self._ezsp.sendMulticast(
-                                aps_frame,
-                                packet.radius,
-                                packet.non_member_radius,
-                                message_tag,
-                                packet.data.serialize(),
+                            status, _ = await self._ezsp.send_multicast(
+                                aps_frame=aps_frame,
+                                radius=packet.radius,
+                                non_member_radius=packet.non_member_radius,
+                                message_tag=message_tag,
+                                data=packet.data.serialize(),
                             )
                         elif packet.dst.addr_mode == zigpy.types.AddrMode.Broadcast:
-                            status, _ = await self._ezsp.sendBroadcast(
-                                t.EmberNodeId(packet.dst.address),
-                                aps_frame,
-                                packet.radius,
-                                message_tag,
-                                packet.data.serialize(),
+                            status, _ = await self._ezsp.send_broadcast(
+                                address=packet.dst.address,
+                                aps_frame=aps_frame,
+                                radius=packet.radius,
+                                message_tag=message_tag,
+                                aps_sequence=packet.tsn,
+                                data=packet.data.serialize(),
                             )
 
-                    if status == t.EmberStatus.SUCCESS:
+                    if status == t.sl_Status.OK:
                         break
                     elif status not in (
-                        t.EmberStatus.MAX_MESSAGE_LIMIT_REACHED,
-                        t.EmberStatus.NO_BUFFERS,
-                        t.EmberStatus.NETWORK_BUSY,
+                        t.sl_Status.ZIGBEE_MAX_MESSAGE_LIMIT_REACHED,
+                        t.sl_Status.TRANSMIT_BUSY,
+                        t.sl_Status.ALLOCATION_FAILED,
                     ):
                         raise zigpy.exceptions.DeliveryError(
                             f"Failed to enqueue message: {status!r}", status
@@ -927,7 +826,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 async with asyncio_timeout(APS_ACK_TIMEOUT):
                     send_status, _ = await req.result
 
-                if send_status != t.EmberStatus.SUCCESS:
+                if t.sl_Status.from_ember_status(send_status) != t.sl_Status.OK:
                     raise zigpy.exceptions.DeliveryError(
                         f"Failed to deliver message: {send_status!r}", send_status
                     )
@@ -948,15 +847,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         status = await self._ezsp.add_transient_link_key(node, link_key)
 
-        if status != t.EmberStatus.SUCCESS:
+        if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
             raise ControllerError("Failed to set link key")
 
         if self._ezsp.ezsp_version >= 8:
             await self._ezsp.setPolicy(
-                self._ezsp.types.EzspPolicyId.TRUST_CENTER_POLICY,
+                t.EzspPolicyId.TRUST_CENTER_POLICY,
                 (
-                    self._ezsp.types.EzspDecisionBitmask.ALLOW_JOINS
-                    | self._ezsp.types.EzspDecisionBitmask.JOINS_USE_INSTALL_CODE_KEY
+                    t.EzspDecisionBitmask.ALLOW_JOINS
+                    | t.EzspDecisionBitmask.JOINS_USE_INSTALL_CODE_KEY
                 ),
             )
 
@@ -1000,7 +899,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 else:
                     (res,) = await self._ezsp.readAndClearCounters()
 
-                for cnt_type, value in zip(self._ezsp.types.EmberCounterType, res):
+                for cnt_type, value in zip(t.EmberCounterType, res):
                     counters[cnt_type.name[8:]].update(value)
 
                 if remainder == 0:
@@ -1024,9 +923,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._watchdog_failures = 0
 
     async def _get_free_buffers(self) -> int | None:
-        status, value = await self._ezsp.getValue(
-            self._ezsp.types.EzspValueId.VALUE_FREE_BUFFERS
-        )
+        status, value = await self._ezsp.getValue(t.EzspValueId.VALUE_FREE_BUFFERS)
 
         if status != t.EzspStatus.SUCCESS:
             return None
@@ -1049,5 +946,5 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         )
         self.handle_relays(nwk=nwk, relays=relays)
 
-    def handle_route_error(self, status: t.EmberStatus, nwk: t.EmberNodeId) -> None:
+    def handle_route_error(self, status: t.sl_Status, nwk: t.EmberNodeId) -> None:
         LOGGER.debug("Processing route error: status=%s, nwk=%s", status, nwk)

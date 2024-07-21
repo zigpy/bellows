@@ -1,5 +1,6 @@
 import asyncio
 import threading
+from unittest.mock import AsyncMock, MagicMock, call, patch, sentinel
 
 import pytest
 import serial_asyncio
@@ -7,8 +8,6 @@ import zigpy.config as conf
 
 from bellows import uart
 import bellows.types as t
-
-from .async_mock import AsyncMock, MagicMock, call, patch, sentinel
 
 
 @pytest.mark.parametrize("flow_control", ["software", "hardware"])
