@@ -2557,3 +2557,18 @@ class EmberMultiPhyNwkConfig(basic.enum8):
 
     # Enable broadcast support on Routers
     BROADCAST_SUPPORT = 0x01
+
+
+class EmberDutyCycleState(basic.enum8):
+    """Duty cycle states."""
+
+    # No Duty cycle tracking or metrics are taking place
+    DUTY_CYCLE_TRACKING_OFF = 0
+    # Duty Cycle is tracked and has not exceeded any thresholds.
+    DUTY_CYCLE_LBT_NORMAL = 1
+    # We have exceeded the limited threshold of our total duty cycle allotment.
+    DUTY_CYCLE_LBT_LIMITED_THRESHOLD_REACHED = 2
+    # We have exceeded the critical threshold of our total duty cycle allotment.
+    DUTY_CYCLE_LBT_CRITICAL_THRESHOLD_REACHED = 3
+    # We have reached the suspend limit and are blocking all outbound transmissions.
+    DUTY_CYCLE_LBT_SUSPEND_LIMIT_REACHED = 4

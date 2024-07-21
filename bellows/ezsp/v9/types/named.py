@@ -14,6 +14,7 @@ from bellows.types.named import (  # noqa: F401, F403
     EmberCounterType,
     EmberCurrentSecurityBitmask,
     EmberDeviceUpdate,
+    EmberDutyCycleState,
     EmberEventUnits,
     EmberGpKeyType,
     EmberGpSecurityLevel,
@@ -95,21 +96,6 @@ class EmberJoinMethod(basic.enum8):
     # ahead of time, a router device may be commissioned such that it does not
     # need to send any messages to begin communicating on the network.
     USE_CONFIGURED_NWK_STATE = 0x3
-
-
-class EmberDutyCycleState(basic.enum8):
-    """Duty cycle states."""
-
-    # No Duty cycle tracking or metrics are taking place
-    DUTY_CYCLE_TRACKING_OFF = 0
-    # Duty Cycle is tracked and has not exceeded any thresholds.
-    DUTY_CYCLE_LBT_NORMAL = 1
-    # We have exceeded the limited threshold of our total duty cycle allotment.
-    DUTY_CYCLE_LBT_LIMITED_THRESHOLD_REACHED = 2
-    # We have exceeded the critical threshold of our total duty cycle allotment.
-    DUTY_CYCLE_LBT_CRITICAL_THRESHOLD_REACHED = 3
-    # We have reached the suspend limit and are blocking all outbound transmissions.
-    DUTY_CYCLE_LBT_SUSPEND_LIMIT_REACHED = 4
 
 
 class EmberRadioPowerMode(basic.enum8):
