@@ -214,7 +214,7 @@ COMMANDS = {
     ),
     "networkInit": (
         0x17,
-        (t.EmberNetworkInitStruct,),
+        (t.EmberNetworkInitBitmask,),
         (t.EmberStatus,),
     ),
     # 6. Networking Frames

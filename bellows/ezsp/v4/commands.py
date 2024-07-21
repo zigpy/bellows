@@ -225,7 +225,7 @@ COMMANDS = {
     ),
     "networkInitExtended": (
         0x70,
-        (t.EmberNetworkInitStruct,),
+        (t.EmberNetworkInitBitmask,),
         (t.EmberStatus,),
     ),
     "networkState": (
