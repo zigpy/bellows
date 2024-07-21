@@ -48,16 +48,6 @@ class EmberMulticastId(basic.uint16_t, repr="hex"):
     pass
 
 
-class EmberLibraryId(basic.uint8_t):
-    # The presence and status of the Ember id.
-    pass
-
-
-class EmberLibraryStatus(basic.uint8_t):
-    # The presence and status of the Ember library.
-    pass
-
-
 class EmberGpSecurityLevel(basic.uint8_t):
     # The security level of the GPD.
     pass

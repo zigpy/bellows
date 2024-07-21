@@ -180,7 +180,7 @@ COMMANDS = {
     "getLibraryStatus": (
         0x01,
         (t.uint8_t,),
-        (t.EmberLibraryStatus,),
+        (t.uint8_t,),
     ),
     "getXncpInfo": (
         0x13,

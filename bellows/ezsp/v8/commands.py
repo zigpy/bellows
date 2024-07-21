@@ -31,11 +31,6 @@ COMMANDS = {
         (t.uint32_t,),
     ),
     # Changed
-    "getLibraryStatus": (
-        0x0001,
-        (t.EmberLibraryId,),
-        (t.EmberLibraryStatus,),
-    ),
     "getTransientKeyTableEntry": (
         0x006D,
         (t.uint8_t,),
