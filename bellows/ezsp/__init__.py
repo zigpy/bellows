@@ -23,7 +23,7 @@ import zigpy.config
 
 import bellows.config as conf
 from bellows.exception import EzspError, InvalidCommandError
-from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig, ValueConfig
+from bellows.ezsp.config import RuntimeConfig, ValueConfig
 import bellows.types as t
 import bellows.uart
 
@@ -543,7 +543,7 @@ class EZSP:
         ezsp_config = {}
         ezsp_values = {}
 
-        for cfg in DEFAULT_CONFIG[self._ezsp_version]:
+        for cfg in self.CONFIG:
             if isinstance(cfg, RuntimeConfig):
                 ezsp_config[cfg.config_id.name] = dataclasses.replace(
                     cfg, config_id=t.EzspConfigId[cfg.config_id.name]

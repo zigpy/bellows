@@ -8,6 +8,7 @@ import voluptuous as vol
 import zigpy.state
 
 import bellows.config
+from bellows.ezsp.config import DEFAULT_CONFIG_LEGACY
 import bellows.types as t
 from bellows.zigbee.util import ezsp_key_to_zigpy_key
 
@@ -26,6 +27,7 @@ class EZSPv4(protocol.ProtocolHandler):
         bellows.config.CONF_EZSP_CONFIG: vol.Schema(config.EZSP_SCHEMA),
         bellows.config.CONF_EZSP_POLICIES: vol.Schema(config.EZSP_POLICIES_SCH),
     }
+    CONFIG = DEFAULT_CONFIG_LEGACY
 
     def _ezsp_frame_tx(self, name: str) -> bytes:
         """Serialize the frame id."""
