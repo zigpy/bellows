@@ -43,11 +43,19 @@ class ProtocolHandler(abc.ABC):
         }
         self.tc_policy = 0
 
-    def _ezsp_frame(self, name: str, *args: tuple[Any, ...]) -> bytes:
+    def _ezsp_frame(self, name: str, *args: Any, **kwargs: Any) -> bytes:
         """Serialize the named frame and data."""
-        c = self.COMMANDS[name]
+        c, tx_schema, rx_schema = self.COMMANDS[name]
         frame = self._ezsp_frame_tx(name)
-        data = t.serialize(args, c[1])
+
+        if isinstance(tx_schema, dict):
+            assert not kwargs
+            data = t.serialize_dict(args, tx_schema)
+        elif isinstance(tx_schema, tuple):
+            assert not kwargs
+            data = t.serialize(args, tx_schema)
+        else:
+            data = tx_schema(*args, **kwargs).serialize()
         return frame + data
 
     @abc.abstractmethod
@@ -58,10 +66,10 @@ class ProtocolHandler(abc.ABC):
     def _ezsp_frame_tx(self, name: str) -> bytes:
         """Serialize the named frame."""
 
-    async def command(self, name, *args) -> Any:
+    async def command(self, name, *args, **kwargs) -> Any:
         """Serialize command and send it."""
         LOGGER.debug("Sending command  %s: %s", name, args)
-        data = self._ezsp_frame(name, *args)
+        data = self._ezsp_frame(name, *args, **kwargs)
         cmd_id, _, rx_schema = self.COMMANDS[name]
         future = asyncio.get_running_loop().create_future()
         self._awaiting[self._seq] = (cmd_id, rx_schema, future)
@@ -102,15 +110,22 @@ class ProtocolHandler(abc.ABC):
         try:
             if isinstance(rx_schema, tuple):
                 result, data = t.deserialize(data, rx_schema)
+                LOGGER.debug("Received command %s: %s", frame_name, result)
+            elif isinstance(rx_schema, dict):
+                result, data = t.deserialize_dict(data, rx_schema)
+                LOGGER.debug("Received command %s: %s", frame_name, result)
+                result = tuple(result.values())
             else:
                 result, data = rx_schema.deserialize(data)
+                LOGGER.debug("Received command %s: %s", frame_name, result)
         except Exception:
             LOGGER.warning(
-                "Failed to parse frame %s: %s", frame_name, binascii.hexlify(data)
+                "Failed to parse frame %s: %s",
+                frame_name,
+                binascii.hexlify(data),
+                exc_info=True,
             )
             raise
-
-        LOGGER.debug("Received command %s: %s", frame_name, result)
 
         if data:
             LOGGER.debug("Frame contains trailing data: %s", data)

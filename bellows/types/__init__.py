@@ -13,3 +13,15 @@ def deserialize(data, schema):
 
 def serialize(data, schema):
     return b"".join(t(v).serialize() for t, v in zip(schema, data))
+
+
+def deserialize_dict(data, schema):
+    result = {}
+    for key, type_ in schema.items():
+        value, data = type_.deserialize(data)
+        result[key] = value
+    return result, data
+
+
+def serialize_dict(data, schema):
+    return b"".join(t(v).serialize() for v, (n, t) in zip(data, schema.items()))

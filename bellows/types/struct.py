@@ -703,6 +703,6 @@ class SecurityManagerNetworkKeyInfo(EzspStruct):
 class EmberMultiPhyRadioParameters(EzspStruct):
     """Holds radio parameters."""
 
-    radioTxPower: named.int8s
-    radioPage: named.uint8_t
-    radioChannel: named.uint8_t
+    radioTxPower: basic.int8s
+    radioPage: basic.uint8_t
+    radioChannel: basic.uint8_t
