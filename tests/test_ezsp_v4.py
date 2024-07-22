@@ -138,7 +138,7 @@ async def test_read_link_keys(ezsp_f):
 
 
 async def test_get_network_key_and_tc_link_key(ezsp_f):
-    def get_key(key_type):
+    def get_key(keyType):
         key = {
             t.EmberKeyType.CURRENT_NETWORK_KEY: t.EmberKeyStruct(
                 bitmask=(
@@ -165,7 +165,7 @@ async def test_get_network_key_and_tc_link_key(ezsp_f):
                 sequenceNumber=0,
                 partnerEUI64=t.EUI64.convert("00:12:4b:00:1c:a1:b8:46"),
             ),
-        }[key_type]
+        }[keyType]
 
         return (t.EmberStatus.SUCCESS, key)
 
@@ -228,14 +228,14 @@ async def test_write_link_keys(ezsp_f, caplog) -> None:
 
     assert ezsp_f.addOrUpdateKeyTableEntry.mock_calls == [
         call(
-            t.EUI64.convert("11:11:11:11:11:11:11:11"),
-            True,
-            t.KeyData.convert("2ccade06b3090c310315b3d574d3c85a"),
+            address=t.EUI64.convert("11:11:11:11:11:11:11:11"),
+            linkKey=True,
+            keyData=t.KeyData.convert("2ccade06b3090c310315b3d574d3c85a"),
         ),
         call(
-            t.EUI64.convert("22:22:22:22:22:22:22:22"),
-            True,
-            t.KeyData.convert("abcdabcdabcdabcdabcdabcdabcdabcd"),
+            address=t.EUI64.convert("22:22:22:22:22:22:22:22"),
+            linkKey=True,
+            keyData=t.KeyData.convert("abcdabcdabcdabcdabcdabcdabcdabcd"),
         ),
     ]
 
@@ -248,7 +248,9 @@ async def test_write_link_keys(ezsp_f, caplog) -> None:
 async def test_initialize_network(ezsp_f) -> None:
     ezsp_f.networkInitExtended = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
     assert await ezsp_f.initialize_network() == t.sl_Status.OK
-    assert ezsp_f.networkInitExtended.mock_calls == [call(0x0000)]
+    assert ezsp_f.networkInitExtended.mock_calls == [
+        call(networkInitStruct=t.EmberNetworkInitBitmask.NETWORK_INIT_NO_OPTIONS)
+    ]
 
 
 async def test_write_nwk_frame_counter(ezsp_f) -> None:
@@ -281,11 +283,11 @@ async def test_send_unicast(ezsp_f) -> None:
     assert message_tag == 0x42
     assert ezsp_f.sendUnicast.mock_calls == [
         call(
-            t.EmberOutgoingMessageType.OUTGOING_DIRECT,
-            t.EmberNodeId(0x1234),
-            t.EmberApsFrame(),
-            0x42,
-            b"hello",
+            type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+            indexOrDestination=t.EmberNodeId(0x1234),
+            apsFrame=t.EmberApsFrame(),
+            messageTag=0x42,
+            messageContents=b"hello",
         )
     ]
 
@@ -304,11 +306,11 @@ async def test_send_multicast(ezsp_f) -> None:
     assert message_tag == 0x42
     assert ezsp_f.sendMulticast.mock_calls == [
         call(
-            t.EmberApsFrame(),
-            12,
-            34,
-            0x42,
-            b"hello",
+            apsFrame=t.EmberApsFrame(),
+            hops=12,
+            nonmemberRadius=34,
+            messageTag=0x42,
+            messageContents=b"hello",
         )
     ]
 
@@ -328,10 +330,10 @@ async def test_send_broadcast(ezsp_f) -> None:
     assert message_tag == 0x42
     assert ezsp_f.sendBroadcast.mock_calls == [
         call(
-            t.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
-            t.EmberApsFrame(),
-            12,
-            0x42,
-            b"hello",
+            destination=t.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
+            apsFrame=t.EmberApsFrame(),
+            radius=12,
+            messageTag=0x42,
+            messageContents=b"hello",
         )
     ]

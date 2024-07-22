@@ -43,7 +43,7 @@ class EZSPv4(protocol.ProtocolHandler):
         self,
     ) -> AsyncGenerator[tuple[t.NWK, t.EUI64, t.EmberNodeType], None]:
         for idx in range(0, 255 + 1):
-            (status, nwk, eui64, node_type) = await self.getChildData(idx)
+            (status, nwk, eui64, node_type) = await self.getChildData(index=idx)
             status = t.sl_Status.from_ember_status(status)
 
             if status == t.sl_Status.NOT_JOINED:
@@ -57,7 +57,7 @@ class EZSPv4(protocol.ProtocolHandler):
         )
 
         for index in range(key_table_size):
-            (status, key) = await self.getKeyTableEntry(index)
+            (status, key) = await self.getKeyTableEntry(index=index)
             status = t.sl_Status.from_ember_status(status)
 
             if status == t.sl_Status.INVALID_INDEX:
@@ -76,14 +76,14 @@ class EZSPv4(protocol.ProtocolHandler):
 
     async def get_network_key(self) -> zigpy.state.Key:
         (status, ezsp_network_key) = await self.getKey(
-            t.EmberKeyType.CURRENT_NETWORK_KEY
+            keyType=t.EmberKeyType.CURRENT_NETWORK_KEY
         )
         assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
         return ezsp_key_to_zigpy_key(ezsp_network_key)
 
     async def get_tc_link_key(self) -> zigpy.state.Key:
         (status, ezsp_tc_link_key) = await self.getKey(
-            t.EmberKeyType.TRUST_CENTER_LINK_KEY
+            keyType=t.EmberKeyType.TRUST_CENTER_LINK_KEY
         )
         assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
         return ezsp_key_to_zigpy_key(ezsp_tc_link_key)
@@ -100,7 +100,9 @@ class EZSPv4(protocol.ProtocolHandler):
         for key in keys:
             # XXX: is there no way to set the outgoing frame counter or seq?
             (status,) = await self.addOrUpdateKeyTableEntry(
-                key.partner_ieee, True, key.key
+                address=key.partner_ieee,
+                linkKey=True,
+                keyData=key.key,
             )
 
             if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
@@ -111,7 +113,9 @@ class EZSPv4(protocol.ProtocolHandler):
         pass
 
     async def initialize_network(self) -> t.sl_Status:
-        (init_status,) = await self.networkInitExtended(0x0000)
+        (init_status,) = await self.networkInitExtended(
+            networkInitStruct=t.EmberNetworkInitBitmask.NETWORK_INIT_NO_OPTIONS
+        )
         return t.sl_Status.from_ember_status(init_status)
 
     async def factory_reset(self) -> None:
@@ -125,11 +129,11 @@ class EZSPv4(protocol.ProtocolHandler):
         data: bytes,
     ) -> tuple[t.sl_Status, t.uint8_t]:
         status, sequence = await self.sendUnicast(
-            t.EmberOutgoingMessageType.OUTGOING_DIRECT,
-            t.EmberNodeId(nwk),
-            aps_frame,
-            message_tag,
-            data,
+            type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+            indexOrDestination=t.EmberNodeId(nwk),
+            apsFrame=aps_frame,
+            messageTag=message_tag,
+            messageContents=data,
         )
 
         return t.sl_Status.from_ember_status(status), sequence
@@ -143,11 +147,11 @@ class EZSPv4(protocol.ProtocolHandler):
         data: bytes,
     ) -> tuple[t.sl_Status, t.uint8_t]:
         status, sequence = await self.sendMulticast(
-            aps_frame,
-            radius,
-            non_member_radius,
-            message_tag,
-            data,
+            apsFrame=aps_frame,
+            hops=radius,
+            nonmemberRadius=non_member_radius,
+            messageTag=message_tag,
+            messageContents=data,
         )
 
         return t.sl_Status.from_ember_status(status), sequence
@@ -164,11 +168,11 @@ class EZSPv4(protocol.ProtocolHandler):
         # `aps_sequence` is not used
 
         status, sequence = await self.sendBroadcast(
-            address,
-            aps_frame,
-            radius,
-            message_tag,
-            data,
+            destination=address,
+            apsFrame=aps_frame,
+            radius=radius,
+            messageTag=message_tag,
+            messageContents=data,
         )
 
         return t.sl_Status.from_ember_status(status), sequence
