@@ -698,3 +698,11 @@ class SecurityManagerNetworkKeyInfo(EzspStruct):
     network_key_sequence_number: basic.uint8_t
     alt_network_key_sequence_number: basic.uint8_t
     network_key_frame_counter: basic.uint32_t
+
+
+class EmberMultiPhyRadioParameters(EzspStruct):
+    """Holds radio parameters."""
+
+    radioTxPower: named.int8s
+    radioPage: named.uint8_t
+    radioChannel: named.uint8_t

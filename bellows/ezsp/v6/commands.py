@@ -5,236 +5,507 @@ COMMANDS = {
     **COMMANDS_v5,
     "getPhyInterfaceCount": (
         0xFC,
-        (),
-        (t.uint8_t,),
+        tuple({}.values()),
+        tuple(
+            {
+                "interfaceCount": t.uint8_t,
+            }.values()
+        ),
     ),
     "unusedPanIdFoundHandler": (
         0xD2,
-        (),
-        (t.uint8_t, t.EmberStatus),
+        tuple({}.values()),
+        tuple(
+            {
+                "panId": t.uint16_t,
+                "channel": t.uint8_t,
+            }.values()
+        ),
     ),
     "findUnusedPanId": (
         0xD3,
-        (t.Channels, t.uint8_t),
-        (t.EmberStatus,),
+        tuple(
+            {
+                "channelMask": t.Channels,
+                "duration": t.uint8_t,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+            }.values()
+        ),
     ),
     "getRadioParameters": (
         0xFD,
-        (t.uint8_t,),
-        (t.EmberStatus, t.EmberNodeType, t.EmberNetworkParameters),
+        tuple(
+            {
+                "phyIndex": t.uint8_t,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+                "parameters": t.EmberMultiPhyRadioParameters,
+            }.values()
+        ),
     ),
     "getSourceRouteTableTotalSize": (
         0xC3,
-        (),
-        (t.uint8_t,),
+        tuple({}.values()),
+        tuple(
+            {
+                "sourceRouteTableTotalSize": t.uint8_t,
+            }.values()
+        ),
     ),
     "getSourceRouteTableFilledSize": (
         0xC2,
-        (),
-        (t.uint8_t,),
+        tuple({}.values()),
+        tuple(
+            {
+                "sourceRouteTableFilledSize": t.uint8_t,
+            }.values()
+        ),
     ),
     "getSourceRouteTableEntry": (
         0xC1,
-        (t.uint8_t,),
-        (t.EmberStatus, t.EmberNodeId, t.uint8_t),
+        tuple(
+            {
+                "index": t.uint8_t,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+                "destination": t.EmberNodeId,
+                "closerIndex": t.uint8_t,
+            }.values()
+        ),
     ),
     "setRoutingShortcutThreshold": (
         0xD0,
-        (t.uint8_t,),
-        (t.EmberStatus,),
+        tuple(
+            {
+                "index": t.uint8_t,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+            }.values()
+        ),
     ),
     "getRoutingShortcutThreshold": (
         0xD1,
-        (),
-        (t.uint8_t,),
+        tuple({}.values()),
+        tuple(
+            {
+                "routingShortcutThresh": t.uint8_t,
+            }.values()
+        ),
     ),
     "setBrokenRouteErrorCode": (
         0x11,
-        (t.uint8_t,),
-        (t.EmberStatus,),
+        tuple(
+            {
+                "errorCode": t.uint8_t,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+            }.values()
+        ),
     ),
     "multiPhyStart": (
         0xF8,
-        (t.uint8_t, t.uint8_t, t.uint8_t, t.int8s, t.EmberMultiPhyNwkConfig),
-        (t.EmberStatus,),
+        tuple(
+            {
+                "phyIndex": t.uint8_t,
+                "page": t.uint8_t,
+                "channel": t.uint8_t,
+                "power": t.int8s,
+                "bitmask": t.EmberMultiPhyNwkConfig,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+            }.values()
+        ),
     ),
     "multiPhyStop": (
         0xF9,
-        (t.uint8_t,),
-        (t.EmberStatus,),
+        tuple(
+            {
+                "phyIndex": t.uint8_t,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+            }.values()
+        ),
     ),
     "multiPhySetRadioPower": (
         0xFA,
-        (t.uint8_t, t.int8s),
-        (t.EmberStatus,),
+        tuple(
+            {
+                "phyIndex": t.uint8_t,
+                "power": t.int8s,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+            }.values()
+        ),
     ),
     "sendLinkPowerDeltaRequest": (
         0xF7,
-        (),
-        (t.EmberStatus,),
+        tuple({}.values()),
+        tuple(
+            {
+                "status": t.EmberStatus,
+            }.values()
+        ),
     ),
     "multiPhySetRadioChannel": (
         0xFB,
-        (t.uint8_t, t.uint8_t, t.uint8_t),
-        (t.EmberStatus,),
+        tuple(
+            {
+                "phyIndex": t.uint8_t,
+                "page": t.uint8_t,
+                "channel": t.uint8_t,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+            }.values()
+        ),
     ),
     "getDutyCycleState": (
         0x35,
-        (),
-        (t.EmberStatus, t.EmberDutyCycleState),
+        tuple({}.values()),
+        tuple(
+            {
+                "status": t.EmberStatus,
+                "returnedState": t.EmberDutyCycleState,
+            }.values()
+        ),
     ),
     "setDutyCycleLimitsInStack": (
         0x40,
-        (t.EmberDutyCycleLimits,),
-        (t.EmberStatus, t.EmberDutyCycleState),
+        tuple(
+            {
+                "limits": t.EmberDutyCycleLimits,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+            }.values()
+        ),
     ),
     "getDutyCycleLimits": (
         0x4B,
-        (),
-        (t.EmberStatus, t.EmberDutyCycleLimits),
+        tuple({}.values()),
+        tuple(
+            {
+                "status": t.EmberStatus,
+                "limits": t.EmberDutyCycleLimits,
+            }.values()
+        ),
     ),
     "getCurrentDutyCycle": (
         0x4C,
-        (t.uint8_t,),
-        (t.EmberStatus, t.FixedList[t.uint8_t, 134]),
+        tuple(
+            {
+                "maxDevices": t.uint8_t,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+                "arrayOfDeviceDutyCycles": t.FixedList[t.uint8_t, 134],
+            }.values()
+        ),
     ),
     "dutyCycleHandler": (
         0x4D,
-        (),
-        (
-            t.uint8_t,
-            t.uint8_t,
-            t.EmberDutyCycleState,
-            t.uint8_t,
-            t.EmberPerDeviceDutyCycle,
+        tuple({}.values()),
+        tuple(
+            {
+                "channelPage": t.uint8_t,
+                "channel": t.uint8_t,
+                "state": t.EmberDutyCycleState,
+                "arrayOfDeviceDutyCycles": t.LVList[t.EmberPerDeviceDutyCycle],
+            }.values()
         ),
     ),
     "sendMulticastWithAlias": (
         0x3A,
-        (
-            t.EmberApsFrame,
-            t.uint8_t,
-            t.uint8_t,
-            t.uint16_t,
-            t.uint8_t,
-            t.uint8_t,
-            t.LVBytes,
+        tuple(
+            {
+                "hops": t.EmberApsFrame,
+                "nonmemberRadius": t.uint8_t,
+                "alias": t.uint8_t,
+                "nwkSequence": t.uint16_t,
+                "messageTag": t.uint8_t,
+                "messageLength": t.uint8_t,
+                "messageContents": t.LVBytes,
+            }.values()
         ),
-        (
-            t.EmberStatus,
-            t.uint8_t,
+        tuple(
+            {
+                "status": t.EmberStatus,
+                "sequence": t.uint8_t,
+            }.values()
         ),
     ),
     "writeNodeData": (
         0xFE,
-        (t.Bool,),
-        (t.EmberStatus,),
+        tuple(
+            {
+                "erase": t.Bool,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+            }.values()
+        ),
     ),
     "sendTrustCenterLinkKey": (
         0x67,
-        (t.EmberNodeId, t.EUI64),
-        (t.EmberStatus,),
+        tuple(
+            {
+                "destinationNodeId": t.EmberNodeId,
+                "destinationEui64": t.EUI64,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+            }.values()
+        ),
     ),
     "zllSetSecurityStateWithoutKey": (
         0xCF,
-        (t.EmberZllInitialSecurityState,),
-        (t.EmberStatus,),
+        tuple(
+            {
+                "securityState": t.EmberZllInitialSecurityState,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+            }.values()
+        ),
     ),
     "zllSetRadioIdleMode": (
         0xD4,
-        (t.EmberRadioPowerMode,),
-        (),
+        tuple(
+            {
+                "mode": t.EmberRadioPowerMode,
+            }.values()
+        ),
+        tuple({}.values()),
     ),
     "setZllNodeType": (
         0xD5,
-        (t.EmberNodeType,),
-        (),
+        tuple(
+            {
+                "nodeType": t.EmberNodeType,
+            }.values()
+        ),
+        tuple({}.values()),
     ),
     "setZllAdditionalState": (
         0xD6,
-        (t.uint16_t,),
-        (),
+        tuple(
+            {
+                "state": t.uint16_t,
+            }.values()
+        ),
+        tuple({}.values()),
     ),
     "zllOperationInProgress": (
         0xD7,
-        (),
-        (t.Bool,),
+        tuple({}.values()),
+        tuple(
+            {
+                "zllOperationInProgress": t.Bool,
+            }.values()
+        ),
     ),
     "zllRxOnWhenIdleGetActive": (
         0xD8,
-        (),
-        (t.Bool,),
+        tuple({}.values()),
+        tuple(
+            {
+                "zllRxOnWhenIdleGetActive": t.Bool,
+            }.values()
+        ),
     ),
     "getZllPrimaryChannelMask": (
         0xD9,
-        (),
-        (t.Channels,),
+        tuple({}.values()),
+        tuple(
+            {
+                "zllPrimaryChannelMask": t.Channels,
+            }.values()
+        ),
     ),
     "getZllSecondaryChannelMask": (
         0xDA,
-        (),
-        (t.Channels,),
+        tuple({}.values()),
+        tuple(
+            {
+                "zllSecondaryChannelMask": t.Channels,
+            }.values()
+        ),
     ),
     "setZllPrimaryChannelMask": (
         0xDB,
-        (t.Channels,),
-        (),
+        tuple(
+            {
+                "zllPrimaryChannelMask": t.Channels,
+            }.values()
+        ),
+        tuple({}.values()),
     ),
     "setZllSecondaryChannelMask": (
         0xDC,
-        (t.Channels,),
-        (),
+        tuple(
+            {
+                "zllSecondaryChannelMask": t.Channels,
+            }.values()
+        ),
+        tuple({}.values()),
     ),
+    # TODO: are these green power frames in the correct protocol version?
     "gpProxyTableGetEntry": (
         0xC8,
-        (t.uint8_t,),
-        (t.EmberStatus, t.EmberGpProxyTableEntry),
+        tuple(
+            {
+                "proxyIndex": t.uint8_t,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+                "entry": t.EmberGpProxyTableEntry,
+            }.values()
+        ),
     ),
     "gpProxyTableLookup": (
         0xC0,
-        (t.EmberGpAddress,),
-        (t.uint8_t,),
+        tuple(
+            {
+                "addr": t.EmberGpAddress,
+            }.values()
+        ),
+        tuple(
+            {
+                "index": t.uint8_t,
+            }.values()
+        ),
     ),
     "gpSinkTableGetEntry": (
         0xDD,
-        (t.uint8_t,),
-        (t.EmberStatus, t.EmberGpSinkTableEntry),
+        tuple(
+            {
+                "index": t.uint8_t,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+                "entry": t.EmberGpSinkTableEntry,
+            }.values()
+        ),
     ),
     "gpSinkTableLookup": (
         0xDE,
-        (t.EmberGpAddress,),
-        (t.uint8_t,),
+        tuple(
+            {
+                "addr": t.EmberGpAddress,
+            }.values()
+        ),
+        tuple(
+            {
+                "index": t.uint8_t,
+            }.values()
+        ),
     ),
     "gpSinkTableSetEntry": (
         0xDF,
-        (t.uint8_t, t.EmberGpSinkTableEntry),
-        (t.EmberStatus,),
+        tuple(
+            {
+                "sinkIndex": t.uint8_t,
+                "entry": t.EmberGpSinkTableEntry,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+            }.values()
+        ),
     ),
     "gpSinkTableRemoveEntry": (
         0xE0,
-        (t.uint8_t,),
-        (),
+        tuple(
+            {
+                "sinkIndex": t.uint8_t,
+            }.values()
+        ),
+        tuple({}.values()),
     ),
     "gpSinkTableFindOrAllocateEntry": (
         0xE1,
-        (t.EmberGpAddress,),
-        (t.uint8_t,),
+        tuple(
+            {
+                "addr": t.EmberGpAddress,
+            }.values()
+        ),
+        tuple(
+            {
+                "index": t.uint8_t,
+            }.values()
+        ),
     ),
     "gpClearSinkTable": (
         0xE2,
-        (),
-        (),
+        tuple({}.values()),
+        tuple({}.values()),
     ),
     # Changed commands
     "zllSetRxOnWhenIdle": (
         0xB5,
-        (t.uint32_t,),
-        (t.EmberStatus,),
+        tuple(
+            {
+                "durationMs": t.uint32_t,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+            }.values()
+        ),
     ),
     "networkInit": (
         0x17,
-        (t.EmberNetworkInitBitmask,),
-        (t.EmberStatus,),
+        tuple(
+            {"networkInitBitmask": t.EmberNetworkInitBitmask}.values()
+        ),  # XXX: We deviate here, since the struct has a single membe.values())r
+        tuple(
+            {
+                "status": t.EmberStatus,
+            }.values()
+        ),
     ),
 }
 
