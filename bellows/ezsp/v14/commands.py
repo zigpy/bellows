@@ -142,17 +142,11 @@ for name, (command_id, tx_schema, rx_schema) in COMMANDS_v13.items():
     if name in COMMANDS:
         continue
 
-    if not isinstance(tx_schema, Struct):
-        if isinstance(tx_schema, dict):
-            tx_schema = {k: _REPLACEMENTS.get(v, v) for k, v in tx_schema.items()}
-        else:
-            tx_schema = [_REPLACEMENTS.get(v, v) for v in tx_schema]
+    if isinstance(tx_schema, dict):
+        tx_schema = {k: _REPLACEMENTS.get(v, v) for k, v in tx_schema.items()}
 
-    if not isinstance(rx_schema, Struct):
-        if isinstance(rx_schema, dict):
-            rx_schema = {k: _REPLACEMENTS.get(v, v) for k, v in rx_schema.items()}
-        else:
-            rx_schema = [_REPLACEMENTS.get(v, v) for v in rx_schema]
+    if isinstance(rx_schema, dict):
+        rx_schema = {k: _REPLACEMENTS.get(v, v) for k, v in rx_schema.items()}
 
     COMMANDS[name] = (command_id, tx_schema, rx_schema)
 
