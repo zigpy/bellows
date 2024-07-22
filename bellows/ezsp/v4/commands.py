@@ -15,7 +15,7 @@ COMMANDS = {
     "setConfigurationValue": (
         0x53,
         (t.EzspConfigId, t.uint16_t),
-        (t.EzspStatus,),
+        {"status": t.EzspStatus},
     ),
     "addEndpoint": (
         0x02,
@@ -29,12 +29,12 @@ COMMANDS = {
             t.List[t.uint16_t],
             t.List[t.uint16_t],
         ),
-        (t.EzspStatus,),
+        {"status": t.EzspStatus},
     ),
     "setPolicy": (
         0x55,
         (t.EzspPolicyId, t.EzspDecisionId),
-        (t.EzspStatus,),
+        {"status": t.EzspStatus},
     ),
     "getPolicy": (
         0x56,
@@ -54,38 +54,38 @@ COMMANDS = {
     "setValue": (
         0xAB,
         (t.EzspValueId, t.LVBytes),
-        (t.EzspStatus,),
+        {"status": t.EzspStatus},
     ),
     "setGpioCurrentConfiguration": (
         0xAC,
         (t.uint8_t, t.uint8_t, t.uint8_t),
-        (t.EzspStatus,),
+        {"status": t.EzspStatus},
     ),
     "setGpioPowerUpDownConfiguration": (
         0xAD,
         (t.uint8_t, t.uint8_t, t.uint8_t, t.uint8_t, t.uint8_t),
-        (t.EzspStatus,),
+        {"status": t.EzspStatus},
     ),
     "setGpioRadioPowerMask": (
         0xAE,
         (t.uint32_t,),
-        (),
+        {},
     ),
     "setCtune": (
         0xF5,
         (t.uint16_t,),
-        (),
+        {},
     ),
     "getCtune": (
         0xF6,
-        (),
+        {},
         (t.uint16_t,),
     ),
     # 5. Utilities Frames
     "nop": (
         0x05,
-        (),
-        (),
+        {},
+        {},
     ),
     "echo": (
         0x81,
@@ -94,18 +94,18 @@ COMMANDS = {
     ),
     "invalidCommand": (
         0x58,
-        (),
-        (t.EzspStatus,),
+        {},
+        {"status": t.EzspStatus},
     ),
     "callback": (
         0x06,
-        (),
-        (),
+        {},
+        {},
     ),
     "noCallbacks": (
         0x07,
-        (),
-        (),
+        {},
+        {},
     ),
     "setToken": (
         0x09,
@@ -129,12 +129,12 @@ COMMANDS = {
     ),
     "stackTokenChangedHandler": (
         0x0D,
-        (),
+        {},
         (t.uint16_t,),
     ),
     "getRandomNumber": (
         0x49,
-        (),
+        {},
         (t.EmberStatus, t.uint16_t),
     ),
     "setTimer": (
@@ -149,7 +149,7 @@ COMMANDS = {
     ),
     "timerHandler": (
         0x0F,
-        (),
+        {},
         (t.uint8_t,),
     ),
     "debugWrite": (
@@ -159,23 +159,23 @@ COMMANDS = {
     ),
     "readAndClearCounters": (
         0x65,
-        (),
+        {},
         (t.FixedList[t.uint16_t, len(t.EmberCounterType)],),
     ),
     "readCounters": (
         0xF1,
-        (),
+        {},
         (t.FixedList[t.uint16_t, len(t.EmberCounterType)],),
     ),
     "counterRolloverHandler": (
         0xF2,
-        (),
+        {},
         (t.EmberCounterType,),
     ),
     "delayTest": (
         0x9D,
         (t.uint16_t,),
-        (),
+        {},
     ),
     "getLibraryStatus": (
         0x01,
@@ -184,7 +184,7 @@ COMMANDS = {
     ),
     "getXncpInfo": (
         0x13,
-        (),
+        {},
         (t.EmberStatus, t.uint16_t, t.uint16_t),
     ),
     "customFrame": (
@@ -194,34 +194,34 @@ COMMANDS = {
     ),
     "customFrameHandler": (
         0x54,
-        (),
+        {},
         (t.LVBytes,),
     ),
     "getEui64": (
         0x26,
-        (),
+        {},
         (t.EUI64,),
     ),
     "getNodeId": (
         0x27,
-        (),
+        {},
         (t.EmberNodeId,),
     ),
     "networkInit": (
         0x17,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     # 6. Networking Frames
     "setManufacturerCode": (
         0x15,
         (t.uint16_t,),
-        (),
+        {},
     ),
     "setPowerDescriptor": (
         0x16,
         (t.uint16_t,),
-        (),
+        {},
     ),
     "networkInitExtended": (
         0x70,
@@ -230,12 +230,12 @@ COMMANDS = {
     ),
     "networkState": (
         0x18,
-        (),
+        {},
         (t.EmberNetworkStatus,),
     ),
     "stackStatusHandler": (
         0x19,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     "startScan": (
@@ -245,22 +245,22 @@ COMMANDS = {
     ),
     "energyScanResultHandler": (
         0x48,
-        (),
+        {},
         (t.uint8_t, t.int8s),
     ),
     "networkFoundHandler": (
         0x1B,
-        (),
+        {},
         (t.EmberZigbeeNetwork, t.uint8_t, t.int8s),
     ),
     "scanCompleteHandler": (
         0x1C,
-        (),
+        {},
         (t.uint8_t, t.EmberStatus),
     ),
     "stopScan": (
         0x1D,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     "formNetwork": (
@@ -275,7 +275,7 @@ COMMANDS = {
     ),
     "leaveNetwork": (
         0x20,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     "findAndRejoinNetwork": (
@@ -290,7 +290,7 @@ COMMANDS = {
     ),
     "childJoinHandler": (
         0x23,
-        (),
+        {},
         (t.uint8_t, t.Bool, t.EmberNodeId, t.EUI64, t.EmberNodeType),
     ),
     "energyScanRequest": (
@@ -300,12 +300,12 @@ COMMANDS = {
     ),
     "getNetworkParameters": (
         0x28,
-        (),
+        {},
         (t.EmberStatus, t.EmberNodeType, t.EmberNetworkParameters),
     ),
     "getParentChildParameters": (
         0x29,
-        (),
+        {},
         (t.uint8_t, t.EUI64, t.EmberNodeId),
     ),
     "getChildData": (
@@ -320,7 +320,7 @@ COMMANDS = {
     ),
     "neighborCount": (
         0x7A,
-        (),
+        {},
         (t.uint8_t,),
     ),
     "getRouteTableEntry": (
@@ -346,7 +346,7 @@ COMMANDS = {
     # 7. Binding Frames
     "clearBindingTable": (
         0x2A,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     "setBinding": (
@@ -377,22 +377,22 @@ COMMANDS = {
     "setBindingRemoteNodeId": (
         0x30,
         (t.uint8_t, t.EmberNodeId),
-        (),
+        {},
     ),
     "remoteSetBindingHandler": (
         0x31,
-        (),
+        {},
         (t.EmberBindingTableEntry, t.uint8_t, t.EmberStatus),
     ),
     "remoteDeleteBindingHandler": (
         0x32,
-        (),
+        {},
         (t.uint8_t, t.EmberStatus),
     ),
     # 8. Messaging Frames
     "maximumPayloadLength": (
         0x33,
-        (),
+        {},
         (t.uint8_t,),
     ),
     "sendUnicast": (
@@ -436,7 +436,7 @@ COMMANDS = {
     ),
     "messageSentHandler": (
         0x3F,
-        (),
+        {},
         (
             t.EmberOutgoingMessageType,
             t.uint16_t,
@@ -458,22 +458,22 @@ COMMANDS = {
     ),
     "pollCompleteHandler": (
         0x43,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     "pollHandler": (
         0x44,
-        (),
+        {},
         (t.EmberNodeId,),
     ),
     "incomingSenderEui64Handler": (
         0x62,
-        (),
+        {},
         (t.EUI64,),
     ),
     "incomingMessageHandler": (
         0x45,
-        (),
+        {},
         (
             t.EmberIncomingMessageType,
             t.EmberApsFrame,
@@ -487,7 +487,7 @@ COMMANDS = {
     ),
     "incomingRouteRecordHandler": (
         0x59,
-        (),
+        {},
         (t.EmberNodeId, t.EUI64, t.uint8_t, t.int8s, t.LVList[t.EmberNodeId]),
     ),
     "setSourceRoute": (
@@ -497,12 +497,12 @@ COMMANDS = {
     ),
     "incomingManyToOneRouteRequestHandler": (
         0x7D,
-        (),
+        {},
         (t.EmberNodeId, t.EUI64, t.uint8_t),
     ),
     "incomingRouteErrorHandler": (
         0x80,
-        (),
+        {},
         (t.EmberStatus, t.EmberNodeId),
     ),
     "addressTableEntryIsActive": (
@@ -518,7 +518,7 @@ COMMANDS = {
     "setAddressTableRemoteNodeId": (
         0x5D,
         (t.uint8_t, t.EmberNodeId),
-        (),
+        {},
     ),
     "getAddressTableRemoteEui64": (
         0x5E,
@@ -533,7 +533,7 @@ COMMANDS = {
     "setExtendedTimeout": (
         0x7E,
         (t.EUI64, t.Bool),
-        (),
+        {},
     ),
     "getExtendedTimeout": (
         0x7F,
@@ -567,7 +567,7 @@ COMMANDS = {
     ),
     "idConflictHandler": (
         0x7C,
-        (),
+        {},
         (t.EmberNodeId,),
     ),
     "sendRawMessage": (
@@ -577,17 +577,17 @@ COMMANDS = {
     ),
     "macPassthroughMessageHandler": (
         0x97,
-        (),
+        {},
         (t.EmberMacPassthroughType, t.uint8_t, t.int8s, t.LVBytes),
     ),
     "macFilterMatchMessageHandler": (
         0x46,
-        (),
+        {},
         (t.uint8_t, t.EmberMacPassthroughType, t.uint8_t, t.int8s, t.LVBytes),
     ),
     "rawTransmitCompleteHandler": (
         0x98,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     # 9. Security Frames
@@ -598,7 +598,7 @@ COMMANDS = {
     ),
     "getCurrentSecurityState": (
         0x69,
-        (),
+        {},
         (t.EmberStatus, t.EmberCurrentSecurityState),
     ),
     "getKey": (
@@ -608,7 +608,7 @@ COMMANDS = {
     ),
     "switchNetworkKeyHandler": (
         0x6E,
-        (),
+        {},
         (t.uint8_t,),
     ),
     "getKeyTableEntry": (
@@ -638,7 +638,7 @@ COMMANDS = {
     ),
     "clearKeyTable": (
         0xB1,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     "requestLinkKey": (
@@ -648,7 +648,7 @@ COMMANDS = {
     ),
     "zigbeeKeyEstablishmentHandler": (
         0x9B,
-        (),
+        {},
         (t.EUI64, t.EmberKeyStatus),
     ),
     "addTransientLinkKey": (
@@ -658,13 +658,13 @@ COMMANDS = {
     ),
     "clearTransientLinkKeys": (
         0x6B,
-        (),
-        (),
+        {},
+        {},
     ),
     # 10. Trust Center Frames
     "trustCenterJoinHandler": (
         0x24,
-        (),
+        {},
         (
             t.EmberNodeId,
             t.EUI64,
@@ -680,7 +680,7 @@ COMMANDS = {
     ),
     "broadcastNetworkKeySwitch": (
         0x74,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     "becomeTrustCenter": (
@@ -706,12 +706,12 @@ COMMANDS = {
     # 11. Certificate Based Key Exchange (CBKE) Frames
     "generateCbkeKeys": (
         0xA4,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     "generateCbkeKeysHandler": (
         0x9E,
-        (),
+        {},
         (t.EmberStatus, t.EmberPublicKeyData),
     ),
     "calculateSmacs": (
@@ -721,17 +721,17 @@ COMMANDS = {
     ),
     "calculateSmacsHandler": (
         0xA0,
-        (),
+        {},
         (t.EmberStatus, t.EmberSmacData, t.EmberSmacData),
     ),
     "generateCbkeKeys283k1": (
         0xE8,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     "generateCbkeKeysHandler283k1": (
         0xE9,
-        (),
+        {},
         (t.EmberStatus, t.EmberPublicKey283k1Data),
     ),
     "calculateSmacs283k1": (
@@ -741,7 +741,7 @@ COMMANDS = {
     ),
     "calculateSmacsHandler283k1": (
         0xEB,
-        (),
+        {},
         (t.EmberStatus, t.EmberSmacData, t.EmberSmacData),
     ),
     "clearTemporaryDataMaybeStoreLinkKey": (
@@ -756,12 +756,12 @@ COMMANDS = {
     ),
     "getCertificate": (
         0xA5,
-        (),
+        {},
         (t.EmberStatus, t.EmberCertificateData),
     ),
     "getCertificate283k1": (
         0xEC,
-        (),
+        {},
         (t.EmberStatus, t.EmberCertificate283k1Data),
     ),
     "dsaSign": (
@@ -771,7 +771,7 @@ COMMANDS = {
     ),  # Deprecated
     "dsaSignHandler": (
         0xA7,
-        (),
+        {},
         (t.EmberStatus, t.LVBytes),
     ),  # Deprecated
     "dsaVerify": (
@@ -781,7 +781,7 @@ COMMANDS = {
     ),
     "dsaVerifyHandler": (
         0x78,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     "dsaVerify283k1": (
@@ -811,27 +811,27 @@ COMMANDS = {
     ),
     "mfglibEnd": (
         0x84,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     "mfglibStartTone": (
         0x85,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     "mfglibStopTone": (
         0x86,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     "mfglibStartStream": (
         0x87,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     "mfglibStopStream": (
         0x88,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     "mfglibSendPacket": (
@@ -846,7 +846,7 @@ COMMANDS = {
     ),
     "mfglibGetChannel": (
         0x8B,
-        (),
+        {},
         (t.uint8_t,),
     ),
     "mfglibSetPower": (
@@ -856,12 +856,12 @@ COMMANDS = {
     ),
     "mfglibGetPower": (
         0x8D,
-        (),
+        {},
         (t.int8s,),
     ),
     "mfglibRxHandler": (
         0x8E,
-        (),
+        {},
         (t.uint8_t, t.int8s, t.LVBytes),
     ),
     # 13. Bootloader Frames
@@ -877,17 +877,17 @@ COMMANDS = {
     ),
     "getStandaloneBootloaderVersionPlatMicroPhy": (
         0x91,
-        (),
+        {},
         (t.uint16_t, t.uint8_t, t.uint8_t, t.uint8_t),
     ),
     "incomingBootloadMessageHandler": (
         0x92,
-        (),
+        {},
         (t.EUI64, t.uint8_t, t.int8s, t.LVBytes),
     ),
     "bootloadTransmitCompleteHandler": (
         0x93,
-        (),
+        {},
         (t.EmberStatus, t.LVBytes),
     ),
     "aesEncrypt": (
@@ -923,17 +923,17 @@ COMMANDS = {
     ),
     "zllNetworkFoundHandler": (
         0xB6,
-        (),
+        {},
         (t.EmberZllNetwork, t.Bool, t.EmberZllDeviceInfoRecord, t.uint8_t, t.int8s),
     ),
     "zllScanCompleteHandler": (
         0xB7,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     "zllAddressAssignmentHandler": (
         0xB8,
-        (),
+        {},
         (t.EmberZllAddressAssignment, t.uint8_t, t.int8s),
     ),
     "setLogicalAndRadioChannel": (
@@ -943,32 +943,32 @@ COMMANDS = {
     ),
     "getLogicalChannel": (
         0xBA,
-        (),
+        {},
         (t.uint8_t,),
     ),
     "zllTouchLinkTargetHandler": (
         0xBB,
-        (),
+        {},
         (t.EmberZllNetwork,),
     ),
     "zllGetTokens": (
         0xBC,
-        (),
+        {},
         (t.EmberTokTypeStackZllData, t.EmberTokTypeStackZllSecurity),
     ),
     "zllSetDataToken": (
         0xBD,
         (t.EmberTokTypeStackZllData,),
-        (),
+        {},
     ),
     "zllSetNonZllNetwork": (
         0xBF,
-        (),
-        (),
+        {},
+        {},
     ),
     "isZllNetwork": (
         0xBE,
-        (),
+        {},
         (t.Bool,),
     ),
     # 15 RF4CE Frames
@@ -999,12 +999,12 @@ COMMANDS = {
     ),
     "rf4ceIncomingMessageHandler": (
         0xD5,
-        (),
+        {},
         (t.uint8_t, t.uint8_t, t.uint16_t, t.EmberRf4ceTxOption, t.LVBytes),
     ),
     "rf4ceMessageSentHandler": (
         0xD6,
-        (),
+        {},
         (
             t.EmberStatus,
             t.uint8_t,
@@ -1022,7 +1022,7 @@ COMMANDS = {
     ),
     "rf4ceStop": (
         0xD8,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     "rf4ceDiscovery": (
@@ -1039,12 +1039,12 @@ COMMANDS = {
     ),
     "rf4ceDiscoveryCompleteHandler": (
         0xDA,
-        (),
+        {},
         (t.EmberStatus,),
     ),
     "rf4ceDiscoveryRequestHandler": (
         0xDB,
-        (),
+        {},
         (
             t.EUI64,
             t.uint8_t,
@@ -1056,7 +1056,7 @@ COMMANDS = {
     ),
     "rf4ceDiscoveryResponseHandler": (
         0xDC,
-        (),
+        {},
         (
             t.Bool,
             t.uint8_t,
@@ -1076,7 +1076,7 @@ COMMANDS = {
     ),
     "rf4ceAutoDiscoveryResponseCompleteHandler": (
         0xDE,
-        (),
+        {},
         (
             t.EmberStatus,
             t.EUI64,
@@ -1093,12 +1093,12 @@ COMMANDS = {
     ),
     "rf4cePairCompleteHandler": (
         0xE0,
-        (),
+        {},
         (t.EmberStatus, t.uint8_t, t.EmberRf4ceVendorInfo, t.EmberRf4ceApplicationInfo),
     ),
     "rf4cePairRequestHandler": (
         0xE1,
-        (),
+        {},
         (
             t.EmberStatus,
             t.uint8_t,
@@ -1116,12 +1116,12 @@ COMMANDS = {
     ),
     "rf4ceUnpairHandler": (
         0xE3,
-        (),
+        {},
         (t.uint8_t,),
     ),
     "rf4ceUnpairCompleteHandler": (
         0xE4,
-        (),
+        {},
         (t.uint8_t,),
     ),
     "rf4ceSetPowerSavingParameters": (
@@ -1141,7 +1141,7 @@ COMMANDS = {
     ),
     "rf4ceGetApplicationInfo": (
         0xEF,
-        (),
+        {},
         (t.EmberStatus, t.EmberRf4ceApplicationInfo),
     ),
     "rf4ceGetMaxPayload": (
@@ -1151,7 +1151,7 @@ COMMANDS = {
     ),
     "rf4ceGetNetworkParameters": (
         0xF4,
-        (),
+        {},
         (t.EmberStatus, t.EmberNodeType, t.EmberNetworkParameters),
     ),
     # 16 Green Power Frames
@@ -1167,7 +1167,7 @@ COMMANDS = {
             t.EUI64,
             t.KeyData,
         ),
-        (),
+        {},
     ),
     "dGpSend": (
         0xC6,
@@ -1176,12 +1176,12 @@ COMMANDS = {
     ),
     "dGpSentHandler": (
         0xC7,
-        (),
+        {},
         (t.EmberStatus, t.uint8_t),
     ),
     "gpepIncomingMessageHandler": (
         0x00C5,
-        (),
+        {},
         (
             t.EmberStatus,  # status
             t.uint8_t,  # gpd link
