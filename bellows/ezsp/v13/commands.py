@@ -6,7 +6,7 @@ COMMANDS = {
     **COMMANDS_v12,
     "getNetworkKeyInfo": (
         0x0116,
-        (),
+        {},
         {
             "status": t.sl_Status,
             "network_key_info": t.SecurityManagerNetworkKeyInfo,
@@ -14,19 +14,22 @@ COMMANDS = {
     ),
     "gpSecurityTestVectors": (
         0x0117,
-        (),
+        {},
         {
             "status": t.EmberStatus,
         },
     ),
     "tokenFactoryReset": (
         0x0077,
-        ({"excludeOutgoingFC": t.Bool, "excludeBootCounter": t.Bool}),
-        (),
+        {
+            "excludeOutgoingFC": t.Bool,
+            "excludeBootCounter": t.Bool,
+        },
+        {},
     ),
     "gpSinkTableGetNumberOfActiveEntries": (
         0x0118,
-        (),
+        {},
         {
             "number_of_entries": t.uint8_t,
         },
