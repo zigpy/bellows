@@ -49,8 +49,7 @@ class ProtocolHandler(abc.ABC):
         frame = self._ezsp_frame_tx(name)
 
         if isinstance(tx_schema, dict):
-            assert not kwargs
-            data = t.serialize_dict(args, tx_schema)
+            data = t.serialize_dict(args, kwargs, tx_schema)
         else:
             data = tx_schema(*args, **kwargs).serialize()
         return frame + data
