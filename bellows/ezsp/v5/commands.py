@@ -5,37 +5,84 @@ COMMANDS = {
     **COMMANDS_v4,
     "changeSourceRouteHandler": (
         0xC4,
-        (),
-        (t.EmberNodeId, t.EmberNodeId, t.Bool),
+        tuple({}.values()),
+        tuple(
+            {
+                "newChildId": t.EmberNodeId,
+                "newParentId": t.EmberNodeId,
+                "ourChild": t.Bool,
+            }.values()
+        ),
     ),
     "setSecurityKey": (
         0xCA,
-        (t.KeyData, t.SecureEzspSecurityType),
-        (t.EzspStatus,),
+        tuple(
+            {
+                "securityKey": t.KeyData,
+                "securityType": t.SecureEzspSecurityType,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EzspStatus,
+            }.values()
+        ),
     ),
     "setSecurityParameters": (
         0xCB,
-        (t.SecureEzspSecurityLevel, t.uint128_t),
-        (t.EzspStatus, t.uint128_t),
+        tuple(
+            {
+                "securityLevel": t.SecureEzspSecurityLevel,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EzspStatus,
+                "randomNumber": t.uint128_t,
+            }.values()
+        ),
     ),
     "resetToFactoryDefaults": (
         0xCC,
-        (),
-        (t.EzspStatus,),
+        tuple({}.values()),
+        tuple(
+            {
+                "status": t.EzspStatus,
+            }.values()
+        ),
     ),
     "getSecurityKeyStatus": (
         0xCD,
-        (),
-        (t.EzspStatus, t.SecureEzspSecurityType),
+        tuple({}.values()),
+        tuple(
+            {
+                "status": t.EzspStatus,
+                "securityType": t.SecureEzspSecurityType,
+            }.values()
+        ),
     ),
     "getTransientLinkKey": (
         0xCE,
-        (t.EUI64,),
-        (t.EmberStatus, t.EmberTransientKeyDataV5),
+        tuple(
+            {
+                "eui": t.EUI64,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+                "transientKeyData": t.EmberTransientKeyDataV5,
+            }.values()
+        ),
     ),
     "setChannelMap": (
         0xF7,
-        (t.uint8_t, t.uint8_t),
-        (),
+        tuple(
+            {
+                "page": t.uint8_t,
+                "channel": t.uint8_t,
+            }.values()
+        ),
+        tuple({}.values()),
     ),
 }
