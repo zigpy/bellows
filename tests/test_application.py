@@ -1473,7 +1473,7 @@ async def test_handle_no_such_device(app, ieee):
     p2 = patch.object(app, "handle_join")
     with p1 as lookup_mock, p2 as handle_join_mock:
         await app._handle_no_such_device(sentinel.nwk)
-        assert lookup_mock.mock_calls == [call(nodeId=sentinel.nwk, linkKey=True)]
+        assert lookup_mock.mock_calls == [call(nodeId=sentinel.nwk)]
         assert handle_join_mock.call_count == 0
 
     p1 = patch.object(
@@ -1483,7 +1483,7 @@ async def test_handle_no_such_device(app, ieee):
     )
     with p1 as lookup_mock, p2 as handle_join_mock:
         await app._handle_no_such_device(sentinel.nwk)
-        assert lookup_mock.mock_calls == [call(address=sentinel.ieee, linkKey=True)]
+        assert lookup_mock.mock_calls == [call(nodeId=sentinel.nwk)]
         assert handle_join_mock.call_count == 1
         assert handle_join_mock.call_args[0][0] == sentinel.nwk
         assert handle_join_mock.call_args[0][1] == sentinel.ieee
