@@ -373,7 +373,7 @@ COMMANDS = {
     "networkInit": (
         0x17,
         {
-            "networkInitBitmask": t.EmberNetworkInitBitmask,  # XXX: We deviate here, since the struct has a single membe.values())r
+            "networkInitBitmask": t.EmberNetworkInitBitmask,  # XXX: We deviate here, since the struct has a single member
         },
         {
             "status": t.EmberStatus,
