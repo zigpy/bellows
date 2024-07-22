@@ -20,152 +20,120 @@ _REPLACEMENTS = {
 COMMANDS = {
     "setExtendedTimeout": (
         0x007E,
-        tuple(
-            {
-                "remoteEui64": t.EUI64,
-                "extendedTimeout": t.Bool,
-            }.values()
-        ),
-        tuple(
-            {
-                "status": t.sl_Status,
-            }.values()
-        ),
+        {
+            "remoteEui64": t.EUI64,
+            "extendedTimeout": t.Bool,
+        },
+        {
+            "status": t.sl_Status,
+        },
     ),
     "getTokenData": (
         0x0102,
-        tuple({"token": t.uint32_t, "index": t.uint32_t}.values()),
+        ({"token": t.uint32_t, "index": t.uint32_t}),
         GetTokenDataRsp,
     ),
     "exportLinkKeyByIndex": (
         0x010F,
-        tuple(
-            {
-                "index": t.uint8_t,
-            }.values()
-        ),
-        tuple(
-            {
-                "status": t.sl_Status,
-                "context": t.SecurityManagerContextV13,
-                "plaintext_key": t.KeyData,
-                "key_data": t.SecurityManagerAPSKeyMetadata,
-            }.values()
-        ),
+        {
+            "index": t.uint8_t,
+        },
+        {
+            "status": t.sl_Status,
+            "context": t.SecurityManagerContextV13,
+            "plaintext_key": t.KeyData,
+            "key_data": t.SecurityManagerAPSKeyMetadata,
+        },
     ),
     "exportKey": (
         0x0114,
-        tuple(
-            {
-                "context": t.SecurityManagerContextV13,
-            }.values()
-        ),
-        tuple(
-            {
-                "status": t.sl_Status,
-                "key": t.KeyData,
-                "context": t.SecurityManagerContextV13,
-            }.values()
-        ),
+        {
+            "context": t.SecurityManagerContextV13,
+        },
+        {
+            "status": t.sl_Status,
+            "key": t.KeyData,
+            "context": t.SecurityManagerContextV13,
+        },
     ),
     "getAddressTableInfo": (
         0x005E,
-        tuple(
-            {
-                "index": t.uint8_t,
-            }.values()
-        ),
-        tuple(
-            {
-                "status": t.sl_Status,
-                "nwk": NWK,
-                "eui64": EUI64,
-            }.values()
-        ),
+        {
+            "index": t.uint8_t,
+        },
+        {
+            "status": t.sl_Status,
+            "nwk": NWK,
+            "eui64": EUI64,
+        },
     ),
     "incomingMessageHandler": (
         0x0045,
-        tuple({}.values()),
-        tuple(
-            {
-                "message_type": t.EmberIncomingMessageType,
-                "aps_frame": t.EmberApsFrame,
-                "nwk": NWK,
-                "eui64": EUI64,
-                "binding_index": t.uint8_t,
-                "address_index": t.uint8_t,
-                "lqi": t.uint8_t,
-                "rssi": t.int8s,
-                "timestamp": t.uint32_t,
-                "message": t.LVBytes,
-            }.values()
-        ),
+        {},
+        {
+            "message_type": t.EmberIncomingMessageType,
+            "aps_frame": t.EmberApsFrame,
+            "nwk": NWK,
+            "eui64": EUI64,
+            "binding_index": t.uint8_t,
+            "address_index": t.uint8_t,
+            "lqi": t.uint8_t,
+            "rssi": t.int8s,
+            "timestamp": t.uint32_t,
+            "message": t.LVBytes,
+        },
     ),
     "messageSentHandler": (
         0x003F,
-        tuple({}.values()),
-        tuple(
-            {
-                "status": t.sl_Status,
-                "message_type": t.EmberOutgoingMessageType,
-                "nwk": NWK,
-                "aps_frame": t.EmberApsFrame,
-                "message_tag": t.uint16_t,
-                "message": t.LVBytes,
-            }.values()
-        ),
+        {},
+        {
+            "status": t.sl_Status,
+            "message_type": t.EmberOutgoingMessageType,
+            "nwk": NWK,
+            "aps_frame": t.EmberApsFrame,
+            "message_tag": t.uint16_t,
+            "message": t.LVBytes,
+        },
     ),
     "sendUnicast": (
         0x0034,
-        tuple(
-            {
-                "message_type": t.EmberOutgoingMessageType,
-                "nwk": NWK,
-                "aps_frame": t.EmberApsFrame,
-                "message_tag": t.uint16_t,
-                "message": t.LVBytes,
-            }.values()
-        ),
-        tuple(
-            {
-                "status": t.sl_Status,
-                "sequence": t.uint8_t,
-            }.values()
-        ),
+        {
+            "message_type": t.EmberOutgoingMessageType,
+            "nwk": NWK,
+            "aps_frame": t.EmberApsFrame,
+            "message_tag": t.uint16_t,
+            "message": t.LVBytes,
+        },
+        {
+            "status": t.sl_Status,
+            "sequence": t.uint8_t,
+        },
     ),
     "sendBroadcast": (
         0x0034,
-        tuple(
-            {
-                "alias": t.uint16_t,
-                "destination": BroadcastAddress,
-                "sequence": t.uint8_t,
-                "aps_frame": t.EmberApsFrame,
-                "radius": t.uint8_t,
-                "message_tag": t.uint16_t,
-                "message": t.LVBytes,
-            }.values()
-        ),
-        tuple(
-            {
-                "status": t.sl_Status,
-                "sequence": t.uint8_t,
-            }.values()
-        ),
+        {
+            "alias": t.uint16_t,
+            "destination": BroadcastAddress,
+            "sequence": t.uint8_t,
+            "aps_frame": t.EmberApsFrame,
+            "radius": t.uint8_t,
+            "message_tag": t.uint16_t,
+            "message": t.LVBytes,
+        },
+        {
+            "status": t.sl_Status,
+            "sequence": t.uint8_t,
+        },
     ),
     "launchStandaloneBootloader": (
         0x008F,
-        tuple(
-            {
-                "mode": t.uint8_t,
-            }.values()
-        ),
-        tuple(
-            {
-                # XXX: One of the few commands that does *not* migrate to `sl_Status`!
-                "status": t.EmberStatus,
-            }.values()
-        ),
+        {
+            "mode": t.uint8_t,
+        },
+        {
+            # XXX: One of the few commands that does *not* migrate to `sl_Status`!
+            "status": t.EmberStatus,
+        },
     ),
 }
 
@@ -175,10 +143,16 @@ for name, (command_id, tx_schema, rx_schema) in COMMANDS_v13.items():
         continue
 
     if not isinstance(tx_schema, Struct):
-        tx_schema = tuple([_REPLACEMENTS.get(s, s) for s in tx_schema])
+        if isinstance(tx_schema, dict):
+            tx_schema = {k: _REPLACEMENTS.get(v, v) for k, v in tx_schema.items()}
+        else:
+            tx_schema = [_REPLACEMENTS.get(v, v) for v in tx_schema]
 
     if not isinstance(tx_schema, Struct):
-        rx_schema = tuple([_REPLACEMENTS.get(s, s) for s in rx_schema])
+        if isinstance(tx_schema, dict):
+            rx_schema = {k: _REPLACEMENTS.get(v, v) for k, v in rx_schema.items()}
+        else:
+            rx_schema = [_REPLACEMENTS.get(v, v) for v in rx_schema]
 
     COMMANDS[name] = (command_id, tx_schema, rx_schema)
 

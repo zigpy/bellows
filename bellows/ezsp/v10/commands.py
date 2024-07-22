@@ -7,30 +7,22 @@ COMMANDS = {
     # Use the correct `EmberChildData` object with the extra field
     "getChildData": (
         0x004A,
-        tuple(
-            {
-                "index": t.uint8_t,
-            }.values()
-        ),
-        tuple(
-            {
-                "status": t.EmberStatus,
-                "child_data": t.EmberChildDataV10,
-            }.values()
-        ),
+        {
+            "index": t.uint8_t,
+        },
+        {
+            "status": t.EmberStatus,
+            "child_data": t.EmberChildDataV10,
+        },
     ),
     "setChildData": (
         0x00AC,
-        tuple(
-            {
-                "index": t.uint8_t,
-                "child_data": t.EmberChildDataV10,
-            }.values()
-        ),
-        tuple(
-            {
-                "status": t.EmberStatus,
-            }.values()
-        ),
+        {
+            "index": t.uint8_t,
+            "child_data": t.EmberChildDataV10,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
 }

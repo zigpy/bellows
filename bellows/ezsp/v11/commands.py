@@ -6,12 +6,10 @@ COMMANDS = {
     **COMMANDS_v10,
     "pollHandler": (
         0x0044,
-        tuple({}.values()),
-        tuple(
-            {
-                "childId": t.EmberNodeId,
-                "transmitExpected": t.Bool,
-            }.values()
-        ),
+        {},
+        {
+            "childId": t.EmberNodeId,
+            "transmitExpected": t.Bool,
+        },
     ),
 }

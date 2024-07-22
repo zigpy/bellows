@@ -5,84 +5,64 @@ COMMANDS = {
     **COMMANDS_v4,
     "changeSourceRouteHandler": (
         0xC4,
-        tuple({}.values()),
-        tuple(
-            {
-                "newChildId": t.EmberNodeId,
-                "newParentId": t.EmberNodeId,
-                "ourChild": t.Bool,
-            }.values()
-        ),
+        {},
+        {
+            "newChildId": t.EmberNodeId,
+            "newParentId": t.EmberNodeId,
+            "ourChild": t.Bool,
+        },
     ),
     "setSecurityKey": (
         0xCA,
-        tuple(
-            {
-                "securityKey": t.KeyData,
-                "securityType": t.SecureEzspSecurityType,
-            }.values()
-        ),
-        tuple(
-            {
-                "status": t.EzspStatus,
-            }.values()
-        ),
+        {
+            "securityKey": t.KeyData,
+            "securityType": t.SecureEzspSecurityType,
+        },
+        {
+            "status": t.EzspStatus,
+        },
     ),
     "setSecurityParameters": (
         0xCB,
-        tuple(
-            {
-                "securityLevel": t.SecureEzspSecurityLevel,
-            }.values()
-        ),
-        tuple(
-            {
-                "status": t.EzspStatus,
-                "randomNumber": t.uint128_t,
-            }.values()
-        ),
+        {
+            "securityLevel": t.SecureEzspSecurityLevel,
+        },
+        {
+            "status": t.EzspStatus,
+            "randomNumber": t.uint128_t,
+        },
     ),
     "resetToFactoryDefaults": (
         0xCC,
-        tuple({}.values()),
-        tuple(
-            {
-                "status": t.EzspStatus,
-            }.values()
-        ),
+        {},
+        {
+            "status": t.EzspStatus,
+        },
     ),
     "getSecurityKeyStatus": (
         0xCD,
-        tuple({}.values()),
-        tuple(
-            {
-                "status": t.EzspStatus,
-                "securityType": t.SecureEzspSecurityType,
-            }.values()
-        ),
+        {},
+        {
+            "status": t.EzspStatus,
+            "securityType": t.SecureEzspSecurityType,
+        },
     ),
     "getTransientLinkKey": (
         0xCE,
-        tuple(
-            {
-                "eui": t.EUI64,
-            }.values()
-        ),
-        tuple(
-            {
-                "status": t.EmberStatus,
-                "transientKeyData": t.EmberTransientKeyDataV5,
-            }.values()
-        ),
+        {
+            "eui": t.EUI64,
+        },
+        {
+            "status": t.EmberStatus,
+            "transientKeyData": t.EmberTransientKeyDataV5,
+        },
     ),
     "setChannelMap": (
         0xF7,
-        tuple(
-            {
-                "page": t.uint8_t,
-                "channel": t.uint8_t,
-            }.values()
-        ),
-        tuple({}.values()),
+        {
+            "page": t.uint8_t,
+            "channel": t.uint8_t,
+        },
+        {},
     ),
 }

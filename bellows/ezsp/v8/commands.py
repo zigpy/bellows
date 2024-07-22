@@ -5,107 +5,79 @@ COMMANDS = {
     **COMMANDS_v7,
     "getNeighborFrameCounter": (
         0x003E,
-        tuple(
-            {
-                "eui64": t.EUI64,
-            }.values()
-        ),
-        tuple(
-            {
-                "status": t.EmberStatus,
-                "frameCounter": t.uint32_t,
-            }.values()
-        ),
+        {
+            "eui64": t.EUI64,
+        },
+        {
+            "status": t.EmberStatus,
+            "frameCounter": t.uint32_t,
+        },
     ),
     "incomingNetworkStatusHandler": (
         0x00C4,
-        tuple({}.values()),
-        tuple(
-            {
-                "errorCode": t.EmberStackError,
-                "target": t.EmberNodeId,
-            }.values()
-        ),
+        {},
+        {
+            "errorCode": t.EmberStackError,
+            "target": t.EmberNodeId,
+        },
     ),
     "sendRawMessageExtended": (
         0x0051,
-        tuple(
-            {
-                "message": t.LVBytes,
-                "priority": t.uint8_t,
-                "useCca": t.Bool,
-            }.values()
-        ),
-        tuple(
-            {
-                "status": t.EmberStatus,
-            }.values()
-        ),
+        {
+            "message": t.LVBytes,
+            "priority": t.uint8_t,
+            "useCca": t.Bool,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "setMacPollFailureWaitTime": (
         0x00F4,
-        tuple(
-            {
-                "waitBeforeRetryIntervalMs": t.uint32_t,
-            }.values()
-        ),
-        tuple({}.values()),
+        {
+            "waitBeforeRetryIntervalMs": t.uint32_t,
+        },
+        {},
     ),
     "setSourceRouteDiscoveryMode": (
         0x005A,
-        tuple(
-            {
-                "mode": t.uint8_t,
-            }.values()
-        ),
-        tuple(
-            {
-                "remainingTime": t.uint32_t,
-            }.values()
-        ),
+        {
+            "mode": t.uint8_t,
+        },
+        {
+            "remainingTime": t.uint32_t,
+        },
     ),
     # Changed
     "getTransientKeyTableEntry": (
         0x006D,
-        tuple(
-            {
-                "index": t.uint8_t,
-            }.values()
-        ),
-        tuple(
-            {
-                "status": t.EmberStatus,
-                "transient_key_data": t.EmberTransientKeyDataV8,
-            }.values()
-        ),
+        {
+            "index": t.uint8_t,
+        },
+        {
+            "status": t.EmberStatus,
+            "transient_key_data": t.EmberTransientKeyDataV8,
+        },
     ),
     "getTransientLinkKey": (
         0x00CE,
-        tuple(
-            {
-                "eui64": t.EUI64,
-            }.values()
-        ),
-        tuple(
-            {
-                "status": t.EmberStatus,
-                "transient_key_data": t.EmberTransientKeyDataV8,
-            }.values()
-        ),
+        {
+            "eui64": t.EUI64,
+        },
+        {
+            "status": t.EmberStatus,
+            "transient_key_data": t.EmberTransientKeyDataV8,
+        },
     ),
     "setSourceRoute": (
         0x00AE,
-        tuple(
-            {
-                "destination": t.EmberNodeId,
-                "relays": t.LVList[t.EmberNodeId],
-            }.values()
-        ),
-        tuple(
-            {
-                "status": t.EmberStatus,
-            }.values()
-        ),
+        {
+            "destination": t.EmberNodeId,
+            "relays": t.LVList[t.EmberNodeId],
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
 }
 
