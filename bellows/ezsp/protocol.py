@@ -64,7 +64,7 @@ class ProtocolHandler(abc.ABC):
 
     async def command(self, name, *args, **kwargs) -> Any:
         """Serialize command and send it."""
-        LOGGER.debug("Sending command  %s: %s", name, args)
+        LOGGER.debug("Sending command  %s: %s %s", name, args, kwargs)
         data = self._ezsp_frame(name, *args, **kwargs)
         cmd_id, _, rx_schema = self.COMMANDS[name]
         future = asyncio.get_running_loop().create_future()
