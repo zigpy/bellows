@@ -29,7 +29,7 @@ class EZSPv7(EZSPv6):
         self,
     ) -> AsyncGenerator[tuple[t.NWK, t.EUI64, t.EmberNodeType], None]:
         for idx in range(0, 255 + 1):
-            (status, rsp) = await self.getChildData(idx)
+            (status, rsp) = await self.getChildData(index=idx)
             status = t.sl_Status.from_ember_status(status)
 
             if status == t.sl_Status.NOT_JOINED:
