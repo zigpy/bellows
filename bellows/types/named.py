@@ -48,16 +48,6 @@ class EmberMulticastId(basic.uint16_t, repr="hex"):
     pass
 
 
-class EmberLibraryId(basic.uint8_t):
-    # The presence and status of the Ember id.
-    pass
-
-
-class EmberLibraryStatus(basic.uint8_t):
-    # The presence and status of the Ember library.
-    pass
-
-
 class EmberGpSecurityLevel(basic.uint8_t):
     # The security level of the GPD.
     pass
@@ -2260,8 +2250,11 @@ class EzspPolicyId(basic.enum8):
     RF4CE_PAIR_REQUEST_POLICY = 0x0C  # Removed in EZSPv6
 
 
-class EzspDecisionBitmask(basic.bitmap16):
+class EzspDecisionBitmask(basic.bitmap8):
     """EZSP Decision bitmask."""
+
+    # XXX: this is intentionally an 8-bit bitmap! The SDK source treats it as a 16-bit
+    # value but it is always serialized to an 8-bit integer
 
     # Disallow joins and rejoins.
     DEFAULT_CONFIGURATION = 0x0000
