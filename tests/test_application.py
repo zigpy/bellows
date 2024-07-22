@@ -843,7 +843,8 @@ async def test_send_packet_unicast_source_route_ezsp7(make_app, packet):
 
     assert app._ezsp.setSourceRoute.await_count == 1
     app._ezsp.setSourceRoute.assert_called_once_with(
-        packet.dst.address, [0x0001, 0x0002]
+        destination=packet.dst.address,
+        relayList=[0x0001, 0x0002],
     )
 
 
@@ -1472,8 +1473,7 @@ async def test_handle_no_such_device(app, ieee):
     p2 = patch.object(app, "handle_join")
     with p1 as lookup_mock, p2 as handle_join_mock:
         await app._handle_no_such_device(sentinel.nwk)
-        assert lookup_mock.await_count == 1
-        assert lookup_mock.await_args[0][0] is sentinel.nwk
+        assert lookup_mock.mock_calls == [call(nodeId=sentinel.nwk, linkKey=True)]
         assert handle_join_mock.call_count == 0
 
     p1 = patch.object(
@@ -1483,8 +1483,7 @@ async def test_handle_no_such_device(app, ieee):
     )
     with p1 as lookup_mock, p2 as handle_join_mock:
         await app._handle_no_such_device(sentinel.nwk)
-        assert lookup_mock.await_count == 1
-        assert lookup_mock.await_args[0][0] is sentinel.nwk
+        assert lookup_mock.mock_calls == [call(address=sentinel.ieee, linkKey=True)]
         assert handle_join_mock.call_count == 1
         assert handle_join_mock.call_args[0][0] == sentinel.nwk
         assert handle_join_mock.call_args[0][1] == sentinel.ieee
@@ -1497,17 +1496,18 @@ async def test_cleanup_tc_link_key(app):
     ezsp.eraseKeyTableEntry = AsyncMock(return_value=(0x00,))
 
     await app.cleanup_tc_link_key(sentinel.ieee)
-    assert ezsp.findKeyTableEntry.await_count == 1
-    assert ezsp.findKeyTableEntry.await_args[0][0] is sentinel.ieee
+    assert ezsp.findKeyTableEntry.mock_calls == [
+        call(address=sentinel.ieee, linkKey=True)
+    ]
     assert ezsp.eraseKeyTableEntry.await_count == 0
     assert ezsp.eraseKeyTableEntry.call_count == 0
 
     ezsp.findKeyTableEntry.reset_mock()
     await app.cleanup_tc_link_key(sentinel.ieee2)
-    assert ezsp.findKeyTableEntry.await_count == 1
-    assert ezsp.findKeyTableEntry.await_args[0][0] is sentinel.ieee2
-    assert ezsp.eraseKeyTableEntry.await_count == 1
-    assert ezsp.eraseKeyTableEntry.await_args[0][0] is sentinel.index
+    assert ezsp.findKeyTableEntry.mock_calls == [
+        call(address=sentinel.ieee2, linkKey=True)
+    ]
+    assert ezsp.eraseKeyTableEntry.mock_calls == [call(index=sentinel.index)]
 
 
 @patch("zigpy.application.ControllerApplication.permit", new=AsyncMock())
@@ -1560,14 +1560,12 @@ async def test_set_mfg_id(ieee, expected_mfg_id, app, ezsp_mock):
     )
     await asyncio.sleep(0.20)
     if expected_mfg_id is not None:
-        assert ezsp_mock.setManufacturerCode.await_count == 2
-        assert ezsp_mock.setManufacturerCode.await_args_list[0][0][0] == expected_mfg_id
-        assert (
-            ezsp_mock.setManufacturerCode.await_args_list[1][0][0]
-            == bellows.zigbee.application.DEFAULT_MFG_ID
-        )
+        assert ezsp_mock.setManufacturerCode.mock_calls == [
+            call(code=expected_mfg_id),
+            call(code=bellows.zigbee.application.DEFAULT_MFG_ID),
+        ]
     else:
-        assert ezsp_mock.setManufacturerCode.await_count == 0
+        assert ezsp_mock.setManufacturerCode.mock_calls == []
 
 
 async def test_ensure_network_running_joined(app):
@@ -1862,7 +1860,7 @@ async def test_write_network_info(
     ]
     assert app._ezsp.formNetwork.mock_calls == [
         call(
-            t.EmberNetworkParameters(
+            parameters=t.EmberNetworkParameters(
                 panId=zigpy_backup.network_info.pan_id,
                 extendedPanId=zigpy_backup.network_info.extended_pan_id,
                 radioTxPower=t.uint8_t(8),
