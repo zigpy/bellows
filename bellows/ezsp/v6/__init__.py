@@ -24,6 +24,6 @@ class EZSPv6(EZSPv5):
 
     async def initialize_network(self) -> t.sl_Status:
         (init_status,) = await self.networkInit(
-            networkInitBitmask=t.NETWORK_INIT_NO_OPTIONS
+            networkInitBitmask=t.EmberNetworkInitBitmask.NETWORK_INIT_NO_OPTIONS
         )
         return t.sl_Status.from_ember_status(init_status)
