@@ -38,7 +38,7 @@ class EZSPv5(EZSPv4):
     async def add_transient_link_key(
         self, ieee: t.EUI64, key: t.KeyData
     ) -> t.sl_Status:
-        (status,) = await self.addTransientLinkKey(ieee, key)
+        (status,) = await self.addTransientLinkKey(partner=ieee, transientKey=key)
         return t.sl_Status.from_ember_status(status)
 
     async def pre_permit(self, time_s: int) -> None:
@@ -53,13 +53,13 @@ class EZSPv5(EZSPv4):
         )
 
         for idx in range(addr_table_size):
-            (nwk,) = await self.getAddressTableRemoteNodeId(idx)
+            (nwk,) = await self.getAddressTableRemoteNodeId(addressTableIndex=idx)
 
             # Ignore invalid NWK entries
             if nwk in t.EmberDistinguishedNodeId.__members__.values():
                 continue
 
-            (eui64,) = await self.getAddressTableRemoteEui64(idx)
+            (eui64,) = await self.getAddressTableRemoteEui64(addressTableIndex=idx)
 
             if eui64 in (
                 t.EUI64.convert("00:00:00:00:00:00:00:00"),
@@ -75,8 +75,8 @@ class EZSPv5(EZSPv4):
         assert state == t.EmberNetworkStatus.NO_NETWORK
 
         (status,) = await self.setValue(
-            t.EzspValueId.VALUE_NWK_FRAME_COUNTER,
-            t.uint32_t(frame_counter).serialize(),
+            valueId=t.EzspValueId.VALUE_NWK_FRAME_COUNTER,
+            value=t.uint32_t(frame_counter).serialize(),
         )
         assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
 
@@ -86,7 +86,7 @@ class EZSPv5(EZSPv4):
         assert state == t.EmberNetworkStatus.NO_NETWORK
 
         (status,) = await self.setValue(
-            t.EzspValueId.VALUE_APS_FRAME_COUNTER,
-            t.uint32_t(frame_counter).serialize(),
+            valueId=t.EzspValueId.VALUE_APS_FRAME_COUNTER,
+            value=t.uint32_t(frame_counter).serialize(),
         )
         assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
