@@ -205,15 +205,18 @@ class EZSP:
             "getValue": 999,
         }.get(name, 0)
 
-    async def _command(self, name: str, *args: tuple[Any, ...]) -> Any:
+    async def _command(self, name: str, *args: Any, **kwargs: Any) -> Any:
         if not self.is_ezsp_running:
             LOGGER.debug(
-                "Couldn't send command %s(%s). EZSP is not running", name, args
+                "Couldn't send command %s(%s, %s). EZSP is not running",
+                name,
+                args,
+                kwargs,
             )
             raise EzspError("EZSP is not running")
 
         async with self._send_sem(priority=self._get_command_priority(name)):
-            return await self._protocol.command(name, *args)
+            return await self._protocol.command(name, *args, **kwargs)
 
     async def _list_command(self, name, item_frames, completion_frame, spos, *args):
         """Run a command, returning result callbacks as a list"""
