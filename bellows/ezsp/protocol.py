@@ -51,7 +51,7 @@ class ProtocolHandler(abc.ABC):
         if isinstance(tx_schema, dict):
             assert not kwargs
             data = t.serialize_dict(args, tx_schema)
-        elif isinstance(tx_schema, tuple):
+        elif isinstance(tx_schema, (tuple, list)):
             assert not kwargs
             data = t.serialize(args, tx_schema)
         else:
@@ -108,7 +108,7 @@ class ProtocolHandler(abc.ABC):
             return
 
         try:
-            if isinstance(rx_schema, tuple):
+            if isinstance(rx_schema, (tuple, list)):
                 result, data = t.deserialize(data, rx_schema)
                 LOGGER.debug("Received command %s: %s", frame_name, result)
             elif isinstance(rx_schema, dict):
