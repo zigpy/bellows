@@ -15,44 +15,98 @@ COMMANDS = {
     **COMMANDS_v8,
     "setChildData": (
         0x00AC,
-        (t.uint8_t, t.EmberChildDataV7),
-        (t.EmberStatus,),
+        tuple(
+            {
+                "index": t.uint8_t,
+                "child_data": t.EmberChildDataV7,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+            }.values()
+        ),
     ),
     "setNeighborFrameCounter": (
         0x00AD,
-        (t.EUI64,),
-        (t.EmberStatus, t.uint32_t),
+        tuple(
+            {
+                "eui64": t.EUI64,
+                "frame_counter": t.uint32_t,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+            }.values()
+        ),
     ),
     "setRadioIeee802154CcaMode": (
         0x0095,
-        (t.uint8_t,),
-        (t.EmberStatus,),
+        tuple(
+            {
+                "cca_mode": t.uint8_t,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+            }.values()
+        ),
     ),
     # 18 Token Interface Frames
     "getTokenCount": (
         0x0100,
-        (),
-        (t.uint8_t,),
+        tuple({}.values()),
+        tuple(
+            {
+                "count": t.uint8_t,
+            }.values()
+        ),
     ),
     "getTokenInfo": (
         0x0101,
-        (t.uint8_t,),
-        (t.EmberStatus, t.EmberTokenInfo),
+        tuple(
+            {
+                "index": t.uint8_t,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+                "token_info": t.EmberTokenInfo,
+            }.values()
+        ),
     ),
     "getTokenData": (
         0x0102,
-        (t.uint32_t, t.uint32_t),
+        tuple(
+            {
+                "token": t.uint32_t,
+                "index": t.uint32_t,
+            }.values()
+        ),
         GetTokenDataRsp,
     ),
     "setTokenData": (
         0x0103,
-        (t.uint32_t, t.uint32_t, t.LVBytes32),
-        (t.EmberStatus,),
+        tuple(
+            {
+                "token": t.uint32_t,
+                "index": t.uint32_t,
+                "token_data": t.LVBytes32,
+            }.values()
+        ),
+        tuple(
+            {
+                "status": t.EmberStatus,
+            }.values()
+        ),
     ),
     "resetNode": (
         0x0104,
-        (),
-        (),
+        tuple({}.values()),
+        tuple({}.values()),
     ),
 }
 
