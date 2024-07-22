@@ -30,7 +30,10 @@ COMMANDS = {
     ),
     "getTokenData": (
         0x0102,
-        ({"token": t.uint32_t, "index": t.uint32_t}),
+        {
+            "token": t.uint32_t,
+            "index": t.uint32_t,
+        },
         GetTokenDataRsp,
     ),
     "exportLinkKeyByIndex": (
