@@ -16,7 +16,7 @@ def main(ctx, device, baudrate, flow_control):
     ctx.obj = {
         "device": device,
         "baudrate": baudrate,
-        "flow_control": flow_control,
+        "flow_control": flow_control if flow_control != "none" else None,
     }
     click_log.basic_config()
 

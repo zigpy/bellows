@@ -25,7 +25,7 @@ async def config(ctx, config, all_):
     )
 
     if all_:
-        for config in s.types.EzspConfigId:
+        for config in t.EzspConfigId:
             v = await s.getConfigurationValue(config)
             if v[0] == t.EzspStatus.ERROR_INVALID_ID:
                 continue
@@ -37,12 +37,12 @@ async def config(ctx, config, all_):
         config, value = config.split("=", 1)
         if config.isdigit():
             try:
-                config = s.types.EzspConfigId(int(config))
+                config = t.EzspConfigId(int(config))
             except ValueError:
                 raise click.BadArgumentUsage(f"Invalid config ID: {config}")
         else:
             try:
-                config = s.types.EzspConfigId[config]
+                config = t.EzspConfigId[config]
             except KeyError:
                 raise click.BadArgumentUsage(f"Invalid config name: {config}")
         try:
