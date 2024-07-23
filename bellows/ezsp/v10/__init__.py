@@ -27,8 +27,8 @@ class EZSPv10(EZSPv9):
     async def write_child_data(self, children: dict[t.EUI64, t.NWK]) -> None:
         for index, (eui64, nwk) in enumerate(children.items()):
             await self.setChildData(
-                index,
-                t.EmberChildDataV10(
+                index=index,
+                child_data=t.EmberChildDataV10(
                     eui64=eui64,
                     type=t.EmberNodeType.SLEEPY_END_DEVICE,
                     id=nwk,

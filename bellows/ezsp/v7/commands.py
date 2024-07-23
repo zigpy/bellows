@@ -5,119 +5,181 @@ COMMANDS = {
     **COMMANDS_v6,
     "sendPanIdUpdate": (
         0x57,
-        (t.EmberPanId,),
-        (t.Bool,),
+        {
+            "newPan": t.EmberPanId,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "getTrueRandomEntropySource": (
         0x4F,
-        (),
-        (t.EmberEntropySource,),
+        {},
+        {
+            "entropySource": t.EmberEntropySource,
+        },
     ),
     "joinNetworkDirectly": (
         0x3B,
-        (t.EmberNodeType, t.EmberBeaconData, t.int8s, t.Bool),
-        (t.EmberStatus,),
+        {
+            "localNodeType": t.EmberNodeType,
+            "beacon": t.EmberBeaconData,
+            "radioTxPower": t.int8s,
+            "clearBeaconsAfterNetworkUp": t.Bool,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "getFirstBeacon": (
         0x3D,
-        (),
-        (t.EmberStatus, t.EmberBeaconIterator),
+        {},
+        {
+            "status": t.EmberStatus,
+            "beaconIterator": t.EmberBeaconIterator,
+        },
     ),
     "getNextBeacon": (
         0x04,
-        (),
-        (t.EmberStatus, t.EmberBeaconData),
+        {},
+        {
+            "status": t.EmberStatus,
+            "beaconData": t.EmberBeaconData,
+        },
     ),
     "getNumStoredBeacons": (
         0x08,
-        (),
-        (t.uint8_t,),
+        {},
+        {
+            "numStoredBeacons": t.uint8_t,
+        },
     ),
     "clearStoredBeacons": (
         0x3C,
-        (),
-        (),
+        {},
+        {},
     ),
     "unicastCurrentNetworkKey": (
         0x50,
-        (t.EmberNodeId, t.EUI64, t.EmberNodeId),
-        (t.EmberStatus,),
+        {
+            "targetShort": t.EmberNodeId,
+            "targetLong": t.EUI64,
+            "parentShortId": t.EmberNodeId,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "setMacPollCcaWaitTime": (
         0xF4,
-        (t.uint8_t,),
-        (),
+        {
+            "waitBeforeRetryIntervalMs": t.uint8_t,
+        },
+        {},
     ),
     "setBeaconClassificationParams": (
         0xEF,
-        (),
-        (t.EmberStatus, t.EmberBeaconClassificationParams),
+        {
+            "param": t.EmberBeaconClassificationParams,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "getBeaconClassificationParams": (
         0xF3,
-        (),
-        (t.EmberStatus, t.EmberBeaconClassificationParams),
+        {},
+        {
+            "status": t.EmberStatus,
+            "param": t.EmberBeaconClassificationParams,
+        },
     ),
     "updateTcLinkKey": (
         0x6C,
-        (t.uint8_t,),
-        (t.EmberStatus,),
+        {
+            "maxAttempts": t.uint8_t,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "getTransientKeyTableEntry": (
         0x6D,
-        (t.uint8_t,),
-        (t.EmberStatus, t.EmberTransientKeyDataV5),
+        {
+            "index": t.uint8_t,
+        },
+        {
+            "status": t.EmberStatus,
+            "keyStruct": t.EmberTransientKeyDataV5,
+        },
     ),
     "zllClearTokens": (
         0x25,
-        (),
-        (),
+        {},
+        {},
     ),
     "setParentClassificationEnabled": (
         0xE7,
-        (t.Bool,),
-        (),
+        {
+            "enabled": t.Bool,
+        },
+        {},
     ),
     "getParentClassificationEnabled": (
         0xF0,
-        (),
-        (t.Bool,),
+        {},
+        {
+            "enabled": t.Bool,
+        },
     ),
     "setLongUpTime": (
         0xE3,
-        (t.Bool,),
-        (),
+        {
+            "hasLongUpTime": t.Bool,
+        },
+        {},
     ),
     "setHubConnectivity": (
         0xE4,
-        (t.Bool,),
-        (),
+        {
+            "connected": t.Bool,
+        },
+        {},
     ),
     "isUpTimeLong": (
         0xE5,
-        (),
-        (t.Bool,),
+        {},
+        {
+            "hasLongUpTime": t.Bool,
+        },
     ),
     "isHubConnected": (
         0xE6,
-        (),
-        (t.Bool,),
+        {},
+        {
+            "connected": t.Bool,
+        },
     ),
     "gpSinkTableClearAll": (
         0xE2,
-        (),
-        (),
+        {},
+        {},
     ),
     "gpSinkTableInit": (
         0x70,
-        (),
-        (),
+        {},
+        {},
     ),
     # Changed commands
     "getChildData": (
         0x4A,
-        (t.uint8_t,),
-        (t.EmberStatus, t.EmberChildDataV7),
+        {
+            "index": t.uint8_t,
+        },
+        {
+            "status": t.EmberStatus,
+            "childData": t.EmberChildDataV7,
+        },
     ),
 }
 

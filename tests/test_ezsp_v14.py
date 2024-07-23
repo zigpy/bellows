@@ -65,8 +65,8 @@ async def test_read_address_table(ezsp_f):
 
 
 async def test_get_network_key_and_tc_link_key(ezsp_f):
-    def export_key(security_context):
-        if security_context.core_key_type == t.SecurityManagerKeyType.NETWORK:
+    def export_key(context):
+        if context.core_key_type == t.SecurityManagerKeyType.NETWORK:
             return (
                 t.sl_Status.OK,
                 t.KeyData.convert("2ccade06b3090c310315b3d574d3c85a"),
@@ -80,7 +80,7 @@ async def test_get_network_key_and_tc_link_key(ezsp_f):
                     psa_key_alg_permission=0,
                 ),
             )
-        elif security_context.core_key_type == t.SecurityManagerKeyType.TC_LINK:
+        elif context.core_key_type == t.SecurityManagerKeyType.TC_LINK:
             return (
                 t.sl_Status.OK,
                 t.KeyData.convert("abcdabcdabcdabcdabcdabcdabcdabcd"),
@@ -171,12 +171,12 @@ async def test_send_broadcast(ezsp_f) -> None:
     assert message_tag == 0x42
     assert ezsp_f.sendBroadcast.mock_calls == [
         call(
-            0x0000,
-            t.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
-            34,
-            t.EmberApsFrame(),
-            12,
-            0x42,
-            b"hello",
+            alias=0x0000,
+            destination=t.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
+            sequence=34,
+            aps_frame=t.EmberApsFrame(),
+            radius=12,
+            message_tag=0x42,
+            message=b"hello",
         )
     ]

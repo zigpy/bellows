@@ -26,11 +26,11 @@ class EZSPv14(EZSPv13):
 
     async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64], None]:
         (status, addr_table_size) = await self.getConfigurationValue(
-            t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
+            configId=t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
         )
 
         for idx in range(addr_table_size + 100):
-            (status, nwk, eui64) = await self.getAddressTableInfo(idx)
+            (status, nwk, eui64) = await self.getAddressTableInfo(index=idx)
 
             if status != t.sl_Status.OK:
                 continue
@@ -45,7 +45,7 @@ class EZSPv14(EZSPv13):
 
     async def get_network_key(self) -> zigpy.state.Key:
         status, network_key_data, _ = await self.exportKey(
-            t.SecurityManagerContextV13(
+            context=t.SecurityManagerContextV13(
                 core_key_type=t.SecurityManagerKeyType.NETWORK,
                 key_index=0,
                 derived_type=t.SecurityManagerDerivedKeyTypeV13.NONE,
@@ -72,7 +72,7 @@ class EZSPv14(EZSPv13):
 
     async def get_tc_link_key(self) -> zigpy.state.Key:
         status, tc_link_key_data, _ = await self.exportKey(
-            t.SecurityManagerContextV13(
+            context=t.SecurityManagerContextV13(
                 core_key_type=t.SecurityManagerKeyType.TC_LINK,
                 key_index=0,
                 derived_type=t.SecurityManagerDerivedKeyTypeV13.NONE,
@@ -97,13 +97,13 @@ class EZSPv14(EZSPv13):
         data: bytes,
     ) -> tuple[t.sl_Status, t.uint8_t]:
         status, sequence = await self.sendBroadcast(
-            0x0000,
-            address,
-            aps_sequence,
-            aps_frame,
-            radius,
-            message_tag,
-            data,
+            alias=0x0000,
+            destination=address,
+            sequence=aps_sequence,
+            aps_frame=aps_frame,
+            radius=radius,
+            message_tag=message_tag,
+            message=data,
         )
 
         return status, sequence

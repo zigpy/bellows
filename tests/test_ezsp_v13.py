@@ -114,7 +114,7 @@ async def test_read_link_keys(ezsp_f):
 
 
 async def test_get_network_key_and_tc_link_key(ezsp_f):
-    def export_key(security_context):
+    def export_key(context):
         key = {
             t.SecurityManagerKeyType.NETWORK: t.KeyData.convert(
                 "2ccade06b3090c310315b3d574d3c85a"
@@ -122,7 +122,7 @@ async def test_get_network_key_and_tc_link_key(ezsp_f):
             t.SecurityManagerKeyType.TC_LINK: t.KeyData.convert(
                 "abcdabcdabcdabcdabcdabcdabcdabcd"
             ),
-        }[security_context.core_key_type]
+        }[context.core_key_type]
 
         return (key, t.EmberStatus.SUCCESS)
 
@@ -209,14 +209,14 @@ async def test_write_link_keys(ezsp_f):
 
     assert ezsp_f.importLinkKey.mock_calls == [
         call(
-            0,
-            t.EUI64.convert("CC:CC:CC:FF:FE:E6:8E:CA"),
-            t.KeyData.convert("85:7C:05:00:3E:76:1A:F9:68:9A:49:41:6A:60:5C:76"),
+            index=0,
+            address=t.EUI64.convert("CC:CC:CC:FF:FE:E6:8E:CA"),
+            key=t.KeyData.convert("85:7C:05:00:3E:76:1A:F9:68:9A:49:41:6A:60:5C:76"),
         ),
         call(
-            1,
-            t.EUI64.convert("EC:1B:BD:FF:FE:2F:41:A4"),
-            t.KeyData.convert("CA:02:E8:BB:75:7C:94:F8:93:39:D3:9C:B3:CD:A7:BE"),
+            index=1,
+            address=t.EUI64.convert("EC:1B:BD:FF:FE:2F:41:A4"),
+            key=t.KeyData.convert("CA:02:E8:BB:75:7C:94:F8:93:39:D3:9C:B3:CD:A7:BE"),
         ),
     ]
 
@@ -227,4 +227,6 @@ async def test_factory_reset(ezsp_f) -> None:
     await ezsp_f.factory_reset()
 
     assert ezsp_f.clearKeyTable.mock_calls == [call()]
-    assert ezsp_f.tokenFactoryReset.mock_calls == [call(False, False)]
+    assert ezsp_f.tokenFactoryReset.mock_calls == [
+        call(excludeOutgoingFC=False, excludeBootCounter=False)
+    ]

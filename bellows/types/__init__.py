@@ -3,13 +3,18 @@ from .named import *  # noqa: F401,F403
 from .struct import *  # noqa: F401,F403
 
 
-def deserialize(data, schema):
-    result = []
-    for type_ in schema:
+def deserialize_dict(data, schema):
+    result = {}
+    for key, type_ in schema.items():
         value, data = type_.deserialize(data)
-        result.append(value)
+        result[key] = value
     return result, data
 
 
-def serialize(data, schema):
-    return b"".join(t(v).serialize() for t, v in zip(schema, data))
+def serialize_dict(args, kwargs, schema):
+    params = {
+        **dict(zip(schema.keys(), args)),
+        **kwargs,
+    }
+
+    return b"".join(t(params[k]).serialize() for k, t in schema.items())

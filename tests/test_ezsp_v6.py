@@ -30,4 +30,6 @@ def test_ezsp_frame_rx(ezsp_f):
 async def test_initialize_network(ezsp_f) -> None:
     ezsp_f.networkInit = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
     assert await ezsp_f.initialize_network() == t.sl_Status.OK
-    assert ezsp_f.networkInit.mock_calls == [call(0x0000)]
+    assert ezsp_f.networkInit.mock_calls == [
+        call(networkInitBitmask=t.EmberNetworkInitBitmask.NETWORK_INIT_NO_OPTIONS)
+    ]

@@ -122,7 +122,7 @@ async def _test_list_command(ezsp_f, mockcommand):
 
 
 async def test_list_command(ezsp_f):
-    async def mockcommand(name, *args):
+    async def mockcommand(name, *args, **kwargs):
         assert name == "startScan"
         ezsp_f.frame_received(b"\x01\x00\x1b" + b"\x00" * 20)
         ezsp_f.frame_received(b"\x02\x00\x1b" + b"\x00" * 20)
@@ -135,7 +135,7 @@ async def test_list_command(ezsp_f):
 
 
 async def test_list_command_initial_failure(ezsp_f):
-    async def mockcommand(name, *args):
+    async def mockcommand(name, *args, **kwargs):
         assert name == "startScan"
         return [t.EmberStatus.FAILURE]
 
@@ -144,7 +144,7 @@ async def test_list_command_initial_failure(ezsp_f):
 
 
 async def test_list_command_later_failure(ezsp_f):
-    async def mockcommand(name, *args):
+    async def mockcommand(name, *args, **kwargs):
         assert name == "startScan"
         ezsp_f.frame_received(b"\x01\x00\x1b" + b"\x00" * 20)
         ezsp_f.frame_received(b"\x02\x00\x1b" + b"\x00" * 20)
@@ -157,7 +157,7 @@ async def test_list_command_later_failure(ezsp_f):
 
 
 async def _test_form_network(ezsp_f, initial_result, final_result):
-    async def mockcommand(name, *args):
+    async def mockcommand(name, *args, **kwargs):
         assert name == "formNetwork"
         ezsp_f.frame_received(b"\x01\x00\x19" + final_result)
         return initial_result
@@ -228,7 +228,7 @@ def test_callback_exc(ezsp_f):
 
 @pytest.mark.parametrize("version, call_count", ((4, 1), (5, 2), (6, 2), (99, 2)))
 async def test_change_version(ezsp_f, version, call_count):
-    def mockcommand(name, *args):
+    def mockcommand(name, *args, **kwargs):
         assert name == "version"
         ezsp_f.frame_received(b"\x01\x00\x00\x21\x22\x23\x24")
         fut = asyncio.Future()
@@ -320,8 +320,8 @@ async def test_board_info(ezsp_f):
     """Test getting board info."""
 
     def cmd_mock(config):
-        async def replacement(*args):
-            return tuple(config[args])
+        async def replacement(command_name, tokenId=None, valueId=None):
+            return tuple(config[command_name, tokenId or valueId])
 
         return replacement
 
@@ -501,7 +501,9 @@ async def test_can_burn_userdata_custom_eui64(ezsp_f, value, expected_result):
 
     assert await ezsp_f.can_burn_userdata_custom_eui64() == expected_result
 
-    ezsp_f.getMfgToken.assert_called_once_with(t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
+    ezsp_f.getMfgToken.assert_called_once_with(
+        tokenId=t.EzspMfgTokenId.MFG_CUSTOM_EUI_64
+    )
 
 
 @pytest.mark.parametrize(
@@ -523,11 +525,11 @@ async def test_can_burn_userdata_custom_eui64(ezsp_f, value, expected_result):
 async def test_can_rewrite_custom_eui64(ezsp_f, tokens, expected_key, expected_result):
     """Test detecting if a custom EUI64 can be rewritten in NV3."""
 
-    def get_token_data(key, index):
-        if key not in tokens or index != 0:
+    def get_token_data(token, index):
+        if token not in tokens or index != 0:
             return GetTokenDataRsp(status=t.EmberStatus.ERR_FATAL)
 
-        return GetTokenDataRsp(status=t.EmberStatus.SUCCESS, value=tokens[key])
+        return GetTokenDataRsp(status=t.EmberStatus.SUCCESS, value=tokens[token])
 
     ezsp_f.getTokenData = AsyncMock(side_effect=get_token_data)
 
@@ -593,7 +595,7 @@ async def test_write_custom_eui64(ezsp_f):
     await ezsp_f.write_custom_eui64(new_eui64, burn_into_userdata=True)
 
     ezsp_f.setMfgToken.assert_called_once_with(
-        t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, new_eui64.serialize()
+        tokenId=t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, tokenData=new_eui64.serialize()
     )
     ezsp_f.setTokenData.assert_not_called()
 
@@ -734,27 +736,27 @@ async def test_config_initialize_husbzb1(ezsp_f):
     ezsp_f.networkState = AsyncMock(return_value=(t.EmberNetworkStatus.JOINED_NETWORK,))
 
     expected_calls = [
-        call(t.EzspConfigId.CONFIG_SOURCE_ROUTE_TABLE_SIZE, 16),
-        call(t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, 60),
-        call(t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, 8),
-        call(t.EzspConfigId.CONFIG_INDIRECT_TRANSMISSION_TIMEOUT, 7680),
-        call(t.EzspConfigId.CONFIG_STACK_PROFILE, 2),
-        call(t.EzspConfigId.CONFIG_SUPPORTED_NETWORKS, 1),
-        call(t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, 16),
-        call(t.EzspConfigId.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, 2),
-        call(t.EzspConfigId.CONFIG_SECURITY_LEVEL, 5),
-        call(t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE, 16),
-        call(t.EzspConfigId.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD, 2),
-        call(t.EzspConfigId.CONFIG_KEY_TABLE_SIZE, 4),
-        call(t.EzspConfigId.CONFIG_MAX_END_DEVICE_CHILDREN, 32),
+        call(configId=t.EzspConfigId.CONFIG_SOURCE_ROUTE_TABLE_SIZE, value=16),
+        call(configId=t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, value=60),
+        call(configId=t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT_SHIFT, value=8),
+        call(configId=t.EzspConfigId.CONFIG_INDIRECT_TRANSMISSION_TIMEOUT, value=7680),
+        call(configId=t.EzspConfigId.CONFIG_STACK_PROFILE, value=2),
+        call(configId=t.EzspConfigId.CONFIG_SUPPORTED_NETWORKS, value=1),
+        call(configId=t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, value=16),
+        call(configId=t.EzspConfigId.CONFIG_TRUST_CENTER_ADDRESS_CACHE_SIZE, value=2),
+        call(configId=t.EzspConfigId.CONFIG_SECURITY_LEVEL, value=5),
+        call(configId=t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE, value=16),
+        call(configId=t.EzspConfigId.CONFIG_PAN_ID_CONFLICT_REPORT_THRESHOLD, value=2),
+        call(configId=t.EzspConfigId.CONFIG_KEY_TABLE_SIZE, value=4),
+        call(configId=t.EzspConfigId.CONFIG_MAX_END_DEVICE_CHILDREN, value=32),
         call(
-            t.EzspConfigId.CONFIG_APPLICATION_ZDO_FLAGS,
-            (
+            configId=t.EzspConfigId.CONFIG_APPLICATION_ZDO_FLAGS,
+            value=(
                 t.EmberZdoConfigurationFlags.APP_HANDLES_UNSUPPORTED_ZDO_REQUESTS
                 | t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS
             ),
         ),
-        call(t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT, 255),
+        call(configId=t.EzspConfigId.CONFIG_PACKET_BUFFER_COUNT, value=255),
     ]
 
     await ezsp_f.write_config({})
@@ -831,7 +833,7 @@ async def test_cfg_initialize_skip(ezsp_f):
         # Config not set when it is explicitly disabled
         with pytest.raises(AssertionError):
             ezsp_f.setConfigurationValue.assert_called_with(
-                t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, ANY
+                configId=t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, value=ANY
             )
 
     with p1, p2:
@@ -839,7 +841,7 @@ async def test_cfg_initialize_skip(ezsp_f):
 
         # Config is overridden
         ezsp_f.setConfigurationValue.assert_any_call(
-            t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, 123
+            configId=t.EzspConfigId.CONFIG_MULTICAST_TABLE_SIZE, value=123
         )
 
     with p1, p2:
@@ -847,7 +849,7 @@ async def test_cfg_initialize_skip(ezsp_f):
 
         # Config is set by default
         ezsp_f.setConfigurationValue.assert_any_call(
-            t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, ANY
+            configId=t.EzspConfigId.CONFIG_END_DEVICE_POLL_TIMEOUT, value=ANY
         )
 
 

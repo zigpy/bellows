@@ -5,236 +5,379 @@ COMMANDS = {
     **COMMANDS_v5,
     "getPhyInterfaceCount": (
         0xFC,
-        (),
-        (t.uint8_t,),
+        {},
+        {
+            "interfaceCount": t.uint8_t,
+        },
     ),
     "unusedPanIdFoundHandler": (
         0xD2,
-        (),
-        (t.uint8_t, t.EmberStatus),
+        {},
+        {
+            "panId": t.uint16_t,
+            "channel": t.uint8_t,
+        },
     ),
     "findUnusedPanId": (
         0xD3,
-        (t.Channels, t.uint8_t),
-        (t.EmberStatus,),
+        {
+            "channelMask": t.Channels,
+            "duration": t.uint8_t,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "getRadioParameters": (
         0xFD,
-        (t.uint8_t,),
-        (t.EmberStatus, t.EmberNodeType, t.EmberNetworkParameters),
+        {
+            "phyIndex": t.uint8_t,
+        },
+        {
+            "status": t.EmberStatus,
+            "parameters": t.EmberMultiPhyRadioParameters,
+        },
     ),
     "getSourceRouteTableTotalSize": (
         0xC3,
-        (),
-        (t.uint8_t,),
+        {},
+        {
+            "sourceRouteTableTotalSize": t.uint8_t,
+        },
     ),
     "getSourceRouteTableFilledSize": (
         0xC2,
-        (),
-        (t.uint8_t,),
+        {},
+        {
+            "sourceRouteTableFilledSize": t.uint8_t,
+        },
     ),
     "getSourceRouteTableEntry": (
         0xC1,
-        (t.uint8_t,),
-        (t.EmberStatus, t.EmberNodeId, t.uint8_t),
+        {
+            "index": t.uint8_t,
+        },
+        {
+            "status": t.EmberStatus,
+            "destination": t.EmberNodeId,
+            "closerIndex": t.uint8_t,
+        },
     ),
     "setRoutingShortcutThreshold": (
         0xD0,
-        (t.uint8_t,),
-        (t.EmberStatus,),
+        {
+            "index": t.uint8_t,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "getRoutingShortcutThreshold": (
         0xD1,
-        (),
-        (t.uint8_t,),
+        {},
+        {
+            "routingShortcutThresh": t.uint8_t,
+        },
     ),
     "setBrokenRouteErrorCode": (
         0x11,
-        (t.uint8_t,),
-        (t.EmberStatus,),
+        {
+            "errorCode": t.uint8_t,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "multiPhyStart": (
         0xF8,
-        (t.uint8_t, t.uint8_t, t.uint8_t, t.int8s, t.EmberMultiPhyNwkConfig),
-        (t.EmberStatus,),
+        {
+            "phyIndex": t.uint8_t,
+            "page": t.uint8_t,
+            "channel": t.uint8_t,
+            "power": t.int8s,
+            "bitmask": t.EmberMultiPhyNwkConfig,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "multiPhyStop": (
         0xF9,
-        (t.uint8_t,),
-        (t.EmberStatus,),
+        {
+            "phyIndex": t.uint8_t,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "multiPhySetRadioPower": (
         0xFA,
-        (t.uint8_t, t.int8s),
-        (t.EmberStatus,),
+        {
+            "phyIndex": t.uint8_t,
+            "power": t.int8s,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "sendLinkPowerDeltaRequest": (
         0xF7,
-        (),
-        (t.EmberStatus,),
+        {},
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "multiPhySetRadioChannel": (
         0xFB,
-        (t.uint8_t, t.uint8_t, t.uint8_t),
-        (t.EmberStatus,),
+        {
+            "phyIndex": t.uint8_t,
+            "page": t.uint8_t,
+            "channel": t.uint8_t,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "getDutyCycleState": (
         0x35,
-        (),
-        (t.EmberStatus, t.EmberDutyCycleState),
+        {},
+        {
+            "status": t.EmberStatus,
+            "returnedState": t.EmberDutyCycleState,
+        },
     ),
     "setDutyCycleLimitsInStack": (
         0x40,
-        (t.EmberDutyCycleLimits,),
-        (t.EmberStatus, t.EmberDutyCycleState),
+        {
+            "limits": t.EmberDutyCycleLimits,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "getDutyCycleLimits": (
         0x4B,
-        (),
-        (t.EmberStatus, t.EmberDutyCycleLimits),
+        {},
+        {
+            "status": t.EmberStatus,
+            "limits": t.EmberDutyCycleLimits,
+        },
     ),
     "getCurrentDutyCycle": (
         0x4C,
-        (t.uint8_t,),
-        (t.EmberStatus, t.FixedList[t.uint8_t, 134]),
+        {
+            "maxDevices": t.uint8_t,
+        },
+        {
+            "status": t.EmberStatus,
+            "arrayOfDeviceDutyCycles": t.FixedList[t.uint8_t, 134],
+        },
     ),
     "dutyCycleHandler": (
         0x4D,
-        (),
-        (
-            t.uint8_t,
-            t.uint8_t,
-            t.EmberDutyCycleState,
-            t.uint8_t,
-            t.EmberPerDeviceDutyCycle,
-        ),
+        {},
+        {
+            "channelPage": t.uint8_t,
+            "channel": t.uint8_t,
+            "state": t.EmberDutyCycleState,
+            "arrayOfDeviceDutyCycles": t.LVList[t.EmberPerDeviceDutyCycle],
+        },
     ),
     "sendMulticastWithAlias": (
         0x3A,
-        (
-            t.EmberApsFrame,
-            t.uint8_t,
-            t.uint8_t,
-            t.uint16_t,
-            t.uint8_t,
-            t.uint8_t,
-            t.LVBytes,
-        ),
-        (
-            t.EmberStatus,
-            t.uint8_t,
-        ),
+        {
+            "hops": t.EmberApsFrame,
+            "nonmemberRadius": t.uint8_t,
+            "alias": t.uint8_t,
+            "nwkSequence": t.uint16_t,
+            "messageTag": t.uint8_t,
+            "messageLength": t.uint8_t,
+            "messageContents": t.LVBytes,
+        },
+        {
+            "status": t.EmberStatus,
+            "sequence": t.uint8_t,
+        },
     ),
     "writeNodeData": (
         0xFE,
-        (t.Bool,),
-        (t.EmberStatus,),
+        {
+            "erase": t.Bool,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "sendTrustCenterLinkKey": (
         0x67,
-        (t.EmberNodeId, t.EUI64),
-        (t.EmberStatus,),
+        {
+            "destinationNodeId": t.EmberNodeId,
+            "destinationEui64": t.EUI64,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "zllSetSecurityStateWithoutKey": (
         0xCF,
-        (t.EmberZllInitialSecurityState,),
-        (t.EmberStatus,),
+        {
+            "securityState": t.EmberZllInitialSecurityState,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "zllSetRadioIdleMode": (
         0xD4,
-        (t.EmberRadioPowerMode,),
-        (),
+        {
+            "mode": t.EmberRadioPowerMode,
+        },
+        {},
     ),
     "setZllNodeType": (
         0xD5,
-        (t.EmberNodeType,),
-        (),
+        {
+            "nodeType": t.EmberNodeType,
+        },
+        {},
     ),
     "setZllAdditionalState": (
         0xD6,
-        (t.uint16_t,),
-        (),
+        {
+            "state": t.uint16_t,
+        },
+        {},
     ),
     "zllOperationInProgress": (
         0xD7,
-        (),
-        (t.Bool,),
+        {},
+        {
+            "zllOperationInProgress": t.Bool,
+        },
     ),
     "zllRxOnWhenIdleGetActive": (
         0xD8,
-        (),
-        (t.Bool,),
+        {},
+        {
+            "zllRxOnWhenIdleGetActive": t.Bool,
+        },
     ),
     "getZllPrimaryChannelMask": (
         0xD9,
-        (),
-        (t.Channels,),
+        {},
+        {
+            "zllPrimaryChannelMask": t.Channels,
+        },
     ),
     "getZllSecondaryChannelMask": (
         0xDA,
-        (),
-        (t.Channels,),
+        {},
+        {
+            "zllSecondaryChannelMask": t.Channels,
+        },
     ),
     "setZllPrimaryChannelMask": (
         0xDB,
-        (t.Channels,),
-        (),
+        {
+            "zllPrimaryChannelMask": t.Channels,
+        },
+        {},
     ),
     "setZllSecondaryChannelMask": (
         0xDC,
-        (t.Channels,),
-        (),
+        {
+            "zllSecondaryChannelMask": t.Channels,
+        },
+        {},
     ),
+    # TODO: are these green power frames in the correct protocol version?
     "gpProxyTableGetEntry": (
         0xC8,
-        (t.uint8_t,),
-        (t.EmberStatus, t.EmberGpProxyTableEntry),
+        {
+            "proxyIndex": t.uint8_t,
+        },
+        {
+            "status": t.EmberStatus,
+            "entry": t.EmberGpProxyTableEntry,
+        },
     ),
     "gpProxyTableLookup": (
         0xC0,
-        (t.EmberGpAddress,),
-        (t.uint8_t,),
+        {
+            "addr": t.EmberGpAddress,
+        },
+        {
+            "index": t.uint8_t,
+        },
     ),
     "gpSinkTableGetEntry": (
         0xDD,
-        (t.uint8_t,),
-        (t.EmberStatus, t.EmberGpSinkTableEntry),
+        {
+            "index": t.uint8_t,
+        },
+        {
+            "status": t.EmberStatus,
+            "entry": t.EmberGpSinkTableEntry,
+        },
     ),
     "gpSinkTableLookup": (
         0xDE,
-        (t.EmberGpAddress,),
-        (t.uint8_t,),
+        {
+            "addr": t.EmberGpAddress,
+        },
+        {
+            "index": t.uint8_t,
+        },
     ),
     "gpSinkTableSetEntry": (
         0xDF,
-        (t.uint8_t, t.EmberGpSinkTableEntry),
-        (t.EmberStatus,),
+        {
+            "sinkIndex": t.uint8_t,
+            "entry": t.EmberGpSinkTableEntry,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "gpSinkTableRemoveEntry": (
         0xE0,
-        (t.uint8_t,),
-        (),
+        {
+            "sinkIndex": t.uint8_t,
+        },
+        {},
     ),
     "gpSinkTableFindOrAllocateEntry": (
         0xE1,
-        (t.EmberGpAddress,),
-        (t.uint8_t,),
+        {
+            "addr": t.EmberGpAddress,
+        },
+        {
+            "index": t.uint8_t,
+        },
     ),
     "gpClearSinkTable": (
         0xE2,
-        (),
-        (),
+        {},
+        {},
     ),
     # Changed commands
     "zllSetRxOnWhenIdle": (
         0xB5,
-        (t.uint32_t,),
-        (t.EmberStatus,),
+        {
+            "durationMs": t.uint32_t,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "networkInit": (
         0x17,
-        (t.EmberNetworkInitBitmask,),
-        (t.EmberStatus,),
+        {
+            "networkInitBitmask": t.EmberNetworkInitBitmask,  # XXX: We deviate here, since the struct has a single member
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
 }
 

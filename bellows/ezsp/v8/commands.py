@@ -5,46 +5,79 @@ COMMANDS = {
     **COMMANDS_v7,
     "getNeighborFrameCounter": (
         0x003E,
-        (t.EUI64,),
-        (t.EmberStatus, t.uint32_t),
+        {
+            "eui64": t.EUI64,
+        },
+        {
+            "status": t.EmberStatus,
+            "frameCounter": t.uint32_t,
+        },
     ),
     "incomingNetworkStatusHandler": (
         0x00C4,
-        (),
-        tuple(
-            {"errorCode": t.EmberStackError, "target": t.EmberNodeId}.values(),
-        ),
+        {},
+        {
+            "errorCode": t.EmberStackError,
+            "target": t.EmberNodeId,
+        },
     ),
     "sendRawMessageExtended": (
         0x0051,
-        (t.LVBytes, t.uint8_t, t.Bool),
-        (t.EmberStatus,),
+        {
+            "message": t.LVBytes,
+            "priority": t.uint8_t,
+            "useCca": t.Bool,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
     "setMacPollFailureWaitTime": (
         0x00F4,
-        (t.uint8_t,),
-        (),
+        {
+            "waitBeforeRetryIntervalMs": t.uint32_t,
+        },
+        {},
     ),
     "setSourceRouteDiscoveryMode": (
         0x005A,
-        (t.uint8_t,),
-        (t.uint32_t,),
+        {
+            "mode": t.uint8_t,
+        },
+        {
+            "remainingTime": t.uint32_t,
+        },
     ),
     # Changed
     "getTransientKeyTableEntry": (
         0x006D,
-        (t.uint8_t,),
-        (t.EmberStatus, t.EmberTransientKeyDataV8),
+        {
+            "index": t.uint8_t,
+        },
+        {
+            "status": t.EmberStatus,
+            "transient_key_data": t.EmberTransientKeyDataV8,
+        },
     ),
     "getTransientLinkKey": (
         0x00CE,
-        (t.EUI64,),
-        (t.EmberStatus, t.EmberTransientKeyDataV8),
+        {
+            "eui64": t.EUI64,
+        },
+        {
+            "status": t.EmberStatus,
+            "transient_key_data": t.EmberTransientKeyDataV8,
+        },
     ),
     "setSourceRoute": (
         0x00AE,
-        (t.EmberNodeId, t.LVList[t.EmberNodeId]),
-        (t.EmberStatus,),
+        {
+            "destination": t.EmberNodeId,
+            "relays": t.LVList[t.EmberNodeId],
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
 }
 

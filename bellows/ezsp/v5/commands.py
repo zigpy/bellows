@@ -5,37 +5,64 @@ COMMANDS = {
     **COMMANDS_v4,
     "changeSourceRouteHandler": (
         0xC4,
-        (),
-        (t.EmberNodeId, t.EmberNodeId, t.Bool),
+        {},
+        {
+            "newChildId": t.EmberNodeId,
+            "newParentId": t.EmberNodeId,
+            "ourChild": t.Bool,
+        },
     ),
     "setSecurityKey": (
         0xCA,
-        (t.KeyData, t.SecureEzspSecurityType),
-        (t.EzspStatus,),
+        {
+            "securityKey": t.KeyData,
+            "securityType": t.SecureEzspSecurityType,
+        },
+        {
+            "status": t.EzspStatus,
+        },
     ),
     "setSecurityParameters": (
         0xCB,
-        (t.SecureEzspSecurityLevel, t.uint128_t),
-        (t.EzspStatus, t.uint128_t),
+        {
+            "securityLevel": t.SecureEzspSecurityLevel,
+        },
+        {
+            "status": t.EzspStatus,
+            "randomNumber": t.uint128_t,
+        },
     ),
     "resetToFactoryDefaults": (
         0xCC,
-        (),
-        (t.EzspStatus,),
+        {},
+        {
+            "status": t.EzspStatus,
+        },
     ),
     "getSecurityKeyStatus": (
         0xCD,
-        (),
-        (t.EzspStatus, t.SecureEzspSecurityType),
+        {},
+        {
+            "status": t.EzspStatus,
+            "securityType": t.SecureEzspSecurityType,
+        },
     ),
     "getTransientLinkKey": (
         0xCE,
-        (t.EUI64,),
-        (t.EmberStatus, t.EmberTransientKeyDataV5),
+        {
+            "eui": t.EUI64,
+        },
+        {
+            "status": t.EmberStatus,
+            "transientKeyData": t.EmberTransientKeyDataV5,
+        },
     ),
     "setChannelMap": (
         0xF7,
-        (t.uint8_t, t.uint8_t),
-        (),
+        {
+            "page": t.uint8_t,
+            "channel": t.uint8_t,
+        },
+        {},
     ),
 }

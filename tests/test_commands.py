@@ -42,8 +42,8 @@ def test_ids(commands):
 def test_parms(commands):
     """Test that parameter descriptions seem valid"""
     for command, params in commands.items():
-        assert isinstance(params[1], tuple), command
-        assert isinstance(params[2], tuple), command
+        assert isinstance(params[1], (tuple, dict)), command
+        assert isinstance(params[2], (tuple, dict)), command
 
 
 def test_handlers(commands):

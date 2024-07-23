@@ -41,12 +41,14 @@ class EZSPv8(EZSPv7):
         """Temporarily change TC policy while allowing new joins."""
         await super().pre_permit(time_s)
         await self.setPolicy(
-            t.EzspPolicyId.TRUST_CENTER_POLICY,
-            t.EzspDecisionBitmask.ALLOW_JOINS
-            | t.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS,
+            valueId=t.EzspPolicyId.TRUST_CENTER_POLICY,
+            value=(
+                t.EzspDecisionBitmask.ALLOW_JOINS
+                | t.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS
+            ),
         )
         await asyncio.sleep(time_s + 2)
         await self.setPolicy(
-            t.EzspPolicyId.TRUST_CENTER_POLICY,
-            self.tc_policy,
+            valueId=t.EzspPolicyId.TRUST_CENTER_POLICY,
+            value=self.tc_policy,
         )

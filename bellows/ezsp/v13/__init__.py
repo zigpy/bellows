@@ -27,20 +27,21 @@ class EZSPv13(EZSPv12):
         bellows.config.CONF_EZSP_POLICIES: vol.Schema(config.EZSP_POLICIES_SCH),
     }
 
+    # TODO: does this command go in v12 or here?
     async def add_transient_link_key(
         self, ieee: t.EUI64, key: t.KeyData
     ) -> t.sl_Status:
         (status,) = await self.importTransientKey(
-            ieee,
-            key,
-            t.SecurityManagerContextFlags.NONE,
+            eui64=ieee,
+            plaintext_key=key,
+            flags=t.SecurityManagerContextFlags.NONE,
         )
 
         return t.sl_Status.from_ember_status(status)
 
     async def read_link_keys(self) -> AsyncGenerator[zigpy.state.Key, None]:
         (status, key_table_size) = await self.getConfigurationValue(
-            t.EzspConfigId.CONFIG_KEY_TABLE_SIZE
+            configId=t.EzspConfigId.CONFIG_KEY_TABLE_SIZE
         )
 
         for index in range(key_table_size):
@@ -49,7 +50,7 @@ class EZSPv13(EZSPv12):
                 plaintext_key,
                 key_data,
                 status,
-            ) = await self.exportLinkKeyByIndex(index)
+            ) = await self.exportLinkKeyByIndex(index=index)
 
             if status != t.sl_Status.OK:
                 continue
@@ -63,7 +64,7 @@ class EZSPv13(EZSPv12):
 
     async def get_network_key(self) -> zigpy.state.Key:
         network_key_data, status = await self.exportKey(
-            t.SecurityManagerContextV13(
+            context=t.SecurityManagerContextV13(
                 core_key_type=t.SecurityManagerKeyType.NETWORK,
                 key_index=0,
                 derived_type=t.SecurityManagerDerivedKeyTypeV13.NONE,
@@ -90,7 +91,7 @@ class EZSPv13(EZSPv12):
 
     async def get_tc_link_key(self) -> zigpy.state.Key:
         tc_link_key_data, status = await self.exportKey(
-            t.SecurityManagerContextV13(
+            context=t.SecurityManagerContextV13(
                 core_key_type=t.SecurityManagerKeyType.TC_LINK,
                 key_index=0,
                 derived_type=t.SecurityManagerDerivedKeyTypeV13.NONE,
@@ -107,11 +108,13 @@ class EZSPv13(EZSPv12):
 
     async def write_link_keys(self, keys: Iterable[zigpy.state.Key]) -> None:
         for index, key in enumerate(keys):
-            (status,) = await self.importLinkKey(index, key.partner_ieee, key.key)
+            (status,) = await self.importLinkKey(
+                index=index, address=key.partner_ieee, key=key.key
+            )
 
             if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
                 LOGGER.warning("Couldn't add %s key: %s", key, status)
 
     async def factory_reset(self) -> None:
-        await self.tokenFactoryReset(False, False)
+        await self.tokenFactoryReset(excludeOutgoingFC=False, excludeBootCounter=False)
         await self.clearKeyTable()

@@ -7,12 +7,22 @@ COMMANDS = {
     # Use the correct `EmberChildData` object with the extra field
     "getChildData": (
         0x004A,
-        (t.uint8_t,),
-        (t.EmberStatus, t.EmberChildDataV10),
+        {
+            "index": t.uint8_t,
+        },
+        {
+            "status": t.EmberStatus,
+            "child_data": t.EmberChildDataV10,
+        },
     ),
     "setChildData": (
         0x00AC,
-        (t.uint8_t, t.EmberChildDataV10),
-        (t.EmberStatus,),
+        {
+            "index": t.uint8_t,
+            "child_data": t.EmberChildDataV10,
+        },
+        {
+            "status": t.EmberStatus,
+        },
     ),
 }

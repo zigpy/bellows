@@ -172,11 +172,11 @@ class EZSP:
 
     async def version(self):
         ver, stack_type, stack_version = await self._command(
-            "version", self.ezsp_version
+            "version", desiredProtocolVersion=self.ezsp_version
         )
         if ver != self.ezsp_version:
             self._switch_protocol_version(ver)
-            await self._command("version", ver)
+            await self._command("version", desiredProtocolVersion=ver)
         LOGGER.debug(
             "EZSP Stack Type: %s, Stack Version: %04x, Protocol version: %s",
             stack_type,
@@ -205,17 +205,22 @@ class EZSP:
             "getValue": 999,
         }.get(name, 0)
 
-    async def _command(self, name: str, *args: tuple[Any, ...]) -> Any:
+    async def _command(self, name: str, *args: Any, **kwargs: Any) -> Any:
         if not self.is_ezsp_running:
             LOGGER.debug(
-                "Couldn't send command %s(%s). EZSP is not running", name, args
+                "Couldn't send command %s(%s, %s). EZSP is not running",
+                name,
+                args,
+                kwargs,
             )
             raise EzspError("EZSP is not running")
 
         async with self._send_sem(priority=self._get_command_priority(name)):
-            return await self._protocol.command(name, *args)
+            return await self._protocol.command(name, *args, **kwargs)
 
-    async def _list_command(self, name, item_frames, completion_frame, spos, *args):
+    async def _list_command(
+        self, name, item_frames, completion_frame, spos, *args, **kwargs
+    ):
         """Run a command, returning result callbacks as a list"""
         fut = asyncio.Future()
         results = []
@@ -228,7 +233,7 @@ class EZSP:
 
         cbid = self.add_callback(cb)
         try:
-            v = await self._command(name, *args)
+            v = await self._command(name, *args, **kwargs)
             if t.sl_Status.from_ember_status(v[0]) != t.sl_Status.OK:
                 raise Exception(v)
             v = await fut
@@ -304,7 +309,7 @@ class EZSP:
 
     async def formNetwork(self, parameters: t.EmberNetworkParameters) -> None:
         with self.wait_for_stack_status(t.sl_Status.NETWORK_UP) as stack_status:
-            v = await self._command("formNetwork", parameters)
+            v = await self._command("formNetwork", parameters=parameters)
 
             if t.sl_Status.from_ember_status(v[0]) != t.sl_Status.OK:
                 raise zigpy.exceptions.FormationFailure(f"Failure forming network: {v}")
@@ -341,7 +346,7 @@ class EZSP:
         tokens = {}
 
         for token in (t.EzspMfgTokenId.MFG_STRING, t.EzspMfgTokenId.MFG_BOARD_NAME):
-            (value,) = await self.getMfgToken(token)
+            (value,) = await self.getMfgToken(tokenId=token)
             LOGGER.debug("Read %s token: %s", token.name, value)
 
             # Tokens are fixed-length and initially filled with \xFF
@@ -357,7 +362,9 @@ class EZSP:
 
             tokens[token] = result
 
-        (status, ver_info_bytes) = await self.getValue(t.EzspValueId.VALUE_VERSION_INFO)
+        (status, ver_info_bytes) = await self.getValue(
+            valueId=t.EzspValueId.VALUE_VERSION_INFO
+        )
         version = None
 
         if t.sl_Status.from_ember_status(status) == t.sl_Status.OK:
@@ -381,7 +388,7 @@ class EZSP:
             t.NV3KeyId.NVM3KEY_STACK_RESTORED_EUI64,  # RCP firmware
         ):
             try:
-                rsp = await self.getTokenData(key, 0)
+                rsp = await self.getTokenData(token=key, index=0)
             except (InvalidCommandError, AttributeError):
                 # Either the command doesn't exist in the EZSP version, or the command
                 # is not implemented in the firmware
@@ -397,7 +404,7 @@ class EZSP:
 
     async def _get_mfg_custom_eui_64(self) -> t.EUI64 | None:
         """Get the custom EUI 64 manufacturing token, if it has a valid value."""
-        (data,) = await self.getMfgToken(t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
+        (data,) = await self.getMfgToken(tokenId=t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
 
         # Manufacturing tokens do not exist in RCP firmware: all reads are empty
         if not data:
@@ -455,14 +462,15 @@ class EZSP:
         if nv3_eui64_key is not None:
             # Prefer NV3 storage over MFG_CUSTOM_EUI_64, as it can be rewritten
             (status,) = await self.setTokenData(
-                nv3_eui64_key,
-                0,
-                t.LVBytes32(ieee.serialize()),
+                token=nv3_eui64_key,
+                index=0,
+                token_data=t.LVBytes32(ieee.serialize()),
             )
             assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
         elif mfg_custom_eui64 is None and burn_into_userdata:
             (status,) = await self.setMfgToken(
-                t.EzspMfgTokenId.MFG_CUSTOM_EUI_64, ieee.serialize()
+                tokenId=t.EzspMfgTokenId.MFG_CUSTOM_EUI_64,
+                tokenData=ieee.serialize(),
             )
             assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
         elif mfg_custom_eui64 is None and not burn_into_userdata:
@@ -497,20 +505,20 @@ class EZSP:
     async def set_source_routing(self) -> None:
         """Enable source routing on NCP."""
         res = await self.setConcentrator(
-            True,
-            t.EmberConcentratorType.HIGH_RAM_CONCENTRATOR,
-            MTOR_MIN_INTERVAL,
-            MTOR_MAX_INTERVAL,
-            MTOR_ROUTE_ERROR_THRESHOLD,
-            MTOR_DELIVERY_FAIL_THRESHOLD,
-            0,
+            on=True,
+            concentratorType=t.EmberConcentratorType.HIGH_RAM_CONCENTRATOR,
+            minTime=MTOR_MIN_INTERVAL,
+            maxTime=MTOR_MAX_INTERVAL,
+            routeErrorThreshold=MTOR_ROUTE_ERROR_THRESHOLD,
+            deliveryFailureThreshold=MTOR_DELIVERY_FAIL_THRESHOLD,
+            maxHops=0,
         )
         LOGGER.debug("Set concentrator type: %s", res)
         if t.sl_Status.from_ember_status(res[0]) != t.sl_Status.OK:
             LOGGER.warning("Couldn't set concentrator type %s: %s", True, res)
 
         if self._ezsp_version >= 8:
-            await self.setSourceRouteDiscoveryMode(1)
+            await self.setSourceRouteDiscoveryMode(mode=1)
 
     def start_ezsp(self):
         """Mark EZSP as running."""
@@ -576,7 +584,7 @@ class EZSP:
         # First, set the values
         for cfg in ezsp_values.values():
             # XXX: A read failure does not mean the value is not writeable!
-            status, current_value = await self.getValue(cfg.value_id)
+            status, current_value = await self.getValue(valueId=cfg.value_id)
 
             if t.sl_Status.from_ember_status(status) == t.sl_Status.OK:
                 current_value, _ = type(cfg.value).deserialize(current_value)
@@ -590,7 +598,9 @@ class EZSP:
                 current_value,
             )
 
-            (status,) = await self.setValue(cfg.value_id, cfg.value.serialize())
+            (status,) = await self.setValue(
+                valueId=cfg.value_id, value=cfg.value.serialize()
+            )
 
             if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
                 LOGGER.debug(
@@ -603,7 +613,9 @@ class EZSP:
 
         # Finally, set the config
         for cfg in ezsp_config.values():
-            (status, current_value) = await self.getConfigurationValue(cfg.config_id)
+            (status, current_value) = await self.getConfigurationValue(
+                configId=cfg.config_id
+            )
 
             # Only grow some config entries, all others should be set
             if (
@@ -626,7 +638,9 @@ class EZSP:
                 current_value,
             )
 
-            (status,) = await self.setConfigurationValue(cfg.config_id, cfg.value)
+            (status,) = await self.setConfigurationValue(
+                configId=cfg.config_id, value=cfg.value
+            )
             if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
                 LOGGER.debug(
                     "Could not set config %s = %s: %s",
