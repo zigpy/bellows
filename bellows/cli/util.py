@@ -135,11 +135,11 @@ def check(ret, message, expected=0):
 
 
 async def network_init(s):
-    v = await s.networkInit()
+    v = await s.initialize_network()
     check(
-        v[0],
-        f"Failure initializing network: {v[0]}",
-        [0, t.EmberStatus.NOT_JOINED],
+        v,
+        f"Failure initializing network: {v}",
+        t.sl_Status.OK,
     )
     return v
 
