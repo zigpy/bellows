@@ -176,3 +176,7 @@ class EZSPv4(protocol.ProtocolHandler):
         )
 
         return t.sl_Status.from_ember_status(status), sequence
+
+    async def set_source_route(self, nwk: t.NWK, relays: list[t.NWK]) -> t.sl_Status:
+        (res,) = await self._ezsp.setSourceRoute(destination=nwk, relayList=relays)
+        return t.sl_Status.from_ember_status(res) == t.sl_Status.OK

@@ -671,16 +671,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await asyncio.sleep(MFG_ID_RESET_DELAY)
         await self._ezsp.setManufacturerCode(code=DEFAULT_MFG_ID)
 
-    async def _set_source_route(
-        self, nwk: zigpy.types.NWK, relays: list[zigpy.types.NWK]
-    ) -> bool:
-        # The `setSourceRoute` command is a no-op in EZSPv9 and above
-        if self._ezsp.ezsp_version >= 8:
-            return True
-
-        (res,) = await self._ezsp.setSourceRoute(destination=nwk, relayList=relays)
-        return t.sl_Status.from_ember_status(res) == t.sl_Status.OK
-
     async def energy_scan(
         self, channels: t.Channels, duration_exp: int, count: int
     ) -> dict[int, float]:
@@ -764,8 +754,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                                 )
 
                             if packet.source_route is not None:
-                                await self._set_source_route(
-                                    packet.dst.address, packet.source_route
+                                await self._ezsp.set_source_route(
+                                    nwk=packet.dst.address,
+                                    relays=packet.source_route,
                                 )
 
                             status, _ = await self._ezsp.send_unicast(
