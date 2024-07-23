@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import functools
 import logging
@@ -316,12 +318,58 @@ async def test_ezsp_newer_version(ezsp_f):
         await ezsp_f.version()
 
 
-async def test_board_info(ezsp_f):
+@pytest.mark.parametrize(
+    (
+        "mfg_board_name",
+        "mfg_string",
+        "value_version_info",
+        "expected",
+    ),
+    [
+        (
+            (b"\xfe\xff\xff\xff",),
+            (b"Manufacturer\xff\xff\xff",),
+            (t.EmberStatus.SUCCESS, b"\x01\x02\x03\x04\x05\x06"),
+            ("Manufacturer", "0xFE", "3.4.5.6 build 513"),
+        ),
+        (
+            (b"\xfe\xff\xff\xff",),
+            (b"Manufacturer\xff\xff\xff",),
+            (t.EmberStatus.ERR_FATAL, b"\x01\x02\x03\x04\x05\x06"),
+            ("Manufacturer", "0xFE", None),
+        ),
+        (
+            (b"SkyBlue v0.1\x00\xff\xff\xff",),
+            (b"Nabu Casa\x00\xff\xff\xff\xff\xff\xff",),
+            (t.EmberStatus.SUCCESS, b"\xbf\x00\x07\x01\x00\x00\xaa"),
+            ("Nabu Casa", "SkyBlue v0.1", "7.1.0.0 build 191"),
+        ),
+        (
+            (b"\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff",),
+            (b"\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff",),
+            (t.EmberStatus.SUCCESS, b"\xbf\x00\x07\x01\x00\x00\xaa"),
+            (None, None, "7.1.0.0 build 191"),
+        ),
+        (
+            (b"\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff",),
+            (b"\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x00\x00",),
+            (t.EmberStatus.SUCCESS, b")\x01\x06\n\x03\x00\xaa"),
+            (None, None, "6.10.3.0 build 297"),
+        ),
+    ],
+)
+async def test_board_info(
+    ezsp_f,
+    mfg_board_name: bytes,
+    mfg_string: bytes,
+    value_version_info: tuple[t.EmberStatus, bytes],
+    expected: tuple[str | None, str | None, str],
+):
     """Test getting board info."""
 
     def cmd_mock(config):
         async def replacement(command_name, tokenId=None, valueId=None):
-            return tuple(config[command_name, tokenId or valueId])
+            return config[command_name, tokenId or valueId]
 
         return replacement
 
@@ -330,92 +378,15 @@ async def test_board_info(ezsp_f):
         "_command",
         new=cmd_mock(
             {
-                ("getMfgToken", t.EzspMfgTokenId.MFG_BOARD_NAME): (
-                    b"\xfe\xff\xff\xff",
-                ),
-                ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (
-                    b"Manufacturer\xff\xff\xff",
-                ),
-                ("getValue", t.EzspValueId.VALUE_VERSION_INFO): (
-                    t.EmberStatus.SUCCESS,
-                    b"\x01\x02\x03\x04\x05\x06",
-                ),
+                ("getMfgToken", t.EzspMfgTokenId.MFG_BOARD_NAME): mfg_board_name,
+                ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): mfg_string,
+                ("getValue", t.EzspValueId.VALUE_VERSION_INFO): value_version_info,
             }
         ),
     ):
         mfg, brd, ver = await ezsp_f.get_board_info()
 
-    assert mfg == "Manufacturer"
-    assert brd == "0xFE"
-    assert ver == "3.4.5.6 build 513"
-
-    with patch.object(
-        ezsp_f,
-        "_command",
-        new=cmd_mock(
-            {
-                ("getMfgToken", t.EzspMfgTokenId.MFG_BOARD_NAME): (
-                    b"\xfe\xff\xff\xff",
-                ),
-                ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (
-                    b"Manufacturer\xff\xff\xff",
-                ),
-                ("getValue", t.EzspValueId.VALUE_VERSION_INFO): (
-                    t.EmberStatus.ERR_FATAL,
-                    b"\x01\x02\x03\x04\x05\x06",
-                ),
-            }
-        ),
-    ):
-        mfg, brd, ver = await ezsp_f.get_board_info()
-
-    assert mfg == "Manufacturer"
-    assert brd == "0xFE"
-    assert ver is None
-
-    with patch.object(
-        ezsp_f,
-        "_command",
-        new=cmd_mock(
-            {
-                ("getMfgToken", t.EzspMfgTokenId.MFG_BOARD_NAME): (
-                    b"SkyBlue v0.1\x00\xff\xff\xff",
-                ),
-                ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (
-                    b"Nabu Casa\x00\xff\xff\xff\xff\xff\xff",
-                ),
-                ("getValue", t.EzspValueId.VALUE_VERSION_INFO): (
-                    t.EmberStatus.SUCCESS,
-                    b"\xbf\x00\x07\x01\x00\x00\xaa",
-                ),
-            }
-        ),
-    ):
-        mfg, brd, ver = await ezsp_f.get_board_info()
-
-    assert mfg == "Nabu Casa"
-    assert brd == "SkyBlue v0.1"
-    assert ver == "7.1.0.0 build 191"
-
-    with patch.object(
-        ezsp_f,
-        "_command",
-        new=cmd_mock(
-            {
-                ("getMfgToken", t.EzspMfgTokenId.MFG_BOARD_NAME): (b"\xff" * 16,),
-                ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): (b"\xff" * 16,),
-                ("getValue", t.EzspValueId.VALUE_VERSION_INFO): (
-                    t.EmberStatus.SUCCESS,
-                    b"\xbf\x00\x07\x01\x00\x00\xaa",
-                ),
-            }
-        ),
-    ):
-        mfg, brd, ver = await ezsp_f.get_board_info()
-
-    assert mfg is None
-    assert brd is None
-    assert ver == "7.1.0.0 build 191"
+    assert (mfg, brd, ver) == expected
 
 
 async def test_pre_permit(ezsp_f):
