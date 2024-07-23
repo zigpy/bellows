@@ -60,7 +60,7 @@ extended_pan = click.option("-E", "--extended-pan-id", type=click.STRING)
 flow_control = click.option(
     "--flow-control",
     default="software",
-    type=click.Choice(["hardware", "software", "None"]),
+    type=click.Choice(["hardware", "software", "none"], case_sensitive=False),
     envvar="EZSP_FLOW_CONTROL",
     help="use hardware flow control",
 )
