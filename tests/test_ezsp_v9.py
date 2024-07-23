@@ -74,3 +74,13 @@ async def test_write_child_data(ezsp_f) -> None:
             ),
         ),
     ]
+
+
+async def test_source_route(ezsp_f) -> None:
+    ezsp_f.setSourceRoute = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+
+    status = await ezsp_f.set_source_route(nwk=0x1234, relays=[0x5678, 0xABCD])
+    assert status == t.sl_Status.OK
+
+    # Nothing happens
+    assert ezsp_f.setSourceRoute.mock_calls == []

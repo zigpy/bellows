@@ -52,7 +52,3 @@ class EZSPv8(EZSPv7):
             valueId=t.EzspPolicyId.TRUST_CENTER_POLICY,
             value=self.tc_policy,
         )
-
-    async def set_source_route(self, nwk: t.NWK, relays: list[t.NWK]) -> t.sl_Status:
-        # While the command may succeed, it does absolutely nothing
-        return t.sl_Status.OK
