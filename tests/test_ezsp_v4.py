@@ -337,3 +337,14 @@ async def test_send_broadcast(ezsp_f) -> None:
             messageContents=b"hello",
         )
     ]
+
+
+async def test_source_route(ezsp_f) -> None:
+    ezsp_f.setSourceRoute = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+
+    status = await ezsp_f.set_source_route(nwk=0x1234, relays=[0x5678, 0xABCD])
+    assert status == t.sl_Status.OK
+
+    assert ezsp_f.setSourceRoute.mock_calls == [
+        call(destination=0x1234, relayList=[0x5678, 0xABCD])
+    ]

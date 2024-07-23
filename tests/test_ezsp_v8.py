@@ -53,3 +53,13 @@ def test_get_key_table_entry_fallback_parsing(ezsp_f):
     assert len(ezsp_f._handle_callback.mock_calls) == 1
     mock_call = ezsp_f._handle_callback.mock_calls[0]
     assert mock_call.args[0] == "getKeyTableEntry"
+
+
+async def test_source_route(ezsp_f) -> None:
+    ezsp_f.setSourceRoute = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+
+    status = await ezsp_f.set_source_route(nwk=0x1234, relays=[0x5678, 0xABCD])
+    assert status == t.sl_Status.OK
+
+    # Nothing happens
+    assert ezsp_f.setSourceRoute.mock_calls == []
