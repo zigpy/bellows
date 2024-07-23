@@ -239,3 +239,7 @@ class ProtocolHandler(abc.ABC):
         data: bytes,
     ) -> tuple[t.sl_Status, t.uint8_t]:
         raise NotImplementedError
+
+    @abc.abstractmethod
+    async def set_source_route(self, nwk: t.NWK, relays: list[t.NWK]) -> t.sl_Status:
+        raise NotImplementedError

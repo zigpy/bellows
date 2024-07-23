@@ -831,20 +831,23 @@ async def test_send_packet_unicast_ieee_no_fallback(app, packet, caplog):
     assert app._ezsp.send_unicast.call_count == 0
 
 
-async def test_send_packet_unicast_source_route_ezsp7(make_app, packet):
+async def test_send_packet_unicast_source_route(make_app, packet):
     app = make_app({zigpy.config.CONF_SOURCE_ROUTING: True})
-    app._ezsp.ezsp_version = 7
-    app._ezsp.setSourceRoute = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    app._ezsp.set_source_route = AsyncMock(return_value=(t.sl_Status.OK,))
 
     packet.source_route = [0x0001, 0x0002]
     await _test_send_packet_unicast(
-        app, packet, options=(t.EmberApsOption.APS_OPTION_RETRY)
+        app,
+        packet,
+        options=(
+            t.EmberApsOption.APS_OPTION_RETRY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
+        ),
     )
 
-    assert app._ezsp.setSourceRoute.await_count == 1
-    app._ezsp.setSourceRoute.assert_called_once_with(
-        destination=packet.dst.address,
-        relayList=[0x0001, 0x0002],
+    app._ezsp.set_source_route.assert_called_once_with(
+        nwk=packet.dst.address,
+        relays=[0x0001, 0x0002],
     )
 
 

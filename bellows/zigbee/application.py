@@ -671,12 +671,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await asyncio.sleep(MFG_ID_RESET_DELAY)
         await self._ezsp.setManufacturerCode(code=DEFAULT_MFG_ID)
 
-    async def _set_source_route(
-        self, nwk: zigpy.types.NWK, relays: list[zigpy.types.NWK]
-    ) -> bool:
-        (res,) = await self._ezsp.setSourceRoute(destination=nwk, relayList=relays)
-        return t.sl_Status.from_ember_status(res) == t.sl_Status.OK
-
     async def energy_scan(
         self, channels: t.Channels, duration_exp: int, count: int
     ) -> dict[int, float]:
@@ -743,6 +737,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         if not self.config[zigpy.config.CONF_SOURCE_ROUTING]:
             aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+        else:
+            # Source routing uses address discovery to discover routes
+            aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
 
         async with self._limit_concurrency():
             message_tag = self.get_sequence()
@@ -756,14 +753,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                                     remoteEui64=device.ieee, extendedTimeout=True
                                 )
 
-                            if (
-                                packet.source_route is not None
-                                and not await self._set_source_route(
-                                    packet.dst.address, packet.source_route
-                                )
-                            ):
-                                aps_frame.options |= (
-                                    t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                            if packet.source_route is not None:
+                                await self._ezsp.set_source_route(
+                                    nwk=packet.dst.address,
+                                    relays=packet.source_route,
                                 )
 
                             status, _ = await self._ezsp.send_unicast(
