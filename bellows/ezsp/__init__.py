@@ -349,13 +349,15 @@ class EZSP:
             (value,) = await self.getMfgToken(tokenId=token)
             LOGGER.debug("Read %s token: %s", token.name, value)
 
-            # Tokens are fixed-length and initially filled with \xFF
-            result = value.rstrip(b"\xFF").split(b"\x00", 1)[0]
+            # Tokens are fixed-length and initially filled with \xFF but also can end
+            # with \x00
+            while value.endswith((b"\xFF", b"\x00")):
+                value = value.rstrip(b"\xFF").rstrip(b"\x00")
 
             try:
-                result = result.decode("utf-8")
+                result = value.decode("utf-8")
             except UnicodeDecodeError:
-                result = "0x" + result.hex().upper()
+                result = "0x" + value.hex().upper()
 
             if not result:
                 result = None
