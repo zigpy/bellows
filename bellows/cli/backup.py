@@ -85,10 +85,10 @@ async def backup(ctx):
 async def _backup(ezsp):
     (status,) = await ezsp.networkInit()
     LOGGER.debug("Network init status: %s", status)
-    assert status == t.EmberStatus.SUCCESS
+    assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
 
     (status, node_type, network) = await ezsp.getNetworkParameters()
-    assert status == t.EmberStatus.SUCCESS
+    assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
     assert node_type == ezsp.types.EmberNodeType.COORDINATOR
     LOGGER.debug("Network params: %s", network)
 
@@ -112,7 +112,7 @@ async def _backup(ezsp):
         (ATTR_KEY_NWK, ezsp.types.EmberKeyType.CURRENT_NETWORK_KEY),
     ):
         (status, key) = await ezsp.getKey(key_type)
-        assert status == t.EmberStatus.SUCCESS
+        assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
         LOGGER.debug("%s key: %s", key_name, key)
         result[key_name] = key.as_dict()
         result[key_name][ATTR_KEY_PARTNER] = str(key.partnerEUI64)
@@ -248,7 +248,7 @@ async def _restore(
 
     (status,) = await ezsp.setInitialSecurityState(init_sec_state)
     LOGGER.debug("Set initial security state: %s", status)
-    assert status == t.EmberStatus.SUCCESS
+    assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
 
     if backup_data[ATTR_KEY_TABLE]:
         await _restore_keys(ezsp, backup_data[ATTR_KEY_TABLE])
@@ -259,7 +259,7 @@ async def _restore(
         t.uint32_t(network_key[ATTR_KEY_FRAME_COUNTER_OUT]).serialize(),
     )
     LOGGER.debug("Set network frame counter: %s", status)
-    assert status == t.EmberStatus.SUCCESS
+    assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
 
     tc_key = backup_data[ATTR_KEY_GLOBAL]
     (status,) = await ezsp.setValue(
@@ -267,7 +267,7 @@ async def _restore(
         t.uint32_t(tc_key[ATTR_KEY_FRAME_COUNTER_OUT]).serialize(),
     )
     LOGGER.debug("Set network frame counter: %s", status)
-    assert status == t.EmberStatus.SUCCESS
+    assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
 
     await _form_network(ezsp, backup_data)
     await asyncio.sleep(2)
@@ -279,7 +279,7 @@ async def _restore_keys(ezsp, key_table):
     (status,) = await ezsp.setConfigurationValue(
         ezsp.types.EzspConfigId.CONFIG_KEY_TABLE_SIZE, len(key_table)
     )
-    assert status == t.EmberStatus.SUCCESS
+    assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
 
     for key in key_table:
         is_link_key = key[ATTR_KEY_TYPE] in (
@@ -312,7 +312,7 @@ async def _form_network(ezsp, backup_data):
 
     (status,) = await ezsp.setValue(ezsp.types.EzspValueId.VALUE_STACK_TOKEN_WRITING, 1)
     LOGGER.debug("Set token writing: %s", status)
-    assert status == t.EmberStatus.SUCCESS
+    assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
 
 
 async def _update_nwk_id(ezsp, nwk_update_id):
@@ -338,7 +338,7 @@ async def _update_nwk_id(ezsp, nwk_update_id):
         0x01,
         payload,
     )
-    assert status == t.EmberStatus.SUCCESS
+    assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
     await asyncio.sleep(1)
 
 

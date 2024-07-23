@@ -1,10 +1,10 @@
 import voluptuous as vol
 
 from bellows.config import cv_optional_int, cv_uint16, extend_vol_schema
+from bellows.types import EzspConfigId, EzspPolicyId
 
 from ..v4.config import EZSP_POLICIES_SHARED
 from ..v6 import config as v6_config
-from .types import EzspConfigId, EzspPolicyId
 
 EZSP_SCHEMA = extend_vol_schema(
     v6_config.EZSP_SCHEMA,

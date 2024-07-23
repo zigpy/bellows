@@ -1,9 +1,11 @@
 import asyncio
 import contextlib
+import importlib.metadata
 import logging
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, call, patch, sentinel
 
 import pytest
+import zigpy.backups
 import zigpy.config
 import zigpy.device
 import zigpy.exceptions
@@ -13,12 +15,9 @@ import zigpy.zdo.types as zdo_t
 import bellows.config as config
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp as ezsp
-import bellows.ezsp.v4.types as t
-import bellows.ezsp.v5.types as ezsp_t5
-import bellows.ezsp.v6.types as ezsp_t6
-import bellows.ezsp.v7.types as ezsp_t7
-import bellows.ezsp.v8.types as ezsp_t8
 from bellows.ezsp.v9.commands import GetTokenDataRsp
+import bellows.types
+import bellows.types as t
 import bellows.types.struct
 import bellows.uart as uart
 import bellows.zigbee.application
@@ -76,7 +75,6 @@ def ezsp_mock(ieee):
     mock_ezsp.add_transient_link_key = AsyncMock(return_value=t.EmberStatus.SUCCESS)
     mock_ezsp._protocol = AsyncMock()
 
-    type(mock_ezsp).types = ezsp_t7
     type(mock_ezsp).is_ezsp_running = PropertyMock(return_value=True)
 
     return mock_ezsp
@@ -121,7 +119,7 @@ def _create_app_for_startup(
     nwk_type,
     ieee,
     auto_form=False,
-    init=0,
+    init=bellows.types.sl_Status.OK,
     ezsp_version=4,
     board_info=True,
     network_state=t.EmberNetworkStatus.JOINED_NETWORK,
@@ -146,7 +144,6 @@ def _create_app_for_startup(
 
     app._in_flight_msg = None
     ezsp_mock = MagicMock(spec=ezsp.EZSP)
-    ezsp_mock.types = ezsp_t7
     type(ezsp_mock).ezsp_version = PropertyMock(return_value=ezsp_version)
     ezsp_mock.initialize = AsyncMock(return_value=ezsp_mock)
     ezsp_mock.connect = AsyncMock()
@@ -161,9 +158,10 @@ def _create_app_for_startup(
     ezsp_mock._command = AsyncMock(return_value=t.EmberStatus.SUCCESS)
     ezsp_mock.addEndpoint = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
     ezsp_mock.setConfigurationValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
-    ezsp_mock.networkInit = AsyncMock(return_value=[init])
-    ezsp_mock.networkInitExtended = AsyncMock(return_value=[init])
-    ezsp_mock.getNetworkParameters = AsyncMock(return_value=[0, nwk_type, nwk_params])
+    ezsp_mock.initialize_network = AsyncMock(return_value=init)
+    ezsp_mock.getNetworkParameters = AsyncMock(
+        return_value=[t.EmberStatus.SUCCESS, nwk_type, nwk_params]
+    )
     ezsp_mock.can_burn_userdata_custom_eui64 = AsyncMock(return_value=True)
     ezsp_mock.can_rewrite_custom_eui64 = AsyncMock(return_value=True)
     ezsp_mock.startScan = AsyncMock(return_value=[[c, 1] for c in range(11, 26 + 1)])
@@ -183,23 +181,35 @@ def _create_app_for_startup(
     ezsp_mock.leaveNetwork = AsyncMock(side_effect=mock_leave)
     ezsp_mock.reset = AsyncMock()
     ezsp_mock.version = AsyncMock()
-    ezsp_mock.getConfigurationValue = AsyncMock(return_value=(0, 1))
+    ezsp_mock.getConfigurationValue = AsyncMock(return_value=[t.EmberStatus.SUCCESS, 1])
     ezsp_mock.update_policies = AsyncMock()
     ezsp_mock.networkState = AsyncMock(return_value=[network_state])
-    ezsp_mock.getKey = AsyncMock(
-        return_value=[
-            t.EmberStatus.SUCCESS,
-            t.EmberKeyStruct(
-                bitmask=t.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER
-                | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER,
-                type=t.EmberKeyType.CURRENT_NETWORK_KEY,
-                key=t.KeyData(b"ActualNetworkKey"),
-                outgoingFrameCounter=t.uint32_t(0x12345678),
-                incomingFrameCounter=t.uint32_t(0x00000000),
-                sequenceNumber=t.uint8_t(1),
-                partnerEUI64=t.EUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),
-            ),
-        ]
+    ezsp_mock.factory_reset = AsyncMock()
+    ezsp_mock.write_nwk_frame_counter = AsyncMock()
+    ezsp_mock.write_aps_frame_counter = AsyncMock()
+    ezsp_mock.setInitialSecurityState = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    ezsp_mock.write_link_keys = AsyncMock()
+    ezsp_mock.write_child_data = AsyncMock()
+    ezsp_mock.formNetwork = AsyncMock()
+
+    ezsp_mock.get_network_key = AsyncMock(
+        return_value=zigpy.state.Key(
+            key=t.KeyData(b"ActualNetworkKey"),
+            tx_counter=t.uint32_t(0x12345678),
+            rx_counter=t.uint32_t(0x00000000),
+            seq=t.uint8_t(1),
+            partner_ieee=t.EUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),
+        )
+    )
+
+    ezsp_mock.get_tc_link_key = AsyncMock(
+        return_value=zigpy.state.Key(
+            key=t.KeyData(b"thehashedlinkkey"),
+            tx_counter=t.uint32_t(0x87654321),
+            rx_counter=t.uint32_t(0x00000000),
+            seq=t.uint8_t(0),
+            partner_ieee=t.EUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),
+        )
     )
 
     ezsp_mock.getCurrentSecurityState = AsyncMock(
@@ -223,11 +233,49 @@ def _create_app_for_startup(
     )
     ezsp_mock.setMulticastTableEntry = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
 
+    ezsp_mock.read_link_keys = MagicMock()
+    ezsp_mock.read_link_keys.return_value.__aiter__.return_value = [
+        zigpy.state.Key(
+            key=t.KeyData(b"test_link_key_01"),
+            tx_counter=12345,
+            rx_counter=67890,
+            seq=1,
+            partner_ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+        ),
+        zigpy.state.Key(
+            key=t.KeyData(b"test_link_key_02"),
+            tx_counter=54321,
+            rx_counter=98765,
+            seq=2,
+            partner_ieee=t.EUI64.convert("11:22:33:44:55:66:77:88"),
+        ),
+    ]
+
+    ezsp_mock.read_child_data = MagicMock()
+    ezsp_mock.read_child_data.return_value.__aiter__.return_value = [
+        (
+            0x1234,
+            t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+            t.EmberNodeType.END_DEVICE,
+        ),
+        (
+            0x5678,
+            t.EUI64.convert("11:22:33:44:55:66:77:88"),
+            t.EmberNodeType.END_DEVICE,
+        ),
+    ]
+
+    ezsp_mock.read_address_table = MagicMock()
+    ezsp_mock.read_address_table.return_value.__aiter__.return_value = [
+        (0xABCD, t.EUI64.convert("ab:cd:00:11:22:33:44:55")),
+        (0xDCBA, t.EUI64.convert("dc:ba:00:11:22:33:44:55")),
+    ]
+
     app.permit = AsyncMock()
 
     def form_network():
         ezsp_mock.getNetworkParameters.return_value = [
-            0,
+            t.EmberStatus.SUCCESS,
             t.EmberNodeType.COORDINATOR,
             nwk_params,
         ]
@@ -273,11 +321,6 @@ async def _test_startup(
     ) as ezsp_mock:
         await app.startup(auto_form=auto_form)
 
-    if ezsp_version > 6:
-        assert ezsp_mock.networkInitExtended.call_count == 0
-    else:
-        assert ezsp_mock.networkInit.call_count == 0
-
     assert ezsp_mock.write_config.call_count == 1
     assert ezsp_mock.addEndpoint.call_count >= 2
 
@@ -320,7 +363,7 @@ async def test_startup_status_not_joined(app, ieee):
             t.EmberNodeType.COORDINATOR,
             ieee,
             auto_form=False,
-            init=t.EmberStatus.NOT_JOINED,
+            init=bellows.types.sl_Status.NOT_JOINED,
             network_state=t.EmberNetworkStatus.NO_NETWORK,
         )
 
@@ -333,7 +376,7 @@ async def test_startup_status_unknown(app, ieee):
             t.EmberNodeType.COORDINATOR,
             ieee,
             auto_form=False,
-            init=t.EmberStatus.ERR_FATAL,
+            init=bellows.types.sl_Status.FAIL,
             network_state=t.EmberNetworkStatus.NO_NETWORK,
         )
 
@@ -502,11 +545,11 @@ def test_frame_handler_ignored(app, aps_frame):
 def test_send_failure(app, aps, ieee, msg_type):
     req = app._pending[(0xBEED, 254)] = MagicMock()
     app.ezsp_callback_handler(
-        "messageSentHandler", [msg_type, 0xBEED, aps, 254, sentinel.status, b""]
+        "messageSentHandler", [msg_type, 0xBEED, aps, 254, t.EmberStatus.SUCCESS, b""]
     )
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
-    assert req.result.set_result.call_args[0][0][0] is sentinel.status
+    assert req.result.set_result.call_args[0][0][0] is bellows.types.sl_Status.OK
 
 
 def test_dup_send_failure(app, aps, ieee):
@@ -550,13 +593,13 @@ def test_send_success(app, aps, ieee):
             0xBEED,
             aps,
             253,
-            sentinel.success,
+            t.EmberStatus.SUCCESS,
             b"",
         ],
     )
     assert req.result.set_exception.call_count == 0
     assert req.result.set_result.call_count == 1
-    assert req.result.set_result.call_args[0][0][0] is sentinel.success
+    assert req.result.set_result.call_args[0][0][0] is bellows.types.sl_Status.OK
 
 
 def test_unexpected_send_success(app, aps, ieee):
@@ -693,7 +736,16 @@ def packet():
     )
 
 
-async def _test_send_packet_unicast(app, packet, *, statuses=(t.EmberStatus.SUCCESS,)):
+async def _test_send_packet_unicast(
+    app,
+    packet,
+    *,
+    statuses=(bellows.types.sl_Status.OK,),
+    options=(
+        t.EmberApsOption.APS_OPTION_RETRY
+        | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+    ),
+):
     def send_unicast(*args, **kwargs):
         nonlocal statuses
 
@@ -719,29 +771,30 @@ async def _test_send_packet_unicast(app, packet, *, statuses=(t.EmberStatus.SUCC
 
         return [status, 0x12]
 
-    app._ezsp.sendUnicast = AsyncMock(side_effect=send_unicast)
+    app._ezsp.send_unicast = AsyncMock(side_effect=send_unicast)
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
     expected_unicast_calls = len(statuses)
 
     await app.send_packet(packet)
-    assert app._ezsp.sendUnicast.call_count == expected_unicast_calls
-    assert (
-        app._ezsp.sendUnicast.mock_calls[-1].args[0]
-        == t.EmberOutgoingMessageType.OUTGOING_DIRECT
+    assert app._ezsp.send_unicast.call_count == expected_unicast_calls
+
+    assert app._ezsp.send_unicast.mock_calls[-1] == (
+        call(
+            nwk=t.EmberNodeId(0x1234),
+            aps_frame=t.EmberApsFrame(
+                profileId=packet.profile_id,
+                clusterId=packet.cluster_id,
+                sourceEndpoint=packet.src_ep,
+                destinationEndpoint=packet.dst_ep,
+                options=options,
+                groupId=0x0000,
+                sequence=packet.tsn,
+            ),
+            message_tag=sentinel.msg_tag,
+            data=b"some data",
+        )
     )
-    assert app._ezsp.sendUnicast.mock_calls[-1].args[1] == t.EmberNodeId(0x1234)
-
-    aps_frame = app._ezsp.sendUnicast.mock_calls[-1].args[2]
-    assert aps_frame.profileId == packet.profile_id
-    assert aps_frame.clusterId == packet.cluster_id
-    assert aps_frame.sourceEndpoint == packet.src_ep
-    assert aps_frame.destinationEndpoint == packet.dst_ep
-    assert aps_frame.sequence == packet.tsn
-    assert aps_frame.groupId == 0x0000
-
-    assert app._ezsp.sendUnicast.mock_calls[-1].args[3] == sentinel.msg_tag
-    assert app._ezsp.sendUnicast.mock_calls[-1].args[4] == b"some data"
 
     assert len(app._pending) == 0
 
@@ -775,7 +828,7 @@ async def test_send_packet_unicast_ieee_no_fallback(app, packet, caplog):
     with pytest.raises(ValueError):
         await _test_send_packet_unicast(app, packet)
 
-    assert app._ezsp.sendUnicast.call_count == 0
+    assert app._ezsp.send_unicast.call_count == 0
 
 
 async def test_send_packet_unicast_source_route_ezsp7(make_app, packet):
@@ -784,11 +837,14 @@ async def test_send_packet_unicast_source_route_ezsp7(make_app, packet):
     app._ezsp.setSourceRoute = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
 
     packet.source_route = [0x0001, 0x0002]
-    await _test_send_packet_unicast(app, packet)
+    await _test_send_packet_unicast(
+        app, packet, options=(t.EmberApsOption.APS_OPTION_RETRY)
+    )
 
     assert app._ezsp.setSourceRoute.await_count == 1
     app._ezsp.setSourceRoute.assert_called_once_with(
-        packet.dst.address, [0x0001, 0x0002]
+        destination=packet.dst.address,
+        relayList=[0x0001, 0x0002],
     )
 
 
@@ -797,9 +853,9 @@ async def test_send_packet_unicast_retries_success(app, packet):
         app,
         packet,
         statuses=(
-            t.EmberStatus.NO_BUFFERS,
-            t.EmberStatus.NO_BUFFERS,
-            t.EmberStatus.SUCCESS,
+            bellows.types.sl_Status.ALLOCATION_FAILED,
+            bellows.types.sl_Status.ALLOCATION_FAILED,
+            bellows.types.sl_Status.OK,
         ),
     )
 
@@ -817,9 +873,9 @@ async def test_send_packet_unicast_retries_failure(app, packet):
             app,
             packet,
             statuses=(
-                t.EmberStatus.NO_BUFFERS,
-                t.EmberStatus.NO_BUFFERS,
-                t.EmberStatus.NO_BUFFERS,
+                bellows.types.sl_Status.ALLOCATION_FAILED,
+                bellows.types.sl_Status.ALLOCATION_FAILED,
+                bellows.types.sl_Status.ALLOCATION_FAILED,
             ),
         )
 
@@ -856,7 +912,7 @@ async def test_send_packet_unicast_concurrency(app, packet, monkeypatch):
             ),
         )
 
-    async def send_unicast(type, indexOrDestination, apsFrame, messageTag, message):
+    async def send_unicast(nwk, aps_frame, message_tag, data):
         nonlocal max_concurrency, in_flight_requests
 
         in_flight_requests += 1
@@ -864,13 +920,17 @@ async def test_send_packet_unicast_concurrency(app, packet, monkeypatch):
 
         asyncio.create_task(
             send_message_sent_reply(
-                type, indexOrDestination, apsFrame, messageTag, message
+                t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+                nwk,
+                aps_frame,
+                message_tag,
+                data,
             )
         )
 
-        return [t.EmberStatus.SUCCESS, 0x12]
+        return [bellows.types.sl_Status.OK, 0x12]
 
-    app._ezsp.sendUnicast = AsyncMock(side_effect=send_unicast)
+    app._ezsp.send_unicast = AsyncMock(side_effect=send_unicast)
 
     responses = await asyncio.gather(*[app.send_packet(packet) for _ in range(100)])
     assert len(responses) == 100
@@ -884,7 +944,9 @@ async def test_send_packet_broadcast(app, packet):
     )
     packet.radius = 30
 
-    app._ezsp.sendBroadcast = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 0x12))
+    app._ezsp.send_broadcast = AsyncMock(
+        return_value=(bellows.types.named.sl_Status.OK, 0x12)
+    )
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
     asyncio.get_running_loop().call_soon(
@@ -903,20 +965,27 @@ async def test_send_packet_broadcast(app, packet):
     )
 
     await app.send_packet(packet)
-    assert app._ezsp.sendBroadcast.call_count == 1
-    assert app._ezsp.sendBroadcast.mock_calls[0].args[0] == t.EmberNodeId(0xFFFE)
-
-    aps_frame = app._ezsp.sendBroadcast.mock_calls[0].args[1]
-    assert aps_frame.profileId == packet.profile_id
-    assert aps_frame.clusterId == packet.cluster_id
-    assert aps_frame.sourceEndpoint == packet.src_ep
-    assert aps_frame.destinationEndpoint == packet.dst_ep
-    assert aps_frame.sequence == packet.tsn
-    assert aps_frame.groupId == 0x0000
-
-    assert app._ezsp.sendBroadcast.mock_calls[0].args[2] == packet.radius
-    assert app._ezsp.sendBroadcast.mock_calls[0].args[3] == sentinel.msg_tag
-    assert app._ezsp.sendBroadcast.mock_calls[0].args[4] == b"some data"
+    assert app._ezsp.send_broadcast.mock_calls == [
+        call(
+            address=bellows.types.named.BroadcastAddress(0xFFFE),
+            aps_frame=t.EmberApsFrame(
+                profileId=packet.profile_id,
+                clusterId=packet.cluster_id,
+                sourceEndpoint=packet.src_ep,
+                destinationEndpoint=packet.dst_ep,
+                options=(
+                    t.EmberApsOption.APS_OPTION_RETRY
+                    | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                ),
+                groupId=0x0000,
+                sequence=packet.tsn,
+            ),
+            radius=packet.radius,
+            message_tag=sentinel.msg_tag,
+            aps_sequence=packet.tsn,
+            data=b"some data",
+        )
+    ]
 
     assert len(app._pending) == 0
 
@@ -927,7 +996,9 @@ async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
     )
     packet.radius = 30
 
-    app._ezsp.sendBroadcast = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 0x12))
+    app._ezsp.send_broadcast = AsyncMock(
+        return_value=(bellows.types.sl_Status.OK, 0x12)
+    )
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
     asyncio.get_running_loop().call_soon(
@@ -948,20 +1019,27 @@ async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
     # Does not throw an error
     await app.send_packet(packet)
 
-    assert app._ezsp.sendBroadcast.call_count == 1
-    assert app._ezsp.sendBroadcast.mock_calls[0].args[0] == t.EmberNodeId(0xFFFE)
-
-    aps_frame = app._ezsp.sendBroadcast.mock_calls[0].args[1]
-    assert aps_frame.profileId == packet.profile_id
-    assert aps_frame.clusterId == packet.cluster_id
-    assert aps_frame.sourceEndpoint == packet.src_ep
-    assert aps_frame.destinationEndpoint == packet.dst_ep
-    assert aps_frame.sequence == packet.tsn
-    assert aps_frame.groupId == 0x0000
-
-    assert app._ezsp.sendBroadcast.mock_calls[0].args[2] == packet.radius
-    assert app._ezsp.sendBroadcast.mock_calls[0].args[3] == sentinel.msg_tag
-    assert app._ezsp.sendBroadcast.mock_calls[0].args[4] == b"some data"
+    assert app._ezsp.send_broadcast.mock_calls == [
+        call(
+            address=bellows.types.named.BroadcastAddress(0xFFFE),
+            aps_frame=t.EmberApsFrame(
+                profileId=packet.profile_id,
+                clusterId=packet.cluster_id,
+                sourceEndpoint=packet.src_ep,
+                destinationEndpoint=packet.dst_ep,
+                options=(
+                    t.EmberApsOption.APS_OPTION_RETRY
+                    | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                ),
+                groupId=0x0000,
+                sequence=packet.tsn,
+            ),
+            radius=packet.radius,
+            message_tag=sentinel.msg_tag,
+            aps_sequence=packet.tsn,
+            data=b"some data",
+        )
+    ]
 
     assert len(app._pending) == 0
 
@@ -973,7 +1051,9 @@ async def test_send_packet_multicast(app, packet):
     packet.radius = 5
     packet.non_member_radius = 6
 
-    app._ezsp.sendMulticast = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 0x12))
+    app._ezsp.send_multicast = AsyncMock(
+        return_value=(bellows.types.sl_Status.OK, 0x12)
+    )
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
     asyncio.get_running_loop().call_soon(
@@ -992,20 +1072,26 @@ async def test_send_packet_multicast(app, packet):
     )
 
     await app.send_packet(packet)
-    assert app._ezsp.sendMulticast.call_count == 1
-
-    aps_frame = app._ezsp.sendMulticast.mock_calls[0].args[0]
-    assert aps_frame.profileId == packet.profile_id
-    assert aps_frame.clusterId == packet.cluster_id
-    assert aps_frame.sourceEndpoint == packet.src_ep
-    assert aps_frame.destinationEndpoint == packet.dst_ep
-    assert aps_frame.sequence == packet.tsn
-    assert aps_frame.groupId == 0x1234
-
-    assert app._ezsp.sendMulticast.mock_calls[0].args[1] == packet.radius
-    assert app._ezsp.sendMulticast.mock_calls[0].args[2] == packet.non_member_radius
-    assert app._ezsp.sendMulticast.mock_calls[0].args[3] == sentinel.msg_tag
-    assert app._ezsp.sendMulticast.mock_calls[0].args[4] == b"some data"
+    assert app._ezsp.send_multicast.mock_calls == [
+        call(
+            aps_frame=t.EmberApsFrame(
+                profileId=packet.profile_id,
+                clusterId=packet.cluster_id,
+                sourceEndpoint=packet.src_ep,
+                destinationEndpoint=packet.dst_ep,
+                options=(
+                    t.EmberApsOption.APS_OPTION_RETRY
+                    | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                ),
+                groupId=0x1234,
+                sequence=packet.tsn,
+            ),
+            radius=packet.radius,
+            non_member_radius=packet.non_member_radius,
+            message_tag=sentinel.msg_tag,
+            data=b"some data",
+        )
+    ]
 
     assert len(app._pending) == 0
 
@@ -1226,15 +1312,13 @@ async def test_ezsp_add_to_group_ep(coordinator):
 
     grp_id = 0x2345
     assert grp_id not in coordinator.endpoints[1].member_of
-    ret = await coordinator.endpoints[1].add_to_group(grp_id)
-    assert ret == t.EmberStatus.SUCCESS
+    await coordinator.endpoints[1].add_to_group(grp_id)
     assert mc.subscribe.call_count == 1
     assert mc.subscribe.call_args[0][0] == grp_id
     assert grp_id in coordinator.endpoints[1].member_of
 
     mc.reset_mock()
-    ret = await coordinator.endpoints[1].add_to_group(grp_id)
-    assert ret == t.EmberStatus.SUCCESS
+    await coordinator.endpoints[1].add_to_group(grp_id)
     assert mc.subscribe.call_count == 0
 
 
@@ -1245,8 +1329,8 @@ async def test_ezsp_add_to_group_fail(coordinator):
 
     grp_id = 0x2345
     assert grp_id not in coordinator.endpoints[1].member_of
-    ret = await coordinator.add_to_group(grp_id)
-    assert ret is None
+    with pytest.raises(ValueError):
+        await coordinator.add_to_group(grp_id)
     assert mc.subscribe.call_count == 1
     assert mc.subscribe.call_args[0][0] == grp_id
     assert grp_id not in coordinator.endpoints[1].member_of
@@ -1259,9 +1343,8 @@ async def test_ezsp_add_to_group_ep_fail(coordinator):
 
     grp_id = 0x2345
     assert grp_id not in coordinator.endpoints[1].member_of
-    ret = await coordinator.endpoints[1].add_to_group(grp_id)
-    assert ret != t.EmberStatus.SUCCESS
-    assert ret is not None
+    with pytest.raises(ValueError):
+        await coordinator.endpoints[1].add_to_group(grp_id)
     assert mc.subscribe.call_count == 1
     assert mc.subscribe.call_args[0][0] == grp_id
     assert grp_id not in coordinator.endpoints[1].member_of
@@ -1277,8 +1360,7 @@ async def test_ezsp_remove_from_group(coordinator):
     grp.add_member(coordinator.endpoints[1])
 
     assert grp_id in coordinator.endpoints[1].member_of
-    ret = await coordinator.remove_from_group(grp_id)
-    assert ret is None
+    await coordinator.remove_from_group(grp_id)
     assert mc.unsubscribe.call_count == 1
     assert mc.unsubscribe.call_args[0][0] == grp_id
     assert grp_id not in coordinator.endpoints[1].member_of
@@ -1294,15 +1376,13 @@ async def test_ezsp_remove_from_group_ep(coordinator):
     grp.add_member(coordinator.endpoints[1])
 
     assert grp_id in coordinator.endpoints[1].member_of
-    ret = await coordinator.endpoints[1].remove_from_group(grp_id)
-    assert ret == t.EmberStatus.SUCCESS
+    await coordinator.endpoints[1].remove_from_group(grp_id)
     assert mc.unsubscribe.call_count == 1
     assert mc.unsubscribe.call_args[0][0] == grp_id
     assert grp_id not in coordinator.endpoints[1].member_of
 
     mc.reset_mock()
-    ret = await coordinator.endpoints[1].remove_from_group(grp_id)
-    assert ret == t.EmberStatus.SUCCESS
+    await coordinator.endpoints[1].remove_from_group(grp_id)
     assert mc.subscribe.call_count == 0
 
 
@@ -1316,8 +1396,9 @@ async def test_ezsp_remove_from_group_fail(coordinator):
     grp.add_member(coordinator.endpoints[1])
 
     assert grp_id in coordinator.endpoints[1].member_of
-    ret = await coordinator.remove_from_group(grp_id)
-    assert ret is None
+
+    with pytest.raises(ValueError):
+        await coordinator.remove_from_group(grp_id)
     assert mc.unsubscribe.call_count == 1
     assert mc.unsubscribe.call_args[0][0] == grp_id
 
@@ -1332,9 +1413,10 @@ async def test_ezsp_remove_from_group_fail_ep(coordinator):
     grp.add_member(coordinator.endpoints[1])
 
     assert grp_id in coordinator.endpoints[1].member_of
-    ret = await coordinator.endpoints[1].remove_from_group(grp_id)
-    assert ret != t.EmberStatus.SUCCESS
-    assert ret is not None
+
+    with pytest.raises(ValueError):
+        await coordinator.endpoints[1].remove_from_group(grp_id)
+
     assert mc.unsubscribe.call_count == 1
     assert mc.unsubscribe.call_args[0][0] == grp_id
 
@@ -1391,8 +1473,7 @@ async def test_handle_no_such_device(app, ieee):
     p2 = patch.object(app, "handle_join")
     with p1 as lookup_mock, p2 as handle_join_mock:
         await app._handle_no_such_device(sentinel.nwk)
-        assert lookup_mock.await_count == 1
-        assert lookup_mock.await_args[0][0] is sentinel.nwk
+        assert lookup_mock.mock_calls == [call(nodeId=sentinel.nwk)]
         assert handle_join_mock.call_count == 0
 
     p1 = patch.object(
@@ -1402,8 +1483,7 @@ async def test_handle_no_such_device(app, ieee):
     )
     with p1 as lookup_mock, p2 as handle_join_mock:
         await app._handle_no_such_device(sentinel.nwk)
-        assert lookup_mock.await_count == 1
-        assert lookup_mock.await_args[0][0] is sentinel.nwk
+        assert lookup_mock.mock_calls == [call(nodeId=sentinel.nwk)]
         assert handle_join_mock.call_count == 1
         assert handle_join_mock.call_args[0][0] == sentinel.nwk
         assert handle_join_mock.call_args[0][1] == sentinel.ieee
@@ -1416,17 +1496,18 @@ async def test_cleanup_tc_link_key(app):
     ezsp.eraseKeyTableEntry = AsyncMock(return_value=(0x00,))
 
     await app.cleanup_tc_link_key(sentinel.ieee)
-    assert ezsp.findKeyTableEntry.await_count == 1
-    assert ezsp.findKeyTableEntry.await_args[0][0] is sentinel.ieee
+    assert ezsp.findKeyTableEntry.mock_calls == [
+        call(address=sentinel.ieee, linkKey=True)
+    ]
     assert ezsp.eraseKeyTableEntry.await_count == 0
     assert ezsp.eraseKeyTableEntry.call_count == 0
 
     ezsp.findKeyTableEntry.reset_mock()
     await app.cleanup_tc_link_key(sentinel.ieee2)
-    assert ezsp.findKeyTableEntry.await_count == 1
-    assert ezsp.findKeyTableEntry.await_args[0][0] is sentinel.ieee2
-    assert ezsp.eraseKeyTableEntry.await_count == 1
-    assert ezsp.eraseKeyTableEntry.await_args[0][0] is sentinel.index
+    assert ezsp.findKeyTableEntry.mock_calls == [
+        call(address=sentinel.ieee2, linkKey=True)
+    ]
+    assert ezsp.eraseKeyTableEntry.mock_calls == [call(index=sentinel.index)]
 
 
 @patch("zigpy.application.ControllerApplication.permit", new=AsyncMock())
@@ -1479,60 +1560,57 @@ async def test_set_mfg_id(ieee, expected_mfg_id, app, ezsp_mock):
     )
     await asyncio.sleep(0.20)
     if expected_mfg_id is not None:
-        assert ezsp_mock.setManufacturerCode.await_count == 2
-        assert ezsp_mock.setManufacturerCode.await_args_list[0][0][0] == expected_mfg_id
-        assert (
-            ezsp_mock.setManufacturerCode.await_args_list[1][0][0]
-            == bellows.zigbee.application.DEFAULT_MFG_ID
-        )
+        assert ezsp_mock.setManufacturerCode.mock_calls == [
+            call(code=expected_mfg_id),
+            call(code=bellows.zigbee.application.DEFAULT_MFG_ID),
+        ]
     else:
-        assert ezsp_mock.setManufacturerCode.await_count == 0
+        assert ezsp_mock.setManufacturerCode.mock_calls == []
 
 
 async def test_ensure_network_running_joined(app):
     ezsp = app._ezsp
 
     # Make initialization take two attempts
-    ezsp.networkInit = AsyncMock(
-        side_effect=[(t.EmberStatus.NETWORK_BUSY,), (t.EmberStatus.SUCCESS,)]
+    ezsp.initialize_network = AsyncMock(
+        side_effect=[
+            bellows.types.sl_Status.INVALID_PARAMETER,
+            bellows.types.sl_Status.OK,
+        ]
     )
-    ezsp.networkState = AsyncMock(
-        return_value=[ezsp.types.EmberNetworkStatus.JOINED_NETWORK]
-    )
+    ezsp.networkState = AsyncMock(return_value=[t.EmberNetworkStatus.JOINED_NETWORK])
 
     rsp = await app._ensure_network_running()
 
     assert not rsp
 
-    ezsp.networkInit.assert_not_called()
+    ezsp.initialize_network.assert_not_called()
 
 
 async def test_ensure_network_running_not_joined_failure(app):
     ezsp = app._ezsp
-    ezsp.networkState = AsyncMock(
-        return_value=[ezsp.types.EmberNetworkStatus.NO_NETWORK]
+    ezsp.networkState = AsyncMock(return_value=[t.EmberNetworkStatus.NO_NETWORK])
+    ezsp.initialize_network = AsyncMock(
+        return_value=bellows.types.sl_Status.INVALID_PARAMETER
     )
-    ezsp.networkInit = AsyncMock(return_value=[ezsp.types.EmberStatus.INVALID_CALL])
 
     with pytest.raises(zigpy.exceptions.ControllerException):
         await app._ensure_network_running()
 
     ezsp.networkState.assert_called_once()
-    ezsp.networkInit.assert_called_once()
+    ezsp.initialize_network.assert_called_once()
 
 
 async def test_ensure_network_running_not_joined_success(app):
     ezsp = app._ezsp
-    ezsp.networkState = AsyncMock(
-        return_value=[ezsp.types.EmberNetworkStatus.NO_NETWORK]
-    )
-    ezsp.networkInit = AsyncMock(return_value=[ezsp.types.EmberStatus.SUCCESS])
+    ezsp.networkState = AsyncMock(return_value=[t.EmberNetworkStatus.NO_NETWORK])
+    ezsp.initialize_network = AsyncMock(return_value=bellows.types.sl_Status.OK)
 
     rsp = await app._ensure_network_running()
     assert rsp
 
     ezsp.networkState.assert_called_once()
-    ezsp.networkInit.assert_called_once()
+    ezsp.initialize_network.assert_called_once()
 
 
 async def test_startup_coordinator_existing_groups_joined(app, ieee):
@@ -1673,3 +1751,124 @@ async def test_repair_tclk_partner_ieee(
         await app.start_network()
 
     assert len(app._reset.mock_calls) == 1
+
+
+@pytest.fixture
+def zigpy_backup() -> zigpy.backups.NetworkBackup:
+    return zigpy.backups.NetworkBackup(
+        node_info=zigpy.state.NodeInfo(
+            nwk=zigpy_t.NWK(0x0000),
+            ieee=t.EUI64.convert("07:06:05:04:03:02:01:00"),
+            logical_type=zdo_t.LogicalType.Coordinator,
+            model="Mock board",
+            manufacturer="Mock Manufacturer",
+            version="Mock version",
+        ),
+        network_info=zigpy.state.NetworkInfo(
+            extended_pan_id=zigpy_t.ExtendedPanId.convert("aa:bb:cc:dd:ee:ff:aa:bb"),
+            pan_id=zigpy_t.PanId(0x55AA),
+            nwk_update_id=1,
+            nwk_manager_id=zigpy_t.NWK(0x0000),
+            channel=t.uint8_t(25),
+            channel_mask=t.Channels.ALL_CHANNELS,
+            security_level=t.uint8_t(1),
+            network_key=zigpy.state.Key(
+                key=t.KeyData.convert(
+                    "41:63:74:75:61:6c:4e:65:74:77:6f:72:6b:4b:65:79"
+                ),
+                seq=1,
+                tx_counter=305419896,
+            ),
+            tc_link_key=zigpy.state.Key(
+                key=t.KeyData(b"ZigBeeAlliance09"),
+                partner_ieee=t.EUI64.convert("07:06:05:04:03:02:01:00"),
+                tx_counter=2271560481,
+            ),
+            key_table=[
+                zigpy.state.Key(
+                    key=t.KeyData.convert(
+                        "74:65:73:74:5f:6c:69:6e:6b:5f:6b:65:79:5f:30:31"
+                    ),
+                    tx_counter=12345,
+                    rx_counter=67890,
+                    seq=1,
+                    partner_ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+                ),
+                zigpy.state.Key(
+                    key=t.KeyData.convert(
+                        "74:65:73:74:5f:6c:69:6e:6b:5f:6b:65:79:5f:30:32"
+                    ),
+                    tx_counter=54321,
+                    rx_counter=98765,
+                    seq=2,
+                    partner_ieee=t.EUI64.convert("11:22:33:44:55:66:77:88"),
+                ),
+            ],
+            children=[
+                t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+                t.EUI64.convert("11:22:33:44:55:66:77:88"),
+            ],
+            nwk_addresses={
+                t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"): zigpy_t.NWK(0x1234),
+                t.EUI64.convert("dc:ba:00:11:22:33:44:55"): zigpy_t.NWK(0xDCBA),
+                t.EUI64.convert("ab:cd:00:11:22:33:44:55"): zigpy_t.NWK(0xABCD),
+                t.EUI64.convert("11:22:33:44:55:66:77:88"): zigpy_t.NWK(0x5678),
+            },
+            stack_specific={"ezsp": {"hashed_tclk": b"thehashedlinkkey".hex()}},
+            source=f"bellows@{importlib.metadata.version('bellows')}",
+            metadata={
+                "ezsp": {
+                    "stack_version": 4,
+                    "can_burn_userdata_custom_eui64": True,
+                    "can_rewrite_custom_eui64": True,
+                }
+            },
+        ),
+    )
+
+
+async def test_load_network_info(
+    app: ControllerApplication,
+    ieee: zigpy_t.EUI64,
+    zigpy_backup: zigpy.backups.NetworkBackup,
+) -> None:
+    with mock_for_startup(app, ieee):
+        await app.connect()
+        await app.load_network_info(load_devices=True)
+
+    assert app.state.node_info == zigpy_backup.node_info
+    assert app.state.network_info == zigpy_backup.network_info
+
+
+async def test_write_network_info(
+    app: ControllerApplication,
+    ieee: zigpy_t.EUI64,
+    zigpy_backup: zigpy.backups.NetworkBackup,
+) -> None:
+    with mock_for_startup(app, ieee):
+        await app.connect()
+        await app.write_network_info(
+            node_info=zigpy_backup.node_info,
+            network_info=zigpy_backup.network_info,
+        )
+
+    assert app._ezsp.write_nwk_frame_counter.mock_calls == [
+        call(zigpy_backup.network_info.network_key.tx_counter)
+    ]
+    assert app._ezsp.write_aps_frame_counter.mock_calls == [
+        call(zigpy_backup.network_info.tc_link_key.tx_counter)
+    ]
+    assert app._ezsp.formNetwork.mock_calls == [
+        call(
+            parameters=t.EmberNetworkParameters(
+                panId=zigpy_backup.network_info.pan_id,
+                extendedPanId=zigpy_backup.network_info.extended_pan_id,
+                radioTxPower=t.uint8_t(8),
+                radioChannel=zigpy_backup.network_info.channel,
+                joinMethod=t.EmberJoinMethod.USE_MAC_ASSOCIATION,
+                nwkManagerId=t.EmberNodeId(0x0000),
+                nwkUpdateId=zigpy_backup.network_info.nwk_update_id,
+                channels=zigpy_backup.network_info.channel_mask,
+            )
+        )
+    ]

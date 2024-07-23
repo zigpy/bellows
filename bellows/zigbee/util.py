@@ -56,47 +56,47 @@ def zha_security(
     return isc
 
 
-def ezsp_key_to_zigpy_key(key, ezsp) -> zigpy.state.Key:
+def ezsp_key_to_zigpy_key(key) -> zigpy.state.Key:
     """Convert an `EmberKeyStruct` into a zigpy `Key`."""
     zigpy_key = zigpy.state.Key()
     zigpy_key.key = zigpy_t.KeyData(key.key)
 
-    if ezsp.types.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER in key.bitmask:
+    if t.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER in key.bitmask:
         zigpy_key.seq = key.sequenceNumber
 
-    if ezsp.types.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER in key.bitmask:
+    if t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER in key.bitmask:
         zigpy_key.tx_counter = key.outgoingFrameCounter
 
-    if ezsp.types.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER in key.bitmask:
+    if t.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER in key.bitmask:
         zigpy_key.rx_counter = key.incomingFrameCounter
 
-    if ezsp.types.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64 in key.bitmask:
+    if t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64 in key.bitmask:
         zigpy_key.partner_ieee = key.partnerEUI64
 
     return zigpy_key
 
 
-def zigpy_key_to_ezsp_key(zigpy_key: zigpy.state.Key, ezsp):
+def zigpy_key_to_ezsp_key(zigpy_key: zigpy.state.Key):
     """Convert a zigpy `Key` into a `EmberKeyStruct`."""
-    key = ezsp.types.EmberKeyStruct()
-    key.key = ezsp.types.KeyData(zigpy_key.key)
-    key.bitmask = ezsp.types.EmberKeyStructBitmask(0)
+    key = t.EmberKeyStruct()
+    key.key = t.KeyData(zigpy_key.key)
+    key.bitmask = t.EmberKeyStructBitmask(0)
 
     if zigpy_key.seq is not None:
         key.sequenceNumber = t.uint8_t(zigpy_key.seq)
-        key.bitmask |= ezsp.types.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER
+        key.bitmask |= t.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER
 
     if zigpy_key.tx_counter is not None:
         key.outgoingFrameCounter = t.uint32_t(zigpy_key.tx_counter)
-        key.bitmask |= ezsp.types.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
+        key.bitmask |= t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
 
     if zigpy_key.rx_counter is not None:
         key.incomingFrameCounter = t.uint32_t(zigpy_key.rx_counter)
-        key.bitmask |= ezsp.types.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER
+        key.bitmask |= t.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER
 
     if zigpy_key.partner_ieee is not None:
         key.partnerEUI64 = t.EUI64(zigpy_key.partner_ieee)
-        key.bitmask |= ezsp.types.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
+        key.bitmask |= t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
 
     return key
 

@@ -1,14 +1,17 @@
-from unittest import mock
+import logging
+from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
+import zigpy.state
 
 import bellows.ezsp.v4
+import bellows.types as t
 
 
 @pytest.fixture
 def ezsp_f():
     """EZSP v4 protocol handler."""
-    return bellows.ezsp.v4.EZSPv4(mock.MagicMock(), mock.MagicMock())
+    return bellows.ezsp.v4.EZSPv4(MagicMock(), MagicMock())
 
 
 def test_ezsp_frame(ezsp_f):
@@ -30,226 +33,307 @@ async def test_pre_permit(ezsp_f):
     await ezsp_f.pre_permit(1.9)
 
 
-command_frames = {
-    "addEndpoint": 0x02,
-    "addOrUpdateKeyTableEntry": 0x66,
-    "addTransientLinkKey": 0xAF,
-    "addressTableEntryIsActive": 0x5B,
-    "aesEncrypt": 0x94,
-    "aesMmoHash": 0x6F,
-    "becomeTrustCenter": 0x77,
-    "bindingIsActive": 0x2E,
-    "bootloadTransmitCompleteHandler": 0x93,
-    "broadcastNetworkKeySwitch": 0x74,
-    "broadcastNextNetworkKey": 0x73,
-    "calculateSmacs": 0x9F,
-    "calculateSmacs283k1": 0xEA,
-    "calculateSmacsHandler": 0xA0,
-    "calculateSmacsHandler283k1": 0xEB,
-    "callback": 0x06,
-    "childJoinHandler": 0x23,
-    "clearBindingTable": 0x2A,
-    "clearKeyTable": 0xB1,
-    "clearTemporaryDataMaybeStoreLinkKey": 0xA1,
-    "clearTemporaryDataMaybeStoreLinkKey283k1": 0xEE,
-    "clearTransientLinkKeys": 0x6B,
-    "counterRolloverHandler": 0xF2,
-    "customFrame": 0x47,
-    "customFrameHandler": 0x54,
-    "dGpSend": 0xC6,
-    "dGpSentHandler": 0xC7,
-    "debugWrite": 0x12,
-    "delayTest": 0x9D,
-    "deleteBinding": 0x2D,
-    "dsaSign": 0xA6,
-    "dsaSignHandler": 0xA7,
-    "dsaVerify": 0xA3,
-    "dsaVerify283k1": 0xB0,
-    "dsaVerifyHandler": 0x78,
-    "echo": 0x81,
-    "energyScanRequest": 0x9C,
-    "energyScanResultHandler": 0x48,
-    "eraseKeyTableEntry": 0x76,
-    "findAndRejoinNetwork": 0x21,
-    "findKeyTableEntry": 0x75,
-    "formNetwork": 0x1E,
-    "generateCbkeKeys": 0xA4,
-    "generateCbkeKeys283k1": 0xE8,
-    "generateCbkeKeysHandler": 0x9E,
-    "generateCbkeKeysHandler283k1": 0xE9,
-    "getAddressTableRemoteEui64": 0x5E,
-    "getAddressTableRemoteNodeId": 0x5F,
-    "getBinding": 0x2C,
-    "getBindingRemoteNodeId": 0x2F,
-    "getCertificate": 0xA5,
-    "getCertificate283k1": 0xEC,
-    "getChildData": 0x4A,
-    "getConfigurationValue": 0x52,
-    "getCtune": 0xF6,
-    "getCurrentSecurityState": 0x69,
-    "getEui64": 0x26,
-    "getExtendedTimeout": 0x7F,
-    "getExtendedValue": 0x03,
-    "getKey": 0x6A,
-    "getKeyTableEntry": 0x71,
-    "getLibraryStatus": 0x01,
-    "getLogicalChannel": 0xBA,
-    "getMfgToken": 0x0B,
-    "getMulticastTableEntry": 0x63,
-    "getNeighbor": 0x79,
-    "getNetworkParameters": 0x28,
-    "getNodeId": 0x27,
-    "getParentChildParameters": 0x29,
-    "getPolicy": 0x56,
-    "getRandomNumber": 0x49,
-    "getRouteTableEntry": 0x7B,
-    "getStandaloneBootloaderVersionPlatMicroPhy": 0x91,
-    "getTimer": 0x4E,
-    "getToken": 0x0A,
-    "getValue": 0xAA,
-    "getXncpInfo": 0x13,
-    "gpProxyTableProcessGpPairing": 0xC9,
-    "gpepIncomingMessageHandler": 0xC5,
-    "idConflictHandler": 0x7C,
-    "incomingBootloadMessageHandler": 0x92,
-    "incomingManyToOneRouteRequestHandler": 0x7D,
-    "incomingMessageHandler": 0x45,
-    "incomingRouteErrorHandler": 0x80,
-    "incomingRouteRecordHandler": 0x59,
-    "incomingSenderEui64Handler": 0x62,
-    "invalidCommand": 0x58,
-    "isZllNetwork": 0xBE,
-    "joinNetwork": 0x1F,
-    "launchStandaloneBootloader": 0x8F,
-    "leaveNetwork": 0x20,
-    "lookupEui64ByNodeId": 0x61,
-    "lookupNodeIdByEui64": 0x60,
-    "macFilterMatchMessageHandler": 0x46,
-    "macPassthroughMessageHandler": 0x97,
-    "maximumPayloadLength": 0x33,
-    "messageSentHandler": 0x3F,
-    "mfglibEnd": 0x84,
-    "mfglibGetChannel": 0x8B,
-    "mfglibGetPower": 0x8D,
-    "mfglibRxHandler": 0x8E,
-    "mfglibSendPacket": 0x89,
-    "mfglibSetChannel": 0x8A,
-    "mfglibSetPower": 0x8C,
-    "mfglibStart": 0x83,
-    "mfglibStartStream": 0x87,
-    "mfglibStartTone": 0x85,
-    "mfglibStopStream": 0x88,
-    "mfglibStopTone": 0x86,
-    "neighborCount": 0x7A,
-    "networkFoundHandler": 0x1B,
-    "networkInit": 0x17,
-    "networkInitExtended": 0x70,
-    "networkState": 0x18,
-    "noCallbacks": 0x07,
-    "nop": 0x05,
-    "overrideCurrentChannel": 0x95,
-    "permitJoining": 0x22,
-    "pollCompleteHandler": 0x43,
-    "pollForData": 0x42,
-    "pollHandler": 0x44,
-    "proxyBroadcast": 0x37,
-    "rawTransmitCompleteHandler": 0x98,
-    "readAndClearCounters": 0x65,
-    "readCounters": 0xF1,
-    "remoteDeleteBindingHandler": 0x32,
-    "remoteSetBindingHandler": 0x31,
-    "removeDevice": 0xA8,
-    "replaceAddressTableEntry": 0x82,
-    "requestLinkKey": 0x14,
-    "rf4ceAutoDiscoveryResponseCompleteHandler": 0xDE,
-    "rf4ceDeletePairingTableEntry": 0xD2,
-    "rf4ceDiscovery": 0xD9,
-    "rf4ceDiscoveryCompleteHandler": 0xDA,
-    "rf4ceDiscoveryRequestHandler": 0xDB,
-    "rf4ceDiscoveryResponseHandler": 0xDC,
-    "rf4ceEnableAutoDiscoveryResponse": 0xDD,
-    "rf4ceGetApplicationInfo": 0xEF,
-    "rf4ceGetMaxPayload": 0xF3,
-    "rf4ceGetNetworkParameters": 0xF4,
-    "rf4ceGetPairingTableEntry": 0xD1,
-    "rf4ceIncomingMessageHandler": 0xD5,
-    "rf4ceKeyUpdate": 0xD3,
-    "rf4ceMessageSentHandler": 0xD6,
-    "rf4cePair": 0xDF,
-    "rf4cePairCompleteHandler": 0xE0,
-    "rf4cePairRequestHandler": 0xE1,
-    "rf4ceSend": 0xD4,
-    "rf4ceSetApplicationInfo": 0xE7,
-    "rf4ceSetFrequencyAgilityParameters": 0xE6,
-    "rf4ceSetPairingTableEntry": 0xD0,
-    "rf4ceSetPowerSavingParameters": 0xE5,
-    "rf4ceStart": 0xD7,
-    "rf4ceStop": 0xD8,
-    "rf4ceUnpair": 0xE2,
-    "rf4ceUnpairCompleteHandler": 0xE4,
-    "rf4ceUnpairHandler": 0xE3,
-    "scanCompleteHandler": 0x1C,
-    "sendBootloadMessage": 0x90,
-    "sendBroadcast": 0x36,
-    "sendManyToOneRouteRequest": 0x41,
-    "sendMulticast": 0x38,
-    "sendRawMessage": 0x96,
-    "sendReply": 0x39,
-    "sendUnicast": 0x34,
-    "setAddressTableRemoteEui64": 0x5C,
-    "setAddressTableRemoteNodeId": 0x5D,
-    "setBinding": 0x2B,
-    "setBindingRemoteNodeId": 0x30,
-    "setConcentrator": 0x10,
-    "setConfigurationValue": 0x53,
-    "setCtune": 0xF5,
-    "setExtendedTimeout": 0x7E,
-    "setGpioCurrentConfiguration": 0xAC,
-    "setGpioPowerUpDownConfiguration": 0xAD,
-    "setGpioRadioPowerMask": 0xAE,
-    "setInitialSecurityState": 0x68,
-    "setKeyTableEntry": 0x72,
-    "setLogicalAndRadioChannel": 0xB9,
-    "setManufacturerCode": 0x15,
-    "setMfgToken": 0x0C,
-    "setMulticastTableEntry": 0x64,
-    "setPolicy": 0x55,
-    "setPowerDescriptor": 0x16,
-    "setPreinstalledCbkeData": 0xA2,
-    "setPreinstalledCbkeData283k1": 0xED,
-    "setRadioChannel": 0x9A,
-    "setRadioPower": 0x99,
-    "setSourceRoute": 0x5A,
-    "setTimer": 0x0E,
-    "setToken": 0x09,
-    "setValue": 0xAB,
-    "stackStatusHandler": 0x19,
-    "stackTokenChangedHandler": 0x0D,
-    "startScan": 0x1A,
-    "stopScan": 0x1D,
-    "switchNetworkKeyHandler": 0x6E,
-    "timerHandler": 0x0F,
-    "trustCenterJoinHandler": 0x24,
-    "unicastNwkKeyUpdate": 0xA9,
-    "version": 0x00,
-    "zigbeeKeyEstablishmentHandler": 0x9B,
-    "zllAddressAssignmentHandler": 0xB8,
-    "zllGetTokens": 0xBC,
-    "zllNetworkFoundHandler": 0xB6,
-    "zllNetworkOps": 0xB2,
-    "zllScanCompleteHandler": 0xB7,
-    "zllSetDataToken": 0xBD,
-    "zllSetInitialSecurityState": 0xB3,
-    "zllSetNonZllNetwork": 0xBF,
-    "zllSetRxOnWhenIdle": 0xB5,
-    "zllStartScan": 0xB4,
-    "zllTouchLinkTargetHandler": 0xBB,
-}
+async def test_read_child_data(ezsp_f):
+    def get_child_data(index):
+        if index == 0:
+            status = t.EmberStatus.SUCCESS
+        else:
+            status = t.EmberStatus.NOT_JOINED
+
+        return (
+            status,
+            t.EmberNodeId(0xC06B),
+            t.EUI64.convert("00:0b:57:ff:fe:2b:d4:57"),
+            t.EmberNodeType.SLEEPY_END_DEVICE,
+        )
+
+    ezsp_f.getChildData = AsyncMock(side_effect=get_child_data)
+
+    child_data = [row async for row in ezsp_f.read_child_data()]
+    assert child_data == [
+        (
+            0xC06B,
+            t.EUI64.convert("00:0b:57:ff:fe:2b:d4:57"),
+            t.EmberNodeType.SLEEPY_END_DEVICE,
+        )
+    ]
 
 
-def test_command_frames(ezsp_f):
-    """Test alphabetical list of frames matches the commands."""
-    assert set(command_frames) == set(ezsp_f.COMMANDS)
-    for name, frame_id in command_frames.items():
-        assert ezsp_f.COMMANDS[name][0] == frame_id
-        assert ezsp_f.COMMANDS_BY_ID[frame_id][0] == name
+async def test_read_link_keys(ezsp_f):
+    def get_key_table_entry(index):
+        if index == 0:
+            return (
+                t.EmberStatus.SUCCESS,
+                t.EmberKeyStruct(
+                    bitmask=(
+                        t.EmberKeyStructBitmask.KEY_IS_AUTHORIZED
+                        | t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
+                        | t.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER
+                        | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
+                    ),
+                    type=t.EmberKeyType.APPLICATION_LINK_KEY,
+                    key=t.KeyData.convert("857C05003E761AF9689A49416A605C76"),
+                    outgoingFrameCounter=3792973670,
+                    incomingFrameCounter=1083290572,
+                    sequenceNumber=147,
+                    partnerEUI64=t.EUI64.convert("CC:CC:CC:FF:FE:E6:8E:CA"),
+                ),
+            )
+        elif index == 1:
+            return (
+                t.EmberStatus.SUCCESS,
+                t.EmberKeyStruct(
+                    bitmask=(
+                        t.EmberKeyStructBitmask.KEY_IS_AUTHORIZED
+                        | t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
+                        | t.EmberKeyStructBitmask.KEY_HAS_INCOMING_FRAME_COUNTER
+                        | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
+                    ),
+                    type=t.EmberKeyType.APPLICATION_LINK_KEY,
+                    key=t.KeyData.convert("CA02E8BB757C94F89339D39CB3CDA7BE"),
+                    outgoingFrameCounter=2597245184,
+                    incomingFrameCounter=824424412,
+                    sequenceNumber=19,
+                    partnerEUI64=t.EUI64.convert("EC:1B:BD:FF:FE:2F:41:A4"),
+                ),
+            )
+        elif index >= 12:
+            status = t.EmberStatus.INDEX_OUT_OF_RANGE
+        else:
+            status = t.EmberStatus.TABLE_ENTRY_ERASED
+
+        return (
+            status,
+            t.EmberKeyStruct(
+                bitmask=t.EmberKeyStructBitmask(244),
+                type=t.EmberKeyType(0x46),
+                key=t.KeyData.convert("b8a11c004b1200cdabcdabcdabcdabcd"),
+                outgoingFrameCounter=8192,
+                incomingFrameCounter=0,
+                sequenceNumber=0,
+                partnerEUI64=t.EUI64.convert("00:12:4b:00:1c:a1:b8:46"),
+            ),
+        )
+
+    ezsp_f.getKeyTableEntry = AsyncMock(side_effect=get_key_table_entry)
+    ezsp_f.getConfigurationValue = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 13))
+
+    link_keys = [key async for key in ezsp_f.read_link_keys()]
+    assert link_keys == [
+        zigpy.state.Key(
+            key=t.KeyData.convert("85:7C:05:00:3E:76:1A:F9:68:9A:49:41:6A:60:5C:76"),
+            tx_counter=3792973670,
+            rx_counter=1083290572,
+            seq=0,  # Sequence number is 0
+            partner_ieee=t.EUI64.convert("CC:CC:CC:FF:FE:E6:8E:CA"),
+        ),
+        zigpy.state.Key(
+            key=t.KeyData.convert("CA:02:E8:BB:75:7C:94:F8:93:39:D3:9C:B3:CD:A7:BE"),
+            tx_counter=2597245184,
+            rx_counter=824424412,
+            seq=0,  # Sequence number is 0
+            partner_ieee=t.EUI64.convert("EC:1B:BD:FF:FE:2F:41:A4"),
+        ),
+    ]
+
+
+async def test_get_network_key_and_tc_link_key(ezsp_f):
+    def get_key(keyType):
+        key = {
+            t.EmberKeyType.CURRENT_NETWORK_KEY: t.EmberKeyStruct(
+                bitmask=(
+                    t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
+                    | t.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER
+                ),
+                type=t.EmberKeyType.CURRENT_NETWORK_KEY,
+                key=t.KeyData.convert("2ccade06b3090c310315b3d574d3c85a"),
+                outgoingFrameCounter=118785,
+                incomingFrameCounter=0,
+                sequenceNumber=108,
+                partnerEUI64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
+            ),
+            t.EmberKeyType.TRUST_CENTER_LINK_KEY: t.EmberKeyStruct(
+                bitmask=(
+                    t.EmberKeyStructBitmask.KEY_IS_AUTHORIZED
+                    | t.EmberKeyStructBitmask.KEY_HAS_PARTNER_EUI64
+                    | t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
+                ),
+                type=t.EmberKeyType.TRUST_CENTER_LINK_KEY,
+                key=t.KeyData.convert("abcdabcdabcdabcdabcdabcdabcdabcd"),
+                outgoingFrameCounter=8712428,
+                incomingFrameCounter=0,
+                sequenceNumber=0,
+                partnerEUI64=t.EUI64.convert("00:12:4b:00:1c:a1:b8:46"),
+            ),
+        }[keyType]
+
+        return (t.EmberStatus.SUCCESS, key)
+
+    ezsp_f.getKey = AsyncMock(side_effect=get_key)
+
+    assert (await ezsp_f.get_network_key()) == zigpy.state.Key(
+        key=t.KeyData.convert("2ccade06b3090c310315b3d574d3c85a"),
+        seq=108,
+        tx_counter=118785,
+    )
+
+    assert (await ezsp_f.get_tc_link_key()) == zigpy.state.Key(
+        key=t.KeyData.convert("abcdabcdabcdabcdabcdabcdabcdabcd"),
+        seq=0,
+        tx_counter=8712428,
+        partner_ieee=t.EUI64.convert("00:12:4b:00:1c:a1:b8:46"),
+    )
+
+
+async def test_write_child_data(ezsp_f) -> None:
+    # It's a no-op
+    await ezsp_f.write_child_data(
+        {
+            t.EUI64.convert("00:0b:57:ff:fe:2b:d4:57"): 0xC06B,
+            t.EUI64.convert("00:18:4b:00:1c:a1:b8:46"): 0x1234,
+        }
+    )
+
+
+async def test_read_address_table(ezsp_f) -> None:
+    # It's a no-op but still an async generator
+    async for nwk, eui64 in ezsp_f.read_address_table():
+        pass
+
+
+async def test_write_link_keys(ezsp_f, caplog) -> None:
+    ezsp_f.addOrUpdateKeyTableEntry = AsyncMock(
+        side_effect=[(t.EmberStatus.SUCCESS,), (t.EmberStatus.ERR_FATAL,)]
+    )
+
+    with caplog.at_level(logging.WARNING):
+        await ezsp_f.write_link_keys(
+            [
+                zigpy.state.Key(
+                    key=t.KeyData.convert("2ccade06b3090c310315b3d574d3c85a"),
+                    seq=108,
+                    tx_counter=1234,
+                    rx_counter=5678,
+                    partner_ieee=t.EUI64.convert("11:11:11:11:11:11:11:11"),
+                ),
+                zigpy.state.Key(
+                    key=t.KeyData.convert("abcdabcdabcdabcdabcdabcdabcdabcd"),
+                    seq=123,
+                    tx_counter=2345,
+                    rx_counter=98314,
+                    partner_ieee=t.EUI64.convert("22:22:22:22:22:22:22:22"),
+                ),
+            ]
+        )
+
+    assert ezsp_f.addOrUpdateKeyTableEntry.mock_calls == [
+        call(
+            address=t.EUI64.convert("11:11:11:11:11:11:11:11"),
+            linkKey=True,
+            keyData=t.KeyData.convert("2ccade06b3090c310315b3d574d3c85a"),
+        ),
+        call(
+            address=t.EUI64.convert("22:22:22:22:22:22:22:22"),
+            linkKey=True,
+            keyData=t.KeyData.convert("abcdabcdabcdabcdabcdabcdabcdabcd"),
+        ),
+    ]
+
+    assert (
+        "Couldn't add Key(key=ab:cd:ab:cd:ab:cd:ab:cd:ab:cd:ab:cd:ab:cd:ab:cd"
+        in caplog.text
+    )
+
+
+async def test_initialize_network(ezsp_f) -> None:
+    ezsp_f.networkInitExtended = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    assert await ezsp_f.initialize_network() == t.sl_Status.OK
+    assert ezsp_f.networkInitExtended.mock_calls == [
+        call(networkInitStruct=t.EmberNetworkInitBitmask.NETWORK_INIT_NO_OPTIONS)
+    ]
+
+
+async def test_write_nwk_frame_counter(ezsp_f) -> None:
+    # No-op
+    await ezsp_f.write_nwk_frame_counter(12345678)
+
+
+async def test_write_aps_frame_counter(ezsp_f) -> None:
+    # No-op
+    await ezsp_f.write_aps_frame_counter(12345678)
+
+
+async def test_factory_reset(ezsp_f) -> None:
+    ezsp_f.clearKeyTable = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    await ezsp_f.factory_reset()
+
+    assert ezsp_f.clearKeyTable.mock_calls == [call()]
+
+
+async def test_send_unicast(ezsp_f) -> None:
+    ezsp_f.sendUnicast = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 0x42))
+    status, message_tag = await ezsp_f.send_unicast(
+        nwk=0x1234,
+        aps_frame=t.EmberApsFrame(),
+        message_tag=0x42,
+        data=b"hello",
+    )
+
+    assert status == t.sl_Status.OK
+    assert message_tag == 0x42
+    assert ezsp_f.sendUnicast.mock_calls == [
+        call(
+            type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+            indexOrDestination=t.EmberNodeId(0x1234),
+            apsFrame=t.EmberApsFrame(),
+            messageTag=0x42,
+            messageContents=b"hello",
+        )
+    ]
+
+
+async def test_send_multicast(ezsp_f) -> None:
+    ezsp_f.sendMulticast = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 0x42))
+    status, message_tag = await ezsp_f.send_multicast(
+        aps_frame=t.EmberApsFrame(),
+        radius=12,
+        non_member_radius=34,
+        message_tag=0x42,
+        data=b"hello",
+    )
+
+    assert status == t.sl_Status.OK
+    assert message_tag == 0x42
+    assert ezsp_f.sendMulticast.mock_calls == [
+        call(
+            apsFrame=t.EmberApsFrame(),
+            hops=12,
+            nonmemberRadius=34,
+            messageTag=0x42,
+            messageContents=b"hello",
+        )
+    ]
+
+
+async def test_send_broadcast(ezsp_f) -> None:
+    ezsp_f.sendBroadcast = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 0x42))
+    status, message_tag = await ezsp_f.send_broadcast(
+        address=t.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
+        aps_frame=t.EmberApsFrame(),
+        radius=12,
+        message_tag=0x42,
+        aps_sequence=34,
+        data=b"hello",
+    )
+
+    assert status == t.sl_Status.OK
+    assert message_tag == 0x42
+    assert ezsp_f.sendBroadcast.mock_calls == [
+        call(
+            destination=t.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
+            apsFrame=t.EmberApsFrame(),
+            radius=12,
+            messageTag=0x42,
+            messageContents=b"hello",
+        )
+    ]

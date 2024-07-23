@@ -1,11 +1,14 @@
 """"EZSP Protocol version 9 protocol handler."""
+from __future__ import annotations
+
 import logging
 
-import voluptuous
+import voluptuous as vol
 
 import bellows.config
+import bellows.types as t
 
-from . import commands, config, types as v9_types
+from . import commands, config
 from ..v8 import EZSPv8
 
 LOGGER = logging.getLogger(__name__)
@@ -17,7 +20,21 @@ class EZSPv9(EZSPv8):
     VERSION = 9
     COMMANDS = commands.COMMANDS
     SCHEMAS = {
-        bellows.config.CONF_EZSP_CONFIG: voluptuous.Schema(config.EZSP_SCHEMA),
-        bellows.config.CONF_EZSP_POLICIES: voluptuous.Schema(config.EZSP_POLICIES_SCH),
+        bellows.config.CONF_EZSP_CONFIG: vol.Schema(config.EZSP_SCHEMA),
+        bellows.config.CONF_EZSP_POLICIES: vol.Schema(config.EZSP_POLICIES_SCH),
     }
-    types = v9_types
+
+    async def write_child_data(self, children: dict[t.EUI64, t.NWK]) -> None:
+        for index, (eui64, nwk) in enumerate(children.items()):
+            await self.setChildData(
+                index=index,
+                child_data=t.EmberChildDataV7(
+                    eui64=eui64,
+                    type=t.EmberNodeType.SLEEPY_END_DEVICE,
+                    id=nwk,
+                    # The rest are unused when setting child data
+                    phy=0,
+                    power=0,
+                    timeout=0,
+                ),
+            )

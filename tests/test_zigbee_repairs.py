@@ -96,9 +96,9 @@ async def test_fix_invalid_tclk(ezsp_tclk_f: EZSP, caplog) -> None:
 
     assert ezsp_tclk_f.setTokenData.mock_calls == [
         call(
-            t.NV3KeyId.NVM3KEY_STACK_TRUST_CENTER,
-            0,
-            t.NV3StackTrustCenterToken(
+            token=t.NV3KeyId.NVM3KEY_STACK_TRUST_CENTER,
+            index=0,
+            token_data=t.NV3StackTrustCenterToken(
                 mode=228,
                 eui64=t.EUI64.convert("AA:AA:AA:AA:AA:AA:AA:AA"),
                 key=t.KeyData.convert(
@@ -160,9 +160,9 @@ async def test_fix_invalid_tclk_all_versions(
 
         assert ezsp.setTokenData.mock_calls == [
             call(
-                t.NV3KeyId.NVM3KEY_STACK_TRUST_CENTER,
-                0,
-                t.NV3StackTrustCenterToken(
+                token=t.NV3KeyId.NVM3KEY_STACK_TRUST_CENTER,
+                index=0,
+                token_data=t.NV3StackTrustCenterToken(
                     mode=228,
                     eui64=t.EUI64.convert("AA:AA:AA:AA:AA:AA:AA:AA"),
                     key=t.KeyData.convert(
