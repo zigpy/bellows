@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, call
+from unittest.mock import MagicMock, call
 
 import pytest
 import zigpy.exceptions
@@ -7,11 +7,16 @@ import zigpy.state
 import bellows.ezsp.v14
 import bellows.types as t
 
+from tests.common import mock_ezsp_commands
+
 
 @pytest.fixture
 def ezsp_f():
     """EZSP v14 protocol handler."""
-    return bellows.ezsp.v14.EZSPv14(MagicMock(), MagicMock())
+    ezsp = bellows.ezsp.v14.EZSPv14(MagicMock(), MagicMock())
+    mock_ezsp_commands(ezsp)
+
+    return ezsp
 
 
 def test_ezsp_frame(ezsp_f):
@@ -54,8 +59,8 @@ async def test_read_address_table(ezsp_f):
             ),
         }.get(index, default)
 
-    ezsp_f.getAddressTableInfo = AsyncMock(side_effect=get_addr_table_info)
-    ezsp_f.getConfigurationValue = AsyncMock(return_value=(t.sl_Status.OK, 20))
+    ezsp_f.getAddressTableInfo.side_effect = get_addr_table_info
+    ezsp_f.getConfigurationValue.return_value = (t.sl_Status.OK, 20)
 
     address_table = [key async for key in ezsp_f.read_address_table()]
     assert address_table == [
@@ -97,19 +102,17 @@ async def test_get_network_key_and_tc_link_key(ezsp_f):
         else:
             pytest.fail("Invalid core_key_type")
 
-    ezsp_f.exportKey = AsyncMock(side_effect=export_key)
-    ezsp_f.getNetworkKeyInfo = AsyncMock(
-        return_value=[
-            t.sl_Status.OK,
-            t.SecurityManagerNetworkKeyInfo(
-                network_key_set=True,
-                alternate_network_key_set=False,
-                network_key_sequence_number=108,
-                alt_network_key_sequence_number=0,
-                network_key_frame_counter=118785,
-            ),
-        ]
-    )
+    ezsp_f.exportKey.side_effect = export_key
+    ezsp_f.getNetworkKeyInfo.return_value = [
+        t.sl_Status.OK,
+        t.SecurityManagerNetworkKeyInfo(
+            network_key_set=True,
+            alternate_network_key_set=False,
+            network_key_sequence_number=108,
+            alt_network_key_sequence_number=0,
+            network_key_frame_counter=118785,
+        ),
+    ]
 
     assert (await ezsp_f.get_network_key()) == zigpy.state.Key(
         key=t.KeyData.convert("2ccade06b3090c310315b3d574d3c85a"),
@@ -123,41 +126,37 @@ async def test_get_network_key_and_tc_link_key(ezsp_f):
 
 
 async def test_get_network_key_without_network(ezsp_f):
-    ezsp_f.getNetworkKeyInfo = AsyncMock(
-        return_value=[
-            t.sl_Status.OK,
-            t.SecurityManagerNetworkKeyInfo(
-                network_key_set=False,  # Not set
-                alternate_network_key_set=False,
-                network_key_sequence_number=108,
-                alt_network_key_sequence_number=0,
-                network_key_frame_counter=118785,
-            ),
-        ]
-    )
+    ezsp_f.getNetworkKeyInfo.return_value = [
+        t.sl_Status.OK,
+        t.SecurityManagerNetworkKeyInfo(
+            network_key_set=False,  # Not set
+            alternate_network_key_set=False,
+            network_key_sequence_number=108,
+            alt_network_key_sequence_number=0,
+            network_key_frame_counter=118785,
+        ),
+    ]
 
-    ezsp_f.exportKey = AsyncMock(
-        return_value=[
-            t.sl_Status.OK,
-            t.KeyData.convert("00000000000000000000000000000000"),
-            t.SecurityManagerContextV13(
-                core_key_type=t.SecurityManagerKeyType.NETWORK,
-                key_index=0,
-                derived_type=t.SecurityManagerDerivedKeyTypeV13.NONE,
-                eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
-                multi_network_index=0,
-                flags=t.SecurityManagerContextFlags.NONE,
-                psa_key_alg_permission=0,
-            ),
-        ]
-    )
+    ezsp_f.exportKey.return_value = [
+        t.sl_Status.OK,
+        t.KeyData.convert("00000000000000000000000000000000"),
+        t.SecurityManagerContextV13(
+            core_key_type=t.SecurityManagerKeyType.NETWORK,
+            key_index=0,
+            derived_type=t.SecurityManagerDerivedKeyTypeV13.NONE,
+            eui64=t.EUI64.convert("00:00:00:00:00:00:00:00"),
+            multi_network_index=0,
+            flags=t.SecurityManagerContextFlags.NONE,
+            psa_key_alg_permission=0,
+        ),
+    ]
 
     with pytest.raises(zigpy.exceptions.NetworkNotFormed):
         await ezsp_f.get_network_key()
 
 
 async def test_send_broadcast(ezsp_f) -> None:
-    ezsp_f.sendBroadcast = AsyncMock(return_value=(t.sl_Status.OK, 0x42))
+    ezsp_f.sendBroadcast.return_value = (t.sl_Status.OK, 0x42)
     status, message_tag = await ezsp_f.send_broadcast(
         address=t.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
         aps_frame=t.EmberApsFrame(),

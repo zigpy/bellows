@@ -39,6 +39,11 @@ class EZSPv4(protocol.ProtocolHandler):
     async def pre_permit(self, time_s: int) -> None:
         pass
 
+    async def add_transient_link_key(
+        self, ieee: t.EUI64, key: t.KeyData
+    ) -> t.sl_Status:
+        return t.sl_Status.OK
+
     async def read_child_data(
         self,
     ) -> AsyncGenerator[tuple[t.NWK, t.EUI64, t.EmberNodeType], None]:

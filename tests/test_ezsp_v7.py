@@ -1,15 +1,20 @@
-from unittest import mock
+from unittest.mock import MagicMock
 
 import pytest
 
 import bellows.ezsp.v7
 import bellows.types as t
 
+from tests.common import mock_ezsp_commands
+
 
 @pytest.fixture
 def ezsp_f():
     """EZSP v7 protocol handler."""
-    return bellows.ezsp.v7.EZSPv7(mock.MagicMock(), mock.MagicMock())
+    ezsp = bellows.ezsp.v7.EZSPv7(MagicMock(), MagicMock())
+    mock_ezsp_commands(ezsp)
+
+    return ezsp
 
 
 def test_ezsp_frame(ezsp_f):
@@ -45,7 +50,7 @@ async def test_read_child_data(ezsp_f):
             ),
         )
 
-    ezsp_f.getChildData = mock.AsyncMock(side_effect=get_child_data)
+    ezsp_f.getChildData.side_effect = get_child_data
 
     child_data = [row async for row in ezsp_f.read_child_data()]
     assert child_data == [

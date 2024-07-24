@@ -7,11 +7,16 @@ import zigpy.state
 import bellows.ezsp.v13
 import bellows.types as t
 
+from tests.common import mock_ezsp_commands
+
 
 @pytest.fixture
 def ezsp_f():
     """EZSP v13 protocol handler."""
-    return bellows.ezsp.v13.EZSPv13(MagicMock(), MagicMock())
+    ezsp = bellows.ezsp.v13.EZSPv13(MagicMock(), MagicMock())
+    mock_ezsp_commands(ezsp)
+
+    return ezsp
 
 
 def test_ezsp_frame(ezsp_f):
@@ -91,8 +96,8 @@ async def test_read_link_keys(ezsp_f):
             t.sl_Status.NOT_FOUND,
         )
 
-    ezsp_f.exportLinkKeyByIndex = AsyncMock(side_effect=export_link_key_by_index)
-    ezsp_f.getConfigurationValue = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 13))
+    ezsp_f.exportLinkKeyByIndex.side_effect = export_link_key_by_index
+    ezsp_f.getConfigurationValue.return_value = (t.EmberStatus.SUCCESS, 13)
 
     link_keys = [key async for key in ezsp_f.read_link_keys()]
     assert link_keys == [
@@ -126,19 +131,17 @@ async def test_get_network_key_and_tc_link_key(ezsp_f):
 
         return (key, t.EmberStatus.SUCCESS)
 
-    ezsp_f.exportKey = AsyncMock(side_effect=export_key)
-    ezsp_f.getNetworkKeyInfo = AsyncMock(
-        return_value=[
-            t.sl_Status.OK,
-            t.SecurityManagerNetworkKeyInfo(
-                network_key_set=True,
-                alternate_network_key_set=False,
-                network_key_sequence_number=108,
-                alt_network_key_sequence_number=0,
-                network_key_frame_counter=118785,
-            ),
-        ]
-    )
+    ezsp_f.exportKey.side_effect = export_key
+    ezsp_f.getNetworkKeyInfo.return_value = [
+        t.sl_Status.OK,
+        t.SecurityManagerNetworkKeyInfo(
+            network_key_set=True,
+            alternate_network_key_set=False,
+            network_key_sequence_number=108,
+            alt_network_key_sequence_number=0,
+            network_key_frame_counter=118785,
+        ),
+    ]
 
     assert (await ezsp_f.get_network_key()) == zigpy.state.Key(
         key=t.KeyData.convert("2ccade06b3090c310315b3d574d3c85a"),
@@ -152,37 +155,31 @@ async def test_get_network_key_and_tc_link_key(ezsp_f):
 
 
 async def test_get_network_key_without_network(ezsp_f):
-    ezsp_f.getNetworkKeyInfo = AsyncMock(
-        return_value=[
-            t.sl_Status.OK,
-            t.SecurityManagerNetworkKeyInfo(
-                network_key_set=False,  # Not set
-                alternate_network_key_set=False,
-                network_key_sequence_number=108,
-                alt_network_key_sequence_number=0,
-                network_key_frame_counter=118785,
-            ),
-        ]
-    )
+    ezsp_f.getNetworkKeyInfo.return_value = [
+        t.sl_Status.OK,
+        t.SecurityManagerNetworkKeyInfo(
+            network_key_set=False,  # Not set
+            alternate_network_key_set=False,
+            network_key_sequence_number=108,
+            alt_network_key_sequence_number=0,
+            network_key_frame_counter=118785,
+        ),
+    ]
 
-    ezsp_f.exportKey = AsyncMock(
-        return_value=[
-            t.KeyData.convert("2ccade06b3090c310315b3d574d3c85a"),
-            t.EmberStatus.SUCCESS,
-        ]
-    )
+    ezsp_f.exportKey.return_value = [
+        t.KeyData.convert("2ccade06b3090c310315b3d574d3c85a"),
+        t.EmberStatus.SUCCESS,
+    ]
 
     with pytest.raises(zigpy.exceptions.NetworkNotFormed):
         await ezsp_f.get_network_key()
 
 
 async def test_write_link_keys(ezsp_f):
-    ezsp_f.importLinkKey = AsyncMock(
-        side_effect=[
-            (t.EmberStatus.SUCCESS,),
-            (t.EmberStatus.INVALID_CALL,),
-        ]
-    )
+    ezsp_f.importLinkKey.side_effect = [
+        (t.EmberStatus.SUCCESS,),
+        (t.EmberStatus.INVALID_CALL,),
+    ]
 
     await ezsp_f.write_link_keys(
         [
@@ -222,8 +219,8 @@ async def test_write_link_keys(ezsp_f):
 
 
 async def test_factory_reset(ezsp_f) -> None:
-    ezsp_f.clearKeyTable = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
-    ezsp_f.tokenFactoryReset = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    ezsp_f.clearKeyTable.return_value = (t.EmberStatus.SUCCESS,)
+    ezsp_f.tokenFactoryReset.return_value = (t.EmberStatus.SUCCESS,)
     await ezsp_f.factory_reset()
 
     assert ezsp_f.clearKeyTable.mock_calls == [call()]

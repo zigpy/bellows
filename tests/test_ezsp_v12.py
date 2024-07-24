@@ -4,11 +4,16 @@ import pytest
 
 import bellows.ezsp.v12
 
+from tests.common import mock_ezsp_commands
+
 
 @pytest.fixture
 def ezsp_f():
     """EZSP v12 protocol handler."""
-    return bellows.ezsp.v12.EZSPv12(MagicMock(), MagicMock())
+    ezsp = bellows.ezsp.v12.EZSPv12(MagicMock(), MagicMock())
+    mock_ezsp_commands(ezsp)
+
+    return ezsp
 
 
 def test_ezsp_frame(ezsp_f):

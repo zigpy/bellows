@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, call
+from unittest.mock import MagicMock, call
 
 import pytest
 import zigpy.state
@@ -6,11 +6,16 @@ import zigpy.state
 import bellows.ezsp.v5
 import bellows.types as t
 
+from tests.common import mock_ezsp_commands
+
 
 @pytest.fixture
 def ezsp_f():
     """EZSP v5 protocol handler."""
-    return bellows.ezsp.v5.EZSPv5(MagicMock(), MagicMock())
+    ezsp = bellows.ezsp.v5.EZSPv5(MagicMock(), MagicMock())
+    mock_ezsp_commands(ezsp)
+
+    return ezsp
 
 
 def test_ezsp_frame(ezsp_f):
@@ -29,7 +34,7 @@ def test_ezsp_frame_rx(ezsp_f):
 
 async def test_pre_permit(ezsp_f):
     """Test pre permit."""
-    ezsp_f.addTransientLinkKey = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    ezsp_f.addTransientLinkKey.return_value = [t.EmberStatus.SUCCESS]
     await ezsp_f.pre_permit(1)
 
     assert ezsp_f.addTransientLinkKey.mock_calls == [
@@ -50,7 +55,7 @@ async def test_read_address_table(ezsp_f):
             }.get(addressTableIndex, t.EmberNodeId(0xFFFF)),
         )
 
-    ezsp_f.getAddressTableRemoteNodeId = AsyncMock(side_effect=get_addr_table_node_id)
+    ezsp_f.getAddressTableRemoteNodeId.side_effect = get_addr_table_node_id
 
     def get_addr_table_eui64(addressTableIndex):
         if addressTableIndex < 16:
@@ -66,8 +71,8 @@ async def test_read_address_table(ezsp_f):
         else:
             return (t.EUI64.convert("00:00:00:00:00:00:00:00"),)
 
-    ezsp_f.getConfigurationValue = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 20))
-    ezsp_f.getAddressTableRemoteEui64 = AsyncMock(side_effect=get_addr_table_eui64)
+    ezsp_f.getConfigurationValue.return_value = (t.EmberStatus.SUCCESS, 20)
+    ezsp_f.getAddressTableRemoteEui64.side_effect = get_addr_table_eui64
 
     address_table = [key async for key in ezsp_f.read_address_table()]
     assert address_table == [
@@ -77,8 +82,8 @@ async def test_read_address_table(ezsp_f):
 
 
 async def test_write_nwk_frame_counter(ezsp_f) -> None:
-    ezsp_f.networkState = AsyncMock(return_value=(t.EmberNetworkStatus.NO_NETWORK,))
-    ezsp_f.setValue = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    ezsp_f.networkState.return_value = (t.EmberNetworkStatus.NO_NETWORK,)
+    ezsp_f.setValue.return_value = (t.EmberStatus.SUCCESS,)
     await ezsp_f.write_nwk_frame_counter(12345678)
 
     assert ezsp_f.setValue.mock_calls == [
@@ -90,8 +95,8 @@ async def test_write_nwk_frame_counter(ezsp_f) -> None:
 
 
 async def test_write_aps_frame_counter(ezsp_f) -> None:
-    ezsp_f.networkState = AsyncMock(return_value=(t.EmberNetworkStatus.NO_NETWORK,))
-    ezsp_f.setValue = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    ezsp_f.networkState.return_value = (t.EmberNetworkStatus.NO_NETWORK,)
+    ezsp_f.setValue.return_value = (t.EmberStatus.SUCCESS,)
     await ezsp_f.write_aps_frame_counter(12345678)
 
     assert ezsp_f.setValue.mock_calls == [

@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, call
 
 import pytest
 
@@ -6,11 +6,16 @@ from bellows.ash import DataFrame
 import bellows.ezsp.v8
 import bellows.types as t
 
+from tests.common import mock_ezsp_commands
+
 
 @pytest.fixture
 def ezsp_f():
     """EZSP v8 protocol handler."""
-    return bellows.ezsp.v8.EZSPv8(MagicMock(), MagicMock())
+    ezsp = bellows.ezsp.v8.EZSPv8(MagicMock(), MagicMock())
+    mock_ezsp_commands(ezsp)
+
+    return ezsp
 
 
 def test_ezsp_frame(ezsp_f):
@@ -29,16 +34,25 @@ def test_ezsp_frame_rx(ezsp_f):
 
 async def test_pre_permit(ezsp_f):
     """Test pre permit."""
-    p1 = patch.object(ezsp_f, "setPolicy", new=AsyncMock())
-    p2 = patch.object(
-        ezsp_f,
-        "addTransientLinkKey",
-        new=AsyncMock(return_value=[t.EmberStatus.SUCCESS]),
-    )
-    with p1 as pre_permit_mock, p2 as tclk_mock:
-        await ezsp_f.pre_permit(-1.9)
-    assert pre_permit_mock.await_count == 2
-    assert tclk_mock.await_count == 1
+    ezsp_f.addTransientLinkKey.return_value = (t.EmberStatus.SUCCESS,)
+
+    await ezsp_f.pre_permit(-1.9)
+    assert ezsp_f.setPolicy.mock_calls == [
+        call(
+            policyId=t.EzspPolicyId.TRUST_CENTER_POLICY,
+            decisionId=(
+                t.EzspDecisionBitmask.ALLOW_JOINS
+                | t.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS
+            ),
+        ),
+        call(policyId=t.EzspPolicyId.TRUST_CENTER_POLICY, decisionId=0),
+    ]
+    assert ezsp_f.addTransientLinkKey.mock_calls == [
+        call(
+            partner=t.EUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),
+            transientKey=t.KeyData(b"ZigBeeAlliance09"),
+        )
+    ]
 
 
 def test_get_key_table_entry_fallback_parsing(ezsp_f):
