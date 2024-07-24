@@ -360,6 +360,6 @@ async def test_add_transient_link_key(ezsp_f) -> None:
     # It's a no-op
     status = await ezsp_f.add_transient_link_key(
         ieee=t.EUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),
-        key=t.KeyData.convert("ZigBeeAlliance09"),
+        key=t.KeyData("ZigBeeAlliance09"),
     )
     assert status == t.sl_Status.OK
