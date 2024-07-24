@@ -1,5 +1,5 @@
 import logging
-from unittest.mock import AsyncMock, MagicMock, call
+from unittest.mock import MagicMock, call
 
 import pytest
 import zigpy.state
@@ -7,11 +7,16 @@ import zigpy.state
 import bellows.ezsp.v4
 import bellows.types as t
 
+from tests.common import mock_ezsp_commands
+
 
 @pytest.fixture
 def ezsp_f():
     """EZSP v4 protocol handler."""
-    return bellows.ezsp.v4.EZSPv4(MagicMock(), MagicMock())
+    ezsp = bellows.ezsp.v4.EZSPv4(MagicMock(), MagicMock())
+    mock_ezsp_commands(ezsp)
+
+    return ezsp
 
 
 def test_ezsp_frame(ezsp_f):
@@ -47,7 +52,7 @@ async def test_read_child_data(ezsp_f):
             t.EmberNodeType.SLEEPY_END_DEVICE,
         )
 
-    ezsp_f.getChildData = AsyncMock(side_effect=get_child_data)
+    ezsp_f.getChildData.side_effect = get_child_data
 
     child_data = [row async for row in ezsp_f.read_child_data()]
     assert child_data == [
@@ -115,8 +120,8 @@ async def test_read_link_keys(ezsp_f):
             ),
         )
 
-    ezsp_f.getKeyTableEntry = AsyncMock(side_effect=get_key_table_entry)
-    ezsp_f.getConfigurationValue = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 13))
+    ezsp_f.getKeyTableEntry.side_effect = get_key_table_entry
+    ezsp_f.getConfigurationValue.return_value = (t.EmberStatus.SUCCESS, 13)
 
     link_keys = [key async for key in ezsp_f.read_link_keys()]
     assert link_keys == [
@@ -169,7 +174,7 @@ async def test_get_network_key_and_tc_link_key(ezsp_f):
 
         return (t.EmberStatus.SUCCESS, key)
 
-    ezsp_f.getKey = AsyncMock(side_effect=get_key)
+    ezsp_f.getKey.side_effect = get_key
 
     assert (await ezsp_f.get_network_key()) == zigpy.state.Key(
         key=t.KeyData.convert("2ccade06b3090c310315b3d574d3c85a"),
@@ -202,9 +207,10 @@ async def test_read_address_table(ezsp_f) -> None:
 
 
 async def test_write_link_keys(ezsp_f, caplog) -> None:
-    ezsp_f.addOrUpdateKeyTableEntry = AsyncMock(
-        side_effect=[(t.EmberStatus.SUCCESS,), (t.EmberStatus.ERR_FATAL,)]
-    )
+    ezsp_f.addOrUpdateKeyTableEntry.side_effect = [
+        (t.EmberStatus.SUCCESS,),
+        (t.EmberStatus.ERR_FATAL,),
+    ]
 
     with caplog.at_level(logging.WARNING):
         await ezsp_f.write_link_keys(
@@ -246,7 +252,7 @@ async def test_write_link_keys(ezsp_f, caplog) -> None:
 
 
 async def test_initialize_network(ezsp_f) -> None:
-    ezsp_f.networkInitExtended = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    ezsp_f.networkInitExtended.return_value = (t.EmberStatus.SUCCESS,)
     assert await ezsp_f.initialize_network() == t.sl_Status.OK
     assert ezsp_f.networkInitExtended.mock_calls == [
         call(networkInitStruct=t.EmberNetworkInitBitmask.NETWORK_INIT_NO_OPTIONS)
@@ -264,14 +270,14 @@ async def test_write_aps_frame_counter(ezsp_f) -> None:
 
 
 async def test_factory_reset(ezsp_f) -> None:
-    ezsp_f.clearKeyTable = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    ezsp_f.clearKeyTable.return_value = (t.EmberStatus.SUCCESS,)
     await ezsp_f.factory_reset()
 
     assert ezsp_f.clearKeyTable.mock_calls == [call()]
 
 
 async def test_send_unicast(ezsp_f) -> None:
-    ezsp_f.sendUnicast = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 0x42))
+    ezsp_f.sendUnicast.return_value = (t.EmberStatus.SUCCESS, 0x42)
     status, message_tag = await ezsp_f.send_unicast(
         nwk=0x1234,
         aps_frame=t.EmberApsFrame(),
@@ -293,7 +299,7 @@ async def test_send_unicast(ezsp_f) -> None:
 
 
 async def test_send_multicast(ezsp_f) -> None:
-    ezsp_f.sendMulticast = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 0x42))
+    ezsp_f.sendMulticast.return_value = (t.EmberStatus.SUCCESS, 0x42)
     status, message_tag = await ezsp_f.send_multicast(
         aps_frame=t.EmberApsFrame(),
         radius=12,
@@ -316,7 +322,7 @@ async def test_send_multicast(ezsp_f) -> None:
 
 
 async def test_send_broadcast(ezsp_f) -> None:
-    ezsp_f.sendBroadcast = AsyncMock(return_value=(t.EmberStatus.SUCCESS, 0x42))
+    ezsp_f.sendBroadcast.return_value = (t.EmberStatus.SUCCESS, 0x42)
     status, message_tag = await ezsp_f.send_broadcast(
         address=t.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
         aps_frame=t.EmberApsFrame(),
@@ -340,7 +346,7 @@ async def test_send_broadcast(ezsp_f) -> None:
 
 
 async def test_source_route(ezsp_f) -> None:
-    ezsp_f.setSourceRoute = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    ezsp_f.setSourceRoute.return_value = (t.EmberStatus.SUCCESS,)
 
     status = await ezsp_f.set_source_route(nwk=0x1234, relays=[0x5678, 0xABCD])
     assert status == t.sl_Status.OK
