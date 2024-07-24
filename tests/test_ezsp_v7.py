@@ -1,5 +1,6 @@
+from unittest.mock import MagicMock
+
 import pytest
-from unitest.mock import MagicMock
 
 import bellows.ezsp.v7
 import bellows.types as t
