@@ -42,7 +42,7 @@ class EZSPv8(EZSPv7):
         await super().pre_permit(time_s)
         await self.setPolicy(
             policyId=t.EzspPolicyId.TRUST_CENTER_POLICY,
-            value=(
+            decisionId=(
                 t.EzspDecisionBitmask.ALLOW_JOINS
                 | t.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS
             ),
@@ -50,5 +50,5 @@ class EZSPv8(EZSPv7):
         await asyncio.sleep(time_s + 2)
         await self.setPolicy(
             policyId=t.EzspPolicyId.TRUST_CENTER_POLICY,
-            value=self.tc_policy,
+            decisionId=self.tc_policy,
         )
