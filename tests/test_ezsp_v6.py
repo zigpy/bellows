@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, call
+from unittest.mock import MagicMock, call
 
 import pytest
 import zigpy.state
@@ -6,11 +6,16 @@ import zigpy.state
 import bellows.ezsp.v6
 import bellows.types as t
 
+from tests.common import mock_ezsp_commands
+
 
 @pytest.fixture
 def ezsp_f():
     """EZSP v6 protocol handler."""
-    return bellows.ezsp.v6.EZSPv6(MagicMock(), MagicMock())
+    ezsp = bellows.ezsp.v6.EZSPv6(MagicMock(), MagicMock())
+    mock_ezsp_commands(ezsp)
+
+    return ezsp
 
 
 def test_ezsp_frame(ezsp_f):
@@ -28,7 +33,7 @@ def test_ezsp_frame_rx(ezsp_f):
 
 
 async def test_initialize_network(ezsp_f) -> None:
-    ezsp_f.networkInit = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    ezsp_f.networkInit.return_value = (t.EmberStatus.SUCCESS,)
     assert await ezsp_f.initialize_network() == t.sl_Status.OK
     assert ezsp_f.networkInit.mock_calls == [
         call(networkInitBitmask=t.EmberNetworkInitBitmask.NETWORK_INIT_NO_OPTIONS)
