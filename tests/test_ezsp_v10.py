@@ -5,11 +5,16 @@ import pytest
 import bellows.ezsp.v10
 import bellows.types as t
 
+from tests.common import mock_ezsp_commands
+
 
 @pytest.fixture
 def ezsp_f():
     """EZSP v10 protocol handler."""
-    return bellows.ezsp.v10.EZSPv10(MagicMock(), MagicMock())
+    ezsp = bellows.ezsp.v10.EZSPv10(MagicMock(), MagicMock())
+    mock_ezsp_commands(ezsp)
+
+    return ezsp
 
 
 def test_ezsp_frame(ezsp_f):
@@ -41,7 +46,7 @@ async def test_pre_permit(ezsp_f):
 
 
 async def test_write_child_data(ezsp_f) -> None:
-    ezsp_f.setChildData = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+    ezsp_f.setChildData.return_value = [t.EmberStatus.SUCCESS]
 
     await ezsp_f.write_child_data(
         {
