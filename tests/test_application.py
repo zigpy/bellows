@@ -1092,20 +1092,20 @@ async def test_send_packet_multicast(app, packet):
 
 def test_is_controller_running(app):
     ezsp_running = PropertyMock(return_value=False)
-    type(app._ezsp).is_ezsp_running = ezsp_running
-    app._ctrl_event.clear()
-    assert app.is_controller_running is False
-    app._ctrl_event.set()
-    assert app.is_controller_running is False
-    assert ezsp_running.call_count == 1
+    with patch.object(type(app._ezsp), "is_ezsp_running", ezsp_running):
+        app._ctrl_event.clear()
+        assert app.is_controller_running is False
+        app._ctrl_event.set()
+        assert app.is_controller_running is False
+        assert ezsp_running.call_count == 1
 
     ezsp_running = PropertyMock(return_value=True)
-    type(app._ezsp).is_ezsp_running = ezsp_running
-    app._ctrl_event.clear()
-    assert app.is_controller_running is False
-    app._ctrl_event.set()
-    assert app.is_controller_running is True
-    assert ezsp_running.call_count == 1
+    with patch.object(type(app._ezsp), "is_ezsp_running", ezsp_running):
+        app._ctrl_event.clear()
+        assert app.is_controller_running is False
+        app._ctrl_event.set()
+        assert app.is_controller_running is True
+        assert ezsp_running.call_count == 1
 
 
 def test_reset_frame(app):
