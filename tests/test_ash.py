@@ -480,9 +480,9 @@ async def test_ash_protocol_startup(caplog):
     ]
 
 
-@patch("bellows.ash.T_RX_ACK_INIT", ash.T_RX_ACK_INIT / 100)
-@patch("bellows.ash.T_RX_ACK_MIN", ash.T_RX_ACK_MIN / 100)
-@patch("bellows.ash.T_RX_ACK_MAX", ash.T_RX_ACK_MAX / 100)
+@patch("bellows.ash.T_RX_ACK_INIT", ash.T_RX_ACK_INIT / 1000)
+@patch("bellows.ash.T_RX_ACK_MIN", ash.T_RX_ACK_MIN / 1000)
+@patch("bellows.ash.T_RX_ACK_MAX", ash.T_RX_ACK_MAX / 1000)
 @pytest.mark.parametrize(
     "transport_cls",
     [

@@ -180,6 +180,7 @@ async def test_form_network_fail(ezsp_f):
         await _test_form_network(ezsp_f, [t.EmberStatus.FAILURE], b"\x90")
 
 
+@patch("bellows.ezsp.NETWORK_OPS_TIMEOUT", 0.1)
 async def test_form_network_fail_stack_status(ezsp_f):
     with pytest.raises(Exception):
         await _test_form_network(ezsp_f, [t.EmberStatus.SUCCESS], b"\x00")

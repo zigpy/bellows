@@ -842,6 +842,7 @@ async def test_send_packet_unicast_source_route(make_app, packet):
     )
 
 
+@patch("bellows.zigbee.application.RETRY_DELAYS", [0.01, 0.01, 0.01])
 async def test_send_packet_unicast_retries_success(app, packet):
     await _test_send_packet_unicast(
         app,
@@ -861,6 +862,7 @@ async def test_send_packet_unicast_unexpected_failure(app, packet):
         )
 
 
+@patch("bellows.zigbee.application.RETRY_DELAYS", [0.01, 0.01, 0.01])
 async def test_send_packet_unicast_retries_failure(app, packet):
     with pytest.raises(zigpy.exceptions.DeliveryError):
         await _test_send_packet_unicast(
