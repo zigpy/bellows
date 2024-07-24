@@ -156,10 +156,11 @@ class ProtocolHandler(abc.ABC):
     async def pre_permit(self, time_s: int) -> None:
         """Schedule task before allowing new joins."""
 
+    @abc.abstractmethod
     async def add_transient_link_key(
         self, ieee: t.EUI64, key: t.KeyData
     ) -> t.sl_Status:
-        """Add a transient link key."""
+        raise NotImplementedError
 
     @abc.abstractmethod
     async def read_child_data(

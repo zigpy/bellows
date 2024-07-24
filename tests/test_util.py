@@ -9,7 +9,7 @@ import zigpy.zdo.types as zdo_t
 import bellows.types as t
 import bellows.zigbee.util as util
 
-from tests.test_application import ezsp_mock, ieee
+from tests.test_application import ieee
 
 
 @pytest.fixture
@@ -89,7 +89,7 @@ def zigpy_key(network_info, node_info):
 
 
 @pytest.fixture
-def ezsp_key(ezsp_mock, network_info, node_info, zigpy_key):
+def ezsp_key(network_info, node_info, zigpy_key):
     return t.EmberKeyStruct(
         bitmask=(
             t.EmberKeyStructBitmask.KEY_HAS_SEQUENCE_NUMBER

@@ -193,11 +193,11 @@ class EZSP:
     def _get_command_priority(self, name: str) -> int:
         return {
             # Deprioritize any commands that send packets
-            "setSourceRoute": -1,
+            "set_source_route": -1,
             "setExtendedTimeout": -1,
-            "sendUnicast": -1,
-            "sendMulticast": -1,
-            "sendBroadcast": -1,
+            "send_unicast": -1,
+            "send_multicast": -1,
+            "send_broadcast": -1,
             # Prioritize watchdog commands
             "nop": 999,
             "readCounters": 999,
@@ -206,6 +206,8 @@ class EZSP:
         }.get(name, 0)
 
     async def _command(self, name: str, *args: Any, **kwargs: Any) -> Any:
+        command = getattr(self._protocol, name)
+
         if not self.is_ezsp_running:
             LOGGER.debug(
                 "Couldn't send command %s(%s, %s). EZSP is not running",
@@ -216,7 +218,7 @@ class EZSP:
             raise EzspError("EZSP is not running")
 
         async with self._send_sem(priority=self._get_command_priority(name)):
-            return await self._protocol.command(name, *args, **kwargs)
+            return await command(*args, **kwargs)
 
     async def _list_command(
         self, name, item_frames, completion_frame, spos, *args, **kwargs
