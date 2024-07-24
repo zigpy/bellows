@@ -291,9 +291,9 @@ async def test_ezsp_init(conn_mock, reset_mock, version_mock):
     """Test initialize method."""
     zigpy_config = config.CONFIG_SCHEMA({"device": DEVICE_CONFIG})
     await ezsp.EZSP.initialize(zigpy_config)
-    assert conn_mock.await_count == 1
-    assert reset_mock.await_count == 1
-    assert version_mock.await_count == 1
+    assert conn_mock.call_count == 1
+    assert reset_mock.call_count == 1
+    assert version_mock.call_count == 1
 
 
 @patch.object(ezsp.EZSP, "version", side_effect=RuntimeError("Uh oh"))
@@ -307,9 +307,9 @@ async def test_ezsp_init_failure(conn_mock, close_mock, reset_mock, version_mock
     with pytest.raises(RuntimeError):
         await ezsp.EZSP.initialize(zigpy_config)
 
-    assert conn_mock.await_count == 1
-    assert reset_mock.await_count == 1
-    assert version_mock.await_count == 1
+    assert conn_mock.call_count == 1
+    assert reset_mock.call_count == 1
+    assert version_mock.call_count == 1
     assert close_mock.call_count == 1
 
 
@@ -396,14 +396,14 @@ async def test_pre_permit(ezsp_f):
     with patch("bellows.ezsp.v4.EZSPv4.pre_permit") as pre_mock:
         await ezsp_f.pre_permit(sentinel.time)
         assert pre_mock.call_count == 1
-        assert pre_mock.await_count == 1
+        assert pre_mock.call_count == 1
 
 
 async def test_update_policies(ezsp_f):
     with patch("bellows.ezsp.v4.EZSPv4.update_policies") as pol_mock:
         await ezsp_f.update_policies(sentinel.time)
         assert pol_mock.call_count == 1
-        assert pol_mock.await_count == 1
+        assert pol_mock.call_count == 1
 
 
 async def test_set_source_routing_set_concentrator(ezsp_f):
@@ -411,7 +411,7 @@ async def test_set_source_routing_set_concentrator(ezsp_f):
     with patch.object(ezsp_f, "setConcentrator", new=AsyncMock()) as cnc_mock:
         cnc_mock.return_value = (t.EmberStatus.SUCCESS,)
         await ezsp_f.set_source_routing()
-        assert cnc_mock.await_count == 1
+        assert cnc_mock.call_count == 1
 
         cnc_mock.return_value = (t.EmberStatus.ERR_FATAL,)
         await ezsp_f.set_source_routing()
@@ -634,10 +634,10 @@ async def test_ezsp_init_zigbeed(conn_mock, reset_mock, version_mock):
 
     await ezsp.EZSP.initialize(zigpy_config)
 
-    assert conn_mock.await_count == 1
+    assert conn_mock.call_count == 1
     assert reset_mock.await_count == 0  # Reset is not called
-    assert gw_wait_reset_mock.await_count == 1
-    assert version_mock.await_count == 1
+    assert gw_wait_reset_mock.call_count == 1
+    assert version_mock.call_count == 1
 
 
 @patch.object(ezsp.EZSP, "version", new_callable=AsyncMock)
@@ -664,10 +664,10 @@ async def test_ezsp_init_zigbeed_timeout(conn_mock, reset_mock, version_mock):
 
     await ezsp.EZSP.initialize(zigpy_config)
 
-    assert conn_mock.await_count == 1
-    assert reset_mock.await_count == 1  # Reset will be called
-    assert gw_wait_reset_mock.await_count == 1
-    assert version_mock.await_count == 1
+    assert conn_mock.call_count == 1
+    assert reset_mock.call_count == 1  # Reset will be called
+    assert gw_wait_reset_mock.call_count == 1
+    assert version_mock.call_count == 1
 
 
 async def test_wait_for_stack_status(ezsp_f):
