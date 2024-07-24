@@ -291,6 +291,7 @@ async def test_ezsp_init(conn_mock, reset_mock, version_mock):
     """Test initialize method."""
     zigpy_config = config.CONFIG_SCHEMA({"device": DEVICE_CONFIG})
     await ezsp.EZSP.initialize(zigpy_config)
+    await asyncio.sleep(0.1)  # TODO: figure out why this is necessary
     assert conn_mock.await_count == 1
     assert reset_mock.await_count == 1
     assert version_mock.await_count == 1
@@ -307,6 +308,7 @@ async def test_ezsp_init_failure(conn_mock, close_mock, reset_mock, version_mock
     with pytest.raises(RuntimeError):
         await ezsp.EZSP.initialize(zigpy_config)
 
+    await asyncio.sleep(0.1)  # TODO: figure out why this is necessary
     assert conn_mock.await_count == 1
     assert reset_mock.await_count == 1
     assert version_mock.await_count == 1
