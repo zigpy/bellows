@@ -112,6 +112,8 @@ async def test_command(ezsp_f):
 
 
 async def test_command_ezsp_stopped(ezsp_f):
+    ezsp_f.stop_ezsp()
+
     with pytest.raises(EzspError):
         await ezsp_f._command("version")
 
