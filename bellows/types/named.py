@@ -1558,6 +1558,7 @@ SL_STATUS_MAP: dict[EzspStatus | EmberStatus, sl_Status] = {
         (EzspStatus.ERROR_INVALID_ID, sl_Status.INVALID_PARAMETER),
         (EzspStatus.ERROR_OUT_OF_MEMORY, sl_Status.NO_MORE_RESOURCE),
         (EzspStatus.ERROR_INVALID_CALL, sl_Status.INVALID_PARAMETER),
+        (EzspStatus.ERROR_INVALID_VALUE, sl_Status.INVALID_PARAMETER),
         # Ember status
         (EmberStatus.SUCCESS, sl_Status.OK),
         (EmberStatus.ERR_FATAL, sl_Status.FAIL),
