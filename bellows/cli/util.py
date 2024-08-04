@@ -52,7 +52,7 @@ def app(f, app_startup=True, extra_config=None):
             zigpy_conf.CONF_DEVICE: {
                 zigpy_conf.CONF_DEVICE_PATH: ctx.obj["device"],
                 zigpy_conf.CONF_DEVICE_BAUDRATE: ctx.obj["baudrate"],
-                zigpy_conf.CONF_FLOW_CONTROL: ctx.obj["flow_control"],
+                zigpy_conf.CONF_DEVICE_FLOW_CONTROL: ctx.obj["flow_control"],
             },
             zigpy_conf.CONF_DATABASE: ctx.obj["database_file"],
         }
