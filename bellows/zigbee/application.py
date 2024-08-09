@@ -894,6 +894,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 else:
                     (res,) = await self._ezsp.readAndClearCounters()
 
+                # We allow `zip` to truncate `res` here
                 for cnt_type, value in zip(t.EmberCounterType, res):
                     counters[cnt_type.name[8:]].update(value)
 

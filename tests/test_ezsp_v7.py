@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from bellows.ash import DataFrame
 import bellows.ezsp.v7
 import bellows.types as t
 
@@ -60,3 +61,22 @@ async def test_read_child_data(ezsp_f):
             t.EmberNodeType.SLEEPY_END_DEVICE,
         )
     ]
+
+
+def test_read_counters(ezsp_f):
+    """Test parsing of a truncated `readCounters` response."""
+    data_frame = DataFrame(
+        frm_num=1,
+        re_tx=0,
+        ack_num=2,
+        ezsp_frame=bytes.fromhex(
+            "2080ff00f10000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000000000000000"
+            "0000000000000000000000"
+        ),
+    )
+    ezsp_f(data_frame.ezsp_frame)
+
+    assert len(ezsp_f._handle_callback.mock_calls) == 1
+    mock_call = ezsp_f._handle_callback.mock_calls[0]
+    assert mock_call.args == ("readCounters", [[0] * 40])

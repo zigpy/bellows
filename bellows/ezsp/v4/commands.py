@@ -275,14 +275,14 @@ COMMANDS = {
         0x65,
         {},
         {
-            "values": t.FixedList[t.uint16_t, len(t.EmberCounterType)],
+            "values": t.List[t.uint16_t],
         },
     ),
     "readCounters": (
         0xF1,
         {},
         {
-            "values": t.FixedList[t.uint16_t, len(t.EmberCounterType)],
+            "values": t.List[t.uint16_t],
         },
     ),
     "counterRolloverHandler": (
