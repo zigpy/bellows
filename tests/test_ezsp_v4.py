@@ -363,3 +363,19 @@ async def test_add_transient_link_key(ezsp_f) -> None:
         key=t.KeyData("ZigBeeAlliance09"),
     )
     assert status == t.sl_Status.OK
+
+
+@pytest.mark.parametrize("length", [40, 41])
+async def test_read_counters(ezsp_f, length: int) -> None:
+    """Test parsing of a `readCounters` response, including truncation."""
+    ezsp_f.readCounters.return_value = (list(range(length)),)
+    ezsp_f.readAndClearCounters.return_value = (list(range(length)),)
+    counters1 = await ezsp_f.read_counters()
+    counters2 = await ezsp_f.read_and_clear_counters()
+    assert (
+        ezsp_f.readCounters.mock_calls
+        == ezsp_f.readAndClearCounters.mock_calls
+        == [call()]
+    )
+
+    assert counters1 == counters2 == {t.EmberCounterType(i): i for i in range(length)}
