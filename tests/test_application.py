@@ -45,7 +45,7 @@ def ieee(init=0):
 @pytest.fixture
 def make_app(monkeypatch, ieee):
     def inner(config, **kwargs):
-        app_cfg = ControllerApplication.SCHEMA({**APP_CONFIG, **config})
+        app_cfg = {**APP_CONFIG, **config}
         app = ControllerApplication(app_cfg)
 
         app._ezsp = _create_app_for_startup(
