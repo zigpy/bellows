@@ -185,3 +185,11 @@ class EZSPv4(protocol.ProtocolHandler):
     async def set_source_route(self, nwk: t.NWK, relays: list[t.NWK]) -> t.sl_Status:
         (res,) = await self.setSourceRoute(destination=nwk, relayList=relays)
         return t.sl_Status.from_ember_status(res)
+
+    async def read_counters(self) -> dict[t.EmberCounterType, t.uint16_t]:
+        (res,) = await self.readCounters()
+        return dict(zip(t.EmberCounterType, res))
+
+    async def read_and_clear_counters(self) -> dict[t.EmberCounterType, t.uint16_t]:
+        (res,) = await self.readAndClearCounters()
+        return dict(zip(t.EmberCounterType, res))

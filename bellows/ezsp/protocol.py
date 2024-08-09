@@ -244,3 +244,11 @@ class ProtocolHandler(abc.ABC):
     @abc.abstractmethod
     async def set_source_route(self, nwk: t.NWK, relays: list[t.NWK]) -> t.sl_Status:
         raise NotImplementedError
+
+    @abc.abstractmethod
+    async def read_counters(self) -> dict[t.EmberCounterType, int]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def read_and_clear_counters(self) -> dict[t.EmberCounterType, int]:
+        raise NotImplementedError

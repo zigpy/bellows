@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from bellows.ash import DataFrame
 import bellows.ezsp.v7
 import bellows.types as t
 
