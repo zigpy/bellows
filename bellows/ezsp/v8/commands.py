@@ -73,7 +73,7 @@ COMMANDS = {
         0x00AE,
         {
             "destination": t.EmberNodeId,
-            "relays": t.LVList[t.EmberNodeId],
+            "relayList": t.LVList[t.EmberNodeId],
         },
         {
             "status": t.EmberStatus,
