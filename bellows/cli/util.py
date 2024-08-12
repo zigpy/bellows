@@ -99,15 +99,13 @@ def channel_mask(channels):
 
 
 async def setup(dev, baudrate, cbh=None, configure=True):
-    app_config = bellows.zigbee.application.ControllerApplication.SCHEMA(
-        {
-            zigpy_conf.CONF_DEVICE: {
-                zigpy_conf.CONF_DEVICE_PATH: dev,
-                zigpy_conf.CONF_DEVICE_BAUDRATE: baudrate,
-                zigpy_conf.CONF_DEVICE_FLOW_CONTROL: zigpy_conf.CONF_DEVICE_FLOW_CONTROL_DEFAULT,
-            }
+    app_config = {
+        zigpy_conf.CONF_DEVICE: {
+            zigpy_conf.CONF_DEVICE_PATH: dev,
+            zigpy_conf.CONF_DEVICE_BAUDRATE: baudrate,
+            zigpy_conf.CONF_DEVICE_FLOW_CONTROL: zigpy_conf.CONF_DEVICE_FLOW_CONTROL_DEFAULT,
         }
-    )
+    }
 
     app = bellows.zigbee.application.ControllerApplication(app_config)
     await app.connect()
@@ -119,7 +117,6 @@ async def setup(dev, baudrate, cbh=None, configure=True):
 
 
 async def setup_application(app_config, startup=True):
-    app_config = bellows.zigbee.application.ControllerApplication.SCHEMA(app_config)
     app = await bellows.zigbee.application.ControllerApplication.new(
         app_config, start_radio=startup
     )
