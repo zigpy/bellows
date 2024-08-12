@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import random
 from typing import AsyncGenerator, Iterable
 
 import voluptuous as vol
@@ -193,3 +194,37 @@ class EZSPv4(protocol.ProtocolHandler):
     async def read_and_clear_counters(self) -> dict[t.EmberCounterType, t.uint16_t]:
         (res,) = await self.readAndClearCounters()
         return dict(zip(t.EmberCounterType, res))
+
+    async def set_extended_timeout(
+        self, nwk: t.NWK, ieee: t.EUI64, extended_timeout: bool = True
+    ) -> None:
+        (curr_extended_timeout,) = await self.getExtendedTimeout(remoteEui64=ieee)
+
+        if curr_extended_timeout == extended_timeout:
+            return
+
+        (node_id,) = await self.lookupNodeIdByEui64(eui64=ieee)
+
+        # Check to see if we have an address table entry
+        if node_id != 0xFFFF:
+            await self.setExtendedTimeout(
+                remoteEui64=ieee, extendedTimeout=extended_timeout
+            )
+            return
+
+        (status, addr_table_size) = await self.getConfigurationValue(
+            t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
+        )
+
+        if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
+            return
+
+        # Replace a random entry in the address table
+        index = random.randint(0, addr_table_size - 1)
+
+        await self.replaceAddressTableEntry(
+            addressTableIndex=index,
+            newEui64=ieee,
+            newId=nwk,
+            newExtendedTimeout=extended_timeout,
+        )

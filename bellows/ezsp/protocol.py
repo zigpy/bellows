@@ -252,3 +252,9 @@ class ProtocolHandler(abc.ABC):
     @abc.abstractmethod
     async def read_and_clear_counters(self) -> dict[t.EmberCounterType, int]:
         raise NotImplementedError
+
+    @abc.abstractmethod
+    async def set_extended_timeout(
+        self, nwk: t.NWK, ieee: t.EUI64, extended_timeout: bool = True
+    ) -> None:
+        raise NotImplementedError()
