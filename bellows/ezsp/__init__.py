@@ -358,32 +358,22 @@ class EZSP:
     ) -> tuple[str, str, str | None] | tuple[None, None, str | None]:
         """Return board info."""
 
-        tokens = {}
+        tokens: dict[t.EzspMfgTokenId, str | None] = {}
 
-        for token in (t.EzspMfgTokenId.MFG_STRING, t.EzspMfgTokenId.MFG_BOARD_NAME):
-            value = await self.get_mfg_token(token)
-            raw_tokens[token].append(value)
+        for token_id in (t.EzspMfgTokenId.MFG_STRING, t.EzspMfgTokenId.MFG_BOARD_NAME):
+            value = await self.get_mfg_token(token_id)
 
-        # Try to parse them
-        tokens: dict[t.EzspMfgTokenId, str] = {}
+            # Tokens are fixed-length and initially filled with \xFF but also can end
+            # with \x00
+            while value.endswith((b"\xFF", b"\x00")):
+                value = value.rstrip(b"\xFF").rstrip(b"\x00")
 
-        for token_id, values in raw_tokens.items():
-            for value in values:
-                # Tokens are fixed-length and initially filled with \xFF but also can end
-                # with \x00
-                while value.endswith((b"\xFF", b"\x00")):
-                    value = value.rstrip(b"\xFF").rstrip(b"\x00")
+            try:
+                result = value.decode("utf-8")
+            except UnicodeDecodeError:
+                result = "0x" + value.hex().upper()
 
-                try:
-                    result = value.decode("utf-8")
-                except UnicodeDecodeError:
-                    result = "0x" + value.hex().upper()
-
-                if result:
-                    tokens[token_id] = result
-                    break
-            else:
-                tokens[token_id] = None
+            tokens[token_id] = result or None
 
         (status, ver_info_bytes) = await self.getValue(
             valueId=t.EzspValueId.VALUE_VERSION_INFO

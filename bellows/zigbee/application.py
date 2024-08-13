@@ -677,7 +677,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         """Resets manufacturer id if was temporary overridden by a joining device."""
         await self._ezsp.setManufacturerCode(code=mfg_id)
         await asyncio.sleep(MFG_ID_RESET_DELAY)
-        await self._ezsp.setManufacturerCode(DEFAULT_MFG_ID)
+        await self._ezsp.setManufacturerCode(code=DEFAULT_MFG_ID)
 
     async def energy_scan(
         self, channels: t.Channels, duration_exp: int, count: int
@@ -762,7 +762,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                                 )
 
                             if packet.source_route is not None:
-                                if FirmwareFeatures.MANUAL_SOURCE_ROUTE in self._ezsp._xncp_features and self.config[CONF_BELLOWS_CONFIG][CONF_MANUAL_SOURCE_ROUTING]:
+                                if (
+                                    FirmwareFeatures.MANUAL_SOURCE_ROUTE
+                                    in self._ezsp._xncp_features
+                                    and self.config[CONF_BELLOWS_CONFIG][
+                                        CONF_MANUAL_SOURCE_ROUTING
+                                    ]
+                                ):
                                     await self._ezsp.xncp_set_manual_source_route(
                                         nwk=packet.dst.address,
                                         relays=packet.source_route,
