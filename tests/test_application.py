@@ -16,7 +16,6 @@ from bellows.ash import NcpFailure
 import bellows.config as config
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp as ezsp
-from bellows.ezsp.custom_commands import FirmwareFeatures
 from bellows.ezsp.v9.commands import GetTokenDataRsp
 from bellows.ezsp.xncp import FirmwareFeatures
 import bellows.types
