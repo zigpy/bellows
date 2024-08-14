@@ -843,6 +843,19 @@ async def test_send_packet_unicast_source_route(make_app, packet):
     )
 
 
+async def test_send_packet_unicast_extended_timeout(app, ieee, packet):
+    app.add_device(nwk=packet.dst.address, ieee=ieee)
+
+    await _test_send_packet_unicast(
+        app,
+        packet.replace(extended_timeout=True),
+    )
+
+    assert app._ezsp._protocol.set_extended_timeout.mock_calls == [
+        call(nwk=packet.dst.address, ieee=ieee, extended_timeout=True)
+    ]
+
+
 @patch("bellows.zigbee.application.RETRY_DELAYS", [0.01, 0.01, 0.01])
 async def test_send_packet_unicast_retries_success(app, packet):
     await _test_send_packet_unicast(
