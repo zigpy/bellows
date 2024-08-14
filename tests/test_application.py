@@ -178,6 +178,7 @@ def _create_app_for_startup(
     )
 
     proto.factory_reset = AsyncMock(proto=proto.factory_reset)
+    proto.set_extended_timeout = AsyncMock(proto=proto.set_extended_timeout)
 
     proto.read_link_keys = MagicMock()
     proto.read_link_keys.return_value.__aiter__.return_value = [
