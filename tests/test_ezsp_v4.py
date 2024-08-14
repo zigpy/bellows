@@ -420,6 +420,35 @@ async def test_set_extended_timeout_no_entry(ezsp_f) -> None:
         )
     ]
 
+    # The address table size is cached
+    with patch("bellows.ezsp.v4.random.randint") as mock_random:
+        mock_random.return_value = 1
+        await ezsp_f.set_extended_timeout(
+            nwk=0x1234,
+            ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+            extended_timeout=True,
+        )
+
+    # Still called only once
+    assert ezsp_f.getConfigurationValue.mock_calls == [
+        call(t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE)
+    ]
+
+    assert ezsp_f.replaceAddressTableEntry.mock_calls == [
+        call(
+            addressTableIndex=0,
+            newEui64=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+            newId=0x1234,
+            newExtendedTimeout=True,
+        ),
+        call(
+            addressTableIndex=1,
+            newEui64=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+            newId=0x1234,
+            newExtendedTimeout=True,
+        ),
+    ]
+
 
 async def test_set_extended_timeout_already_set(ezsp_f) -> None:
     # No-op, it's already set
