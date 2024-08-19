@@ -5,6 +5,7 @@ import logging
 import os
 import statistics
 import sys
+from typing import AsyncGenerator
 
 if sys.version_info[:2] < (3, 11):
     from async_timeout import timeout as asyncio_timeout  # pragma: no cover
@@ -697,6 +698,43 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             channel: util.map_rssi_to_energy(statistics.mean(all_results[channel]))
             for channel in list(channels)
         }
+
+    async def network_scan(
+        self, channels: t.Channels, duration: int
+    ) -> AsyncGenerator[zigpy.types.NetworkBeacon]:
+        """Scans for networks and yields network beacons."""
+        queue = asyncio.Queue()
+
+        with self._ezsp.callback_for_commands(
+            {"networkFoundHandler", "scanCompleteHandler"},
+            callback=lambda command, response: queue.put_nowait((command, response)),
+        ):
+            # XXX: replace with normal command invocation once overload is removed
+            (status,) = await self._ezsp._command(
+                "startScan",
+                scanType=t.EzspNetworkScanType.ACTIVE_SCAN,
+                channelMask=channels,
+                duration=duration,
+            )
+
+            while True:
+                command, response = await queue.get()
+
+                if command == "scanCompleteHandler":
+                    break
+
+                (networkFound, lastHopLqi, lastHopRssi) = response
+
+                yield zigpy.types.NetworkBeacon(
+                    pan_id=networkFound.panId,
+                    extended_pan_id=networkFound.extendedPanId,
+                    channel=networkFound.channel,
+                    nwk_update_id=networkFound.nwkUpdateId,
+                    permit_joining=bool(networkFound.allowingJoin),
+                    stack_profile=networkFound.stackProfile,
+                    lqi=lastHopLqi,
+                    rssi=lastHopRssi,
+                )
 
     async def send_packet(self, packet: zigpy.types.ZigbeePacket) -> None:
         if not self.is_controller_running:
