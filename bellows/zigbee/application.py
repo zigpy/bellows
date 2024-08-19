@@ -700,7 +700,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         }
 
     async def network_scan(
-        self, channels: t.Channels, duration: int
+        self, channels: t.Channels, duration_exp: int
     ) -> AsyncGenerator[zigpy.types.NetworkBeacon]:
         """Scans for networks and yields network beacons."""
         queue = asyncio.Queue()
@@ -714,7 +714,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 "startScan",
                 scanType=t.EzspNetworkScanType.ACTIVE_SCAN,
                 channelMask=channels,
-                duration=duration,
+                duration=duration_exp,
             )
 
             while True:
