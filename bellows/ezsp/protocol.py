@@ -43,6 +43,9 @@ class ProtocolHandler(abc.ABC):
         }
         self.tc_policy = 0
 
+        # Cached by `set_extended_timeout` so subsequent calls are a little faster
+        self._address_table_size: int | None = None
+
     def _ezsp_frame(self, name: str, *args: Any, **kwargs: Any) -> bytes:
         """Serialize the named frame and data."""
         c, tx_schema, rx_schema = self.COMMANDS[name]
@@ -252,3 +255,9 @@ class ProtocolHandler(abc.ABC):
     @abc.abstractmethod
     async def read_and_clear_counters(self) -> dict[t.EmberCounterType, int]:
         raise NotImplementedError
+
+    @abc.abstractmethod
+    async def set_extended_timeout(
+        self, nwk: t.NWK, ieee: t.EUI64, extended_timeout: bool = True
+    ) -> None:
+        raise NotImplementedError()
