@@ -90,27 +90,28 @@ class ProtocolHandler(abc.ABC):
 
     async def command(self, name, *args, **kwargs) -> Any:
         """Serialize command and send it."""
-        delay_time = 0
-        was_delayed = False
+        delayed = False
+        send_time = None
 
         if self._send_semaphore.locked():
+            delayed = True
+            send_time = time.monotonic()
+
             LOGGER.debug(
                 "Send semaphore is locked, delaying before sending %s(%r, %r)",
                 name,
                 args,
                 kwargs,
             )
-            delay_time = time.monotonic()
-            was_delayed = True
 
         async with self._send_semaphore(priority=self._get_command_priority(name)):
-            if was_delayed:
+            if delayed:
                 LOGGER.debug(
                     "Sending command  %s: %s %s after %0.2fs delay",
                     name,
                     args,
                     kwargs,
-                    time.monotonic() - delay_time,
+                    time.monotonic() - send_time,
                 )
             else:
                 LOGGER.debug("Sending command  %s: %s %s", name, args, kwargs)
