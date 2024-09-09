@@ -631,7 +631,9 @@ class AshProtocol(asyncio.Protocol):
                             await ack_future
                     except NotAcked:
                         _LOGGER.debug(
-                            "NCP responded with NAK. Retrying (attempt %d)", attempt + 1
+                            "NCP responded with NAK to %r. Retrying (attempt %d)",
+                            frame,
+                            attempt + 1,
                         )
 
                         # For timing purposes, NAK can be treated as an ACK
@@ -650,9 +652,10 @@ class AshProtocol(asyncio.Protocol):
                         raise
                     except asyncio.TimeoutError:
                         _LOGGER.debug(
-                            "No ACK received in %0.2fs (attempt %d)",
+                            "No ACK received in %0.2fs (attempt %d) for %r",
                             self._t_rx_ack,
                             attempt + 1,
+                            frame,
                         )
                         # If a DATA frame acknowledgement is not received within the
                         # current timeout value, then t_rx_ack is doubled.
