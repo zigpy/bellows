@@ -62,7 +62,7 @@ TX_K = 1  # TODO: investigate why this cannot be raised without causing a firmwa
 # Maximum number of consecutive timeouts allowed while waiting to receive an ACK before
 # going to the FAILED state. The value 0 prevents the NCP from entering the error state
 # due to timeouts.
-ACK_TIMEOUTS = 4
+ACK_TIMEOUTS = 5
 
 
 def generate_random_sequence(length: int) -> bytes:
