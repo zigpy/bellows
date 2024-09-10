@@ -579,6 +579,9 @@ class AshProtocol(asyncio.Protocol):
         prefix: tuple[Reserved] = (),
         suffix: tuple[Reserved] = (Reserved.FLAG,),
     ) -> None:
+        if self._transport is None or self._transport.is_closing():
+            raise NcpFailure("Transport is closed, cannot send frame")
+
         if _LOGGER.isEnabledFor(logging.DEBUG):
             prefix_str = "".join([f"{r.name} + " for r in prefix])
             suffix_str = "".join([f" + {r.name}" for r in suffix])
