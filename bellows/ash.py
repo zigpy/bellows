@@ -489,7 +489,7 @@ class AshProtocol(asyncio.Protocol):
                     f"Unexpected reserved byte found: 0x{reserved_byte:02X}"
                 )  # pragma: no cover
 
-    def _handle_ack(self, frame: DataFrame | AckFrame) -> None:
+    def _handle_ack(self, frame: DataFrame | AckFrame | NakFrame) -> None:
         # Note that ackNum is the number of the next frame the receiver expects and it
         # is one greater than the last frame received.
         for ack_num_offset in range(-TX_K, 0):
@@ -504,14 +504,19 @@ class AshProtocol(asyncio.Protocol):
     def frame_received(self, frame: AshFrame) -> None:
         _LOGGER.debug("Received frame %r", frame)
 
+        # If a frame has ACK information (DATA, ACK, or NAK), it should be used even if
+        # the frame is out of sequence or invalid
         if isinstance(frame, DataFrame):
+            self._handle_ack(frame)
             self.data_frame_received(frame)
-        elif isinstance(frame, RStackFrame):
-            self.rstack_frame_received(frame)
         elif isinstance(frame, AckFrame):
+            self._handle_ack(frame)
             self.ack_frame_received(frame)
         elif isinstance(frame, NakFrame):
+            self._handle_ack(frame)
             self.nak_frame_received(frame)
+        elif isinstance(frame, RStackFrame):
+            self.rstack_frame_received(frame)
         elif isinstance(frame, RstFrame):
             self.rst_frame_received(frame)
         elif isinstance(frame, ErrorFrame):
@@ -523,7 +528,6 @@ class AshProtocol(asyncio.Protocol):
         # The Host may not piggyback acknowledgments and should promptly send an ACK
         # frame when it receives a DATA frame.
         if frame.frm_num == self._rx_seq:
-            self._handle_ack(frame)
             self._rx_seq = (frame.frm_num + 1) % 8
             self._write_frame(AckFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
 
@@ -546,7 +550,7 @@ class AshProtocol(asyncio.Protocol):
         self._ezsp_protocol.reset_received(frame.reset_code)
 
     def ack_frame_received(self, frame: AckFrame) -> None:
-        self._handle_ack(frame)
+        pass
 
     def nak_frame_received(self, frame: NakFrame) -> None:
         self._cancel_pending_data_frames(NotAcked(frame=frame))
