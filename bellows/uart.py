@@ -19,21 +19,6 @@ RESET_TIMEOUT = 5
 
 
 class Gateway(asyncio.Protocol):
-    FLAG = b"\x7E"  # Marks end of frame
-    ESCAPE = b"\x7D"
-    XON = b"\x11"  # Resume transmission
-    XOFF = b"\x13"  # Stop transmission
-    SUBSTITUTE = b"\x18"
-    CANCEL = b"\x1A"  # Terminates a frame in progress
-    STUFF = 0x20
-    RANDOMIZE_START = 0x42
-    RANDOMIZE_SEQ = 0xB8
-
-    RESERVED = FLAG + ESCAPE + XON + XOFF + SUBSTITUTE + CANCEL
-
-    class Terminator:
-        pass
-
     def __init__(self, application, connected_future=None, connection_done_future=None):
         self._application = application
 
