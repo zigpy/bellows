@@ -86,13 +86,20 @@ class AshNcpProtocol(ash.AshProtocol):
 
 
 class FakeTransport:
-    def __init__(self, receiver):
+    def __init__(self, receiver) -> None:
         self.receiver = receiver
-        self.paused = False
+        self.paused: bool = False
+        self.closing: bool = False
 
     def write(self, data: bytes) -> None:
         if not self.paused:
             self.receiver.data_received(data)
+
+    def close(self) -> None:
+        self.closing = True
+
+    def is_closing(self) -> bool:
+        return self.closing
 
 
 class FakeTransportOneByteAtATime(FakeTransport):
@@ -317,6 +324,7 @@ async def test_sequence():
     loop = asyncio.get_running_loop()
     ezsp = MagicMock()
     transport = MagicMock()
+    transport.is_closing.return_value = False
 
     protocol = ash.AshProtocol(ezsp)
     protocol._write_frame = MagicMock(wraps=protocol._write_frame)
@@ -408,6 +416,7 @@ async def test_ash_protocol_startup(caplog):
 
     ezsp = MagicMock()
     transport = MagicMock()
+    transport.is_closing.return_value = False
 
     protocol = ash.AshProtocol(ezsp)
     protocol._write_frame = MagicMock(wraps=protocol._write_frame)
