@@ -368,12 +368,22 @@ class AshProtocol(asyncio.Protocol):
         self._ezsp_protocol.connection_made(self)
 
     def connection_lost(self, exc):
+        self._cancel_pending_data_frames()
         self._ezsp_protocol.connection_lost(exc)
 
     def eof_received(self):
         self._ezsp_protocol.eof_received()
 
+    def _cancel_pending_data_frames(
+        self, exc: BaseException = RuntimeError("Connection has been closed")
+    ):
+        for fut in self._pending_data_frames.values():
+            if not fut.done():
+                fut.set_exception(exc)
+
     def close(self):
+        self._cancel_pending_data_frames()
+
         if self._transport is not None:
             self._transport.close()
 
@@ -539,11 +549,7 @@ class AshProtocol(asyncio.Protocol):
         self._handle_ack(frame)
 
     def nak_frame_received(self, frame: NakFrame) -> None:
-        err = NotAcked(frame=frame)
-
-        for fut in self._pending_data_frames.values():
-            if not fut.done():
-                fut.set_exception(err)
+        self._cancel_pending_data_frames(NotAcked(frame=frame))
 
     def rst_frame_received(self, frame: RstFrame) -> None:
         self._ncp_reset_code = None
@@ -558,12 +564,7 @@ class AshProtocol(asyncio.Protocol):
         self._enter_failed_state(self._ncp_reset_code)
 
     def _enter_failed_state(self, reset_code: t.NcpResetCode) -> None:
-        exc = NcpFailure(code=reset_code)
-
-        for fut in self._pending_data_frames.values():
-            if not fut.done():
-                fut.set_exception(exc)
-
+        self._cancel_pending_data_frames(NcpFailure(code=reset_code))
         self._ezsp_protocol.reset_received(reset_code)
 
     def _write_frame(
