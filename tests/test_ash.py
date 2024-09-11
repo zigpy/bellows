@@ -177,6 +177,10 @@ def test_stuffing():
     assert ash.AshProtocol._stuff_bytes(b"\x7F") == b"\x7F"
     assert ash.AshProtocol._unstuff_bytes(b"\x7F") == b"\x7F"
 
+    with pytest.raises(ash.ParsingError):
+        # AB is not a sequence of bytes that can be unescaped
+        assert ash.AshProtocol._unstuff_bytes(b"\x7D\xAB")
+
 
 def test_pseudo_random_data_sequence():
     assert ash.PSEUDO_RANDOM_DATA_SEQUENCE.startswith(b"\x42\x21\xA8\x54\x2A")

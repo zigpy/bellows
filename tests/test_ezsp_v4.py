@@ -1,5 +1,6 @@
+import asyncio
 import logging
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 import zigpy.state
@@ -515,3 +516,27 @@ async def test_set_extended_timeout_bad_table_size(ezsp_f) -> None:
     assert ezsp_f.getConfigurationValue.mock_calls == [
         call(t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE)
     ]
+
+
+async def test_send_concurrency(ezsp_f, caplog) -> None:
+    async def send_data(data: bytes) -> None:
+        await asyncio.sleep(0.1)
+
+        rsp_data = bytearray(data)
+        rsp_data[1] |= 0x80
+
+        ezsp_f.__call__(rsp_data)
+
+    ezsp_f._gw.send_data = AsyncMock(side_effect=send_data)
+
+    with caplog.at_level(logging.DEBUG):
+        await asyncio.gather(
+            ezsp_f.command("nop"),
+            ezsp_f.command("nop"),
+            ezsp_f.command("nop"),
+            ezsp_f.command("nop"),
+        )
+
+    # All but the first queue up
+    assert caplog.text.count("Send semaphore is locked, delaying before sending") == 3
+    assert caplog.text.count("s delay") == 3
