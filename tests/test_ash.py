@@ -498,7 +498,6 @@ async def test_ash_protocol_startup(caplog):
 )
 async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
     random.seed(2)
-    asyncio.get_running_loop()
 
     host_ezsp = MagicMock()
     ncp_ezsp = MagicMock()
