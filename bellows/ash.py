@@ -369,6 +369,7 @@ class AshProtocol(asyncio.Protocol):
         self._ezsp_protocol.connection_made(self)
 
     def connection_lost(self, exc):
+        self._transport = None
         self._cancel_pending_data_frames()
         self._ezsp_protocol.connection_lost(exc)
 
@@ -387,6 +388,7 @@ class AshProtocol(asyncio.Protocol):
 
         if self._transport is not None:
             self._transport.close()
+            self._transport = None
 
     @staticmethod
     def _stuff_bytes(data: bytes) -> bytes:
