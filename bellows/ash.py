@@ -4,6 +4,7 @@ import abc
 import asyncio
 import binascii
 from collections.abc import Coroutine
+import contextlib
 import dataclasses
 import enum
 import logging
@@ -409,7 +410,9 @@ class AshProtocol(asyncio.Protocol):
         for c in data:
             if escaped:
                 byte = c ^ 0b00100000
-                assert byte in RESERVED_BYTES
+                if byte not in RESERVED_BYTES:
+                    raise ParsingError(f"Invalid escaped byte: 0x{byte:02X}")
+
                 out.append(byte)
                 escaped = False
             elif c == Reserved.ESCAPE:
@@ -457,14 +460,19 @@ class AshProtocol(asyncio.Protocol):
                 if not frame_bytes:
                     continue
 
-                data = self._unstuff_bytes(frame_bytes)
-
                 try:
+                    data = self._unstuff_bytes(frame_bytes)
                     frame = parse_frame(data)
                 except Exception:
                     _LOGGER.debug(
                         "Failed to parse frame %r", frame_bytes, exc_info=True
                     )
+
+                    with contextlib.suppress(NcpFailure):
+                        self._write_frame(
+                            NakFrame(res=0, ncp_ready=0, ack_num=self._rx_seq),
+                            prefix=(Reserved.CANCEL,),
+                        )
                 else:
                     self.frame_received(frame)
             elif reserved_byte == Reserved.CANCEL:
