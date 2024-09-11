@@ -11,11 +11,6 @@ from bellows import ash
 import bellows.types as t
 
 
-@pytest.fixture(autouse=True, scope="function")
-def random_seed():
-    random.seed(0)
-
-
 class AshNcpProtocol(ash.AshProtocol):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -502,6 +497,7 @@ async def test_ash_protocol_startup(caplog):
     ],
 )
 async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
+    random.seed(2)
     asyncio.get_running_loop()
 
     host_ezsp = MagicMock()
