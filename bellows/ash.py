@@ -578,7 +578,7 @@ class AshProtocol(asyncio.Protocol):
         self._enter_failed_state(self._ncp_reset_code)
 
     def _enter_failed_state(self, reset_code: t.NcpResetCode) -> None:
-        self._ncp_state == NcpState.FAILED
+        self._ncp_state = NcpState.FAILED
         self._cancel_pending_data_frames(NcpFailure(code=reset_code))
         self._ezsp_protocol.reset_received(reset_code)
 
