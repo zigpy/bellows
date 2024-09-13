@@ -6,6 +6,7 @@ import binascii
 import functools
 import logging
 import sys
+import time
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Callable, Iterable
 
 import zigpy.state
@@ -15,6 +16,8 @@ if sys.version_info[:2] < (3, 11):
 else:
     from asyncio import timeout as asyncio_timeout  # pragma: no cover
 
+from zigpy.datastructures import PriorityDynamicBoundedSemaphore
+
 from bellows.config import CONF_EZSP_POLICIES
 from bellows.exception import InvalidCommandError
 import bellows.types as t
@@ -23,7 +26,9 @@ if TYPE_CHECKING:
     from bellows.uart import Gateway
 
 LOGGER = logging.getLogger(__name__)
-EZSP_CMD_TIMEOUT = 6  # Sum of all ASH retry timeouts: 0.4 + 0.8 + 1.6 + 3.2
+
+EZSP_CMD_TIMEOUT = 10
+MAX_COMMAND_CONCURRENCY = 1
 
 
 class ProtocolHandler(abc.ABC):
@@ -42,6 +47,9 @@ class ProtocolHandler(abc.ABC):
             for name, (cmd_id, tx_schema, rx_schema) in self.COMMANDS.items()
         }
         self.tc_policy = 0
+        self._send_semaphore = PriorityDynamicBoundedSemaphore(
+            value=MAX_COMMAND_CONCURRENCY
+        )
 
         # Cached by `set_extended_timeout` so subsequent calls are a little faster
         self._address_table_size: int | None = None
@@ -65,18 +73,60 @@ class ProtocolHandler(abc.ABC):
     def _ezsp_frame_tx(self, name: str) -> bytes:
         """Serialize the named frame."""
 
+    def _get_command_priority(self, name: str) -> int:
+        return {
+            # Deprioritize any commands that send packets
+            "setSourceRoute": -1,
+            "setExtendedTimeout": -1,
+            "sendUnicast": -1,
+            "sendMulticast": -1,
+            "sendBroadcast": -1,
+            # Prioritize watchdog commands
+            "nop": 999,
+            "readCounters": 999,
+            "readAndClearCounters": 999,
+            "getValue": 999,
+        }.get(name, 0)
+
     async def command(self, name, *args, **kwargs) -> Any:
         """Serialize command and send it."""
-        LOGGER.debug("Sending command  %s: %s %s", name, args, kwargs)
-        data = self._ezsp_frame(name, *args, **kwargs)
-        cmd_id, _, rx_schema = self.COMMANDS[name]
-        future = asyncio.get_running_loop().create_future()
-        self._awaiting[self._seq] = (cmd_id, rx_schema, future)
-        self._seq = (self._seq + 1) % 256
+        delayed = False
+        send_time = None
 
-        async with asyncio_timeout(EZSP_CMD_TIMEOUT):
+        if self._send_semaphore.locked():
+            delayed = True
+            send_time = time.monotonic()
+
+            LOGGER.debug(
+                "Send semaphore is locked, delaying before sending %s(%r, %r)",
+                name,
+                args,
+                kwargs,
+            )
+
+        async with self._send_semaphore(priority=self._get_command_priority(name)):
+            if delayed:
+                LOGGER.debug(
+                    "Sending command  %s: %s %s after %0.2fs delay",
+                    name,
+                    args,
+                    kwargs,
+                    time.monotonic() - send_time,
+                )
+            else:
+                LOGGER.debug("Sending command  %s: %s %s", name, args, kwargs)
+
+            data = self._ezsp_frame(name, *args, **kwargs)
+            cmd_id, _, rx_schema = self.COMMANDS[name]
+
+            future = asyncio.get_running_loop().create_future()
+            self._awaiting[self._seq] = (cmd_id, rx_schema, future)
+            self._seq = (self._seq + 1) % 256
+
             await self._gw.send_data(data)
-            return await future
+
+            async with asyncio_timeout(EZSP_CMD_TIMEOUT):
+                return await future
 
     async def update_policies(self, policy_config: dict) -> None:
         """Set up the policies for what the NCP should do."""

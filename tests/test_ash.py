@@ -11,11 +11,6 @@ from bellows import ash
 import bellows.types as t
 
 
-@pytest.fixture(autouse=True, scope="function")
-def random_seed():
-    random.seed(0)
-
-
 class AshNcpProtocol(ash.AshProtocol):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -86,13 +81,20 @@ class AshNcpProtocol(ash.AshProtocol):
 
 
 class FakeTransport:
-    def __init__(self, receiver):
+    def __init__(self, receiver) -> None:
         self.receiver = receiver
-        self.paused = False
+        self.paused: bool = False
+        self.closing: bool = False
 
     def write(self, data: bytes) -> None:
         if not self.paused:
             self.receiver.data_received(data)
+
+    def close(self) -> None:
+        self.closing = True
+
+    def is_closing(self) -> bool:
+        return self.closing
 
 
 class FakeTransportOneByteAtATime(FakeTransport):
@@ -174,6 +176,10 @@ def test_stuffing():
 
     assert ash.AshProtocol._stuff_bytes(b"\x7F") == b"\x7F"
     assert ash.AshProtocol._unstuff_bytes(b"\x7F") == b"\x7F"
+
+    with pytest.raises(ash.ParsingError):
+        # AB is not a sequence of bytes that can be unescaped
+        assert ash.AshProtocol._unstuff_bytes(b"\x7D\xAB")
 
 
 def test_pseudo_random_data_sequence():
@@ -317,6 +323,7 @@ async def test_sequence():
     loop = asyncio.get_running_loop()
     ezsp = MagicMock()
     transport = MagicMock()
+    transport.is_closing.return_value = False
 
     protocol = ash.AshProtocol(ezsp)
     protocol._write_frame = MagicMock(wraps=protocol._write_frame)
@@ -408,6 +415,7 @@ async def test_ash_protocol_startup(caplog):
 
     ezsp = MagicMock()
     transport = MagicMock()
+    transport.is_closing.return_value = False
 
     protocol = ash.AshProtocol(ezsp)
     protocol._write_frame = MagicMock(wraps=protocol._write_frame)
@@ -493,7 +501,7 @@ async def test_ash_protocol_startup(caplog):
     ],
 )
 async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
-    asyncio.get_running_loop()
+    random.seed(2)
 
     host_ezsp = MagicMock()
     ncp_ezsp = MagicMock()
@@ -549,8 +557,9 @@ async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
         send_task = asyncio.create_task(host.send_data(b"ncp NAKing"))
         await asyncio.sleep(host._t_rx_ack)
 
-    # It'll still succeed
-    await send_task
+    # The NCP is in a failed state, we can't send it
+    with pytest.raises(ash.NcpFailure):
+        await send_task
 
     ncp_ezsp.data_received.reset_mock()
     host_ezsp.data_received.reset_mock()

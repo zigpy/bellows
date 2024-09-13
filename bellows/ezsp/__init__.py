@@ -12,8 +12,6 @@ import sys
 from typing import Any, Callable, Generator
 import urllib.parse
 
-from zigpy.datastructures import PriorityDynamicBoundedSemaphore
-
 if sys.version_info[:2] < (3, 11):
     from async_timeout import timeout as asyncio_timeout  # pragma: no cover
 else:
@@ -41,8 +39,6 @@ NETWORK_PROBE_TIMEOUT = 7
 NETWORK_OPS_TIMEOUT = 10
 NETWORK_COORDINATOR_STARTUP_RESET_WAIT = 1
 
-MAX_COMMAND_CONCURRENCY = 1
-
 
 class EZSP:
     _BY_VERSION = {
@@ -66,7 +62,6 @@ class EZSP:
         self._ezsp_version = v4.EZSPv4.VERSION
         self._gw = None
         self._protocol = None
-        self._send_sem = PriorityDynamicBoundedSemaphore(value=MAX_COMMAND_CONCURRENCY)
 
         self._stack_status_listeners: collections.defaultdict[
             t.sl_Status, list[asyncio.Future]
@@ -190,21 +185,6 @@ class EZSP:
             self._gw.close()
             self._gw = None
 
-    def _get_command_priority(self, name: str) -> int:
-        return {
-            # Deprioritize any commands that send packets
-            "set_source_route": -1,
-            "setExtendedTimeout": -1,
-            "send_unicast": -1,
-            "send_multicast": -1,
-            "send_broadcast": -1,
-            # Prioritize watchdog commands
-            "nop": 999,
-            "readCounters": 999,
-            "readAndClearCounters": 999,
-            "getValue": 999,
-        }.get(name, 0)
-
     async def _command(self, name: str, *args: Any, **kwargs: Any) -> Any:
         command = getattr(self._protocol, name)
 
@@ -217,8 +197,7 @@ class EZSP:
             )
             raise EzspError("EZSP is not running")
 
-        async with self._send_sem(priority=self._get_command_priority(name)):
-            return await command(*args, **kwargs)
+        return await command(*args, **kwargs)
 
     async def _list_command(
         self, name, item_frames, completion_frame, spos, *args, **kwargs

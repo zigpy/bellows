@@ -188,6 +188,7 @@ def test_eof_received(gw):
 async def test_connection_lost_reset_error_propagation(monkeypatch):
     app = MagicMock()
     transport = MagicMock()
+    transport.is_closing.return_value = False
 
     async def mockconnect(loop, protocol_factory, **kwargs):
         protocol = protocol_factory()
