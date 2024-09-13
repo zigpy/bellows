@@ -557,8 +557,9 @@ async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
         send_task = asyncio.create_task(host.send_data(b"ncp NAKing"))
         await asyncio.sleep(host._t_rx_ack)
 
-    # It'll still succeed
-    await send_task
+    # The NCP is in a failed state, we can't send it
+    with pytest.raises(ash.NcpFailure):
+        await send_task
 
     ncp_ezsp.data_received.reset_mock()
     host_ezsp.data_received.reset_mock()
