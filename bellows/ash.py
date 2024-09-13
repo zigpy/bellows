@@ -432,7 +432,7 @@ class AshProtocol(asyncio.Protocol):
             _LOGGER.debug(
                 "Truncating buffer to %s bytes, it is growing too fast", MAX_BUFFER_SIZE
             )
-            self._buffer = self._buffer[:MAX_BUFFER_SIZE]
+            self._buffer = self._buffer[-MAX_BUFFER_SIZE:]
 
         while self._buffer:
             if self._discarding_until_next_flag:
