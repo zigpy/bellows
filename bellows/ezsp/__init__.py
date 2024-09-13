@@ -203,27 +203,43 @@ class EZSP:
         self, name, item_frames, completion_frame, spos, *args, **kwargs
     ):
         """Run a command, returning result callbacks as a list"""
-        fut = asyncio.Future()
+        queue = asyncio.Queue()
         results = []
 
-        def cb(frame_name, response):
-            if frame_name in item_frames:
-                results.append(response)
-            elif frame_name == completion_frame:
-                fut.set_result(response)
-
-        cbid = self.add_callback(cb)
-        try:
+        with self.callback_for_commands(
+            commands=set(item_frames) | {completion_frame},
+            callback=lambda command, response: queue.put_nowait((command, response)),
+        ):
             v = await self._command(name, *args, **kwargs)
             if t.sl_Status.from_ember_status(v[0]) != t.sl_Status.OK:
                 raise Exception(v)
-            v = await fut
-            if t.sl_Status.from_ember_status(v[spos]) != t.sl_Status.OK:
-                raise Exception(v)
-        finally:
-            self.remove_callback(cbid)
+
+            while True:
+                command, response = await queue.get()
+                if command == completion_frame:
+                    if t.sl_Status.from_ember_status(response[spos]) != t.sl_Status.OK:
+                        raise Exception(response)
+
+                    break
+
+                results.append(response)
 
         return results
+
+    @contextlib.contextmanager
+    def callback_for_commands(
+        self, commands: set[str], callback: Callable
+    ) -> Generator[None]:
+        def cb(frame_name, response):
+            if frame_name in commands:
+                callback(frame_name, response)
+
+        cbid = self.add_callback(cb)
+
+        try:
+            yield
+        finally:
+            self.remove_callback(cbid)
 
     startScan = functools.partialmethod(
         _list_command,
@@ -233,7 +249,11 @@ class EZSP:
         1,
     )
     pollForData = functools.partialmethod(
-        _list_command, "pollForData", ["pollHandler"], "pollCompleteHandler", 0
+        _list_command,
+        "pollForData",
+        ["pollHandler"],
+        "pollCompleteHandler",
+        0,
     )
     zllStartScan = functools.partialmethod(
         _list_command,
