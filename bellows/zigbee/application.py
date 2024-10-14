@@ -741,7 +741,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             # Source routing uses address discovery to discover routes
             aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
 
-        async with self._limit_concurrency():
+        async with self._limit_concurrency(priority=packet.priority):
             message_tag = self.get_sequence()
             pending_tag = (packet.dst.address, message_tag)
             with self._pending.new(pending_tag) as req:
