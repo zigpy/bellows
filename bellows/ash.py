@@ -4,6 +4,7 @@ import abc
 import asyncio
 import binascii
 from collections.abc import Coroutine
+import contextlib
 import dataclasses
 import enum
 import logging
@@ -62,7 +63,7 @@ TX_K = 1  # TODO: investigate why this cannot be raised without causing a firmwa
 # Maximum number of consecutive timeouts allowed while waiting to receive an ACK before
 # going to the FAILED state. The value 0 prevents the NCP from entering the error state
 # due to timeouts.
-ACK_TIMEOUTS = 4
+ACK_TIMEOUTS = 5
 
 
 def generate_random_sequence(length: int) -> bytes:
@@ -368,14 +369,26 @@ class AshProtocol(asyncio.Protocol):
         self._ezsp_protocol.connection_made(self)
 
     def connection_lost(self, exc):
+        self._transport = None
+        self._cancel_pending_data_frames()
         self._ezsp_protocol.connection_lost(exc)
 
     def eof_received(self):
         self._ezsp_protocol.eof_received()
 
+    def _cancel_pending_data_frames(
+        self, exc: BaseException = RuntimeError("Connection has been closed")
+    ):
+        for fut in self._pending_data_frames.values():
+            if not fut.done():
+                fut.set_exception(exc)
+
     def close(self):
+        self._cancel_pending_data_frames()
+
         if self._transport is not None:
             self._transport.close()
+            self._transport = None
 
     @staticmethod
     def _stuff_bytes(data: bytes) -> bytes:
@@ -399,7 +412,9 @@ class AshProtocol(asyncio.Protocol):
         for c in data:
             if escaped:
                 byte = c ^ 0b00100000
-                assert byte in RESERVED_BYTES
+                if byte not in RESERVED_BYTES:
+                    raise ParsingError(f"Invalid escaped byte: 0x{byte:02X}")
+
                 out.append(byte)
                 escaped = False
             elif c == Reserved.ESCAPE:
@@ -417,7 +432,7 @@ class AshProtocol(asyncio.Protocol):
             _LOGGER.debug(
                 "Truncating buffer to %s bytes, it is growing too fast", MAX_BUFFER_SIZE
             )
-            self._buffer = self._buffer[:MAX_BUFFER_SIZE]
+            self._buffer = self._buffer[-MAX_BUFFER_SIZE:]
 
         while self._buffer:
             if self._discarding_until_next_flag:
@@ -447,14 +462,19 @@ class AshProtocol(asyncio.Protocol):
                 if not frame_bytes:
                     continue
 
-                data = self._unstuff_bytes(frame_bytes)
-
                 try:
+                    data = self._unstuff_bytes(frame_bytes)
                     frame = parse_frame(data)
                 except Exception:
                     _LOGGER.debug(
                         "Failed to parse frame %r", frame_bytes, exc_info=True
                     )
+
+                    with contextlib.suppress(NcpFailure):
+                        self._write_frame(
+                            NakFrame(res=0, ncp_ready=0, ack_num=self._rx_seq),
+                            prefix=(Reserved.CANCEL,),
+                        )
                 else:
                     self.frame_received(frame)
             elif reserved_byte == Reserved.CANCEL:
@@ -479,7 +499,7 @@ class AshProtocol(asyncio.Protocol):
                     f"Unexpected reserved byte found: 0x{reserved_byte:02X}"
                 )  # pragma: no cover
 
-    def _handle_ack(self, frame: DataFrame | AckFrame) -> None:
+    def _handle_ack(self, frame: DataFrame | AckFrame | NakFrame) -> None:
         # Note that ackNum is the number of the next frame the receiver expects and it
         # is one greater than the last frame received.
         for ack_num_offset in range(-TX_K, 0):
@@ -494,14 +514,19 @@ class AshProtocol(asyncio.Protocol):
     def frame_received(self, frame: AshFrame) -> None:
         _LOGGER.debug("Received frame %r", frame)
 
+        # If a frame has ACK information (DATA, ACK, or NAK), it should be used even if
+        # the frame is out of sequence or invalid
         if isinstance(frame, DataFrame):
+            self._handle_ack(frame)
             self.data_frame_received(frame)
-        elif isinstance(frame, RStackFrame):
-            self.rstack_frame_received(frame)
         elif isinstance(frame, AckFrame):
+            self._handle_ack(frame)
             self.ack_frame_received(frame)
         elif isinstance(frame, NakFrame):
+            self._handle_ack(frame)
             self.nak_frame_received(frame)
+        elif isinstance(frame, RStackFrame):
+            self.rstack_frame_received(frame)
         elif isinstance(frame, RstFrame):
             self.rst_frame_received(frame)
         elif isinstance(frame, ErrorFrame):
@@ -513,7 +538,6 @@ class AshProtocol(asyncio.Protocol):
         # The Host may not piggyback acknowledgments and should promptly send an ACK
         # frame when it receives a DATA frame.
         if frame.frm_num == self._rx_seq:
-            self._handle_ack(frame)
             self._rx_seq = (frame.frm_num + 1) % 8
             self._write_frame(AckFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
 
@@ -536,14 +560,10 @@ class AshProtocol(asyncio.Protocol):
         self._ezsp_protocol.reset_received(frame.reset_code)
 
     def ack_frame_received(self, frame: AckFrame) -> None:
-        self._handle_ack(frame)
+        pass
 
     def nak_frame_received(self, frame: NakFrame) -> None:
-        err = NotAcked(frame=frame)
-
-        for fut in self._pending_data_frames.values():
-            if not fut.done():
-                fut.set_exception(err)
+        self._cancel_pending_data_frames(NotAcked(frame=frame))
 
     def rst_frame_received(self, frame: RstFrame) -> None:
         self._ncp_reset_code = None
@@ -558,12 +578,8 @@ class AshProtocol(asyncio.Protocol):
         self._enter_failed_state(self._ncp_reset_code)
 
     def _enter_failed_state(self, reset_code: t.NcpResetCode) -> None:
-        exc = NcpFailure(code=reset_code)
-
-        for fut in self._pending_data_frames.values():
-            if not fut.done():
-                fut.set_exception(exc)
-
+        self._ncp_state = NcpState.FAILED
+        self._cancel_pending_data_frames(NcpFailure(code=reset_code))
         self._ezsp_protocol.reset_received(reset_code)
 
     def _write_frame(
@@ -573,6 +589,9 @@ class AshProtocol(asyncio.Protocol):
         prefix: tuple[Reserved] = (),
         suffix: tuple[Reserved] = (Reserved.FLAG,),
     ) -> None:
+        if self._transport is None or self._transport.is_closing():
+            raise NcpFailure("Transport is closed, cannot send frame")
+
         if _LOGGER.isEnabledFor(logging.DEBUG):
             prefix_str = "".join([f"{r.name} + " for r in prefix])
             suffix_str = "".join([f" + {r.name}" for r in suffix])
@@ -631,7 +650,9 @@ class AshProtocol(asyncio.Protocol):
                             await ack_future
                     except NotAcked:
                         _LOGGER.debug(
-                            "NCP responded with NAK. Retrying (attempt %d)", attempt + 1
+                            "NCP responded with NAK to %r. Retrying (attempt %d)",
+                            frame,
+                            attempt + 1,
                         )
 
                         # For timing purposes, NAK can be treated as an ACK
@@ -650,9 +671,10 @@ class AshProtocol(asyncio.Protocol):
                         raise
                     except asyncio.TimeoutError:
                         _LOGGER.debug(
-                            "No ACK received in %0.2fs (attempt %d)",
+                            "No ACK received in %0.2fs (attempt %d) for %r",
                             self._t_rx_ack,
                             attempt + 1,
+                            frame,
                         )
                         # If a DATA frame acknowledgement is not received within the
                         # current timeout value, then t_rx_ack is doubled.

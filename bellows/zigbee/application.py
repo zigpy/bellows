@@ -749,7 +749,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             # Source routing uses address discovery to discover routes
             aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
 
-        async with self._limit_concurrency():
+        async with self._limit_concurrency(priority=packet.priority):
             message_tag = self.get_sequence()
             pending_tag = (packet.dst.address, message_tag)
             with self._pending.new(pending_tag) as req:
@@ -757,8 +757,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     async with self._req_lock:
                         if packet.dst.addr_mode == zigpy.types.AddrMode.NWK:
                             if packet.extended_timeout and device is not None:
-                                await self._ezsp.setExtendedTimeout(
-                                    remoteEui64=device.ieee, extendedTimeout=True
+                                await self._ezsp.set_extended_timeout(
+                                    nwk=device.nwk,
+                                    ieee=device.ieee,
+                                    extended_timeout=True,
                                 )
 
                             if packet.source_route is not None:

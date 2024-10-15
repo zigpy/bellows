@@ -183,6 +183,7 @@ def _create_app_for_startup(
     )
 
     proto.factory_reset = AsyncMock(proto=proto.factory_reset)
+    proto.set_extended_timeout = AsyncMock(proto=proto.set_extended_timeout)
 
     proto.read_link_keys = MagicMock()
     proto.read_link_keys.return_value.__aiter__.return_value = [
@@ -845,6 +846,19 @@ async def test_send_packet_unicast_source_route(make_app, packet):
         nwk=packet.dst.address,
         relays=[0x0001, 0x0002],
     )
+
+
+async def test_send_packet_unicast_extended_timeout(app, ieee, packet):
+    app.add_device(nwk=packet.dst.address, ieee=ieee)
+
+    await _test_send_packet_unicast(
+        app,
+        packet.replace(extended_timeout=True),
+    )
+
+    assert app._ezsp._protocol.set_extended_timeout.mock_calls == [
+        call(nwk=packet.dst.address, ieee=ieee, extended_timeout=True)
+    ]
 
 
 @patch("bellows.zigbee.application.RETRY_DELAYS", [0.01, 0.01, 0.01])
