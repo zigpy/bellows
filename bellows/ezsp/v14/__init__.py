@@ -87,6 +87,43 @@ class EZSPv14(EZSPv13):
 
         return zigpy.state.Key(key=tc_link_key_data)
 
+    async def send_unicast(
+        self,
+        nwk: t.NWK,
+        aps_frame: t.EmberApsFrame,
+        message_tag: t.uint8_t,
+        data: bytes,
+    ) -> tuple[t.sl_Status, t.uint8_t]:
+        status, sequence = await self.sendUnicast(
+            message_type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+            nwk=nwk,
+            aps_frame=aps_frame,
+            message_tag=message_tag,
+            message=data,
+        )
+
+        return t.sl_Status.from_ember_status(status), sequence
+
+    async def send_multicast(
+        self,
+        aps_frame: t.EmberApsFrame,
+        radius: t.uint8_t,
+        non_member_radius: t.uint8_t,
+        message_tag: t.uint8_t,
+        data: bytes,
+    ) -> tuple[t.sl_Status, t.uint8_t]:
+        status, sequence = await self.sendMulticast(
+            aps_frame=aps_frame,
+            hops=non_member_radius,
+            broadcast_addr=aps_frame.groupId,
+            alias=0x0000,
+            sequence=aps_frame.sequence,
+            message_tag=message_tag,
+            message=data,
+        )
+
+        return t.sl_Status.from_ember_status(status), sequence
+
     async def send_broadcast(
         self,
         address: t.BroadcastAddress,

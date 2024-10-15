@@ -113,7 +113,7 @@ COMMANDS = {
         },
     ),
     "sendBroadcast": (
-        0x0034,
+        0x0036,
         {
             "alias": t.uint16_t,
             "destination": BroadcastAddress,
@@ -121,6 +121,22 @@ COMMANDS = {
             "aps_frame": t.EmberApsFrame,
             "radius": t.uint8_t,
             "message_tag": t.uint16_t,
+            "message": t.LVBytes,
+        },
+        {
+            "status": t.sl_Status,
+            "sequence": t.uint8_t,
+        },
+    ),
+    "sendMulticast": (
+        0x0038,
+        {
+            "aps_frame": t.EmberApsFrame,
+            "hops": t.uint8_t,
+            "broadcast_addr": t.NWK,
+            "alias": t.uint16_t,
+            "sequence": t.uint8_t,
+            "message_tag": t.uint8_t,
             "message": t.LVBytes,
         },
         {
