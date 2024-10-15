@@ -133,7 +133,7 @@ COMMANDS = {
         {
             "aps_frame": t.EmberApsFrame,
             "hops": t.uint8_t,
-            "broadcast_addr": t.NWK,
+            "broadcast_addr": t.BroadcastAddress,
             "alias": t.uint16_t,
             "sequence": t.uint8_t,
             "message_tag": t.uint8_t,
