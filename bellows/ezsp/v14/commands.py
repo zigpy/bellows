@@ -136,7 +136,7 @@ COMMANDS = {
             "broadcast_addr": t.BroadcastAddress,
             "alias": t.uint16_t,
             "sequence": t.uint8_t,
-            "message_tag": t.uint8_t,
+            "message_tag": t.uint16_t,
             "message": t.LVBytes,
         },
         {
