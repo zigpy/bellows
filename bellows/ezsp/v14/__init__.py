@@ -114,8 +114,8 @@ class EZSPv14(EZSPv13):
     ) -> tuple[t.sl_Status, t.uint8_t]:
         status, sequence = await self.sendMulticast(
             aps_frame=aps_frame,
-            hops=non_member_radius,
-            broadcast_addr=t.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
+            hops=radius,
+            broadcast_addr=t.BroadcastAddress.RX_ON_WHEN_IDLE,
             alias=0x0000,
             sequence=aps_frame.sequence,
             message_tag=message_tag,
