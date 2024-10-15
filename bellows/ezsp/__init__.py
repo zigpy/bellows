@@ -23,7 +23,7 @@ import bellows.config as conf
 from bellows.exception import EzspError, InvalidCommandError
 from bellows.ezsp import xncp
 from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig, ValueConfig
-from bellows.ezsp.xncp import FirmwareFeatures
+from bellows.ezsp.xncp import FirmwareFeatures, FlowControlType
 import bellows.types as t
 import bellows.uart
 
@@ -709,3 +709,8 @@ class EZSP:
         """Get build string."""
         rsp = await self.send_xncp_frame(xncp.GetBuildStringReq())
         return rsp.build_string.decode("utf-8")
+
+    async def xncp_get_flow_control_type(self) -> FlowControlType:
+        """Get flow control type."""
+        rsp = await self.send_xncp_frame(xncp.GetFlowControlTypeReq())
+        return rsp.flow_control_type
