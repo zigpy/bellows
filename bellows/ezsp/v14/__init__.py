@@ -102,7 +102,7 @@ class EZSPv14(EZSPv13):
             message=data,
         )
 
-        return t.sl_Status.from_ember_status(status), sequence
+        return status, sequence
 
     async def send_multicast(
         self,
@@ -122,7 +122,7 @@ class EZSPv14(EZSPv13):
             message=data,
         )
 
-        return t.sl_Status.from_ember_status(status), sequence
+        return status, sequence
 
     async def send_broadcast(
         self,
