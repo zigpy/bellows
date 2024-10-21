@@ -172,7 +172,7 @@ async def test_send_unicast(ezsp_f) -> None:
             nwk=0x1234,
             aps_frame=t.EmberApsFrame(),
             message_tag=0x42,
-            message_contents=b"hello",
+            message=b"hello",
         )
     ]
 
@@ -180,7 +180,7 @@ async def test_send_unicast(ezsp_f) -> None:
 async def test_send_multicast(ezsp_f) -> None:
     ezsp_f.sendMulticast.return_value = (t.sl_Status.OK, 0x0042)
     status, message_tag = await ezsp_f.send_multicast(
-        aps_frame=t.EmberApsFrame(),
+        aps_frame=t.EmberApsFrame(sequence=0x34),
         radius=12,
         non_member_radius=34,
         message_tag=0x42,
@@ -191,11 +191,13 @@ async def test_send_multicast(ezsp_f) -> None:
     assert message_tag == 0x42
     assert ezsp_f.sendMulticast.mock_calls == [
         call(
-            aps_frame=t.EmberApsFrame(),
+            aps_frame=t.EmberApsFrame(sequence=0x34),
             hops=12,
-            nonmemberRadius=34,
-            messageTag=0x42,
-            messageContents=b"hello",
+            broadcast_addr=t.BroadcastAddress.RX_ON_WHEN_IDLE,
+            alias=0x0000,
+            sequence=0x34,
+            message_tag=0x0042,
+            message=b"hello",
         )
     ]
 
