@@ -155,8 +155,55 @@ async def test_get_network_key_without_network(ezsp_f):
         await ezsp_f.get_network_key()
 
 
+async def test_send_unicast(ezsp_f) -> None:
+    ezsp_f.sendUnicast.return_value = (t.sl_Status.OK, 0x0042)
+    status, message_tag = await ezsp_f.send_unicast(
+        nwk=0x1234,
+        aps_frame=t.EmberApsFrame(),
+        message_tag=0x42,
+        data=b"hello",
+    )
+
+    assert status == t.sl_Status.OK
+    assert message_tag == 0x42
+    assert ezsp_f.sendUnicast.mock_calls == [
+        call(
+            message_type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+            nwk=0x1234,
+            aps_frame=t.EmberApsFrame(),
+            message_tag=0x42,
+            message=b"hello",
+        )
+    ]
+
+
+async def test_send_multicast(ezsp_f) -> None:
+    ezsp_f.sendMulticast.return_value = (t.sl_Status.OK, 0x0042)
+    status, message_tag = await ezsp_f.send_multicast(
+        aps_frame=t.EmberApsFrame(sequence=0x34),
+        radius=12,
+        non_member_radius=34,
+        message_tag=0x42,
+        data=b"hello",
+    )
+
+    assert status == t.sl_Status.OK
+    assert message_tag == 0x42
+    assert ezsp_f.sendMulticast.mock_calls == [
+        call(
+            aps_frame=t.EmberApsFrame(sequence=0x34),
+            hops=12,
+            broadcast_addr=t.BroadcastAddress.RX_ON_WHEN_IDLE,
+            alias=0x0000,
+            sequence=0x34,
+            message_tag=0x0042,
+            message=b"hello",
+        )
+    ]
+
+
 async def test_send_broadcast(ezsp_f) -> None:
-    ezsp_f.sendBroadcast.return_value = (t.sl_Status.OK, 0x42)
+    ezsp_f.sendBroadcast.return_value = (t.sl_Status.OK, 0x0042)
     status, message_tag = await ezsp_f.send_broadcast(
         address=t.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
         aps_frame=t.EmberApsFrame(),
