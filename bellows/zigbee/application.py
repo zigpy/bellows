@@ -25,17 +25,25 @@ import zigpy.zdo.types as zdo_t
 
 import bellows
 from bellows.config import (
+    CONF_BELLOWS_CONFIG,
     CONF_EZSP_CONFIG,
     CONF_EZSP_POLICIES,
+    CONF_MANUAL_SOURCE_ROUTING,
     CONF_USE_THREAD,
     CONFIG_SCHEMA,
 )
-from bellows.exception import ControllerError, EzspError, StackAlreadyRunning
+from bellows.exception import (
+    ControllerError,
+    EzspError,
+    InvalidCommandError,
+    StackAlreadyRunning,
+)
 import bellows.ezsp
+from bellows.ezsp.xncp import FirmwareFeatures
 import bellows.multicast
 import bellows.types as t
 from bellows.zigbee import repairs
-from bellows.zigbee.device import EZSPEndpoint
+from bellows.zigbee.device import EZSPEndpoint, EZSPGroupEndpoint
 import bellows.zigbee.util as util
 
 APS_ACK_TIMEOUT = 120
@@ -203,13 +211,19 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         group_membership = {}
 
-        try:
-            db_device = self.get_device(ieee=self.state.node_info.ieee)
-        except KeyError:
-            pass
+        if FirmwareFeatures.MEMBER_OF_ALL_GROUPS in self._ezsp._xncp_features:
+            # If the firmware passes through all incoming group messages, do nothing
+            endpoint_cls = EZSPEndpoint
         else:
-            if 1 in db_device.endpoints:
-                group_membership = db_device.endpoints[1].member_of
+            endpoint_cls = EZSPGroupEndpoint
+
+            try:
+                db_device = self.get_device(ieee=self.state.node_info.ieee)
+            except KeyError:
+                pass
+            else:
+                if 1 in db_device.endpoints:
+                    group_membership = db_device.endpoints[1].member_of
 
         ezsp_device = zigpy.device.Device(
             application=self,
@@ -221,18 +235,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         # The coordinator device does not respond to attribute reads so we have to
         # divine the internal NCP state.
         for zdo_desc in self._created_device_endpoints:
-            ep = EZSPEndpoint(ezsp_device, zdo_desc.endpoint, zdo_desc)
+            ep = endpoint_cls.from_descriptor(ezsp_device, zdo_desc.endpoint, zdo_desc)
             ezsp_device.endpoints[zdo_desc.endpoint] = ep
             ezsp_device.model = ep.model
             ezsp_device.manufacturer = ep.manufacturer
 
         await ezsp_device.schedule_initialize()
 
-        # Group membership is stored in the database for EZSP coordinators
-        ezsp_device.endpoints[1].member_of.update(group_membership)
-
-        self._multicast = bellows.multicast.Multicast(ezsp)
-        await self._multicast.startup(ezsp_device)
+        if FirmwareFeatures.MEMBER_OF_ALL_GROUPS not in self._ezsp._xncp_features:
+            ezsp_device.endpoints[1].member_of.update(group_membership)
+            self._multicast = bellows.multicast.Multicast(ezsp)
+            await self._multicast.startup(ezsp_device)
 
     async def load_network_info(self, *, load_devices=False) -> None:
         ezsp = self._ezsp
@@ -287,6 +300,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         can_burn_userdata_custom_eui64 = await ezsp.can_burn_userdata_custom_eui64()
         can_rewrite_custom_eui64 = await ezsp.can_rewrite_custom_eui64()
 
+        try:
+            flow_control = await self._ezsp.xncp_get_flow_control_type()
+        except InvalidCommandError:
+            flow_control = None
+
         self.state.network_info = zigpy.state.NetworkInfo(
             source=f"bellows@{LIB_VERSION}",
             extended_pan_id=zigpy.types.ExtendedPanId(nwk_params.extendedPanId),
@@ -307,6 +325,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     "stack_version": ezsp.ezsp_version,
                     "can_burn_userdata_custom_eui64": can_burn_userdata_custom_eui64,
                     "can_rewrite_custom_eui64": can_rewrite_custom_eui64,
+                    "flow_control": (
+                        flow_control.name.lower() if flow_control is not None else None
+                    ),
                 }
             },
         )
@@ -756,10 +777,22 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                                 )
 
                             if packet.source_route is not None:
-                                await self._ezsp.set_source_route(
-                                    nwk=packet.dst.address,
-                                    relays=packet.source_route,
-                                )
+                                if (
+                                    FirmwareFeatures.MANUAL_SOURCE_ROUTE
+                                    in self._ezsp._xncp_features
+                                    and self.config[CONF_BELLOWS_CONFIG][
+                                        CONF_MANUAL_SOURCE_ROUTING
+                                    ]
+                                ):
+                                    await self._ezsp.xncp_set_manual_source_route(
+                                        nwk=packet.dst.address,
+                                        relays=packet.source_route,
+                                    )
+                                else:
+                                    await self._ezsp.set_source_route(
+                                        nwk=packet.dst.address,
+                                        relays=packet.source_route,
+                                    )
 
                             status, _ = await self._ezsp.send_unicast(
                                 nwk=packet.dst.address,

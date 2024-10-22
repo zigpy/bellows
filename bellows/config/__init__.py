@@ -18,6 +18,9 @@ from zigpy.config import (  # noqa: F401 pylint: disable=unused-import
     cv_boolean,
 )
 
+CONF_BELLOWS_CONFIG = "bellows_config"
+CONF_MANUAL_SOURCE_ROUTING = "manual_source_routing"
+
 CONF_USE_THREAD = "use_thread"
 CONF_EZSP_CONFIG = "ezsp_config"
 CONF_EZSP_POLICIES = "ezsp_policies"
@@ -31,6 +34,12 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
             {vol.Optional(str): int}
         ),
         vol.Optional(CONF_USE_THREAD, default=True): cv_boolean,
+        # The above config really should belong in here
+        vol.Optional(CONF_BELLOWS_CONFIG, default={}): vol.Schema(
+            {
+                vol.Optional(CONF_MANUAL_SOURCE_ROUTING, default=False): bool,
+            }
+        ),
     }
 )
 

@@ -16,6 +16,7 @@ import bellows.config as config
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp as ezsp
 from bellows.ezsp.v9.commands import GetTokenDataRsp
+from bellows.ezsp.xncp import FirmwareFeatures
 import bellows.types
 import bellows.types as t
 import bellows.types.struct
@@ -121,6 +122,10 @@ def _create_app_for_startup(
     ezsp_mock.wait_for_stack_status.return_value.__enter__ = AsyncMock(
         return_value=t.EmberStatus.NETWORK_UP
     )
+    ezsp_mock.xncp_get_supported_firmware_features = AsyncMock(
+        return_value=FirmwareFeatures.NONE
+    )
+    ezsp_mock._xncp_features = FirmwareFeatures.NONE
 
     if board_info:
         ezsp_mock.get_board_info = AsyncMock(
@@ -1295,7 +1300,9 @@ async def test_shutdown(app):
 @pytest.fixture
 def coordinator(app, ieee):
     dev = zigpy.device.Device(app, ieee, 0x0000)
-    dev.endpoints[1] = bellows.zigbee.device.EZSPEndpoint(dev, 1, MagicMock())
+    dev.endpoints[1] = bellows.zigbee.device.EZSPGroupEndpoint.from_descriptor(
+        dev, 1, MagicMock()
+    )
     dev.model = dev.endpoints[1].model
     dev.manufacturer = dev.endpoints[1].manufacturer
 
@@ -1628,8 +1635,8 @@ async def test_startup_coordinator_existing_groups_joined(app, ieee):
         db_device = app.add_device(ieee, 0x0000)
         db_ep = db_device.add_endpoint(1)
 
-        app.groups.add_group(0x1234, "Group Name", suppress_event=True)
-        app.groups[0x1234].add_member(db_ep, suppress_event=True)
+        group = app.groups.add_group(0x1234, "Group Name", suppress_event=True)
+        group.add_member(db_ep, suppress_event=True)
 
         await app.start_network()
 
