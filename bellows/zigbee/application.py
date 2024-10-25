@@ -153,8 +153,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._created_device_endpoints.clear()
             await self.register_endpoints()
         except Exception as exc:
-            await self._ezsp.disconnect()
-            self._ezsp = None
+            if self._ezsp is not None:
+                await self._ezsp.disconnect()
+                self._ezsp = None
+
             self.connection_lost(exc)
             raise
 
