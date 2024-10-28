@@ -12,6 +12,8 @@ import sys
 from typing import Any, Callable, Generator
 import urllib.parse
 
+from bellows.ash import NcpFailure
+
 if sys.version_info[:2] < (3, 11):
     from async_timeout import timeout as asyncio_timeout  # pragma: no cover
 else:
@@ -265,10 +267,10 @@ class EZSP:
         if self._application is not None:
             self._application.connection_lost(exc)
 
-    def enter_failed_state(self, error):
-        """UART received error frame."""
+    def enter_failed_state(self, code: t.NcpResetCode) -> None:
+        """UART received reset code."""
         if self._application is not None:
-            self._application.connection_lost(error)
+            self._application.connection_lost(NcpFailure(code=code))
 
     def __getattr__(self, name: str) -> Callable:
         if name not in self._protocol.COMMANDS:
