@@ -237,3 +237,10 @@ async def test_callbacks(gw):
     assert gw._api.enter_failed_state.mock_calls == [
         call(t.NcpResetCode.RESET_SOFTWARE)
     ]
+
+
+def test_reset_propagation(gw):
+    gw.reset_received(t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT)
+    assert gw._api.enter_failed_state.mock_calls == [
+        call(t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT)
+    ]

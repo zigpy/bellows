@@ -259,18 +259,12 @@ class EZSP:
 
     def connection_lost(self, exc):
         """Lost serial connection."""
-        LOGGER.debug(
-            "%s connection lost unexpectedly: %s",
-            self._config[conf.CONF_DEVICE_PATH],
-            exc,
-        )
         if self._application is not None:
             self._application.connection_lost(exc)
 
     def enter_failed_state(self, code: t.NcpResetCode) -> None:
         """UART received reset code."""
-        if self._application is not None:
-            self._application.connection_lost(NcpFailure(code=code))
+        self.connection_lost(NcpFailure(code=code))
 
     def __getattr__(self, name: str) -> Callable:
         if name not in self._protocol.COMMANDS:

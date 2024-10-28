@@ -600,3 +600,12 @@ async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
     with patch.object(ncp, "nak_state", True):
         with pytest.raises(ash.NotAcked):
             await host.send_data(b"ncp NAKing until failure")
+
+
+def test_ncp_failure_comparison() -> None:
+    exc1 = ash.NcpFailure(code=t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT)
+    exc2 = ash.NcpFailure(code=t.NcpResetCode.RESET_POWER_ON)
+
+    assert exc1 == exc1
+    assert exc1 != exc2
+    assert exc2 != t.NcpResetCode.RESET_POWER_ON
