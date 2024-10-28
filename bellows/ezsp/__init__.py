@@ -127,14 +127,12 @@ class EZSP:
         assert self._gw is None
         self._gw = await bellows.uart.connect(self._config, self, use_thread=use_thread)
         self._protocol = v4.EZSPv4(self.handle_callback, self._gw)
-        await self.startup_reset()
 
-    async def disconnect(self) -> None:
-        if self._gw is not None:
-            await self._gw.disconnect()
-            self._gw = None
-        elif self._application is not None:
-            self._application.connection_lost(None)
+        try:
+            await self.startup_reset()
+        except Exception:
+            await self.disconnect()
+            raise
 
     async def reset(self):
         LOGGER.debug("Resetting EZSP")
@@ -174,10 +172,10 @@ class EZSP:
             ver,
         )
 
-    def close(self):
+    async def disconnect(self):
         self.stop_ezsp()
         if self._gw:
-            self._gw.close()
+            await self._gw.disconnect()
             self._gw = None
 
     async def _command(self, name: str, *args: Any, **kwargs: Any) -> Any:

@@ -145,19 +145,16 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         try:
             await self._ezsp.connect(use_thread=self.config[CONF_USE_THREAD])
-            await self._ezsp.startup_reset()
 
             # Writing config is required here because network info can't be loaded
             await self._ezsp.write_config(self.config[CONF_EZSP_CONFIG])
 
             self._created_device_endpoints.clear()
             await self.register_endpoints()
-        except Exception as exc:
+        except Exception:
             if self._ezsp is not None:
                 await self._ezsp.disconnect()
                 self._ezsp = None
-
-            self.connection_lost(exc)
             raise
 
     async def _ensure_network_running(self) -> bool:
