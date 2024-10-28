@@ -30,7 +30,7 @@ async def config(ctx, config, all_):
             if v[0] == t.EzspStatus.ERROR_INVALID_ID:
                 continue
             click.echo(f"{config.name}={v[1]}")
-        s.close()
+        await s.disconnect()
         return
 
     if "=" in config:
@@ -54,7 +54,7 @@ async def config(ctx, config, all_):
 
         v = await s.setConfigurationValue(config, value)
         click.echo(v)
-        s.close()
+        await s.disconnect()
         return
 
     v = await s.getConfigurationValue(config)
@@ -86,7 +86,7 @@ async def info(ctx):
     click.echo(f"Board name: {brd_name}")
     click.echo(f"EmberZNet version: {version}")
 
-    s.close()
+    await s.disconnect()
 
 
 @main.command()
@@ -105,7 +105,7 @@ async def bootloader(ctx):
     version, plat, micro, phy = await ezsp.getStandaloneBootloaderVersionPlatMicroPhy()
     if version == 0xFFFF:
         click.echo("No boot loader installed")
-        ezsp.close()
+        await ezsp.disconnect()
         return
 
     click.echo(
@@ -118,4 +118,4 @@ async def bootloader(ctx):
         click.echo(f"Couldn't launch bootloader: {res[0]}")
     else:
         click.echo("bootloader launched successfully")
-    ezsp.close()
+    await ezsp.disconnect()

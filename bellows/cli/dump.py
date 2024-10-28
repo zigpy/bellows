@@ -37,7 +37,7 @@ def dump(ctx, channel, outfile):
     finally:
         if "ezsp" in ctx.obj:
             loop.run_until_complete(ctx.obj["ezsp"].mfglibEnd())
-            ctx.obj["ezsp"].close()
+            loop.run_until_complete(ctx.obj["ezsp"].disconnect())
 
 
 def ieee_15_4_fcs(data: bytes) -> bytes:

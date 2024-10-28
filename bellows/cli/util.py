@@ -59,28 +59,17 @@ def app(f, app_startup=True, extra_config=None):
         if extra_config:
             app_config.update(extra_config)
         application = await setup_application(app_config, startup=app_startup)
-        ctx.obj["app"] = application
-        await f(ctx, *args, **kwargs)
-        await asyncio.sleep(0.5)
-        await application.shutdown()
-
-    def shutdown():
-        with contextlib.suppress(Exception):
-            application._ezsp.close()
+        try:
+            ctx.obj["app"] = application
+            await f(ctx, *args, **kwargs)
+        finally:
+            with contextlib.suppress(Exception):
+                await application.shutdown()
 
     @functools.wraps(f)
     def inner(*args, **kwargs):
         loop = asyncio.get_event_loop()
-        try:
-            loop.run_until_complete(async_inner(*args, **kwargs))
-        except:  # noqa: E722
-            # It seems that often errors like a message send will try to send
-            # two messages, and not reading all of them will leave the NCP in
-            # a bad state. This seems to mitigate this somewhat. Better way?
-            loop.run_until_complete(asyncio.sleep(0.5))
-            raise
-        finally:
-            shutdown()
+        loop.run_until_complete(async_inner(*args, **kwargs))
 
     return inner
 

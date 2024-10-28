@@ -35,7 +35,7 @@ def tone(ctx, channel, power):
             s = ctx.obj["ezsp"]
             loop.run_until_complete(s.mfglibStopTone())
             loop.run_until_complete(s.mfglibEnd())
-            s.close()
+            loop.run_until_complete(s.disconnect())
 
 
 async def _tone(ctx, channel, power):

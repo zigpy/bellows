@@ -35,7 +35,7 @@ def stream(ctx, channel, power):
             s = ctx.obj["ezsp"]
             loop.run_until_complete(s.mfglibStopStream())
             loop.run_until_complete(s.mfglibEnd())
-            s.close()
+            loop.run_until_complete(s.disconnect())
 
 
 async def _stream(ctx, channel, power):

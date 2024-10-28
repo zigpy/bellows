@@ -106,7 +106,7 @@ async def join(ctx, channels, pan_id, extended_pan_id):
 
     s.remove_callback(cbid)
 
-    s.close()
+    await s.disconnect()
 
 
 @main.command()
@@ -126,7 +126,7 @@ async def leave(ctx):
             expected=t.EmberStatus.NETWORK_DOWN,
         )
 
-    s.close()
+    await s.disconnect()
 
 
 @main.command()
@@ -157,4 +157,4 @@ async def scan(ctx, channels, duration_ms, energy_scan):
     for network in v:
         click.echo(network)
 
-    s.close()
+    await s.disconnect()
