@@ -3,8 +3,9 @@ import threading
 from unittest.mock import AsyncMock, MagicMock, call, patch, sentinel
 
 import pytest
-import serial_asyncio
+import serial_asyncio_fast
 import zigpy.config as conf
+import zigpy.serial
 
 from bellows import uart
 import bellows.types as t
@@ -20,7 +21,7 @@ async def test_connect(flow_control, monkeypatch):
         loop.call_soon(protocol.connection_made, transport)
         return None, protocol
 
-    monkeypatch.setattr(serial_asyncio, "create_serial_connection", mockconnect)
+    monkeypatch.setattr(zigpy.serial, "create_serial_connection", mockconnect)
     gw = await uart.connect(
         conf.SCHEMA_DEVICE(
             {
@@ -47,7 +48,7 @@ async def test_connect_threaded(monkeypatch):
         loop.call_soon(protocol.connection_made, transport)
         return None, protocol
 
-    monkeypatch.setattr(serial_asyncio, "create_serial_connection", mockconnect)
+    monkeypatch.setattr(zigpy.serial, "create_serial_connection", mockconnect)
 
     def on_transport_close():
         gw.connection_lost(None)
@@ -76,7 +77,7 @@ async def test_connect_threaded_failure(monkeypatch):
     mockconnect = AsyncMock()
     mockconnect.side_effect = OSError
 
-    monkeypatch.setattr(serial_asyncio, "create_serial_connection", mockconnect)
+    monkeypatch.setattr(zigpy.serial, "create_serial_connection", mockconnect)
 
     def on_transport_close():
         gw.connection_lost(None)
@@ -168,21 +169,9 @@ async def test_reset_old(gw):
 def test_connection_lost_exc(gw):
     gw.connection_lost(sentinel.exception)
 
-    conn_lost = gw._application.connection_lost
+    conn_lost = gw._api.connection_lost
     assert conn_lost.call_count == 1
-    assert conn_lost.call_args[0][0] is sentinel.exception
-
-
-def test_connection_closed(gw):
-    gw.connection_lost(None)
-
-    assert gw._application.connection_lost.call_count == 0
-
-
-def test_eof_received(gw):
-    gw.eof_received()
-
-    assert gw._application.connection_lost.call_count == 1
+    assert conn_lost.mock_calls[0].args[0] is sentinel.exception
 
 
 async def test_connection_lost_reset_error_propagation(monkeypatch):
@@ -195,7 +184,7 @@ async def test_connection_lost_reset_error_propagation(monkeypatch):
         loop.call_soon(protocol.connection_made, transport)
         return None, protocol
 
-    monkeypatch.setattr(serial_asyncio, "create_serial_connection", mockconnect)
+    monkeypatch.setattr(zigpy.serial, "create_serial_connection", mockconnect)
 
     def on_transport_close():
         gw.connection_lost(None)
@@ -243,9 +232,9 @@ async def test_wait_for_startup_reset_failure(gw):
 
 async def test_callbacks(gw):
     gw.data_received(b"some ezsp packet")
-    assert gw._application.frame_received.mock_calls == [call(b"some ezsp packet")]
+    assert gw._api.frame_received.mock_calls == [call(b"some ezsp packet")]
 
     gw.error_received(t.NcpResetCode.RESET_SOFTWARE)
-    assert gw._application.enter_failed_state.mock_calls == [
+    assert gw._api.enter_failed_state.mock_calls == [
         call(t.NcpResetCode.RESET_SOFTWARE)
     ]

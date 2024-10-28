@@ -128,9 +128,9 @@ class EZSP:
     async def connect(self, *, use_thread: bool = True) -> None:
         assert self._gw is None
         self._gw = await bellows.uart.connect(self._config, self, use_thread=use_thread)
-        self._protocol = v4.EZSPv4(self.handle_callback, self._gw)
 
         try:
+            self._protocol = v4.EZSPv4(self.handle_callback, self._gw)
             await self.startup_reset()
         except Exception:
             await self.disconnect()

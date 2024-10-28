@@ -11,7 +11,7 @@ from bellows.ezsp.v9.commands import GetTokenDataRsp
 import bellows.types as t
 from bellows.zigbee import repairs
 
-from tests.test_ezsp import ezsp_f, make_ezsp
+from tests.test_ezsp import ezsp_f, make_connected_ezsp
 
 
 @pytest.fixture
@@ -116,7 +116,8 @@ async def test_fix_invalid_tclk_all_versions(
 ) -> None:
     """Test that the TCLK is fixed (or not) on all versions."""
 
-    ezsp = await make_ezsp(version)
+    ezsp = await make_connected_ezsp(version=version)
+
     fw_has_token_interface = hasattr(ezsp, "setTokenData")
 
     if fw_has_token_interface:

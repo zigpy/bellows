@@ -130,6 +130,12 @@ class NcpFailure(AshException):
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}(code={self.code})>"
 
+    def __eq__(self, other: object) -> bool | NotImplemented:
+        if not isinstance(other, NcpFailure):
+            return NotImplemented
+
+        return self.code == other.code
+
 
 class AshFrame(abc.ABC, BaseDataclassMixin):
     MASK: t.uint8_t

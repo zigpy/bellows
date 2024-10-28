@@ -12,6 +12,7 @@ import zigpy.exceptions
 import zigpy.types as zigpy_t
 import zigpy.zdo.types as zdo_t
 
+from bellows.ash import NcpFailure
 import bellows.config as config
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp as ezsp
@@ -112,7 +113,7 @@ def _create_app_for_startup(
     ezsp_mock.start_ezsp()
 
     ezsp_mock.connect = AsyncMock()
-    ezsp_mock.close = AsyncMock(wraps=ezsp_mock.close)
+    ezsp_mock.disconnect = AsyncMock()
     ezsp_mock.startup_reset = AsyncMock()
     ezsp_mock.can_burn_userdata_custom_eui64 = AsyncMock(return_value=True)
     ezsp_mock.can_rewrite_custom_eui64 = AsyncMock(return_value=True)
@@ -1122,12 +1123,6 @@ def test_is_controller_running(app):
         assert ezsp_running.call_count == 1
 
 
-def test_reset_frame(app):
-    app.connection_lost = MagicMock(spec_set=app.connection_lost)
-    app.ezsp_callback_handler("_reset_controller_application", (sentinel.error,))
-    assert app.connection_lost.mock_calls == [call(sentinel.error)]
-
-
 @pytest.mark.parametrize("ezsp_version", (4, 7))
 async def test_watchdog(make_app, monkeypatch, ezsp_version):
     from bellows.zigbee import application
@@ -1287,9 +1282,9 @@ async def test_ezsp_value_counter(app, monkeypatch):
 async def test_shutdown(app):
     ezsp = app._ezsp
 
-    await app.shutdown()
+    await app.disconnect()
     assert app.controller_event.is_set() is False
-    assert ezsp.close.call_count == 1
+    assert len(ezsp.disconnect.mock_calls) == 1
 
 
 @pytest.fixture
@@ -1731,7 +1726,7 @@ async def test_connect_failure(app: ControllerApplication) -> None:
 
     assert app._ezsp is None
 
-    assert len(ezsp.close.mock_calls) == 1
+    assert len(ezsp.disconnect.mock_calls) == 1
 
 
 async def test_repair_tclk_partner_ieee(
