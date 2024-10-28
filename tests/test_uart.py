@@ -3,7 +3,6 @@ import threading
 from unittest.mock import AsyncMock, MagicMock, call, patch, sentinel
 
 import pytest
-import serial_asyncio_fast
 import zigpy.config as conf
 import zigpy.serial
 
