@@ -123,6 +123,9 @@ def _create_app_for_startup(
     ezsp_mock.wait_for_stack_status.return_value.__enter__ = AsyncMock(
         return_value=t.EmberStatus.NETWORK_UP
     )
+    ezsp_mock.customFrame = AsyncMock(
+        return_value=[t.EmberStatus.LIBRARY_NOT_PRESENT, b""]
+    )
     ezsp_mock.xncp_get_supported_firmware_features = AsyncMock(
         return_value=FirmwareFeatures.NONE
     )
@@ -1827,6 +1830,7 @@ def zigpy_backup() -> zigpy.backups.NetworkBackup:
             metadata={
                 "ezsp": {
                     "stack_version": 8,
+                    "flow_control": None,
                     "can_burn_userdata_custom_eui64": True,
                     "can_rewrite_custom_eui64": True,
                 }
