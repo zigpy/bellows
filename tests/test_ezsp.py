@@ -11,8 +11,7 @@ import zigpy.config
 from bellows import config, uart
 from bellows.ash import NcpFailure
 from bellows.exception import EzspError, InvalidCommandError
-from bellows.ezsp import EZSP, EZSP_LATEST
-from bellows.ezsp.xncp import FirmwareFeatures
+from bellows.ezsp import EZSP, EZSP_LATEST, xncp
 import bellows.types as t
 
 if sys.version_info[:2] < (3, 11):
@@ -457,7 +456,7 @@ async def test_xncp_token_override(ezsp_f):
     ) == b"firmware value"
 
     # With firmware support, it is
-    ezsp_f._xncp_features |= FirmwareFeatures.MFG_TOKEN_OVERRIDES
+    ezsp_f._xncp_features |= xncp.FirmwareFeatures.MFG_TOKEN_OVERRIDES
     assert (
         await ezsp_f.get_mfg_token(t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
     ) == b"xncp value"
@@ -871,3 +870,104 @@ def test_frame_parsing_error_doesnt_disconnect(ezsp_f, caplog):
         ezsp_f.frame_received(b"test")
 
     assert "Failed to parse frame" in caplog.text
+
+
+async def test_xncp_get_supported_firmware_features(ezsp_f):
+    """Test XNCP get_supported_firmware_features."""
+    ezsp_f._mock_commands["customFrame"] = customFrame = AsyncMock(
+        return_value=[
+            t.EmberStatus.SUCCESS,
+            xncp.XncpCommand.from_payload(
+                xncp.GetSupportedFeaturesRsp(
+                    features=xncp.FirmwareFeatures.MANUAL_SOURCE_ROUTE
+                )
+            ).serialize(),
+        ]
+    )
+
+    assert (
+        await ezsp_f.xncp_get_supported_firmware_features()
+    ) == xncp.FirmwareFeatures.MANUAL_SOURCE_ROUTE
+    assert customFrame.mock_calls == [
+        call(xncp.XncpCommand.from_payload(xncp.GetSupportedFeaturesReq()).serialize())
+    ]
+
+
+async def test_xncp_get_build_string(ezsp_f):
+    """Test XNCP get_build_string."""
+    ezsp_f._mock_commands["customFrame"] = customFrame = AsyncMock(
+        return_value=[
+            t.EmberStatus.SUCCESS,
+            xncp.XncpCommand.from_payload(
+                xncp.GetBuildStringRsp(build_string="Some complex string 🦜".encode())
+            ).serialize(),
+        ]
+    )
+
+    assert await ezsp_f.xncp_get_build_string() == "Some complex string 🦜"
+    assert customFrame.mock_calls == [
+        call(xncp.XncpCommand.from_payload(xncp.GetBuildStringReq()).serialize())
+    ]
+
+
+async def test_xncp_set_manual_source_route(ezsp_f):
+    """Test XNCP set_manual_source_route."""
+    ezsp_f._mock_commands["customFrame"] = customFrame = AsyncMock(
+        return_value=[
+            t.EmberStatus.SUCCESS,
+            xncp.XncpCommand.from_payload(xncp.SetSourceRouteRsp()).serialize(),
+        ]
+    )
+
+    await ezsp_f.xncp_set_manual_source_route(
+        destination=0x1234, route=[0x5678, 0xABCD]
+    )
+    assert customFrame.mock_calls == [
+        call(
+            xncp.XncpCommand.from_payload(
+                xncp.SetSourceRouteReq(
+                    destination=0x1234, source_route=[0x5678, 0xABCD]
+                )
+            ).serialize()
+        )
+    ]
+
+
+async def test_xncp_get_mfg_token_override(ezsp_f):
+    """Test XNCP get_mfg_token_override."""
+    ezsp_f._mock_commands["customFrame"] = customFrame = AsyncMock(
+        return_value=[
+            t.EmberStatus.SUCCESS,
+            xncp.XncpCommand.from_payload(
+                xncp.GetMfgTokenOverrideRsp(value=b"value")
+            ).serialize(),
+        ]
+    )
+
+    await ezsp_f.xncp_get_mfg_token_override(token=t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
+    assert customFrame.mock_calls == [
+        call(
+            xncp.XncpCommand.from_payload(
+                xncp.GetMfgTokenOverrideReq(token=t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
+            ).serialize()
+        )
+    ]
+
+
+async def test_xncp_get_flow_control_type(ezsp_f):
+    """Test XNCP get_flow_control_type."""
+    ezsp_f._mock_commands["customFrame"] = customFrame = AsyncMock(
+        return_value=[
+            t.EmberStatus.SUCCESS,
+            xncp.XncpCommand.from_payload(
+                xncp.GetFlowControlTypeRsp(
+                    flow_control_type=xncp.FlowControlType.Hardware
+                )
+            ).serialize(),
+        ]
+    )
+
+    assert await ezsp_f.xncp_get_flow_control_type() == xncp.FlowControlType.Hardware
+    assert customFrame.mock_calls == [
+        call(xncp.XncpCommand.from_payload(xncp.GetFlowControlTypeReq()).serialize())
+    ]
