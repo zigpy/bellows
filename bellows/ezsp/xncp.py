@@ -32,15 +32,6 @@ class Bytes(bytes):
     def deserialize(cls, data: bytes) -> tuple[Bytes, bytes]:
         return cls(data), b""
 
-    def __repr__(self) -> str:
-        # Reading byte sequences like \x200\x21 is extremely annoying
-        # compared to \x20\x30\x21
-        escaped = "".join(f"\\x{b:02X}" for b in self)
-
-        return f"b'{escaped}'"
-
-    __str__ = __repr__
-
 
 class XncpCommandId(t.enum16):
     GET_SUPPORTED_FEATURES_REQ = 0x0000
