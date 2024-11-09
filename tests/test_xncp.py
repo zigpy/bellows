@@ -13,10 +13,16 @@ from tests.test_ezsp import ezsp_f
 
 async def test_xncp_failure(ezsp_f: EZSP) -> None:
     """Test XNCP failure."""
+
+    command = xncp.XncpCommand.from_payload(
+        xncp.GetSupportedFeaturesRsp(features=xncp.FirmwareFeatures.MANUAL_SOURCE_ROUTE)
+    )
+    command.status = t.EmberStatus.ERR_FATAL
+
     ezsp_f._mock_commands["customFrame"] = customFrame = AsyncMock(
         return_value=[
-            t.EmberStatus.ERR_FATAL,
-            b"some other XNCP protocol that returns non-SUCCESS status codes",
+            t.EmberStatus.SUCCESS,  # The frame itself encodes a status code
+            command.serialize(),
         ]
     )
 

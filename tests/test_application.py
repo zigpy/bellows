@@ -25,6 +25,7 @@ import bellows.uart as uart
 import bellows.zigbee.application
 from bellows.zigbee.application import ControllerApplication
 import bellows.zigbee.device
+from bellows.zigbee.device import EZSPEndpoint, EZSPGroupEndpoint
 from bellows.zigbee.util import map_rssi_to_energy
 
 from tests.common import mock_ezsp_commands
@@ -852,6 +853,36 @@ async def test_send_packet_unicast_source_route(make_app, packet):
     )
 
 
+async def test_send_packet_unicast_manual_source_route(make_app, packet):
+    app = make_app(
+        {
+            zigpy.config.CONF_SOURCE_ROUTING: True,
+            config.CONF_BELLOWS_CONFIG: {config.CONF_MANUAL_SOURCE_ROUTING: True},
+        }
+    )
+
+    app._ezsp._xncp_features |= FirmwareFeatures.MANUAL_SOURCE_ROUTE
+
+    app._ezsp.xncp_set_manual_source_route = AsyncMock(
+        return_value=None, spec=app._ezsp._protocol.set_source_route
+    )
+
+    packet.source_route = [0x0001, 0x0002]
+    await _test_send_packet_unicast(
+        app,
+        packet,
+        options=(
+            t.EmberApsOption.APS_OPTION_RETRY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
+        ),
+    )
+
+    app._ezsp.xncp_set_manual_source_route.assert_called_once_with(
+        nwk=packet.dst.address,
+        relays=[0x0001, 0x0002],
+    )
+
+
 async def test_send_packet_unicast_extended_timeout(app, ieee, packet):
     app.add_device(nwk=packet.dst.address, ieee=ieee)
 
@@ -1644,6 +1675,19 @@ async def test_startup_coordinator_existing_groups_joined(app, ieee):
             t.EmberMulticastTableEntry(multicastId=0x1234, endpoint=1, networkIndex=0),
         )
     ]
+
+
+async def test_startup_coordinator_xncp_wildcard_groups(app, ieee):
+    """Coordinator ignores multicast workarounds with XNCP firmware."""
+    with mock_for_startup(app, ieee) as ezsp:
+        ezsp._xncp_features |= FirmwareFeatures.MEMBER_OF_ALL_GROUPS
+
+        await app.connect()
+        await app.start_network()
+
+    # No multicast workarounds are present
+    assert app._multicast is None
+    assert not isinstance(app._device.endpoints[1], EZSPGroupEndpoint)
 
 
 async def test_startup_new_coordinator_no_groups_joined(app, ieee):
