@@ -659,7 +659,14 @@ class EZSP:
         if status != t.EmberStatus.SUCCESS:
             raise InvalidCommandError("XNCP is not supported")
 
-        rsp_frame = xncp.XncpCommand.from_bytes(data)
+        try:
+            rsp_frame = xncp.XncpCommand.from_bytes(data)
+        except ValueError:
+            raise InvalidCommandError(f"Invalid XNCP response: {data!r}")
+
+        if isinstance(rsp_frame.payload, xncp.Unknown):
+            raise InvalidCommandError(f"XNCP firmware does not support {payload}")
+
         LOGGER.debug("Received XNCP frame: %s", rsp_frame)
 
         if rsp_frame.status != t.EmberStatus.SUCCESS:

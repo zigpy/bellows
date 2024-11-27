@@ -34,6 +34,37 @@ async def test_xncp_failure(ezsp_f: EZSP) -> None:
     ]
 
 
+async def test_xncp_failure_multiprotocol(ezsp_f: EZSP) -> None:
+    """Test XNCP failure with multiprotocol firmware."""
+    ezsp_f._mock_commands["customFrame"] = customFrame = AsyncMock(
+        return_value=[t.EmberStatus.SUCCESS, b""]
+    )
+
+    with pytest.raises(InvalidCommandError):
+        await ezsp_f.xncp_get_supported_firmware_features()
+
+    assert customFrame.mock_calls == [
+        call(xncp.XncpCommand.from_payload(xncp.GetSupportedFeaturesReq()).serialize())
+    ]
+
+
+async def test_xncp_failure_unknown(ezsp_f: EZSP) -> None:
+    """Test XNCP failure, unknown command."""
+    ezsp_f._mock_commands["customFrame"] = customFrame = AsyncMock(
+        return_value=[
+            t.EmberStatus.SUCCESS,
+            xncp.XncpCommand.from_payload(xncp.Unknown()).serialize(),
+        ]
+    )
+
+    with pytest.raises(InvalidCommandError):
+        await ezsp_f.xncp_get_supported_firmware_features()
+
+    assert customFrame.mock_calls == [
+        call(xncp.XncpCommand.from_payload(xncp.GetSupportedFeaturesReq()).serialize())
+    ]
+
+
 async def test_xncp_get_supported_firmware_features(ezsp_f: EZSP) -> None:
     """Test XNCP get_supported_firmware_features."""
     ezsp_f._mock_commands["customFrame"] = customFrame = AsyncMock(

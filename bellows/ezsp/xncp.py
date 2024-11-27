@@ -159,3 +159,8 @@ class GetFlowControlTypeReq(XncpCommandPayload):
 @register_command(XncpCommandId.GET_FLOW_CONTROL_TYPE_RSP)
 class GetFlowControlTypeRsp(XncpCommandPayload):
     flow_control_type: FlowControlType
+
+
+@register_command(XncpCommandId.UNKNOWN)
+class Unknown(XncpCommandPayload):
+    pass
