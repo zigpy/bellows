@@ -67,6 +67,12 @@ class XncpCommand:
     def from_bytes(cls, data: bytes) -> XncpCommand:
         command_id, data = XncpCommandId.deserialize(data)
         status, data = EmberStatus.deserialize(data)
+
+        if command_id not in COMMANDS:
+            raise ValueError(
+                f"Unknown XNCP command ID: 0x{command_id:04X} (payload {data!r})"
+            )
+
         payload, rest = COMMANDS[command_id].deserialize(data)
 
         if rest:
