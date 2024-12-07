@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, call
+from unittest.mock import AsyncMock, call, patch
 
 import pytest
 
@@ -180,4 +180,47 @@ async def test_xncp_get_flow_control_type(ezsp_f: EZSP) -> None:
     assert await ezsp_f.xncp_get_flow_control_type() == xncp.FlowControlType.Hardware
     assert customFrame.mock_calls == [
         call(xncp.XncpCommand.from_payload(xncp.GetFlowControlTypeReq()).serialize())
+    ]
+
+
+async def test_xncp_get_xncp_features_fixes(ezsp_f: EZSP) -> None:
+    """Test XNCP `get_xncp_features`, with fixes."""
+    ezsp_f._mock_commands["customFrame"] = customFrame = AsyncMock(
+        return_value=[
+            t.EmberStatus.SUCCESS,
+            xncp.XncpCommand.from_payload(
+                xncp.GetSupportedFeaturesRsp(
+                    features=(
+                        xncp.FirmwareFeatures.MANUAL_SOURCE_ROUTE
+                        | xncp.FirmwareFeatures.MEMBER_OF_ALL_GROUPS
+                    )
+                )
+            ).serialize(),
+        ]
+    )
+
+    # In 7.4.4.0, it's broken
+    with patch.object(
+        ezsp_f,
+        "get_board_info",
+        return_value=("Model", "Manufacturer", "7.4.4.0 build 0"),
+    ):
+        assert (
+            await ezsp_f.get_xncp_features()
+        ) == xncp.FirmwareFeatures.MANUAL_SOURCE_ROUTE
+
+    # In a hypothetical new release, it's not
+    with patch.object(
+        ezsp_f,
+        "get_board_info",
+        return_value=("Model", "Manufacturer", "7.4.4.0 build 1"),
+    ):
+        assert (await ezsp_f.get_xncp_features()) == (
+            xncp.FirmwareFeatures.MANUAL_SOURCE_ROUTE
+            | xncp.FirmwareFeatures.MEMBER_OF_ALL_GROUPS
+        )
+
+    assert customFrame.mock_calls == [
+        call(xncp.XncpCommand.from_payload(xncp.GetSupportedFeaturesReq()).serialize()),
+        call(xncp.XncpCommand.from_payload(xncp.GetSupportedFeaturesReq()).serialize()),
     ]

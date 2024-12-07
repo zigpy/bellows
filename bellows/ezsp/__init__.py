@@ -179,7 +179,7 @@ class EZSP:
             ver,
         )
 
-    async def get_xncp_features(self) -> None:
+    async def get_xncp_features(self) -> xncp.FirmwareFeatures:
         try:
             self._xncp_features = await self.xncp_get_supported_firmware_features()
         except InvalidCommandError:
@@ -193,6 +193,7 @@ class EZSP:
                 self._xncp_features &= ~FirmwareFeatures.MEMBER_OF_ALL_GROUPS
 
         LOGGER.debug("XNCP features: %s", self._xncp_features)
+        return self._xncp_features
 
     async def disconnect(self):
         self.stop_ezsp()
