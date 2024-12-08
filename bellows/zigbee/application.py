@@ -32,12 +32,7 @@ from bellows.config import (
     CONF_USE_THREAD,
     CONFIG_SCHEMA,
 )
-from bellows.exception import (
-    ControllerError,
-    EzspError,
-    InvalidCommandError,
-    StackAlreadyRunning,
-)
+from bellows.exception import ControllerError, EzspError, StackAlreadyRunning
 import bellows.ezsp
 from bellows.ezsp.xncp import FirmwareFeatures
 import bellows.multicast
@@ -299,9 +294,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         can_burn_userdata_custom_eui64 = await ezsp.can_burn_userdata_custom_eui64()
         can_rewrite_custom_eui64 = await ezsp.can_rewrite_custom_eui64()
 
-        try:
-            flow_control = await self._ezsp.xncp_get_flow_control_type()
-        except InvalidCommandError:
+        if FirmwareFeatures.FLOW_CONTROL_TYPE in ezsp._xncp_features:
+            flow_control = await ezsp.xncp_get_flow_control_type()
+        else:
             flow_control = None
 
         self.state.network_info = zigpy.state.NetworkInfo(
