@@ -17,7 +17,7 @@ import bellows.config as config
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp as ezsp
 from bellows.ezsp.v9.commands import GetTokenDataRsp
-from bellows.ezsp.xncp import FirmwareFeatures
+from bellows.ezsp.xncp import FirmwareFeatures, FlowControlType
 import bellows.types
 import bellows.types as t
 import bellows.types.struct
@@ -1874,7 +1874,7 @@ def zigpy_backup() -> zigpy.backups.NetworkBackup:
             metadata={
                 "ezsp": {
                     "stack_version": 8,
-                    "flow_control": None,
+                    "flow_control": "hardware",
                     "can_burn_userdata_custom_eui64": True,
                     "can_rewrite_custom_eui64": True,
                 }
@@ -1888,6 +1888,24 @@ async def test_load_network_info(
     ieee: zigpy_t.EUI64,
     zigpy_backup: zigpy.backups.NetworkBackup,
 ) -> None:
+    await app.load_network_info(load_devices=True)
+
+    zigpy_backup.network_info.metadata["ezsp"]["flow_control"] = None
+
+    assert app.state.node_info == zigpy_backup.node_info
+    assert app.state.network_info == zigpy_backup.network_info
+
+
+async def test_load_network_info_xncp_flow_control(
+    app: ControllerApplication,
+    ieee: zigpy_t.EUI64,
+    zigpy_backup: zigpy.backups.NetworkBackup,
+) -> None:
+    app._ezsp._xncp_features |= FirmwareFeatures.FLOW_CONTROL_TYPE
+    app._ezsp.xncp_get_flow_control_type = AsyncMock(
+        return_value=FlowControlType.HARDWARE
+    )
+
     await app.load_network_info(load_devices=True)
 
     assert app.state.node_info == zigpy_backup.node_info

@@ -112,8 +112,8 @@ class XncpCommandPayload(t.Struct):
 
 
 class FlowControlType(t.enum8):
-    Software = 0x00
-    Hardware = 0x01
+    SOFTWARE = 0x00
+    HARDWARE = 0x01
 
 
 @register_command(XncpCommandId.GET_SUPPORTED_FEATURES_REQ)

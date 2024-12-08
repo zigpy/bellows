@@ -171,13 +171,13 @@ async def test_xncp_get_flow_control_type(ezsp_f: EZSP) -> None:
             t.EmberStatus.SUCCESS,
             xncp.XncpCommand.from_payload(
                 xncp.GetFlowControlTypeRsp(
-                    flow_control_type=xncp.FlowControlType.Hardware
+                    flow_control_type=xncp.FlowControlType.HARDWARE
                 )
             ).serialize(),
         ]
     )
 
-    assert await ezsp_f.xncp_get_flow_control_type() == xncp.FlowControlType.Hardware
+    assert await ezsp_f.xncp_get_flow_control_type() == xncp.FlowControlType.HARDWARE
     assert customFrame.mock_calls == [
         call(xncp.XncpCommand.from_payload(xncp.GetFlowControlTypeReq()).serialize())
     ]
@@ -185,6 +185,8 @@ async def test_xncp_get_flow_control_type(ezsp_f: EZSP) -> None:
 
 async def test_xncp_get_xncp_features_fixes(ezsp_f: EZSP) -> None:
     """Test XNCP `get_xncp_features`, with fixes."""
+    ezsp_f._ezsp_version = 13
+
     ezsp_f._mock_commands["customFrame"] = customFrame = AsyncMock(
         return_value=[
             t.EmberStatus.SUCCESS,
@@ -219,6 +221,10 @@ async def test_xncp_get_xncp_features_fixes(ezsp_f: EZSP) -> None:
             xncp.FirmwareFeatures.MANUAL_SOURCE_ROUTE
             | xncp.FirmwareFeatures.MEMBER_OF_ALL_GROUPS
         )
+
+    # XNCP is ignored for older EmberZNet
+    ezsp_f._ezsp_version = 8
+    assert (await ezsp_f.get_xncp_features()) == xncp.FirmwareFeatures.NONE
 
     assert customFrame.mock_calls == [
         call(xncp.XncpCommand.from_payload(xncp.GetSupportedFeaturesReq()).serialize()),
