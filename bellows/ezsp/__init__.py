@@ -180,6 +180,10 @@ class EZSP:
         )
 
     async def get_xncp_features(self) -> xncp.FirmwareFeatures:
+        # Some older gateways seem to have their own XNCP protocol. Ignore them.
+        if self._ezsp_version < 13:
+            return FirmwareFeatures.NONE
+
         try:
             self._xncp_features = await self.xncp_get_supported_firmware_features()
         except InvalidCommandError:
