@@ -388,6 +388,9 @@ async def test_board_info(
 
         return replacement
 
+    if not isinstance(xncp_build_string, InvalidCommandError):
+        ezsp_f._xncp_features |= xncp.FirmwareFeatures.BUILD_STRING
+
     with patch.object(
         ezsp_f,
         "_command",
