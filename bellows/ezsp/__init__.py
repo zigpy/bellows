@@ -362,11 +362,11 @@ class EZSP:
             patch, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
             special, ver_info_bytes = t.uint8_t.deserialize(ver_info_bytes)
             version = f"{major}.{minor}.{patch}.{special} build {build}"
+            build_string = None
 
-            try:
-                build_string = await self.xncp_get_build_string()
-            except InvalidCommandError:
-                build_string = None
+            if FirmwareFeatures.BUILD_STRING in self._xncp_features:
+                with contextlib.suppress(InvalidCommandError):
+                    build_string = await self.xncp_get_build_string()
 
             if build_string:
                 version = f"{version} ({build_string})"
