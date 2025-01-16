@@ -730,6 +730,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 duration=duration_exp,
             )
 
+            if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
+                raise ControllerError(f"Failed to start scan: {status!r}")
+
             while True:
                 command, response = await queue.get()
 

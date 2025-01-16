@@ -1943,3 +1943,104 @@ async def test_write_network_info(
             )
         )
     ]
+
+
+async def test_network_scan(app: ControllerApplication) -> None:
+    app._ezsp._protocol.startScan.return_value = [t.sl_Status.OK]
+
+    def run_scan() -> None:
+        app._ezsp._protocol._handle_callback(
+            "networkFoundHandler",
+            list(
+                {
+                    "networkFound": t.EmberZigbeeNetwork(
+                        channel=11,
+                        panId=zigpy_t.PanId(0x1D13),
+                        extendedPanId=t.EUI64.convert("00:07:81:00:00:9a:8f:3b"),
+                        allowingJoin=False,
+                        stackProfile=2,
+                        nwkUpdateId=0,
+                    ),
+                    "lastHopLqi": 152,
+                    "lastHopRssi": -62,
+                }.values()
+            ),
+        )
+        app._ezsp._protocol._handle_callback(
+            "networkFoundHandler",
+            list(
+                {
+                    "networkFound": t.EmberZigbeeNetwork(
+                        channel=11,
+                        panId=zigpy_t.PanId(0x2857),
+                        extendedPanId=t.EUI64.convert("00:07:81:00:00:9a:34:1b"),
+                        allowingJoin=False,
+                        stackProfile=2,
+                        nwkUpdateId=0,
+                    ),
+                    "lastHopLqi": 136,
+                    "lastHopRssi": -66,
+                }.values()
+            ),
+        )
+        app._ezsp._protocol._handle_callback(
+            "scanCompleteHandler",
+            list(
+                {
+                    "channel": 26,
+                    "status": t.sl_Status.OK,
+                }.values()
+            ),
+        )
+
+    asyncio.get_running_loop().call_soon(run_scan)
+
+    results = [
+        beacon
+        async for beacon in app.network_scan(
+            channels=t.Channels.from_channel_list([11, 15, 26]), duration_exp=4
+        )
+    ]
+
+    assert results == [
+        zigpy_t.NetworkBeacon(
+            pan_id=0x1D13,
+            extended_pan_id=t.EUI64.convert("00:07:81:00:00:9a:8f:3b"),
+            channel=11,
+            permit_joining=False,
+            stack_profile=2,
+            nwk_update_id=0,
+            lqi=152,
+            src=None,
+            rssi=-62,
+            depth=None,
+            router_capacity=None,
+            device_capacity=None,
+            protocol_version=None,
+        ),
+        zigpy_t.NetworkBeacon(
+            pan_id=0x2857,
+            extended_pan_id=t.EUI64.convert("00:07:81:00:00:9a:34:1b"),
+            channel=11,
+            permit_joining=False,
+            stack_profile=2,
+            nwk_update_id=0,
+            lqi=136,
+            src=None,
+            rssi=-66,
+            depth=None,
+            router_capacity=None,
+            device_capacity=None,
+            protocol_version=None,
+        ),
+    ]
+
+
+async def test_network_scan_failure(app: ControllerApplication) -> None:
+    app._ezsp._protocol.startScan.return_value = [t.sl_Status.FAIL]
+
+    with pytest.raises(zigpy.exceptions.ControllerException):
+        async for beacon in app.network_scan(
+            channels=t.Channels.from_channel_list([11, 15, 26]), duration_exp=4
+        ):
+            pass
