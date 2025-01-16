@@ -712,7 +712,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             for channel in list(channels)
         }
 
-    async def network_scan(
+    async def _network_scan(
         self, channels: t.Channels, duration_exp: int
     ) -> AsyncGenerator[zigpy.types.NetworkBeacon]:
         """Scans for networks and yields network beacons."""
