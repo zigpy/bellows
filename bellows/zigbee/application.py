@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 import logging
 import os
 import statistics
@@ -751,6 +752,36 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     lqi=lastHopLqi,
                     rssi=lastHopRssi,
                 )
+
+    async def _packet_capture(self, channel: int):
+        try:
+            (status,) = await self._ezsp.mfglibStart(rxCallback=True)
+            await self._packet_capture_change_channel(channel=channel)
+
+            queue = asyncio.Queue()
+
+            with self._ezsp.callback_for_commands(
+                {"mfglibRxHandler"},
+                callback=lambda _, response: queue.put_nowait(response),
+            ):
+                while True:
+                    (linkQuality, rssi, packetContents) = await queue.get()
+
+                    # The last two bytes are not a FCS
+                    packetContents = packetContents[:-2]
+
+                    yield zigpy.types.CapturedPacket(
+                        timestamp=datetime.now(timezone.utc),
+                        rssi=rssi,
+                        lqi=linkQuality,
+                        channel=0,  # zigpy will fill it in
+                        data=packetContents,
+                    )
+        finally:
+            (status,) = await self._ezsp.mfglibEnd()
+
+    async def _packet_capture_change_channel(self, channel: int):
+        (status,) = await self._ezsp.mfglibSetChannel(channel=channel)
 
     async def send_packet(self, packet: zigpy.types.ZigbeePacket) -> None:
         if not self.is_controller_running:
