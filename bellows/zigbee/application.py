@@ -769,16 +769,18 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
             with self._ezsp.callback_for_commands(
                 {"mfglibRxHandler"},
-                callback=lambda _, response: queue.put_nowait(response),
+                callback=lambda _, response: queue.put_nowait(
+                    (datetime.now(timezone.utc), response)
+                ),
             ):
                 while True:
-                    (linkQuality, rssi, packetContents) = await queue.get()
+                    timestamp, (linkQuality, rssi, packetContents) = await queue.get()
 
                     # The last two bytes are not a FCS
                     packetContents = packetContents[:-2]
 
                     yield zigpy.types.CapturedPacket(
-                        timestamp=datetime.now(timezone.utc),
+                        timestamp=timestamp,
                         rssi=rssi,
                         lqi=linkQuality,
                         channel=self._packet_capture_channel,
