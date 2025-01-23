@@ -1,7 +1,6 @@
 import asyncio
 import functools
 import logging
-import math
 
 import click
 from zigpy.config import SCHEMA_NETWORK
@@ -137,24 +136,8 @@ async def leave(ctx):
 @util.background
 async def scan(ctx, channels, duration_ms, energy_scan):
     """Scan for networks or radio interference"""
-    s = await util.setup(ctx.obj["device"], ctx.obj["baudrate"])
-
-    channel_mask = util.channel_mask(channels)
-    click.echo("Scanning channels {}".format(" ".join(map(str, channels))))
-
-    # TFM says:
-    #   Sets the exponent of the number of scan periods, where a scan period is
-    #   960 symbols. The scan will occur for ((2^duration) + 1) scan periods.
-    # 1 symbol is 16us
-    duration_symbols = duration_ms / (960 * 0.016)
-    duration_symbol_exp = max(0, math.ceil(math.log(duration_symbols - 1, 2)))
-
-    scan_type = t.EzspNetworkScanType.ACTIVE_SCAN
-    if energy_scan:
-        scan_type = t.EzspNetworkScanType.ENERGY_SCAN
-
-    v = await s.startScan(scan_type, channel_mask, duration_symbol_exp)
-    for network in v:
-        click.echo(network)
-
-    await s.disconnect()
+    click.echo(
+        "`bellows scan` has been deprecated. Please use the `energy-scan` and `network-scan` commands from zigpy-cli.",
+        err=True,
+    )
+    ctx.exit(1)
