@@ -6,7 +6,7 @@ on:
 
 jobs:
   shared-ci:
-    uses: zigpy/workflows/.github/workflows/ci.yml@main
+    uses: zigpy/workflows/.github/workflows/ci.yml@puddly/no-codecov-upload-on-fork
     with:
       CODE_FOLDER: bellows
       CACHE_VERSION: 2
