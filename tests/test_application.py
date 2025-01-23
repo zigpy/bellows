@@ -2044,3 +2044,75 @@ async def test_network_scan_failure(app: ControllerApplication) -> None:
             channels=t.Channels.from_channel_list([11, 15, 26]), duration_exp=4
         ):
             pass
+
+
+async def test_packet_capture(app: ControllerApplication) -> None:
+    app._ezsp._protocol.mfglibStart.return_value = [t.sl_Status.OK]
+    app._ezsp._protocol.mfglibSetChannel.return_value = [t.sl_Status.OK]
+    app._ezsp._protocol.mfglibEnd.return_value = [t.sl_Status.OK]
+
+    async def receive_packets() -> None:
+        app._ezsp._protocol._handle_callback(
+            "mfglibRxHandler",
+            list(
+                {
+                    "linkQuality": 150,
+                    "rssi": -70,
+                    "packetContents": b"packet 1\xAB\xCD",
+                }.values()
+            ),
+        )
+
+        await asyncio.sleep(0.5)
+
+        app._ezsp._protocol._handle_callback(
+            "mfglibRxHandler",
+            list(
+                {
+                    "linkQuality": 200,
+                    "rssi": -50,
+                    "packetContents": b"packet 2\xAB\xCD",
+                }.values()
+            ),
+        )
+
+    task = asyncio.create_task(receive_packets())
+    packets = []
+
+    async for packet in app.packet_capture(channel=15):
+        packets.append(packet)
+
+        if len(packets) == 1:
+            await app.packet_capture_change_channel(channel=20)
+        elif len(packets) == 2:
+            break
+
+    assert packets == [
+        zigpy_t.CapturedPacket(
+            timestamp=packets[0].timestamp,
+            rssi=-70,
+            lqi=150,
+            channel=15,
+            data=b"packet 1",
+        ),
+        zigpy_t.CapturedPacket(
+            timestamp=packets[1].timestamp,
+            rssi=-50,
+            lqi=200,
+            channel=20,  # The second packet's channel was changed
+            data=b"packet 2",
+        ),
+    ]
+
+    await task
+    await asyncio.sleep(0.1)
+
+    assert app._ezsp._protocol.mfglibEnd.mock_calls == [call()]
+
+
+async def test_packet_capture_failure(app: ControllerApplication) -> None:
+    app._ezsp._protocol.mfglibStart.return_value = [t.sl_Status.FAIL]
+
+    with pytest.raises(zigpy.exceptions.ControllerException):
+        async for packet in app.packet_capture(channel=15):
+            pass

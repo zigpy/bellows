@@ -759,9 +759,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             raise ControllerError(f"Command failed: {status!r}")
 
     async def _packet_capture(self, channel: int):
+        (status,) = await self._ezsp.mfglibStart(rxCallback=True)
+        self._check_status(status)
+
         try:
-            (status,) = await self._ezsp.mfglibStart(rxCallback=True)
-            self._check_status(status)
             await self._packet_capture_change_channel(channel=channel)
             assert self._packet_capture_channel is not None
 
