@@ -149,10 +149,15 @@ class ProtocolHandler(abc.ABC):
             frame_name, _, rx_schema = self.COMMANDS_BY_ID[frame_id]
         except KeyError:
             LOGGER.warning(
-                "Unknown application frame 0x%04X received: %s (%s).  This is a bug!",
+                "Unknown application frame 0x%04X received: %s (%s)",
                 frame_id,
                 binascii.hexlify(data),
                 binascii.hexlify(orig_data),
+            )
+            LOGGER.warning(
+                "If you are using a network coordinator, this is usually caused by"
+                " multiple clients connecting at once to the same coordinator. This is"
+                " not a supported configuration."
             )
             return
 
