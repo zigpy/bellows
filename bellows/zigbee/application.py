@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 import logging
 import os
@@ -43,7 +44,11 @@ from bellows.zigbee import repairs
 from bellows.zigbee.device import EZSPEndpoint, EZSPGroupEndpoint
 import bellows.zigbee.util as util
 
-APS_ACK_TIMEOUT = 120
+APS_ACK_TIMEOUT = 8
+
+ROUTE_STATUS_TIMEOUT_MAINS = 0.5
+ROUTE_STATUS_TIMEOUT_BATTERY = 8
+
 COUNTER_EZSP_BUFFERS = "EZSP_FREE_BUFFERS"
 COUNTER_NWK_CONFLICTS = "nwk_conflicts"
 COUNTER_RESET_REQ = "reset_requests"
@@ -94,6 +99,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         self._req_lock = asyncio.Lock()
         self._packet_capture_channel: int | None = None
+        self._request_status_handlers: defaultdict[
+            t.EmberNodeId, deque[asyncio.Future]
+        ] = defaultdict(deque)
 
     @property
     def controller_event(self):
@@ -837,6 +845,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             # Source routing uses address discovery to discover routes
             aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
 
+        route_status_handler_future: asyncio.Future | None = None
+
         async with self._limit_concurrency(priority=packet.priority):
             message_tag = self.get_sequence()
             pending_tag = (packet.dst.address, message_tag)
@@ -874,6 +884,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             message_tag=message_tag,
                             data=packet.data.serialize(),
                         )
+
+                        route_status_handler_future = (
+                            asyncio.get_running_loop().create_future()
+                        )
+                        self._request_status_handlers[packet.dst.address].append(
+                            route_status_handler_future
+                        )
                     elif packet.dst.addr_mode == zigpy.types.AddrMode.Group:
                         status, _ = await self._ezsp.send_multicast(
                             aps_frame=aps_frame,
@@ -892,15 +909,18 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             data=packet.data.serialize(),
                         )
 
-                if status != t.sl_Status.OK:
-                    raise zigpy.exceptions.DeliveryError(
-                        f"Failed to enqueue message: {status!r}", status
-                    )
+                try:
+                    if status != t.sl_Status.OK:
+                        raise zigpy.exceptions.DeliveryError(
+                            f"Failed to enqueue message: {status!r}", status
+                        )
 
-                # Only throw a delivery exception for packets sent with NWK addressing.
-                # https://github.com/home-assistant/core/issues/79832
-                # Broadcasts/multicasts don't have ACKs or confirmations either.
-                if packet.dst.addr_mode == zigpy.types.AddrMode.NWK:
+                    # Only throw a delivery exception for packets sent with NWK addressing.
+                    # https://github.com/home-assistant/core/issues/79832
+                    # Broadcasts/multicasts don't have ACKs or confirmations either.
+                    if packet.dst.addr_mode != zigpy.types.AddrMode.NWK:
+                        return
+
                     # Wait for `messageSentHandler` message
                     async with asyncio_timeout(APS_ACK_TIMEOUT):
                         send_status, _ = await req.result
@@ -908,6 +928,26 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     if t.sl_Status.from_ember_status(send_status) != t.sl_Status.OK:
                         raise zigpy.exceptions.DeliveryError(
                             f"Failed to deliver message: {send_status!r}", send_status
+                        )
+
+                    try:
+                        async with asyncio_timeout(
+                            ROUTE_STATUS_TIMEOUT_BATTERY
+                            if packet.extended_timeout
+                            else ROUTE_STATUS_TIMEOUT_MAINS
+                        ):
+                            route_status = await route_status_handler_future
+                    except asyncio.TimeoutError:
+                        route_status = None
+
+                    if route_status is not None:
+                        raise zigpy.exceptions.DeliveryError(
+                            f"Received a routing error: {route_status!r}", route_status
+                        )
+                finally:
+                    if route_status_handler_future is not None:
+                        self._request_status_handlers[packet.dst.address].remove(
+                            route_status_handler_future
                         )
 
     async def permit(self, time_s: int = 60, node: t.EmberNodeId = None) -> None:
@@ -1030,24 +1070,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     def handle_route_error(self, status: t.sl_Status, nwk: t.EmberNodeId) -> None:
         LOGGER.debug("Processing route error: status=%s, nwk=%s", status, nwk)
 
-        try:
-            device = self.get_device(nwk=nwk)
-        except KeyError:
+        handlers = self._request_status_handlers[nwk]
+        if not handlers:
             return
 
-        # XXX: We cannot handle routing errors directly if there is more than a single
-        # pending request. Should we delay this matching for 500ms to be able to fix
-        # this?
-        if len(device._pending) != 1:
-            LOGGER.debug(
-                "Device has %d pending requests, cannot uniquely assign error",
-                len(device._pending),
-            )
-            return
-
-        key = list(device._pending.keys())[0]
-        exc = zigpy.exceptions.DeliveryError(
-            f"Received a routing error: {status!r}", status
-        )
-
-        device._pending[key].result.set_exception(exc)
+        handlers.popleft().set_result(status)
