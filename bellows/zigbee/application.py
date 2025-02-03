@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import defaultdict, deque
+import contextlib
 from datetime import datetime, timezone
 import logging
 import os
@@ -946,9 +947,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                         )
                 finally:
                     if route_status_handler_future is not None:
-                        self._request_status_handlers[packet.dst.address].remove(
-                            route_status_handler_future
-                        )
+                        with contextlib.suppress(ValueError):
+                            self._request_status_handlers[packet.dst.address].remove(
+                                route_status_handler_future
+                            )
 
     async def permit(self, time_s: int = 60, node: t.EmberNodeId = None) -> None:
         """Permit joining."""
@@ -1066,6 +1068,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             "Processing route record request: %s", (nwk, ieee, lqi, rssi, relays)
         )
         self.handle_relays(nwk=nwk, relays=relays)
+
+        handlers = self._request_status_handlers[nwk]
+        if not handlers:
+            return
+
+        handlers.popleft().set_result(None)
 
     def handle_route_error(self, status: t.sl_Status, nwk: t.EmberNodeId) -> None:
         LOGGER.debug("Processing route error: status=%s, nwk=%s", status, nwk)
