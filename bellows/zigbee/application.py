@@ -81,7 +81,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         {zigpy.config.CONF_DEVICE_BAUDRATE: 57600},
     ]
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict) -> None:
         super().__init__(config)
         self._ctrl_event = asyncio.Event()
         self._created_device_endpoints: list[zdo_t.SimpleDescriptor] = []
@@ -1029,3 +1029,25 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def handle_route_error(self, status: t.sl_Status, nwk: t.EmberNodeId) -> None:
         LOGGER.debug("Processing route error: status=%s, nwk=%s", status, nwk)
+
+        try:
+            device = self.get_device(nwk=nwk)
+        except KeyError:
+            return
+
+        # XXX: We cannot handle routing errors directly if there is more than a single
+        # pending request. Should we delay this matching for 500ms to be able to fix
+        # this?
+        if len(device._pending) != 1:
+            LOGGER.debug(
+                "Device has %d pending requests, cannot uniquely assign error",
+                len(device._pending),
+            )
+            return
+
+        key = list(device._pending.keys())[0]
+        exc = zigpy.exceptions.DeliveryError(
+            f"Received a routing error: {status!r}", status
+        )
+
+        device._pending[key].result.set_exception(exc)
