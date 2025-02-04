@@ -738,31 +738,25 @@ async def _test_send_packet_unicast(
     app,
     packet,
     *,
-    statuses=(bellows.types.sl_Status.OK,),
+    status=bellows.types.sl_Status.OK,
     options=t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY,
 ):
     def send_unicast(*args, **kwargs):
-        nonlocal statuses
-
-        status = statuses[0]
-        statuses = statuses[1:]
-
-        if not statuses:
-            asyncio.get_running_loop().call_later(
-                0.01,
-                app.ezsp_callback_handler,
-                "messageSentHandler",
-                list(
-                    dict(
-                        type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
-                        indexOrDestination=0x1234,
-                        apsFrame=sentinel.aps,
-                        messageTag=sentinel.msg_tag,
-                        status=status,
-                        message=b"",
-                    ).values()
-                ),
-            )
+        asyncio.get_running_loop().call_later(
+            0.01,
+            app.ezsp_callback_handler,
+            "messageSentHandler",
+            list(
+                dict(
+                    type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+                    indexOrDestination=0x1234,
+                    apsFrame=sentinel.aps,
+                    messageTag=sentinel.msg_tag,
+                    status=status,
+                    message=b"",
+                ).values()
+            ),
+        )
 
         return [status, 0x12]
 
@@ -771,12 +765,9 @@ async def _test_send_packet_unicast(
     )
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
-    expected_unicast_calls = len(statuses)
-
     await app.send_packet(packet)
-    assert app._ezsp.send_unicast.call_count == expected_unicast_calls
 
-    assert app._ezsp.send_unicast.mock_calls[-1] == (
+    assert app._ezsp.send_unicast.mock_calls == [
         call(
             nwk=t.EmberNodeId(0x1234),
             aps_frame=t.EmberApsFrame(
@@ -791,7 +782,7 @@ async def _test_send_packet_unicast(
             message_tag=sentinel.msg_tag,
             data=b"some data",
         )
-    )
+    ]
 
     assert len(app._pending) == 0
 
@@ -902,17 +893,13 @@ async def test_send_packet_unicast_extended_timeout(app, ieee, packet):
 
 async def test_send_packet_unicast_unexpected_failure(app, packet):
     with pytest.raises(zigpy.exceptions.DeliveryError):
-        await _test_send_packet_unicast(
-            app, packet, statuses=(t.EmberStatus.ERR_FATAL,)
-        )
+        await _test_send_packet_unicast(app, packet, status=t.EmberStatus.ERR_FATAL)
 
 
 async def test_send_packet_unicast_retries_failure(app, packet):
     with pytest.raises(zigpy.exceptions.DeliveryError):
         await _test_send_packet_unicast(
-            app,
-            packet,
-            statuses=(bellows.types.sl_Status.ALLOCATION_FAILED,) * 3,
+            app, packet, status=bellows.types.sl_Status.ALLOCATION_FAILED
         )
 
 
