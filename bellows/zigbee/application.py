@@ -886,12 +886,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             data=packet.data.serialize(),
                         )
 
-                        route_status_handler_future = (
-                            asyncio.get_running_loop().create_future()
-                        )
-                        self._request_status_handlers[packet.dst.address].append(
-                            route_status_handler_future
-                        )
+                        if packet.extended_timeout:
+                            route_status_handler_future = (
+                                asyncio.get_running_loop().create_future()
+                            )
+                            self._request_status_handlers[packet.dst.address].append(
+                                route_status_handler_future
+                            )
                     elif packet.dst.addr_mode == zigpy.types.AddrMode.Group:
                         status, _ = await self._ezsp.send_multicast(
                             aps_frame=aps_frame,
@@ -931,12 +932,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             f"Failed to deliver message: {send_status!r}", send_status
                         )
 
+                    # Only wait for routing status notifications for messages sent
+                    # indirectly
+                    if not packet.extended_timeout:
+                        return
+
                     try:
-                        async with asyncio_timeout(
-                            ROUTE_STATUS_TIMEOUT_BATTERY
-                            if packet.extended_timeout
-                            else ROUTE_STATUS_TIMEOUT_MAINS
-                        ):
+                        async with asyncio_timeout(ROUTE_STATUS_TIMEOUT_BATTERY):
                             route_status = await route_status_handler_future
                     except asyncio.TimeoutError:
                         route_status = None
