@@ -739,10 +739,7 @@ async def _test_send_packet_unicast(
     packet,
     *,
     statuses=(bellows.types.sl_Status.OK,),
-    options=(
-        t.EmberApsOption.APS_OPTION_RETRY
-        | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-    ),
+    options=t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY,
 ):
     def send_unicast(*args, **kwargs):
         nonlocal statuses
@@ -841,10 +838,7 @@ async def test_send_packet_unicast_source_route(make_app, packet):
     await _test_send_packet_unicast(
         app,
         packet,
-        options=(
-            t.EmberApsOption.APS_OPTION_RETRY
-            | t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
-        ),
+        options=t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY,
     )
 
     app._ezsp._protocol.set_source_route.assert_called_once_with(
@@ -871,10 +865,7 @@ async def test_send_packet_unicast_manual_source_route(make_app, packet):
     await _test_send_packet_unicast(
         app,
         packet,
-        options=(
-            t.EmberApsOption.APS_OPTION_RETRY
-            | t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
-        ),
+        options=t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY,
     )
 
     app._ezsp.xncp_set_manual_source_route.assert_called_once_with(
@@ -886,6 +877,19 @@ async def test_send_packet_unicast_manual_source_route(make_app, packet):
 async def test_send_packet_unicast_extended_timeout(app, ieee, packet):
     app.add_device(nwk=packet.dst.address, ieee=ieee)
 
+    asyncio.get_running_loop().call_later(
+        0.1,
+        app.ezsp_callback_handler,
+        "incomingRouteRecordHandler",
+        {
+            "source": packet.dst.address,
+            "sourceEui": ieee,
+            "lastHopLqi": 123,
+            "lastHopRssi": -60,
+            "relayList": [0x1234],
+        }.values(),
+    )
+
     await _test_send_packet_unicast(
         app,
         packet.replace(extended_timeout=True),
@@ -896,19 +900,6 @@ async def test_send_packet_unicast_extended_timeout(app, ieee, packet):
     ]
 
 
-@patch("bellows.zigbee.application.RETRY_DELAYS", [0.01, 0.01, 0.01])
-async def test_send_packet_unicast_retries_success(app, packet):
-    await _test_send_packet_unicast(
-        app,
-        packet,
-        statuses=(
-            bellows.types.sl_Status.ALLOCATION_FAILED,
-            bellows.types.sl_Status.ALLOCATION_FAILED,
-            bellows.types.sl_Status.OK,
-        ),
-    )
-
-
 async def test_send_packet_unicast_unexpected_failure(app, packet):
     with pytest.raises(zigpy.exceptions.DeliveryError):
         await _test_send_packet_unicast(
@@ -916,17 +907,12 @@ async def test_send_packet_unicast_unexpected_failure(app, packet):
         )
 
 
-@patch("bellows.zigbee.application.RETRY_DELAYS", [0.01, 0.01, 0.01])
 async def test_send_packet_unicast_retries_failure(app, packet):
     with pytest.raises(zigpy.exceptions.DeliveryError):
         await _test_send_packet_unicast(
             app,
             packet,
-            statuses=(
-                bellows.types.sl_Status.ALLOCATION_FAILED,
-                bellows.types.sl_Status.ALLOCATION_FAILED,
-                bellows.types.sl_Status.ALLOCATION_FAILED,
-            ),
+            statuses=(bellows.types.sl_Status.ALLOCATION_FAILED,) * 3,
         )
 
 
@@ -1023,10 +1009,7 @@ async def test_send_packet_broadcast(app, packet):
                 clusterId=packet.cluster_id,
                 sourceEndpoint=packet.src_ep,
                 destinationEndpoint=packet.dst_ep,
-                options=(
-                    t.EmberApsOption.APS_OPTION_RETRY
-                    | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-                ),
+                options=t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY,
                 groupId=0x0000,
                 sequence=packet.tsn,
             ),
@@ -1074,10 +1057,7 @@ async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
                 clusterId=packet.cluster_id,
                 sourceEndpoint=packet.src_ep,
                 destinationEndpoint=packet.dst_ep,
-                options=(
-                    t.EmberApsOption.APS_OPTION_RETRY
-                    | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-                ),
+                options=t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY,
                 groupId=0x0000,
                 sequence=packet.tsn,
             ),
@@ -1127,10 +1107,7 @@ async def test_send_packet_multicast(app, packet):
                 clusterId=packet.cluster_id,
                 sourceEndpoint=packet.src_ep,
                 destinationEndpoint=packet.dst_ep,
-                options=(
-                    t.EmberApsOption.APS_OPTION_RETRY
-                    | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-                ),
+                options=t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY,
                 groupId=0x1234,
                 sequence=packet.tsn,
             ),
