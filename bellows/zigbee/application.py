@@ -933,8 +933,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                         )
 
                     # Only wait for routing status notifications for messages sent
-                    # indirectly
-                    if not packet.extended_timeout:
+                    # indirectly, ignoring the coordinator
+                    if (
+                        not packet.extended_timeout
+                        or packet.dst.address == self.state.node_info.nwk
+                    ):
                         return
 
                     try:
