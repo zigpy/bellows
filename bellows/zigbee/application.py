@@ -846,6 +846,18 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             # Source routing uses address discovery to discover routes
             aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
 
+        extended_timeout = packet.extended_timeout
+
+        # EmberZNet requires retrying to enable APS ACKs
+        if (
+            zigpy.types.TransmitOptions.ACK in packet.tx_options
+            and packet.dst.addr_mode == zigpy.types.AddrMode.NWK
+        ):
+            aps_frame.options |= t.EmberApsOption.APS_OPTION_RETRY
+
+            # We disable extended timeout if we enable ACKs
+            extended_timeout = False
+
         route_status_handler_future: asyncio.Future | None = None
 
         async with self._limit_concurrency(priority=packet.priority):
@@ -854,11 +866,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             with self._pending.new(pending_tag) as req:
                 async with self._req_lock:
                     if packet.dst.addr_mode == zigpy.types.AddrMode.NWK:
-                        if packet.extended_timeout and device is not None:
+                        if device is not None:
                             await self._ezsp.set_extended_timeout(
                                 nwk=device.nwk,
                                 ieee=device.ieee,
-                                extended_timeout=True,
+                                extended_timeout=extended_timeout,
                             )
 
                         if packet.source_route is not None:

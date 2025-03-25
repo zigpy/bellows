@@ -739,7 +739,10 @@ async def _test_send_packet_unicast(
     packet,
     *,
     status=bellows.types.sl_Status.OK,
-    options=t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY,
+    options=(
+        t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+        | t.EmberApsOption.APS_OPTION_RETRY
+    ),
 ):
     def send_unicast(*args, **kwargs):
         asyncio.get_running_loop().call_later(
@@ -829,7 +832,10 @@ async def test_send_packet_unicast_source_route(make_app, packet):
     await _test_send_packet_unicast(
         app,
         packet,
-        options=t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY,
+        options=(
+            t.EmberApsOption.APS_OPTION_RETRY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
+        ),
     )
 
     app._ezsp._protocol.set_source_route.assert_called_once_with(
@@ -856,7 +862,10 @@ async def test_send_packet_unicast_manual_source_route(make_app, packet):
     await _test_send_packet_unicast(
         app,
         packet,
-        options=t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY,
+        options=(
+            t.EmberApsOption.APS_OPTION_RETRY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
+        ),
     )
 
     app._ezsp.xncp_set_manual_source_route.assert_called_once_with(
@@ -865,7 +874,7 @@ async def test_send_packet_unicast_manual_source_route(make_app, packet):
     )
 
 
-async def test_send_packet_unicast_extended_timeout(app, ieee, packet):
+async def test_send_packet_unicast_extended_timeout_with_acks(app, ieee, packet):
     app.add_device(nwk=packet.dst.address, ieee=ieee)
 
     asyncio.get_running_loop().call_later(
@@ -883,9 +892,44 @@ async def test_send_packet_unicast_extended_timeout(app, ieee, packet):
 
     await _test_send_packet_unicast(
         app,
-        packet.replace(extended_timeout=True),
+        packet.replace(
+            extended_timeout=True,
+            tx_options=zigpy.types.TransmitOptions.ACK,
+        ),
     )
 
+    # With APS ACK, we do not use extended timeouts
+    assert app._ezsp._protocol.set_extended_timeout.mock_calls == [
+        call(nwk=packet.dst.address, ieee=ieee, extended_timeout=False)
+    ]
+
+
+async def test_send_packet_unicast_extended_timeout_without_acks(app, ieee, packet):
+    app.add_device(nwk=packet.dst.address, ieee=ieee)
+
+    asyncio.get_running_loop().call_later(
+        0.1,
+        app.ezsp_callback_handler,
+        "incomingRouteRecordHandler",
+        {
+            "source": packet.dst.address,
+            "sourceEui": ieee,
+            "lastHopLqi": 123,
+            "lastHopRssi": -60,
+            "relayList": [0x1234],
+        }.values(),
+    )
+
+    await _test_send_packet_unicast(
+        app,
+        packet.replace(
+            extended_timeout=True,
+            tx_options=zigpy.types.TransmitOptions.NONE,
+        ),
+        options=t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY,
+    )
+
+    # Without APS ACKs, we can
     assert app._ezsp._protocol.set_extended_timeout.mock_calls == [
         call(nwk=packet.dst.address, ieee=ieee, extended_timeout=True)
     ]
