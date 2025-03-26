@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from collections import defaultdict, deque
-import contextlib
 from datetime import datetime, timezone
 import logging
 import os
@@ -856,8 +855,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             # We disable extended timeout if we enable ACKs
             extended_timeout = False
 
-        route_status_handler_future: asyncio.Future | None = None
-
         async with self._limit_concurrency(priority=packet.priority):
             message_tag = self.get_sequence()
             pending_tag = (packet.dst.address, message_tag)
@@ -895,17 +892,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             message_tag=message_tag,
                             data=packet.data.serialize(),
                         )
-
-                        if (
-                            packet.extended_timeout
-                            and zigpy.types.TransmitOptions.ACK not in packet.tx_options
-                        ):
-                            route_status_handler_future = (
-                                asyncio.get_running_loop().create_future()
-                            )
-                            self._request_status_handlers[packet.dst.address].append(
-                                route_status_handler_future
-                            )
                     elif packet.dst.addr_mode == zigpy.types.AddrMode.Group:
                         status, _ = await self._ezsp.send_multicast(
                             aps_frame=aps_frame,
@@ -924,50 +910,29 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             data=packet.data.serialize(),
                         )
 
-                try:
-                    if status != t.sl_Status.OK:
-                        raise zigpy.exceptions.DeliveryError(
-                            f"Failed to enqueue message: {status!r}", status
-                        )
+                if status != t.sl_Status.OK:
+                    raise zigpy.exceptions.DeliveryError(
+                        f"Failed to enqueue message: {status!r}", status
+                    )
 
-                    # Only throw a delivery exception for packets sent with NWK addressing.
-                    # https://github.com/home-assistant/core/issues/79832
-                    # Broadcasts/multicasts don't have ACKs or confirmations either.
-                    if packet.dst.addr_mode != zigpy.types.AddrMode.NWK:
-                        return
+                # Only throw a delivery exception for packets sent with NWK addressing.
+                # https://github.com/home-assistant/core/issues/79832
+                # Broadcasts/multicasts don't have ACKs or confirmations either.
+                if packet.dst.addr_mode != zigpy.types.AddrMode.NWK:
+                    return
 
-                    # Wait for `messageSentHandler` message
-                    async with asyncio_timeout(
-                        MESSAGE_SEND_TIMEOUT_MAINS
-                        if not packet.extended_timeout
-                        else MESSAGE_SEND_TIMEOUT_BATTERY
-                    ):
-                        send_status, _ = await req.result
+                # Wait for `messageSentHandler` message
+                async with asyncio_timeout(
+                    MESSAGE_SEND_TIMEOUT_MAINS
+                    if not packet.extended_timeout
+                    else MESSAGE_SEND_TIMEOUT_BATTERY
+                ):
+                    send_status, _ = await req.result
 
-                    if t.sl_Status.from_ember_status(send_status) != t.sl_Status.OK:
-                        raise zigpy.exceptions.DeliveryError(
-                            f"Failed to deliver message: {send_status!r}", send_status
-                        )
-
-                    if route_status_handler_future is None:
-                        return
-
-                    try:
-                        async with asyncio_timeout(MESSAGE_SEND_TIMEOUT_BATTERY):
-                            route_status = await route_status_handler_future
-                    except asyncio.TimeoutError:
-                        route_status = None
-
-                    if route_status is not None:
-                        raise zigpy.exceptions.DeliveryError(
-                            f"Received a routing error: {route_status!r}", route_status
-                        )
-                finally:
-                    if route_status_handler_future is not None:
-                        with contextlib.suppress(ValueError):
-                            self._request_status_handlers[packet.dst.address].remove(
-                                route_status_handler_future
-                            )
+                if t.sl_Status.from_ember_status(send_status) != t.sl_Status.OK:
+                    raise zigpy.exceptions.DeliveryError(
+                        f"Failed to deliver message: {send_status!r}", send_status
+                    )
 
     async def permit(self, time_s: int = 60, node: t.EmberNodeId = None) -> None:
         """Permit joining."""
@@ -1088,9 +1053,3 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def handle_route_error(self, status: t.sl_Status, nwk: t.EmberNodeId) -> None:
         LOGGER.debug("Processing route error: status=%s, nwk=%s", status, nwk)
-
-        handlers = self._request_status_handlers[nwk]
-        if not handlers:
-            return
-
-        handlers.popleft().set_result(status)

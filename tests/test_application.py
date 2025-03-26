@@ -977,29 +977,6 @@ async def test_send_packet_unicast_routing_error(
         )
 
 
-async def test_send_packet_unicast_routing_error_indirect(
-    app: ControllerApplication, packet
-) -> None:
-    with pytest.raises(zigpy.exceptions.DeliveryError):
-        asyncio.get_running_loop().call_later(
-            0.03,
-            app.ezsp_callback_handler,
-            "incomingRouteErrorHandler",
-            [t.EmberStatus.MAC_INDIRECT_TIMEOUT, packet.dst.address],
-        )
-
-        await _test_send_packet_unicast(
-            app,
-            # Without APS ACKs, we rely on route failures to notify of errors
-            packet.replace(
-                extended_timeout=True, tx_options=zigpy_t.TransmitOptions.NONE
-            ),
-            options=t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY,
-            status=t.EmberStatus.SUCCESS,
-            sent_handler_status=t.EmberStatus.SUCCESS,
-        )
-
-
 async def test_send_packet_unicast_concurrency(app, packet, monkeypatch):
     monkeypatch.setattr(bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_MAINS", 0.5)
     monkeypatch.setattr(bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_BATTERY", 0.5)
