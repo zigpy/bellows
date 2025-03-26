@@ -43,8 +43,9 @@ from bellows.zigbee import repairs
 from bellows.zigbee.device import EZSPEndpoint, EZSPGroupEndpoint
 import bellows.zigbee.util as util
 
-APS_ACK_TIMEOUT = 120
-RETRY_DELAYS = [0.5, 1.0, 1.5]
+MESSAGE_SEND_TIMEOUT_MAINS = 0.7
+MESSAGE_SEND_TIMEOUT_BATTERY = 8
+
 COUNTER_EZSP_BUFFERS = "EZSP_FREE_BUFFERS"
 COUNTER_NWK_CONFLICTS = "nwk_conflicts"
 COUNTER_RESET_REQ = "reset_requests"
@@ -82,7 +83,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         {zigpy.config.CONF_DEVICE_BAUDRATE: 57600},
     ]
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict) -> None:
         super().__init__(config)
         self._ctrl_event = asyncio.Event()
         self._created_device_endpoints: list[zdo_t.SimpleDescriptor] = []
@@ -826,7 +827,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.sourceEndpoint = t.uint8_t(packet.src_ep)
         aps_frame.destinationEndpoint = t.uint8_t(packet.dst_ep or 0)
         aps_frame.options = t.EmberApsOption.APS_OPTION_NONE
-        aps_frame.options |= t.EmberApsOption.APS_OPTION_RETRY
 
         if packet.dst.addr_mode == zigpy.types.AddrMode.Group:
             aps_frame.groupId = t.uint16_t(packet.dst.address)
@@ -839,88 +839,76 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             # Source routing uses address discovery to discover routes
             aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
 
+        extended_timeout = packet.extended_timeout
+
+        # EmberZNet requires retrying to enable APS ACKs
+        if (
+            zigpy.types.TransmitOptions.ACK in packet.tx_options
+            and packet.dst.addr_mode == zigpy.types.AddrMode.NWK
+        ):
+            aps_frame.options |= t.EmberApsOption.APS_OPTION_RETRY
+
+            # We disable extended timeout if we enable ACKs
+            extended_timeout = False
+
         async with self._limit_concurrency(priority=packet.priority):
             message_tag = self.get_sequence()
             pending_tag = (packet.dst.address, message_tag)
             with self._pending.new(pending_tag) as req:
-                for attempt, retry_delay in enumerate(RETRY_DELAYS):
-                    async with self._req_lock:
-                        if packet.dst.addr_mode == zigpy.types.AddrMode.NWK:
-                            if packet.extended_timeout and device is not None:
-                                await self._ezsp.set_extended_timeout(
-                                    nwk=device.nwk,
-                                    ieee=device.ieee,
-                                    extended_timeout=True,
+                async with self._req_lock:
+                    if packet.dst.addr_mode == zigpy.types.AddrMode.NWK:
+                        if device is not None:
+                            await self._ezsp.set_extended_timeout(
+                                nwk=device.nwk,
+                                ieee=device.ieee,
+                                extended_timeout=extended_timeout,
+                            )
+
+                        if packet.source_route is not None:
+                            if (
+                                FirmwareFeatures.MANUAL_SOURCE_ROUTE
+                                in self._ezsp._xncp_features
+                                and self.config[CONF_BELLOWS_CONFIG][
+                                    CONF_MANUAL_SOURCE_ROUTING
+                                ]
+                            ):
+                                await self._ezsp.xncp_set_manual_source_route(
+                                    nwk=packet.dst.address,
+                                    relays=packet.source_route,
+                                )
+                            else:
+                                await self._ezsp.set_source_route(
+                                    nwk=packet.dst.address,
+                                    relays=packet.source_route,
                                 )
 
-                            if packet.source_route is not None:
-                                if (
-                                    FirmwareFeatures.MANUAL_SOURCE_ROUTE
-                                    in self._ezsp._xncp_features
-                                    and self.config[CONF_BELLOWS_CONFIG][
-                                        CONF_MANUAL_SOURCE_ROUTING
-                                    ]
-                                ):
-                                    await self._ezsp.xncp_set_manual_source_route(
-                                        nwk=packet.dst.address,
-                                        relays=packet.source_route,
-                                    )
-                                else:
-                                    await self._ezsp.set_source_route(
-                                        nwk=packet.dst.address,
-                                        relays=packet.source_route,
-                                    )
-
-                            status, _ = await self._ezsp.send_unicast(
-                                nwk=packet.dst.address,
-                                aps_frame=aps_frame,
-                                message_tag=message_tag,
-                                data=packet.data.serialize(),
-                            )
-                        elif packet.dst.addr_mode == zigpy.types.AddrMode.Group:
-                            status, _ = await self._ezsp.send_multicast(
-                                aps_frame=aps_frame,
-                                radius=packet.radius,
-                                non_member_radius=packet.non_member_radius,
-                                message_tag=message_tag,
-                                data=packet.data.serialize(),
-                            )
-                        elif packet.dst.addr_mode == zigpy.types.AddrMode.Broadcast:
-                            status, _ = await self._ezsp.send_broadcast(
-                                address=packet.dst.address,
-                                aps_frame=aps_frame,
-                                radius=packet.radius,
-                                message_tag=message_tag,
-                                aps_sequence=packet.tsn,
-                                data=packet.data.serialize(),
-                            )
-
-                    if status == t.sl_Status.OK:
-                        break
-                    elif status not in (
-                        t.sl_Status.ZIGBEE_MAX_MESSAGE_LIMIT_REACHED,
-                        t.sl_Status.TRANSMIT_BUSY,
-                        t.sl_Status.ALLOCATION_FAILED,
-                    ):
-                        raise zigpy.exceptions.DeliveryError(
-                            f"Failed to enqueue message: {status!r}", status
+                        status, _ = await self._ezsp.send_unicast(
+                            nwk=packet.dst.address,
+                            aps_frame=aps_frame,
+                            message_tag=message_tag,
+                            data=packet.data.serialize(),
                         )
-                    else:
-                        if attempt < len(RETRY_DELAYS):
-                            LOGGER.debug(
-                                "Request %s failed to enqueue, retrying in %ss: %s",
-                                pending_tag,
-                                retry_delay,
-                                status,
-                            )
-                            await asyncio.sleep(retry_delay)
-                else:
+                    elif packet.dst.addr_mode == zigpy.types.AddrMode.Group:
+                        status, _ = await self._ezsp.send_multicast(
+                            aps_frame=aps_frame,
+                            radius=packet.radius,
+                            non_member_radius=packet.non_member_radius,
+                            message_tag=message_tag,
+                            data=packet.data.serialize(),
+                        )
+                    elif packet.dst.addr_mode == zigpy.types.AddrMode.Broadcast:
+                        status, _ = await self._ezsp.send_broadcast(
+                            address=packet.dst.address,
+                            aps_frame=aps_frame,
+                            radius=packet.radius,
+                            message_tag=message_tag,
+                            aps_sequence=packet.tsn,
+                            data=packet.data.serialize(),
+                        )
+
+                if status != t.sl_Status.OK:
                     raise zigpy.exceptions.DeliveryError(
-                        (
-                            f"Failed to enqueue message after {len(RETRY_DELAYS)}"
-                            f" attempts: {status!r}"
-                        ),
-                        status,
+                        f"Failed to enqueue message: {status!r}", status
                     )
 
                 # Only throw a delivery exception for packets sent with NWK addressing.
@@ -930,7 +918,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     return
 
                 # Wait for `messageSentHandler` message
-                async with asyncio_timeout(APS_ACK_TIMEOUT):
+                async with asyncio_timeout(
+                    MESSAGE_SEND_TIMEOUT_MAINS
+                    if not packet.extended_timeout
+                    else MESSAGE_SEND_TIMEOUT_BATTERY
+                ):
                     send_status, _ = await req.result
 
                 if t.sl_Status.from_ember_status(send_status) != t.sl_Status.OK:

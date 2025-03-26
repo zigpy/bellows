@@ -54,7 +54,12 @@ def make_app(monkeypatch, ieee):
         app._ezsp = _create_app_for_startup(
             app, nwk_type=t.EmberNodeType.COORDINATOR, ieee=ieee, **kwargs
         )
-        monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.05)
+        monkeypatch.setattr(
+            bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_MAINS", 0.05
+        )
+        monkeypatch.setattr(
+            bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_BATTERY", 0.05
+        )
         app._ctrl_event.set()
         app._in_flight_msg = asyncio.Semaphore()
         app.handle_message = MagicMock()
@@ -738,34 +743,29 @@ async def _test_send_packet_unicast(
     app,
     packet,
     *,
-    statuses=(bellows.types.sl_Status.OK,),
+    status=bellows.types.sl_Status.OK,
+    sent_handler_status=bellows.types.sl_Status.OK,
     options=(
-        t.EmberApsOption.APS_OPTION_RETRY
-        | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+        t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+        | t.EmberApsOption.APS_OPTION_RETRY
     ),
 ):
     def send_unicast(*args, **kwargs):
-        nonlocal statuses
-
-        status = statuses[0]
-        statuses = statuses[1:]
-
-        if not statuses:
-            asyncio.get_running_loop().call_later(
-                0.01,
-                app.ezsp_callback_handler,
-                "messageSentHandler",
-                list(
-                    dict(
-                        type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
-                        indexOrDestination=0x1234,
-                        apsFrame=sentinel.aps,
-                        messageTag=sentinel.msg_tag,
-                        status=status,
-                        message=b"",
-                    ).values()
-                ),
-            )
+        asyncio.get_running_loop().call_later(
+            0.01,
+            app.ezsp_callback_handler,
+            "messageSentHandler",
+            list(
+                dict(
+                    type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+                    indexOrDestination=0x1234,
+                    apsFrame=sentinel.aps,
+                    messageTag=sentinel.msg_tag,
+                    status=sent_handler_status,
+                    message=b"",
+                ).values()
+            ),
+        )
 
         return [status, 0x12]
 
@@ -774,12 +774,9 @@ async def _test_send_packet_unicast(
     )
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
-    expected_unicast_calls = len(statuses)
-
     await app.send_packet(packet)
-    assert app._ezsp.send_unicast.call_count == expected_unicast_calls
 
-    assert app._ezsp.send_unicast.mock_calls[-1] == (
+    assert app._ezsp.send_unicast.mock_calls == [
         call(
             nwk=t.EmberNodeId(0x1234),
             aps_frame=t.EmberApsFrame(
@@ -794,7 +791,7 @@ async def _test_send_packet_unicast(
             message_tag=sentinel.msg_tag,
             data=b"some data",
         )
-    )
+    ]
 
     assert len(app._pending) == 0
 
@@ -883,55 +880,106 @@ async def test_send_packet_unicast_manual_source_route(make_app, packet):
     )
 
 
-async def test_send_packet_unicast_extended_timeout(app, ieee, packet):
+async def test_send_packet_unicast_extended_timeout_with_acks(app, ieee, packet):
     app.add_device(nwk=packet.dst.address, ieee=ieee)
+
+    asyncio.get_running_loop().call_later(
+        0.1,
+        app.ezsp_callback_handler,
+        "incomingRouteRecordHandler",
+        {
+            "source": packet.dst.address,
+            "sourceEui": ieee,
+            "lastHopLqi": 123,
+            "lastHopRssi": -60,
+            "relayList": [0x1234],
+        }.values(),
+    )
 
     await _test_send_packet_unicast(
         app,
-        packet.replace(extended_timeout=True),
+        packet.replace(
+            extended_timeout=True,
+            tx_options=zigpy.types.TransmitOptions.ACK,
+        ),
     )
 
+    # With APS ACK, we do not use extended timeouts
+    assert app._ezsp._protocol.set_extended_timeout.mock_calls == [
+        call(nwk=packet.dst.address, ieee=ieee, extended_timeout=False)
+    ]
+
+
+async def test_send_packet_unicast_extended_timeout_without_acks(app, ieee, packet):
+    app.add_device(nwk=packet.dst.address, ieee=ieee)
+
+    asyncio.get_running_loop().call_later(
+        0.1,
+        app.ezsp_callback_handler,
+        "incomingRouteRecordHandler",
+        {
+            "source": packet.dst.address,
+            "sourceEui": ieee,
+            "lastHopLqi": 123,
+            "lastHopRssi": -60,
+            "relayList": [0x1234],
+        }.values(),
+    )
+
+    await _test_send_packet_unicast(
+        app,
+        packet.replace(
+            extended_timeout=True,
+            tx_options=zigpy.types.TransmitOptions.NONE,
+        ),
+        options=t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY,
+    )
+
+    # Without APS ACKs, we can
     assert app._ezsp._protocol.set_extended_timeout.mock_calls == [
         call(nwk=packet.dst.address, ieee=ieee, extended_timeout=True)
     ]
 
 
-@patch("bellows.zigbee.application.RETRY_DELAYS", [0.01, 0.01, 0.01])
-async def test_send_packet_unicast_retries_success(app, packet):
-    await _test_send_packet_unicast(
-        app,
-        packet,
-        statuses=(
-            bellows.types.sl_Status.ALLOCATION_FAILED,
-            bellows.types.sl_Status.ALLOCATION_FAILED,
-            bellows.types.sl_Status.OK,
-        ),
-    )
-
-
 async def test_send_packet_unicast_unexpected_failure(app, packet):
     with pytest.raises(zigpy.exceptions.DeliveryError):
+        await _test_send_packet_unicast(app, packet, status=t.EmberStatus.ERR_FATAL)
+
+
+async def test_send_packet_unicast_retries_failure(app, packet):
+    with pytest.raises(zigpy.exceptions.DeliveryError):
         await _test_send_packet_unicast(
-            app, packet, statuses=(t.EmberStatus.ERR_FATAL,)
+            app, packet, status=bellows.types.sl_Status.ALLOCATION_FAILED
         )
 
 
-@patch("bellows.zigbee.application.RETRY_DELAYS", [0.01, 0.01, 0.01])
-async def test_send_packet_unicast_retries_failure(app, packet):
+async def test_send_packet_unicast_delivery_failure_sent_handler(
+    app: ControllerApplication, packet
+) -> None:
     with pytest.raises(zigpy.exceptions.DeliveryError):
         await _test_send_packet_unicast(
             app,
             packet,
-            statuses=(
-                bellows.types.sl_Status.ALLOCATION_FAILED,
-                bellows.types.sl_Status.ALLOCATION_FAILED,
-                bellows.types.sl_Status.ALLOCATION_FAILED,
-            ),
+            status=t.EmberStatus.SUCCESS,
+            sent_handler_status=t.EmberStatus.DELIVERY_FAILED,
+        )
+
+
+async def test_send_packet_unicast_routing_error(
+    app: ControllerApplication, packet
+) -> None:
+    with pytest.raises(zigpy.exceptions.DeliveryError):
+        await _test_send_packet_unicast(
+            app,
+            packet,
+            status=t.EmberStatus.SUCCESS,
+            sent_handler_status=t.EmberStatus.DELIVERY_FAILED,
         )
 
 
 async def test_send_packet_unicast_concurrency(app, packet, monkeypatch):
-    monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.5)
+    monkeypatch.setattr(bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_MAINS", 0.5)
+    monkeypatch.setattr(bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_BATTERY", 0.5)
 
     app._concurrent_requests_semaphore.max_value = 10
 
@@ -1023,10 +1071,7 @@ async def test_send_packet_broadcast(app, packet):
                 clusterId=packet.cluster_id,
                 sourceEndpoint=packet.src_ep,
                 destinationEndpoint=packet.dst_ep,
-                options=(
-                    t.EmberApsOption.APS_OPTION_RETRY
-                    | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-                ),
+                options=t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY,
                 groupId=0x0000,
                 sequence=packet.tsn,
             ),
@@ -1074,10 +1119,7 @@ async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
                 clusterId=packet.cluster_id,
                 sourceEndpoint=packet.src_ep,
                 destinationEndpoint=packet.dst_ep,
-                options=(
-                    t.EmberApsOption.APS_OPTION_RETRY
-                    | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-                ),
+                options=t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY,
                 groupId=0x0000,
                 sequence=packet.tsn,
             ),
@@ -1127,10 +1169,7 @@ async def test_send_packet_multicast(app, packet):
                 clusterId=packet.cluster_id,
                 sourceEndpoint=packet.src_ep,
                 destinationEndpoint=packet.dst_ep,
-                options=(
-                    t.EmberApsOption.APS_OPTION_RETRY
-                    | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-                ),
+                options=t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY,
                 groupId=0x1234,
                 sequence=packet.tsn,
             ),
