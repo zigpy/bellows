@@ -45,10 +45,8 @@ from bellows.zigbee import repairs
 from bellows.zigbee.device import EZSPEndpoint, EZSPGroupEndpoint
 import bellows.zigbee.util as util
 
-APS_ACK_TIMEOUT = 8
-
-ROUTE_STATUS_TIMEOUT_MAINS = 0.5
-ROUTE_STATUS_TIMEOUT_BATTERY = 8
+MESSAGE_SEND_TIMEOUT_MAINS = 0.7
+MESSAGE_SEND_TIMEOUT_BATTERY = 8
 
 COUNTER_EZSP_BUFFERS = "EZSP_FREE_BUFFERS"
 COUNTER_NWK_CONFLICTS = "nwk_conflicts"
@@ -898,7 +896,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             data=packet.data.serialize(),
                         )
 
-                        if packet.extended_timeout:
+                        if (
+                            packet.extended_timeout
+                            and zigpy.types.TransmitOptions.ACK not in packet.tx_options
+                        ):
                             route_status_handler_future = (
                                 asyncio.get_running_loop().create_future()
                             )
@@ -936,7 +937,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                         return
 
                     # Wait for `messageSentHandler` message
-                    async with asyncio_timeout(APS_ACK_TIMEOUT):
+                    async with asyncio_timeout(
+                        MESSAGE_SEND_TIMEOUT_MAINS
+                        if not packet.extended_timeout
+                        else MESSAGE_SEND_TIMEOUT_BATTERY
+                    ):
                         send_status, _ = await req.result
 
                     if t.sl_Status.from_ember_status(send_status) != t.sl_Status.OK:
@@ -944,16 +949,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             f"Failed to deliver message: {send_status!r}", send_status
                         )
 
-                    # Only wait for routing status notifications for messages sent
-                    # indirectly, ignoring the coordinator
-                    if (
-                        not packet.extended_timeout
-                        or packet.dst.address == self.state.node_info.nwk
-                    ):
+                    if route_status_handler_future is None:
                         return
 
                     try:
-                        async with asyncio_timeout(ROUTE_STATUS_TIMEOUT_BATTERY):
+                        async with asyncio_timeout(MESSAGE_SEND_TIMEOUT_BATTERY):
                             route_status = await route_status_handler_future
                     except asyncio.TimeoutError:
                         route_status = None

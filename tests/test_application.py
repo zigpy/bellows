@@ -54,7 +54,12 @@ def make_app(monkeypatch, ieee):
         app._ezsp = _create_app_for_startup(
             app, nwk_type=t.EmberNodeType.COORDINATOR, ieee=ieee, **kwargs
         )
-        monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.05)
+        monkeypatch.setattr(
+            bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_MAINS", 0.05
+        )
+        monkeypatch.setattr(
+            bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_BATTERY", 0.05
+        )
         app._ctrl_event.set()
         app._in_flight_msg = asyncio.Semaphore()
         app.handle_message = MagicMock()
@@ -739,6 +744,7 @@ async def _test_send_packet_unicast(
     packet,
     *,
     status=bellows.types.sl_Status.OK,
+    sent_handler_status=bellows.types.sl_Status.OK,
     options=(
         t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
         | t.EmberApsOption.APS_OPTION_RETRY
@@ -755,7 +761,7 @@ async def _test_send_packet_unicast(
                     indexOrDestination=0x1234,
                     apsFrame=sentinel.aps,
                     messageTag=sentinel.msg_tag,
-                    status=status,
+                    status=sent_handler_status,
                     message=b"",
                 ).values()
             ),
@@ -947,8 +953,33 @@ async def test_send_packet_unicast_retries_failure(app, packet):
         )
 
 
+async def test_send_packet_unicast_delivery_failure_sent_handler(
+    app: ControllerApplication, packet
+) -> None:
+    with pytest.raises(zigpy.exceptions.DeliveryError):
+        await _test_send_packet_unicast(
+            app,
+            packet,
+            status=t.EmberStatus.SUCCESS,
+            sent_handler_status=t.EmberStatus.DELIVERY_FAILED,
+        )
+
+
+async def test_send_packet_unicast_routing_error(
+    app: ControllerApplication, packet
+) -> None:
+    with pytest.raises(zigpy.exceptions.DeliveryError):
+        await _test_send_packet_unicast(
+            app,
+            packet,
+            status=t.EmberStatus.SUCCESS,
+            sent_handler_status=t.EmberStatus.DELIVERY_FAILED,
+        )
+
+
 async def test_send_packet_unicast_concurrency(app, packet, monkeypatch):
-    monkeypatch.setattr(bellows.zigbee.application, "APS_ACK_TIMEOUT", 0.5)
+    monkeypatch.setattr(bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_MAINS", 0.5)
+    monkeypatch.setattr(bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_BATTERY", 0.5)
 
     app._concurrent_requests_semaphore.max_value = 10
 
