@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from collections import defaultdict, deque
 from datetime import datetime, timezone
 import logging
 import os
@@ -97,9 +96,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         self._req_lock = asyncio.Lock()
         self._packet_capture_channel: int | None = None
-        self._request_status_handlers: defaultdict[
-            t.EmberNodeId, deque[asyncio.Future]
-        ] = defaultdict(deque)
 
     @property
     def controller_event(self):
