@@ -1086,12 +1086,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         )
         self.handle_relays(nwk=nwk, relays=relays)
 
-        handlers = self._request_status_handlers[nwk]
-        if not handlers:
-            return
-
-        handlers.popleft().set_result(None)
-
     def handle_route_error(self, status: t.sl_Status, nwk: t.EmberNodeId) -> None:
         LOGGER.debug("Processing route error: status=%s, nwk=%s", status, nwk)
 
