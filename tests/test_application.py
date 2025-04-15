@@ -2155,3 +2155,78 @@ async def test_packet_capture_failure(app: ControllerApplication) -> None:
     with pytest.raises(zigpy.exceptions.ControllerException):
         async for packet in app.packet_capture(channel=15):
             pass
+
+
+async def test_migration_failure_eui64_overwrite_confirmation(
+    app: ControllerApplication,
+    zigpy_backup: zigpy.backups.NetworkBackup,
+) -> None:
+    app._ezsp.can_rewrite_custom_eui64 = AsyncMock(return_value=False)
+
+    # Migration explicitly fails if we need to write the EUI64 but the adapter treats it
+    # as a write-once operation
+    with pytest.raises(
+        zigpy.exceptions.ControllerException,
+        match=(
+            "Please upgrade your adapter firmware. The adapter IEEE address needs to be"
+            " replaced and firmware 'Mock version' does not support writing it multiple"
+            " times."
+        ),
+    ):
+        with patch.object(app, "_reset"):
+            await app.write_network_info(
+                node_info=zigpy_backup.node_info.replace(
+                    ieee=t.EUI64.convert("aa:aa:aa:aa:aa:aa:aa:aa")
+                ),
+                network_info=zigpy_backup.network_info,
+            )
+
+    # Even if we opt in, if the adapter doesn't support it, we can't do anything
+    with patch.object(app, "_reset"), patch.object(
+        app._ezsp, "write_custom_eui64", wraps=app._ezsp.write_custom_eui64
+    ), patch.object(app._ezsp, "can_burn_userdata_custom_eui64", return_value=False):
+        with pytest.raises(
+            zigpy.exceptions.ControllerException,
+            match=(
+                "Please upgrade your adapter firmware. The adapter IEEE address has"
+                " been overwritten and firmware 'Mock version' does not support writing"
+                " it a second time."
+            ),
+        ):
+            await app.write_network_info(
+                node_info=zigpy_backup.node_info.replace(
+                    ieee=t.EUI64.convert("aa:aa:aa:aa:aa:aa:aa:aa")
+                ),
+                network_info=zigpy_backup.network_info.replace(
+                    stack_specific={
+                        "ezsp": {
+                            **zigpy_backup.network_info.stack_specific["ezsp"],
+                            "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it": True,
+                        }
+                    }
+                ),
+            )
+
+        assert app._ezsp.write_custom_eui64.mock_calls == []
+
+    # It works if everything is correct
+    with patch.object(app, "_reset"), patch.object(
+        app._ezsp, "write_custom_eui64"
+    ), patch.object(app._ezsp, "can_burn_userdata_custom_eui64", return_value=True):
+        await app.write_network_info(
+            node_info=zigpy_backup.node_info.replace(
+                ieee=t.EUI64.convert("aa:aa:aa:aa:aa:aa:aa:aa")
+            ),
+            network_info=zigpy_backup.network_info.replace(
+                stack_specific={
+                    "ezsp": {
+                        **zigpy_backup.network_info.stack_specific["ezsp"],
+                        "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it": True,
+                    }
+                }
+            ),
+        )
+
+        assert app._ezsp.write_custom_eui64.mock_calls == [
+            call(t.EUI64.convert("aa:aa:aa:aa:aa:aa:aa:aa"), burn_into_userdata=True)
+        ]
