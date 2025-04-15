@@ -43,7 +43,7 @@ from bellows.zigbee import repairs
 from bellows.zigbee.device import EZSPEndpoint, EZSPGroupEndpoint
 import bellows.zigbee.util as util
 
-MESSAGE_SEND_TIMEOUT_MAINS = 0.7
+MESSAGE_SEND_TIMEOUT_MAINS = 3
 MESSAGE_SEND_TIMEOUT_BATTERY = 8
 
 COUNTER_EZSP_BUFFERS = "EZSP_FREE_BUFFERS"
