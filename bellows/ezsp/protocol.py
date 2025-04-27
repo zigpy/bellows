@@ -20,6 +20,7 @@ from zigpy.datastructures import PriorityDynamicBoundedSemaphore
 
 from bellows.config import CONF_EZSP_POLICIES
 from bellows.exception import InvalidCommandError
+from bellows.ezsp.fragmentation import FragmentManager
 import bellows.types as t
 
 if TYPE_CHECKING:
@@ -53,6 +54,8 @@ class ProtocolHandler(abc.ABC):
 
         # Cached by `set_extended_timeout` so subsequent calls are a little faster
         self._address_table_size: int | None = None
+        self._fragment_manager = FragmentManager()
+        self._fragment_ack_tasks: set[asyncio.Task] = set()
 
     def _ezsp_frame(self, name: str, *args: Any, **kwargs: Any) -> bytes:
         """Serialize the named frame and data."""
@@ -181,6 +184,52 @@ class ProtocolHandler(abc.ABC):
         if data:
             LOGGER.debug("Frame contains trailing data: %s", data)
 
+        if (
+            frame_name == "incomingMessageHandler"
+            and result[1].options & t.EmberApsOption.APS_OPTION_FRAGMENT
+        ):
+            # Extract received APS frame and sender
+            aps_frame = result[1]
+            sender = result[4]
+
+            # The fragment count and index are encoded in the groupId field
+            fragment_count = (aps_frame.groupId >> 8) & 0xFF
+            fragment_index = aps_frame.groupId & 0xFF
+
+            (
+                complete,
+                reassembled,
+                frag_count,
+                frag_index,
+            ) = self._fragment_manager.handle_incoming_fragment(
+                sender_nwk=sender,
+                aps_sequence=aps_frame.sequence,
+                profile_id=aps_frame.profileId,
+                cluster_id=aps_frame.clusterId,
+                fragment_count=fragment_count,
+                fragment_index=fragment_index,
+                payload=result[7],
+            )
+
+            ack_task = asyncio.create_task(
+                self._send_fragment_ack(sender, aps_frame, frag_count, frag_index)
+            )  # APS Ack
+
+            self._fragment_ack_tasks.add(ack_task)
+            ack_task.add_done_callback(lambda t: self._fragment_ack_tasks.discard(t))
+
+            if not complete:
+                # Do not pass partial data up the stack
+                LOGGER.debug("Fragment reassembly not complete. waiting for more data.")
+                return
+
+            # Replace partial data with fully reassembled data
+            result[7] = reassembled
+
+            LOGGER.debug(
+                "Reassembled fragmented message. Proceeding with normal handling."
+            )
+
         if sequence in self._awaiting:
             expected_id, schema, future = self._awaiting.pop(sequence)
             try:
@@ -204,6 +253,32 @@ class ProtocolHandler(abc.ABC):
                 )
         else:
             self._handle_callback(frame_name, result)
+
+    async def _send_fragment_ack(
+        self,
+        sender: int,
+        incoming_aps: t.EmberApsFrame,
+        fragment_count: int,
+        fragment_index: int,
+    ) -> t.EmberStatus:
+        ackFrame = t.EmberApsFrame(
+            profileId=incoming_aps.profileId,
+            clusterId=incoming_aps.clusterId,
+            sourceEndpoint=incoming_aps.destinationEndpoint,
+            destinationEndpoint=incoming_aps.sourceEndpoint,
+            options=incoming_aps.options,
+            groupId=((0xFF00) | (fragment_index & 0xFF)),
+            sequence=incoming_aps.sequence,
+        )
+
+        LOGGER.debug(
+            "Sending fragment ack to 0x%04X for fragment index=%d/%d",
+            sender,
+            fragment_index + 1,
+            fragment_count,
+        )
+        status = await self.sendReply(sender, ackFrame, b"")
+        return status[0]
 
     def __getattr__(self, name: str) -> Callable:
         if name not in self.COMMANDS:

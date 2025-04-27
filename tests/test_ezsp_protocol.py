@@ -133,3 +133,160 @@ async def test_parsing_schema_response(prot_hndl_v9):
 
     rsp = await coro
     assert rsp == GetTokenDataRsp(status=t.EmberStatus.LIBRARY_NOT_PRESENT)
+
+
+async def test_send_fragment_ack(prot_hndl, caplog):
+    """Test the _send_fragment_ack method."""
+    sender = 0x1D6F
+    incoming_aps = t.EmberApsFrame(
+        profileId=260,
+        clusterId=65281,
+        sourceEndpoint=2,
+        destinationEndpoint=2,
+        options=33088,
+        groupId=512,
+        sequence=238,
+    )
+    fragment_count = 2
+    fragment_index = 0
+
+    expected_ack_frame = t.EmberApsFrame(
+        profileId=260,
+        clusterId=65281,
+        sourceEndpoint=2,
+        destinationEndpoint=2,
+        options=33088,
+        groupId=((0xFF00) | (fragment_index & 0xFF)),
+        sequence=238,
+    )
+
+    with patch.object(prot_hndl, "sendReply", new=AsyncMock()) as mock_send_reply:
+        mock_send_reply.return_value = (t.EmberStatus.SUCCESS,)
+
+        caplog.set_level(logging.DEBUG)
+        status = await prot_hndl._send_fragment_ack(
+            sender, incoming_aps, fragment_count, fragment_index
+        )
+
+        # Assertions
+        assert status == t.EmberStatus.SUCCESS
+        assert (
+            "Sending fragment ack to 0x1d6f for fragment index=1/2".lower()
+            in caplog.text.lower()
+        )
+        mock_send_reply.assert_called_once_with(sender, expected_ack_frame, b"")
+
+
+async def test_incoming_fragmented_message_incomplete(prot_hndl, caplog):
+    """Test handling of an incomplete fragmented message."""
+    packet = b"\x90\x01\x45\x00\x05\x01\x01\xff\x02\x02\x40\x81\x00\x02\xee\xff\xf8\x6f\x1d\xff\xff\x01\xdd"
+
+    # Parse packet manually to extract parameters for assertions
+    sender = 0x1D6F
+    aps_frame = t.EmberApsFrame(
+        profileId=261,  # 0x0105
+        clusterId=65281,  # 0xFF01
+        sourceEndpoint=2,  # 0x02
+        destinationEndpoint=2,  # 0x02
+        options=33088,  # 0x8140 (APS_OPTION_FRAGMENT + others)
+        groupId=512,  # 0x0002 (fragment_count=2, fragment_index=0)
+        sequence=238,  # 0xEE
+    )
+
+    with patch.object(prot_hndl, "_send_fragment_ack", new=AsyncMock()) as mock_ack:
+        mock_ack.return_value = None
+
+        caplog.set_level(logging.DEBUG)
+        prot_hndl(packet)
+
+        assert len(prot_hndl._fragment_ack_tasks) == 1
+        ack_task = next(iter(prot_hndl._fragment_ack_tasks))
+        await asyncio.gather(ack_task)  # Ensure task completes and triggers callback
+        assert (
+            len(prot_hndl._fragment_ack_tasks) == 0
+        ), "Done callback should have removed task"
+
+        prot_hndl._handle_callback.assert_not_called()
+        assert "Fragment reassembly not complete. waiting for more data." in caplog.text
+        mock_ack.assert_called_once_with(sender, aps_frame, 2, 0)
+
+
+async def test_incoming_fragmented_message_complete(prot_hndl, caplog):
+    """Test handling of a complete fragmented message."""
+    packet1 = (
+        b"\x90\x01\x45\x00\x04\x01\x01\xff\x02\x02\x40\x81\x00\x02\xee\xff\xf8\x6f\x1d\xff\xff\x09"
+        + b"complete "
+    )  # fragment index 0
+    packet2 = (
+        b"\x90\x01\x45\x00\x04\x01\x01\xff\x02\x02\x40\x81\x01\x02\xee\xff\xf8\x6f\x1d\xff\xff\x07"
+        + b"message"
+    )  # fragment index 1
+    sender = 0x1D6F
+
+    aps_frame_1 = t.EmberApsFrame(
+        profileId=260,
+        clusterId=65281,
+        sourceEndpoint=2,
+        destinationEndpoint=2,
+        options=33088,  # Includes APS_OPTION_FRAGMENT
+        groupId=512,  # fragment_count=2, fragment_index=0
+        sequence=238,
+    )
+    aps_frame_2 = t.EmberApsFrame(
+        profileId=260,
+        clusterId=65281,
+        sourceEndpoint=2,
+        destinationEndpoint=2,
+        options=33088,
+        groupId=513,  # fragment_count=2, fragment_index=1
+        sequence=238,
+    )
+    reassembled = b"complete message"
+
+    with patch.object(prot_hndl, "_send_fragment_ack", new=AsyncMock()) as mock_ack:
+        mock_ack.return_value = None
+        caplog.set_level(logging.DEBUG)
+
+        # Packet 1
+        prot_hndl(packet1)
+        assert len(prot_hndl._fragment_ack_tasks) == 1
+        ack_task = next(iter(prot_hndl._fragment_ack_tasks))
+        await asyncio.gather(ack_task)  # Ensure task completes and triggers callback
+        assert (
+            len(prot_hndl._fragment_ack_tasks) == 0
+        ), "Done callback should have removed task"
+
+        prot_hndl._handle_callback.assert_not_called()
+        assert (
+            "Reassembled fragmented message. Proceeding with normal handling."
+            not in caplog.text
+        )
+        mock_ack.assert_called_with(sender, aps_frame_1, 2, 0)
+
+        # Packet 2
+        prot_hndl(packet2)
+        assert len(prot_hndl._fragment_ack_tasks) == 1
+        ack_task = next(iter(prot_hndl._fragment_ack_tasks))
+        await asyncio.gather(ack_task)  # Ensure task completes and triggers callback
+        assert (
+            len(prot_hndl._fragment_ack_tasks) == 0
+        ), "Done callback should have removed task"
+
+        prot_hndl._handle_callback.assert_called_once_with(
+            "incomingMessageHandler",
+            [
+                t.EmberIncomingMessageType.INCOMING_UNICAST,  # 0x00
+                aps_frame_2,  # Parsed APS frame
+                255,  # lastHopLqi: 0xFF
+                -8,  # lastHopRssi: 0xF8
+                sender,  # 0x1D6F
+                255,  # bindingIndex: 0xFF
+                255,  # addressIndex: 0xFF
+                reassembled,  # Reassembled payload
+            ],
+        )
+        assert (
+            "Reassembled fragmented message. Proceeding with normal handling."
+            in caplog.text
+        )
+        mock_ack.assert_called_with(sender, aps_frame_2, 2, 1)
