@@ -364,15 +364,18 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             elif not stack_specific.get(
                 "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it"
             ):
-                LOGGER.warning(
-                    "Current node's IEEE address (%s) does not match the backup's (%s)",
-                    current_eui64,
-                    node_info.ieee,
+                _, _, version = await self._get_board_info()
+                raise ControllerError(
+                    f"Please upgrade your adapter firmware. The adapter IEEE address"
+                    f" needs to be replaced and firmware {version!r} does not support"
+                    f" writing it multiple times."
                 )
             elif not await ezsp.can_burn_userdata_custom_eui64():
-                LOGGER.error(
-                    "Current node's IEEE address has already been written once. It"
-                    " cannot be written again without fully erasing the chip with JTAG."
+                _, _, version = await self._get_board_info()
+                raise ControllerError(
+                    f"Please upgrade your adapter firmware. The adapter IEEE address"
+                    f" has been overwritten and firmware {version!r} does not support"
+                    f" writing it a second time."
                 )
             else:
                 await ezsp.write_custom_eui64(node_info.ieee, burn_into_userdata=True)
