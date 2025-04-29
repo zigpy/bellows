@@ -941,6 +941,17 @@ async def test_send_packet_unicast_extended_timeout_without_acks(app, ieee, pack
     ]
 
 
+async def test_send_packet_unicast_force_route_discovery(app, packet):
+    await _test_send_packet_unicast(
+        app,
+        packet.replace(tx_options=zigpy.types.TransmitOptions.FORCE_ROUTE_DISCOVERY),
+        options=(
+            t.EmberApsOption.APS_OPTION_RETRY
+            | t.EmberApsOption.APS_OPTION_FORCE_ROUTE_DISCOVERY
+        ),
+    )
+
+
 async def test_send_packet_unicast_unexpected_failure(app, packet):
     with pytest.raises(zigpy.exceptions.DeliveryError):
         await _test_send_packet_unicast(app, packet, status=t.EmberStatus.ERR_FATAL)

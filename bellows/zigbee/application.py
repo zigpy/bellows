@@ -836,11 +836,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         else:
             aps_frame.groupId = t.uint16_t(0x0000)
 
-        if not self.config[zigpy.config.CONF_SOURCE_ROUTING]:
-            aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-        else:
+        if self.config[zigpy.config.CONF_SOURCE_ROUTING]:
             # Source routing uses address discovery to discover routes
             aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
+        elif zigpy.types.TransmitOptions.FORCE_ROUTE_DISCOVERY in packet.tx_options:
+            # Forcing route discovery requires retrying
+            aps_frame.options |= t.EmberApsOption.APS_OPTION_FORCE_ROUTE_DISCOVERY
+            aps_frame.options |= t.EmberApsOption.APS_OPTION_RETRY
+        else:
+            aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
 
         extended_timeout = packet.extended_timeout
 
