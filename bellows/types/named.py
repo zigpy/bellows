@@ -2789,9 +2789,31 @@ class SecurityManagerDerivedKeyTypeV13(basic.enum16):
     TC_HASHED_LINK_KEY = 5
 
 
-class SourceRouteDiscoveryMode(basic.enum8):
-    """Source route discovery mode."""
+class RouteRecordState(basic.enum8):
+    """Route record state for EmberRouteTableEntry."""
 
-    OFF = 0
-    ON = 1
-    RESCHEDULE = 2
+    NO_LONGER_NEEDED = 0
+    SENT = 1
+    NEEDED = 2
+
+
+class RouteRecordStatus(basic.enum8):
+    """Route record status for EmberRouteTableEntry."""
+
+    ACTIVE = 0
+    BEING_DISCOVERED = 1
+    # ??? = 2
+    UNUSED = 3
+    VALIDATING = 4
+
+    # The purpose of these is unknown but they are associated with an active route
+    ACTIVE_UNKNOWN_2 = 0x40
+    ACTIVE_UNKNOWN_3 = 0x80
+
+
+class RouteRecordConcentratortype(basic.enum8):
+    """Route record concentrator type for EmberRouteTableEntry."""
+
+    NOT_A_CONCENTRATOR = 0
+    LOW_RAM = 1
+    HIGH_RAM = 2

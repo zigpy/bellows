@@ -32,7 +32,12 @@ from bellows.config import (
     CONF_USE_THREAD,
     CONFIG_SCHEMA,
 )
-from bellows.exception import ControllerError, EzspError, StackAlreadyRunning
+from bellows.exception import (
+    ControllerError,
+    EzspError,
+    InvalidCommandError,
+    StackAlreadyRunning,
+)
 import bellows.ezsp
 from bellows.ezsp.xncp import FirmwareFeatures
 import bellows.multicast
@@ -246,18 +251,34 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._multicast = bellows.multicast.Multicast(ezsp)
             await self._multicast.startup(ezsp_device)
 
-        if self._config[zigpy.config.CONF_MAX_CONCURRENT_REQUESTS] in (
-            None,
-            zigpy.config.defaults.CONF_MAX_CONCURRENT_REQUESTS_DEFAULT,
-        ):
-            max_concurrent_requests = await self._ezsp.get_default_adapter_concurrency()
-        else:
-            max_concurrent_requests = self._config[
-                zigpy.config.CONF_MAX_CONCURRENT_REQUESTS
-            ]
+        backup = self.backups.most_recent_backup()
+        if backup is not None:
+            route_table = {
+                t.NWK.convert(dest): t.NWK.convert(next_hop)
+                for dest, next_hop in backup.network_info.metadata.get("ezsp", {})
+                .get("route_table", {})
+                .items()
+            }
+            await self._restore_route_table(route_table)
 
-        LOGGER.debug("Setting adapter concurrency to %d", max_concurrent_requests)
-        self._concurrent_requests_semaphore.max_concurrency = max_concurrent_requests
+    async def _restore_route_table(self, route_table: dict[t.NWK, t.NWK]) -> None:
+        if FirmwareFeatures.RESTORE_ROUTE_TABLE not in self._ezsp._xncp_features:
+            LOGGER.debug(
+                "Firmware does not support writing route table, cannot restore"
+            )
+            return
+
+        LOGGER.debug("Restoring route table: %s", route_table)
+
+        for index, (dest, next_hop) in enumerate(route_table.items()):
+            # We unconditionally restore route table entries
+            await self._ezsp.xncp_set_route_table_entry(
+                index=index,
+                destination=dest,
+                next_hop=next_hop,
+                status=t.RouteRecordStatus.ACTIVE_UNKNOWN_3,
+                cost=0,  # unused
+            )
 
     async def load_network_info(self, *, load_devices=False) -> None:
         ezsp = self._ezsp
@@ -352,6 +373,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     ),
                     # Z2M will not load EZSP backups without this internal key
                     "ezspVersion": ezsp.ezsp_version,
+                    "route_table": {},
                 },
             },
         )
@@ -368,6 +390,31 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         async for nwk, eui64 in ezsp.read_address_table():
             self.state.network_info.nwk_addresses[eui64] = nwk
+
+        if FirmwareFeatures.RESTORE_ROUTE_TABLE in ezsp._xncp_features:
+            route_table = self.state.network_info.metadata.setdefault(
+                "ezsp", {}
+            ).setdefault("route_table", {})
+
+            for index in range(255 + 1):
+                try:
+                    rsp = await ezsp.xncp_get_route_table_entry(index=index)
+                except InvalidCommandError:
+                    break
+
+                if (
+                    rsp.status
+                    not in (
+                        t.RouteRecordStatus.ACTIVE,
+                        t.RouteRecordStatus.ACTIVE_UNKNOWN_2,
+                        t.RouteRecordStatus.ACTIVE_UNKNOWN_3,
+                    )
+                    or rsp.destination == 0xFFFF
+                    or rsp.next_hop == 0xFFFF
+                ):
+                    continue
+
+                route_table[str(rsp.destination)[2:]] = str(rsp.next_hop)[2:]
 
     async def can_write_network_settings(
         self,
@@ -494,6 +541,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._reset()
 
         await self._ensure_network_running()
+
+        await self._restore_route_table(network_info.route_table)
 
     async def reset_network_info(self):
         await self._ezsp.factory_reset()
