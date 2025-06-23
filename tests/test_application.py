@@ -280,6 +280,10 @@ def _create_app_for_startup(
         t.EmberMulticastTableEntry(multicastId=0x0000, endpoint=0, networkIndex=0),
     )
     proto.setMulticastTableEntry.return_value = [t.EmberStatus.SUCCESS]
+    proto.setConcentrator.return_value = [t.EmberStatus.SUCCESS]
+
+    if ezsp_version >= 8:
+        proto.setSourceRouteDiscoveryMode.return_value = [12345]
 
     return ezsp_mock
 

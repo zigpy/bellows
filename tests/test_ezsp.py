@@ -407,14 +407,30 @@ async def test_board_info(
     assert (mfg, brd, ver) == expected
 
 
-async def test_set_source_routing(ezsp_f):
+async def test_set_enable_source_routing(ezsp_f):
     """Test enabling source routing."""
-
     ezsp_f.setConcentrator = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
     ezsp_f.setSourceRouteDiscoveryMode = AsyncMock()
 
-    await ezsp_f.set_source_routing()
+    await ezsp_f.set_source_routing(enabled=True)
     assert len(ezsp_f.setSourceRouteDiscoveryMode.mock_calls) == 1
+    assert (
+        ezsp_f.setSourceRouteDiscoveryMode.mock_calls[0].kwargs["mode"]
+        == t.SourceRouteDiscoveryMode.ON
+    )
+
+
+async def test_set_disable_source_routing(ezsp_f):
+    """Test disabling source routing."""
+    ezsp_f.setConcentrator = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
+    ezsp_f.setSourceRouteDiscoveryMode = AsyncMock()
+
+    await ezsp_f.set_source_routing(enabled=False)
+    assert len(ezsp_f.setSourceRouteDiscoveryMode.mock_calls) == 1
+    assert (
+        ezsp_f.setSourceRouteDiscoveryMode.mock_calls[0].kwargs["mode"]
+        == t.SourceRouteDiscoveryMode.OFF
+    )
 
 
 async def test_leave_network_error(ezsp_f):

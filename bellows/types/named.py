@@ -2646,3 +2646,11 @@ class SecurityManagerDerivedKeyTypeV13(basic.enum16):
     # For a TC using hashed link keys, hashed the root key against the supplied EUI in
     # context.
     TC_HASHED_LINK_KEY = 5
+
+
+class SourceRouteDiscoveryMode(basic.enum8):
+    """Source route discovery mode."""
+
+    OFF = 0
+    ON = 1
+    RESCHEDULE = 2
