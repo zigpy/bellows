@@ -409,7 +409,6 @@ async def test_board_info(
 
 async def test_set_enable_source_routing(ezsp_f):
     """Test enabling source routing."""
-
     ezsp_f.setConcentrator = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
     ezsp_f.setSourceRouteDiscoveryMode = AsyncMock()
 
@@ -423,7 +422,6 @@ async def test_set_enable_source_routing(ezsp_f):
 
 async def test_set_disable_source_routing(ezsp_f):
     """Test disabling source routing."""
-
     ezsp_f.setConcentrator = AsyncMock(return_value=(t.EmberStatus.SUCCESS,))
     ezsp_f.setSourceRouteDiscoveryMode = AsyncMock()
 
