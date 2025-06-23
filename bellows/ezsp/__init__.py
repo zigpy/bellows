@@ -532,10 +532,10 @@ class EZSP:
             except Exception as e:
                 LOGGER.exception("Exception running handler", exc_info=e)
 
-    async def set_source_routing(self) -> None:
+    async def set_source_routing(self, enabled: bool) -> None:
         """Enable source routing on NCP."""
         res = await self.setConcentrator(
-            on=True,
+            on=enabled,
             concentratorType=t.EmberConcentratorType.HIGH_RAM_CONCENTRATOR,
             minTime=MTOR_MIN_INTERVAL,
             maxTime=MTOR_MAX_INTERVAL,
@@ -548,7 +548,13 @@ class EZSP:
             LOGGER.warning("Couldn't set concentrator type %s: %s", True, res)
 
         if self._ezsp_version >= 8:
-            await self.setSourceRouteDiscoveryMode(mode=1)
+            await self.setSourceRouteDiscoveryMode(
+                mode=(
+                    t.SourceRouteDiscoveryMode.ON
+                    if enabled
+                    else t.SourceRouteDiscoveryMode.OFF
+                )
+            )
 
     def start_ezsp(self):
         """Mark EZSP as running."""

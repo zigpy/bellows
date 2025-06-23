@@ -196,7 +196,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             await self._ensure_network_running()
 
         if self.config[zigpy.config.CONF_SOURCE_ROUTING]:
-            await ezsp.set_source_routing()
+            await ezsp.set_source_routing(enabled=True)
+        else:
+            await ezsp.set_source_routing(enabled=False)
 
         await ezsp._protocol.update_policies(self.config[CONF_EZSP_POLICIES])
         await self.load_network_info(load_devices=False)
