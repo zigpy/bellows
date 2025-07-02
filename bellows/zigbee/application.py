@@ -80,6 +80,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     _watchdog_period = 10
     _probe_configs = [
         {zigpy.config.CONF_DEVICE_BAUDRATE: 115200},
+        {zigpy.config.CONF_DEVICE_BAUDRATE: 460800},
         {zigpy.config.CONF_DEVICE_BAUDRATE: 57600},
     ]
 
