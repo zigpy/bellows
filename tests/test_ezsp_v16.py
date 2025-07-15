@@ -13,7 +13,7 @@ from tests.common import mock_ezsp_commands
 @pytest.fixture
 def ezsp_f():
     """EZSP v16 protocol handler."""
-    ezsp = bellows.ezsp.v16.EZSPv14(MagicMock(), MagicMock())
+    ezsp = bellows.ezsp.v16.EZSPv16(MagicMock(), MagicMock())
     mock_ezsp_commands(ezsp)
 
     return ezsp
