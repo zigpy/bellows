@@ -706,3 +706,12 @@ class EmberMultiPhyRadioParameters(EzspStruct):
     radioTxPower: basic.int8s
     radioPage: basic.uint8_t
     radioChannel: basic.uint8_t
+
+
+class NV3StackNetworkManagementToken(EzspStruct):
+    """NV3 stack network management token value."""
+
+    active_channels: named.Channels
+    manager_node_id: named.NWK
+    update_id: basic.uint8_t
+    padding: basic.uint8_t

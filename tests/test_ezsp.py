@@ -644,6 +644,86 @@ async def test_write_custom_eui64_rcp(ezsp_f):
     ]
 
 
+async def test_write_nwk_update_id(ezsp_f):
+    """Test writing network update ID to NVRAM token."""
+    # Mock the token data response
+    mock_token_data = t.NV3StackNetworkManagementToken(
+        active_channels=t.Channels(0x07FFF800),
+        manager_node_id=t.NWK(0x0000),
+        update_id=t.uint8_t(0),
+        padding=t.uint8_t(0),
+    )
+
+    ezsp_f.getTokenData = AsyncMock(
+        return_value=GetTokenDataRsp(
+            status=t.EmberStatus.SUCCESS,
+            value=mock_token_data.serialize(),
+        )
+    )
+    ezsp_f.setTokenData = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+
+    # Test writing update ID
+    await ezsp_f.write_nwk_update_id(7)
+
+    # Verify getTokenData was called
+    ezsp_f.getTokenData.assert_called_once_with(
+        token=t.NV3KeyId.NVM3KEY_STACK_NETWORK_MANAGEMENT,
+        index=0,
+    )
+
+    # Verify setTokenData was called with updated token
+    ezsp_f.setTokenData.assert_called_once()
+    call_args = ezsp_f.setTokenData.call_args[1]
+    assert call_args["token"] == t.NV3KeyId.NVM3KEY_STACK_NETWORK_MANAGEMENT
+    assert call_args["index"] == 0
+
+    # Deserialize the token data to verify the update ID was set correctly
+    updated_token, remaining = t.NV3StackNetworkManagementToken.deserialize(
+        call_args["token_data"]
+    )
+    assert not remaining
+    assert updated_token.update_id == 7
+    assert updated_token.active_channels == t.Channels(0x07FFF800)
+    assert updated_token.manager_node_id == t.NWK(0x0000)
+
+
+async def test_write_nwk_update_id_nv3_unavailable(ezsp_f):
+    """Test writing network update ID when NV3 is not available."""
+    # Mock InvalidCommandError to simulate NV3 not being available
+    ezsp_f.getTokenData = AsyncMock(
+        side_effect=InvalidCommandError("NV3 not available")
+    )
+
+    # Should not raise an exception, just log a warning
+    await ezsp_f.write_nwk_update_id(7)
+
+    # Verify getTokenData was called
+    ezsp_f.getTokenData.assert_called_once_with(
+        token=t.NV3KeyId.NVM3KEY_STACK_NETWORK_MANAGEMENT,
+        index=0,
+    )
+
+
+async def test_write_nwk_update_id_failure(ezsp_f):
+    """Test writing network update ID when token read fails."""
+    # Mock failure response
+    ezsp_f.getTokenData = AsyncMock(
+        return_value=GetTokenDataRsp(
+            status=t.EmberStatus.INVALID_CALL,
+            value=b"",
+        )
+    )
+
+    # Should not raise an exception, just log a warning
+    await ezsp_f.write_nwk_update_id(7)
+
+    # Verify getTokenData was called
+    ezsp_f.getTokenData.assert_called_once_with(
+        token=t.NV3KeyId.NVM3KEY_STACK_NETWORK_MANAGEMENT,
+        index=0,
+    )
+
+
 @patch.object(EZSP, "version", new_callable=AsyncMock)
 @patch.object(EZSP, "reset", new_callable=AsyncMock)
 @patch.object(EZSP, "get_xncp_features", new_callable=AsyncMock)

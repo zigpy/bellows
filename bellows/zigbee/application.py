@@ -433,6 +433,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         parameters.channels = t.Channels(network_info.channel_mask)
 
         await ezsp.formNetwork(parameters=parameters)
+
+        # Write NWK update ID to NVRAM after network formation. This is needed because
+        # formNetwork() appears to ignore or reset the nwkUpdateId field
+        if network_info.nwk_update_id != 0:
+            await ezsp.write_nwk_update_id(network_info.nwk_update_id)
+
         await self._ensure_network_running()
 
     async def reset_network_info(self):
