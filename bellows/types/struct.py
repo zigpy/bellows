@@ -708,10 +708,35 @@ class EmberMultiPhyRadioParameters(EzspStruct):
     radioChannel: basic.uint8_t
 
 
-class NV3StackNetworkManagementToken(EzspStruct):
-    """NV3 stack network management token value."""
+class SlRxPacketInfo(EzspStruct):
+    """Received packet information.
 
-    active_channels: named.Channels
-    manager_node_id: named.NWK
-    update_id: basic.uint8_t
-    padding: basic.uint8_t
+    Contains information about the incoming packet.
+    """
+
+    # Short ID of the sender of the message
+    sender_short_id: named.NWK
+    # EUI64 of the sender of the message if the sender chose to include this
+    # information in the message. The SL_ZIGBEE_APS_OPTION_SOURCE_EUI64 bit in
+    # the options field of the APS frame of the incoming message indicates that
+    # the EUI64 is present in the message. Also, when not set, the sender long ID
+    # is set to all zeros
+    sender_long_id: named.EUI64
+    # The index of the entry in the binding table that matches the sender of
+    # the message or 0xFF if there is no matching entry. A binding matches the message if:
+    #  - The binding's source endpoint is the same as the message's destination endpoint
+    #  - The binding's destination endpoint is the same as the message's source endpoint
+    #  - The source of the message has been previously identified as the binding's remote
+    #    node by a successful address discovery or by the application via a call to either
+    #    sl_zigbee_set_reply_binding() or sl_zigbee_note_senders_binding()
+    binding_index: basic.uint8_t
+    # The index of the entry in the address table that matches the sender of
+    # the message or 0xFF if there is no matching entry
+    address_index: basic.uint8_t
+    # Link quality of the node that last relayed the current message
+    last_hop_lqi: basic.uint8_t
+    # Received signal strength indicator (RSSI) of the node that last
+    # relayed the message
+    last_hop_rssi: basic.int8s
+    # Timestamp of the moment when Start Frame Delimiter (SFD) was received
+    last_hop_timestamp: basic.uint32_t

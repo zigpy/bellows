@@ -41,7 +41,7 @@ COMMANDS = {
             "mic": t.uint32_t,
             "proxyTableIndex": t.uint8_t,
             "gpdCommandPayload": t.LVBytes,
-            "packetInfo": t.EmberRxPacketInfo,
+            "packetInfo": t.SlRxPacketInfo,
         },
     ),
 }
