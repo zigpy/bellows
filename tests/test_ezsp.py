@@ -799,6 +799,9 @@ async def test_wait_for_stack_status(ezsp_f):
 
 def test_ezsp_versions(ezsp_f):
     for version in range(4, EZSP_LATEST + 1):
+        # Version 15 was never released, so skip it
+        if version == 15:
+            continue
         assert version in ezsp_f._BY_VERSION
         assert ezsp_f._BY_VERSION[version].__name__ == f"EZSPv{version}"
         assert ezsp_f._BY_VERSION[version].VERSION == version

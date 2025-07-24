@@ -80,6 +80,9 @@ class EzspExtendedValueId(basic.enum8):
     # This number of bytes of overhead required in the network frame for source routing
     # to a particular destination.
     EXTENDED_VALUE_GET_SOURCE_ROUTE_OVERHEAD = 0x02
+    # These values are current or boot-time metrics gathered by the memory
+    # manager/buffer manager.
+    EXTENDED_VALUE_MEMORY_USAGE_DATA = 0x03
 
 
 class EzspEndpointFlags(basic.enum16):
@@ -1583,6 +1586,25 @@ SL_STATUS_MAP: dict[EzspStatus | EmberStatus, sl_Status] = {
 # fmt: on
 
 
+class sl_GpStatus(basic.enum8):
+    # Success Status
+    OK = 0x00
+    # Match Frame
+    MATCH = 0x01
+    # Drop Frame
+    DROP_FRAME = 0x02
+    # Frame Unprocessed
+    UNPROCESSED = 0x03
+    # Frame Pass Unprocessed
+    PASS_UNPROCESSED = 0x04
+    # Frame TX Then Drop
+    TX_THEN_DROP = 0x05
+    # No Security
+    NO_SECURITY = 0x06
+    # Security Failure
+    AUTH_FAILURE = 0x07
+
+
 class EmberDistinguishedNodeId(basic.enum16):
     """A distinguished network ID that will never be assigned to any node"""
 
@@ -2169,6 +2191,12 @@ class EzspValueId(basic.enum8):
     # Return activation state about TC Delayed Join on an NCP.  A return value of
     # 0 indicates that the feature is not activated.
     VALUE_DELAYED_JOIN_ACTIVATION = 0x45
+    # The maximum number of NWK retries that will be attempted.
+    VALUE_MAX_NWK_RETRIES = 0x46
+    # Policies for allowing/disallowing rejoins.
+    VALUE_REJOIN_MODE = 0x47
+    # Controls whether devices must use an install code when joining.
+    VALUE_JOIN_USE_INSTALL_CODE_ENABLE = 0x48
 
 
 class EmberRf4ceTxOption(basic.uint8_t):

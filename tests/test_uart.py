@@ -139,7 +139,7 @@ async def test_connect_threaded_failure_cancellation_propagation(monkeypatch):
 
 
 @pytest.fixture
-def gw():
+async def gw():
     gw = uart.Gateway(MagicMock())
     gw._transport = MagicMock()
     return gw
