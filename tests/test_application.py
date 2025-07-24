@@ -552,7 +552,7 @@ def test_send_failure(app, aps, ieee, msg_type):
     assert fut.result() == (t.sl_Status.OK, "message send success")
 
 
-def test_dup_send_failure(app, aps, ieee):
+async def test_dup_send_failure(app, aps, ieee):
     fut = app._pending_requests[(0xBEED, 254)] = asyncio.Future()
     fut.set_result("Already set")
 
