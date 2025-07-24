@@ -91,7 +91,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._ezsp = None
         self._multicast = None
         self._mfg_id_task: asyncio.Task | None = None
-        self._pending = zigpy.util.Requests()
+        self._pending_requests = {}
         self._watchdog_failures = 0
         self._watchdog_feed_counter = 0
 
@@ -636,10 +636,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         else:
             cnt_name = f"unknown_msg_type_{msg}"
 
+        pending_tag = (destination, message_tag)
+
         try:
-            pending_tag = (destination, message_tag)
-            request = self._pending[pending_tag]
-            request.result.set_result((status, f"message send {msg}"))
+            future = self._pending_requests[pending_tag]
+            future.set_result((status, f"message send {msg}"))
             self.state.counters[COUNTERS_CTRL][cnt_name].increment()
         except KeyError:
             self.state.counters[COUNTERS_CTRL][f"{cnt_name}_unexpected"].increment()
@@ -868,10 +869,18 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             extended_timeout = False
 
         async with self._limit_concurrency(priority=packet.priority):
-            message_tag = self.get_sequence()
-            pending_tag = (packet.dst.address, message_tag)
-            with self._pending.new(pending_tag) as req:
-                async with self._req_lock:
+            async with self._req_lock:
+                message_tag = self.get_sequence()
+                pending_tag = (packet.dst.address, message_tag)
+
+                if pending_tag in self._pending_requests:
+                    raise zigpy.exceptions.DeliveryError(
+                        f"Packet with tag {pending_tag} is already pending, cannot send"
+                    )
+
+                future = self._pending_requests[pending_tag] = asyncio.Future()
+
+                try:
                     if packet.dst.addr_mode == zigpy.types.AddrMode.NWK:
                         if device is not None:
                             await self._ezsp.set_extended_timeout(
@@ -922,29 +931,31 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             data=packet.data.serialize(),
                         )
 
-                if status != t.sl_Status.OK:
-                    raise zigpy.exceptions.DeliveryError(
-                        f"Failed to enqueue message: {status!r}", status
-                    )
+                    if status != t.sl_Status.OK:
+                        raise zigpy.exceptions.DeliveryError(
+                            f"Failed to enqueue message: {status!r}", status
+                        )
 
-                # Only throw a delivery exception for packets sent with NWK addressing.
-                # https://github.com/home-assistant/core/issues/79832
-                # Broadcasts/multicasts don't have ACKs or confirmations either.
-                if packet.dst.addr_mode != zigpy.types.AddrMode.NWK:
-                    return
+                    # Only throw a delivery exception for packets sent with NWK addressing.
+                    # https://github.com/home-assistant/core/issues/79832
+                    # Broadcasts/multicasts don't have ACKs or confirmations either.
+                    if packet.dst.addr_mode != zigpy.types.AddrMode.NWK:
+                        return
 
-                # Wait for `messageSentHandler` message
-                async with asyncio_timeout(
-                    MESSAGE_SEND_TIMEOUT_MAINS
-                    if not packet.extended_timeout
-                    else MESSAGE_SEND_TIMEOUT_BATTERY
-                ):
-                    send_status, _ = await req.result
+                    # Wait for `messageSentHandler` message
+                    async with asyncio_timeout(
+                        MESSAGE_SEND_TIMEOUT_MAINS
+                        if not packet.extended_timeout
+                        else MESSAGE_SEND_TIMEOUT_BATTERY
+                    ):
+                        send_status, _ = await future
 
-                if t.sl_Status.from_ember_status(send_status) != t.sl_Status.OK:
-                    raise zigpy.exceptions.DeliveryError(
-                        f"Failed to deliver message: {send_status!r}", send_status
-                    )
+                    if t.sl_Status.from_ember_status(send_status) != t.sl_Status.OK:
+                        raise zigpy.exceptions.DeliveryError(
+                            f"Failed to deliver message: {send_status!r}", send_status
+                        )
+                finally:
+                    del self._pending_requests[pending_tag]
 
     async def permit(self, time_s: int = 60, node: t.EmberNodeId = None) -> None:
         """Permit joining."""

@@ -545,18 +545,17 @@ def test_frame_handler_ignored(app, aps_frame):
     ),
 )
 def test_send_failure(app, aps, ieee, msg_type):
-    req = app._pending[(0xBEED, 254)] = MagicMock()
+    fut = app._pending_requests[(0xBEED, 254)] = asyncio.Future()
     app.ezsp_callback_handler(
         "messageSentHandler", [msg_type, 0xBEED, aps, 254, t.EmberStatus.SUCCESS, b""]
     )
-    assert req.result.set_exception.call_count == 0
-    assert req.result.set_result.call_count == 1
-    assert req.result.set_result.call_args[0][0][0] is bellows.types.sl_Status.OK
+    assert fut.result() == (t.sl_Status.OK, "message send success")
 
 
 def test_dup_send_failure(app, aps, ieee):
-    req = app._pending[(0xBEED, 254)] = MagicMock()
-    req.result.set_result.side_effect = asyncio.InvalidStateError()
+    fut = app._pending_requests[(0xBEED, 254)] = asyncio.Future()
+    fut.set_result("Already set")
+
     app.ezsp_callback_handler(
         "messageSentHandler",
         [
@@ -568,8 +567,6 @@ def test_dup_send_failure(app, aps, ieee):
             b"",
         ],
     )
-    assert req.result.set_exception.call_count == 0
-    assert req.result.set_result.call_count == 1
 
 
 def test_send_failure_unexpected(app, aps, ieee):
@@ -587,7 +584,7 @@ def test_send_failure_unexpected(app, aps, ieee):
 
 
 def test_send_success(app, aps, ieee):
-    req = app._pending[(0xBEED, 253)] = MagicMock()
+    fut = app._pending_requests[(0xBEED, 253)] = asyncio.Future()
     app.ezsp_callback_handler(
         "messageSentHandler",
         [
@@ -599,9 +596,8 @@ def test_send_success(app, aps, ieee):
             b"",
         ],
     )
-    assert req.result.set_exception.call_count == 0
-    assert req.result.set_result.call_count == 1
-    assert req.result.set_result.call_args[0][0][0] is bellows.types.sl_Status.OK
+
+    assert fut.result() == (t.sl_Status.OK, "message send success")
 
 
 def test_unexpected_send_success(app, aps, ieee):
@@ -609,17 +605,6 @@ def test_unexpected_send_success(app, aps, ieee):
         "messageSentHandler",
         [t.EmberIncomingMessageType.INCOMING_MULTICAST, 0xBEED, aps, 253, 0, b""],
     )
-
-
-def test_dup_send_success(app, aps, ieee):
-    req = app._pending[(0xBEED, 253)] = MagicMock()
-    req.result.set_result.side_effect = asyncio.InvalidStateError()
-    app.ezsp_callback_handler(
-        "messageSentHandler",
-        [t.EmberIncomingMessageType.INCOMING_MULTICAST, 0xBEED, aps, 253, 0, b""],
-    )
-    assert req.result.set_exception.call_count == 0
-    assert req.result.set_result.call_count == 1
 
 
 async def test_join_handler(app, ieee):
@@ -797,7 +782,7 @@ async def _test_send_packet_unicast(
         )
     ]
 
-    assert len(app._pending) == 0
+    assert len(app._pending_requests) == 0
 
 
 async def test_send_packet_unicast(app, packet):
@@ -1097,7 +1082,7 @@ async def test_send_packet_broadcast(app, packet):
         )
     ]
 
-    assert len(app._pending) == 0
+    assert len(app._pending_requests) == 0
 
 
 async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
@@ -1145,7 +1130,7 @@ async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
         )
     ]
 
-    assert len(app._pending) == 0
+    assert len(app._pending_requests) == 0
 
 
 async def test_send_packet_multicast(app, packet):
@@ -1195,7 +1180,7 @@ async def test_send_packet_multicast(app, packet):
         )
     ]
 
-    assert len(app._pending) == 0
+    assert len(app._pending_requests) == 0
 
 
 def test_is_controller_running(app):
