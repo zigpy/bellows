@@ -515,6 +515,40 @@ class EZSP:
                 f" cannot be written again without erasing flash."
             )
 
+    async def write_nwk_update_id(self, nwk_update_id: int) -> None:
+        """Write NWK update ID to NVRAM token.
+
+        This is a workaround for the lack of EZSP API to set the network update ID.
+        The EmberNetworkParameters.nwkUpdateId field is ignored during formNetwork(),
+        so we must write directly to the NVRAM token.
+        """
+        try:
+            # Read current network management token
+            rsp = await self.getTokenData(
+                token=t.NV3KeyId.NVM3KEY_STACK_NETWORK_MANAGEMENT, index=0
+            )
+            assert t.sl_Status.from_ember_status(rsp.status) == t.sl_Status.OK
+        except (InvalidCommandError, AttributeError, AssertionError):
+            LOGGER.warning("NV3 interface not available, cannot write NWK update ID")
+            return
+
+        # Deserialize current token
+        token, remaining = t.NV3StackNetworkManagementToken.deserialize(rsp.value)
+        assert not remaining
+
+        # Update the NWK update ID
+        updated_token = token.replace(update_id=t.uint8_t(nwk_update_id))
+
+        # Write updated token back to NVRAM
+        (status,) = await self.setTokenData(
+            token=t.NV3KeyId.NVM3KEY_STACK_NETWORK_MANAGEMENT,
+            index=0,
+            token_data=updated_token.serialize(),
+        )
+        assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
+
+        LOGGER.debug("Updated NWK update ID to %d in NVRAM", nwk_update_id)
+
     def add_callback(self, cb):
         id_ = hash(cb)
         while id_ in self._callbacks:
