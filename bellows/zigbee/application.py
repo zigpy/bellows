@@ -310,6 +310,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         else:
             flow_control = None
 
+        if FirmwareFeatures.CHIP_INFO in ezsp._xncp_features:
+            chip_info = await ezsp.xncp_get_chip_info()
+        else:
+            chip_info = None
+
         self.state.network_info = zigpy.state.NetworkInfo(
             source=f"bellows@{LIB_VERSION}",
             extended_pan_id=zigpy.types.ExtendedPanId(nwk_params.extendedPanId),
@@ -327,13 +332,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             stack_specific=stack_specific,
             metadata={
                 "ezsp": {
+                    "chip_info": chip_info.as_dict(recursive=True),
                     "stack_version": ezsp.ezsp_version,
                     "can_burn_userdata_custom_eui64": can_burn_userdata_custom_eui64,
                     "can_rewrite_custom_eui64": can_rewrite_custom_eui64,
                     "flow_control": (
                         flow_control.name.lower() if flow_control is not None else None
                     ),
-                }
+                },
             },
         )
 

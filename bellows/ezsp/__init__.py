@@ -778,3 +778,7 @@ class EZSP:
         """Get flow control type."""
         rsp = await self.send_xncp_frame(xncp.GetFlowControlTypeReq())
         return rsp.flow_control_type
+
+    async def xncp_get_chip_info(self) -> xncp.GetChipInfoRsp:
+        """Get the part number."""
+        return await self.send_xncp_frame(xncp.GetChipInfoReq())
