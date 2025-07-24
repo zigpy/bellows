@@ -47,7 +47,7 @@ def ieee(init=0):
 
 @pytest.fixture
 def make_app(monkeypatch, ieee):
-    def inner(config, **kwargs):
+    def inner(config, send_timeout: float = 0.05, **kwargs):
         app_cfg = {**APP_CONFIG, **config}
         app = ControllerApplication(app_cfg)
 
@@ -55,10 +55,10 @@ def make_app(monkeypatch, ieee):
             app, nwk_type=t.EmberNodeType.COORDINATOR, ieee=ieee, **kwargs
         )
         monkeypatch.setattr(
-            bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_MAINS", 0.05
+            bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_MAINS", send_timeout
         )
         monkeypatch.setattr(
-            bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_BATTERY", 0.05
+            bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_BATTERY", send_timeout
         )
         app._ctrl_event.set()
         app._in_flight_msg = asyncio.Semaphore()
@@ -729,7 +729,7 @@ def packet():
 
 
 async def test_request_concurrency_duplicate_failure(
-    app, packet: zigpy_t.ZigbeePacket
+    make_app, packet: zigpy_t.ZigbeePacket
 ) -> None:
     def send_unicast(aps_frame, data, message_tag, nwk):
         asyncio.get_running_loop().call_soon(
@@ -749,6 +749,8 @@ async def test_request_concurrency_duplicate_failure(
 
         return [bellows.types.sl_Status.OK, 0x12]
 
+    # Increase the send timeout, CI is inconsistent with the default
+    app = make_app({}, send_timeout=0.5)
     app._ezsp.send_unicast = AsyncMock(
         side_effect=send_unicast, spec=app._ezsp.send_unicast
     )
