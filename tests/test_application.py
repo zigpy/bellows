@@ -47,7 +47,7 @@ def ieee(init=0):
 
 @pytest.fixture
 def make_app(monkeypatch, ieee):
-    def inner(config, **kwargs):
+    def inner(config, send_timeout: float = 0.05, **kwargs):
         app_cfg = {**APP_CONFIG, **config}
         app = ControllerApplication(app_cfg)
 
@@ -55,10 +55,10 @@ def make_app(monkeypatch, ieee):
             app, nwk_type=t.EmberNodeType.COORDINATOR, ieee=ieee, **kwargs
         )
         monkeypatch.setattr(
-            bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_MAINS", 0.05
+            bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_MAINS", send_timeout
         )
         monkeypatch.setattr(
-            bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_BATTERY", 0.05
+            bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_BATTERY", send_timeout
         )
         app._ctrl_event.set()
         app._in_flight_msg = asyncio.Semaphore()
@@ -545,18 +545,17 @@ def test_frame_handler_ignored(app, aps_frame):
     ),
 )
 def test_send_failure(app, aps, ieee, msg_type):
-    req = app._pending[(0xBEED, 254)] = MagicMock()
+    fut = app._pending_requests[(0xBEED, 254)] = asyncio.Future()
     app.ezsp_callback_handler(
         "messageSentHandler", [msg_type, 0xBEED, aps, 254, t.EmberStatus.SUCCESS, b""]
     )
-    assert req.result.set_exception.call_count == 0
-    assert req.result.set_result.call_count == 1
-    assert req.result.set_result.call_args[0][0][0] is bellows.types.sl_Status.OK
+    assert fut.result() == (t.sl_Status.OK, "message send success")
 
 
-def test_dup_send_failure(app, aps, ieee):
-    req = app._pending[(0xBEED, 254)] = MagicMock()
-    req.result.set_result.side_effect = asyncio.InvalidStateError()
+async def test_dup_send_failure(app, aps, ieee):
+    fut = app._pending_requests[(0xBEED, 254)] = asyncio.Future()
+    fut.set_result("Already set")
+
     app.ezsp_callback_handler(
         "messageSentHandler",
         [
@@ -568,8 +567,6 @@ def test_dup_send_failure(app, aps, ieee):
             b"",
         ],
     )
-    assert req.result.set_exception.call_count == 0
-    assert req.result.set_result.call_count == 1
 
 
 def test_send_failure_unexpected(app, aps, ieee):
@@ -587,7 +584,7 @@ def test_send_failure_unexpected(app, aps, ieee):
 
 
 def test_send_success(app, aps, ieee):
-    req = app._pending[(0xBEED, 253)] = MagicMock()
+    fut = app._pending_requests[(0xBEED, 253)] = asyncio.Future()
     app.ezsp_callback_handler(
         "messageSentHandler",
         [
@@ -599,9 +596,8 @@ def test_send_success(app, aps, ieee):
             b"",
         ],
     )
-    assert req.result.set_exception.call_count == 0
-    assert req.result.set_result.call_count == 1
-    assert req.result.set_result.call_args[0][0][0] is bellows.types.sl_Status.OK
+
+    assert fut.result() == (t.sl_Status.OK, "message send success")
 
 
 def test_unexpected_send_success(app, aps, ieee):
@@ -609,17 +605,6 @@ def test_unexpected_send_success(app, aps, ieee):
         "messageSentHandler",
         [t.EmberIncomingMessageType.INCOMING_MULTICAST, 0xBEED, aps, 253, 0, b""],
     )
-
-
-def test_dup_send_success(app, aps, ieee):
-    req = app._pending[(0xBEED, 253)] = MagicMock()
-    req.result.set_result.side_effect = asyncio.InvalidStateError()
-    app.ezsp_callback_handler(
-        "messageSentHandler",
-        [t.EmberIncomingMessageType.INCOMING_MULTICAST, 0xBEED, aps, 253, 0, b""],
-    )
-    assert req.result.set_exception.call_count == 0
-    assert req.result.set_result.call_count == 1
 
 
 async def test_join_handler(app, ieee):
@@ -743,6 +728,49 @@ def packet():
     )
 
 
+async def test_request_concurrency_duplicate_failure(
+    make_app, packet: zigpy_t.ZigbeePacket
+) -> None:
+    def send_unicast(aps_frame, data, message_tag, nwk):
+        asyncio.get_running_loop().call_soon(
+            app.ezsp_callback_handler,
+            "messageSentHandler",
+            list(
+                dict(
+                    type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+                    indexOrDestination=0x1234,
+                    apsFrame=aps_frame,
+                    messageTag=message_tag,
+                    status=bellows.types.sl_Status.OK,
+                    message=b"",
+                ).values()
+            ),
+        )
+
+        return [bellows.types.sl_Status.OK, 0x12]
+
+    # Increase the send timeout, CI is inconsistent with the default
+    app = make_app({}, send_timeout=0.5)
+    app._ezsp.send_unicast = AsyncMock(
+        side_effect=send_unicast, spec=app._ezsp.send_unicast
+    )
+
+    await app.send_packet(packet)
+    app._concurrent_requests_semaphore.max_value = 10000
+    results = await asyncio.gather(
+        *(app.send_packet(packet) for _ in range(256 + 1)), return_exceptions=True
+    )
+
+    # The first 256 will work just fine
+    assert results[:256] == [None] * 256
+
+    # The 257th will fail, since the tag will wrap around back to 0
+    assert isinstance(results[256], zigpy.exceptions.DeliveryError)
+    assert "Packet with tag (0x1234, 2) is already pending, cannot send" in str(
+        results[256]
+    )
+
+
 async def _test_send_packet_unicast(
     app,
     packet,
@@ -797,7 +825,7 @@ async def _test_send_packet_unicast(
         )
     ]
 
-    assert len(app._pending) == 0
+    assert len(app._pending_requests) == 0
 
 
 async def test_send_packet_unicast(app, packet):
@@ -1097,7 +1125,7 @@ async def test_send_packet_broadcast(app, packet):
         )
     ]
 
-    assert len(app._pending) == 0
+    assert len(app._pending_requests) == 0
 
 
 async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
@@ -1145,7 +1173,7 @@ async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
         )
     ]
 
-    assert len(app._pending) == 0
+    assert len(app._pending_requests) == 0
 
 
 async def test_send_packet_multicast(app, packet):
@@ -1195,7 +1223,7 @@ async def test_send_packet_multicast(app, packet):
         )
     ]
 
-    assert len(app._pending) == 0
+    assert len(app._pending_requests) == 0
 
 
 def test_is_controller_running(app):
