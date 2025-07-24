@@ -728,6 +728,48 @@ def packet():
     )
 
 
+async def test_request_concurrency_duplicate_failure(
+    app, packet: zigpy_t.ZigbeePacket
+) -> None:
+    def send_unicast(aps_frame, data, message_tag, nwk):
+        asyncio.get_running_loop().call_later(
+            0.01,
+            app.ezsp_callback_handler,
+            "messageSentHandler",
+            list(
+                dict(
+                    type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+                    indexOrDestination=0x1234,
+                    apsFrame=aps_frame,
+                    messageTag=message_tag,
+                    status=bellows.types.sl_Status.OK,
+                    message=b"",
+                ).values()
+            ),
+        )
+
+        return [bellows.types.sl_Status.OK, 0x12]
+
+    app._ezsp.send_unicast = AsyncMock(
+        side_effect=send_unicast, spec=app._ezsp.send_unicast
+    )
+
+    await app.send_packet(packet)
+    app._concurrent_requests_semaphore.max_value = 10000
+    results = await asyncio.gather(
+        *(app.send_packet(packet) for _ in range(256 + 1)), return_exceptions=True
+    )
+
+    # The first 256 will work just fine
+    assert results[:256] == [None] * 256
+
+    # The 257th will fail, since the tag will wrap around back to 0
+    assert isinstance(results[256], zigpy.exceptions.DeliveryError)
+    assert "Packet with tag (0x1234, 2) is already pending, cannot send" in str(
+        results[256]
+    )
+
+
 async def _test_send_packet_unicast(
     app,
     packet,
