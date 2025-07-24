@@ -732,8 +732,7 @@ async def test_request_concurrency_duplicate_failure(
     app, packet: zigpy_t.ZigbeePacket
 ) -> None:
     def send_unicast(aps_frame, data, message_tag, nwk):
-        asyncio.get_running_loop().call_later(
-            0.01,
+        asyncio.get_running_loop().call_soon(
             app.ezsp_callback_handler,
             "messageSentHandler",
             list(
