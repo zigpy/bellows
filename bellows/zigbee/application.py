@@ -869,18 +869,18 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             extended_timeout = False
 
         async with self._limit_concurrency(priority=packet.priority):
-            async with self._req_lock:
-                message_tag = self.get_sequence()
-                pending_tag = (packet.dst.address, message_tag)
+            message_tag = self.get_sequence()
+            pending_tag = (packet.dst.address, message_tag)
 
-                if pending_tag in self._pending_requests:
-                    raise zigpy.exceptions.DeliveryError(
-                        f"Packet with tag {pending_tag} is already pending, cannot send"
-                    )
+            if pending_tag in self._pending_requests:
+                raise zigpy.exceptions.DeliveryError(
+                    f"Packet with tag {pending_tag} is already pending, cannot send"
+                )
 
-                future = self._pending_requests[pending_tag] = asyncio.Future()
+            future = self._pending_requests[pending_tag] = asyncio.Future()
 
-                try:
+            try:
+                async with self._req_lock:
                     if packet.dst.addr_mode == zigpy.types.AddrMode.NWK:
                         if device is not None:
                             await self._ezsp.set_extended_timeout(
@@ -931,31 +931,31 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             data=packet.data.serialize(),
                         )
 
-                    if status != t.sl_Status.OK:
-                        raise zigpy.exceptions.DeliveryError(
-                            f"Failed to enqueue message: {status!r}", status
-                        )
+                if status != t.sl_Status.OK:
+                    raise zigpy.exceptions.DeliveryError(
+                        f"Failed to enqueue message: {status!r}", status
+                    )
 
-                    # Only throw a delivery exception for packets sent with NWK addressing.
-                    # https://github.com/home-assistant/core/issues/79832
-                    # Broadcasts/multicasts don't have ACKs or confirmations either.
-                    if packet.dst.addr_mode != zigpy.types.AddrMode.NWK:
-                        return
+                # Only throw a delivery exception for packets sent with NWK addressing.
+                # https://github.com/home-assistant/core/issues/79832
+                # Broadcasts/multicasts don't have ACKs or confirmations either.
+                if packet.dst.addr_mode != zigpy.types.AddrMode.NWK:
+                    return
 
-                    # Wait for `messageSentHandler` message
-                    async with asyncio_timeout(
-                        MESSAGE_SEND_TIMEOUT_MAINS
-                        if not packet.extended_timeout
-                        else MESSAGE_SEND_TIMEOUT_BATTERY
-                    ):
-                        send_status, _ = await future
+                # Wait for `messageSentHandler` message
+                async with asyncio_timeout(
+                    MESSAGE_SEND_TIMEOUT_MAINS
+                    if not packet.extended_timeout
+                    else MESSAGE_SEND_TIMEOUT_BATTERY
+                ):
+                    send_status, _ = await future
 
-                    if t.sl_Status.from_ember_status(send_status) != t.sl_Status.OK:
-                        raise zigpy.exceptions.DeliveryError(
-                            f"Failed to deliver message: {send_status!r}", send_status
-                        )
-                finally:
-                    del self._pending_requests[pending_tag]
+                if t.sl_Status.from_ember_status(send_status) != t.sl_Status.OK:
+                    raise zigpy.exceptions.DeliveryError(
+                        f"Failed to deliver message: {send_status!r}", send_status
+                    )
+            finally:
+                del self._pending_requests[pending_tag]
 
     async def permit(self, time_s: int = 60, node: t.EmberNodeId = None) -> None:
         """Permit joining."""
