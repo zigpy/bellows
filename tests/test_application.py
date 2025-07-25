@@ -1964,6 +1964,7 @@ def zigpy_backup() -> zigpy.backups.NetworkBackup:
                     "flow_control": "hardware",
                     "can_burn_userdata_custom_eui64": True,
                     "can_rewrite_custom_eui64": True,
+                    "chip_info": None,
                 }
             },
         ),

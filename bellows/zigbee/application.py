@@ -345,7 +345,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             stack_specific=stack_specific,
             metadata={
                 "ezsp": {
-                    "chip_info": chip_info.as_dict(recursive=True),
+                    "chip_info": (
+                        chip_info.as_dict(recursive=True)
+                        if chip_info is not None
+                        else None
+                    ),
                     "stack_version": ezsp.ezsp_version,
                     "can_burn_userdata_custom_eui64": can_burn_userdata_custom_eui64,
                     "can_rewrite_custom_eui64": can_rewrite_custom_eui64,
