@@ -17,7 +17,7 @@ import bellows.config as config
 from bellows.exception import ControllerError, EzspError
 import bellows.ezsp as ezsp
 from bellows.ezsp.v9.commands import GetTokenDataRsp
-from bellows.ezsp.xncp import FirmwareFeatures, FlowControlType
+from bellows.ezsp.xncp import FirmwareFeatures, FlowControlType, GetChipInfoRsp
 import bellows.types
 import bellows.types as t
 import bellows.types.struct
@@ -1787,6 +1787,34 @@ async def test_startup_new_coordinator_no_groups_joined(app, ieee):
 
 
 @pytest.mark.parametrize(
+    "concurrency_config,chip_concurrency,expected_concurrency",
+    [
+        (None, 32, 32),  # Default config (None) uses chip-based
+        (8, 16, 16),  # Default fallback (8) uses chip-based
+        (16, 32, 16),  # Explicit config overrides chip-based
+        (1, 32, 1),  # Low explicit config overrides chip-based
+    ],
+)
+async def test_startup_concurrency_setting(
+    app, ieee, concurrency_config, chip_concurrency, expected_concurrency
+):
+    """Test that adapter concurrency is set correctly based on configuration."""
+    app._config[zigpy.config.CONF_MAX_CONCURRENT_REQUESTS] = concurrency_config
+
+    with mock_for_startup(app, ieee) as ezsp:
+        ezsp._xncp_features |= FirmwareFeatures.CHIP_INFO
+        ezsp.get_default_adapter_concurrency = AsyncMock(return_value=chip_concurrency)
+        ezsp.xncp_get_chip_info = AsyncMock(
+            return_value=GetChipInfoRsp(ram_size=0, part_number="")
+        )
+
+        await app.connect()
+        await app.start_network()
+
+        assert app._concurrent_requests_semaphore.max_value == expected_concurrency
+
+
+@pytest.mark.parametrize(
     "scan_results",
     [
         # Normal
@@ -1998,6 +2026,26 @@ async def test_load_network_info_xncp_flow_control(
 
     assert app.state.node_info == zigpy_backup.node_info
     assert app.state.network_info == zigpy_backup.network_info
+
+
+async def test_load_network_info_chip_info(
+    app: ControllerApplication,
+    ieee: zigpy_t.EUI64,
+) -> None:
+    """Test that chip info is included in network metadata when available."""
+    app._ezsp._xncp_features |= FirmwareFeatures.CHIP_INFO
+    expected_chip_info = GetChipInfoRsp(
+        ram_size=262144, part_number="EFR32MG24A020F1536IM48"
+    )
+    app._ezsp.xncp_get_chip_info = AsyncMock(return_value=expected_chip_info)
+
+    await app.load_network_info(load_devices=True)
+
+    # Check that chip info is included in the metadata
+    assert app.state.network_info.metadata["ezsp"]["chip_info"] == {
+        "ram_size": 262144,
+        "part_number": "EFR32MG24A020F1536IM48",
+    }
 
 
 async def test_write_network_info(

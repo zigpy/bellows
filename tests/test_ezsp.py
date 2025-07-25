@@ -972,3 +972,49 @@ def test_frame_parsing_error_doesnt_disconnect(ezsp_f, caplog):
         ezsp_f.frame_received(b"test")
 
     assert "Failed to parse frame" in caplog.text
+
+
+async def test_xncp_get_chip_info(ezsp_f):
+    """Test getting chip info via XNCP."""
+    ezsp_f._xncp_features = xncp.FirmwareFeatures.CHIP_INFO
+
+    # Mock the XNCP response
+    expected_response = xncp.GetChipInfoRsp(
+        ram_size=262144, part_number="EFR32MG24A020F1536IM48"
+    )
+
+    with patch.object(
+        ezsp_f, "send_xncp_frame", new=AsyncMock(return_value=expected_response)
+    ) as mock_send:
+        result = await ezsp_f.xncp_get_chip_info()
+
+    assert result == expected_response
+    assert mock_send.mock_calls == [call(xncp.GetChipInfoReq())]
+
+
+@pytest.mark.parametrize(
+    "chip_info_available,ram_size,part_number,expected_concurrency",
+    [
+        (False, None, None, 8),  # No chip info feature
+        (True, 98304, "EFR32MG21A020F1024IM32", 8),  # MG21 (low RAM)
+        (True, 262144, "EFR32MG24A020F1536IM48", 32),  # MG24 (high RAM)
+    ],
+)
+async def test_get_default_adapter_concurrency(
+    ezsp_f,
+    chip_info_available: bool,
+    ram_size: int,
+    part_number: str,
+    expected_concurrency: int,
+) -> None:
+    """Test default concurrency based on chip info availability and RAM size."""
+    if chip_info_available:
+        ezsp_f._xncp_features = xncp.FirmwareFeatures.CHIP_INFO
+        chip_info = xncp.GetChipInfoRsp(ram_size=ram_size, part_number=part_number)
+        with patch.object(ezsp_f, "xncp_get_chip_info", return_value=chip_info):
+            result = await ezsp_f.get_default_adapter_concurrency()
+    else:
+        ezsp_f._xncp_features = xncp.FirmwareFeatures(0)  # No CHIP_INFO feature
+        result = await ezsp_f.get_default_adapter_concurrency()
+
+    assert result == expected_concurrency
