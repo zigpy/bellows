@@ -1,4 +1,4 @@
-from zigpy.types import EUI64, NWK, BroadcastAddress, Struct
+from zigpy.types import EUI64, NWK, BroadcastAddress, Struct, StructField
 
 import bellows.types as t
 
@@ -7,7 +7,7 @@ from ..v13.commands import COMMANDS as COMMANDS_v13
 
 class GetTokenDataRsp(Struct):
     status: t.sl_Status
-    value: t.LVBytes32
+    value: t.LVBytes32 = StructField(requires=lambda rsp: rsp.status == t.sl_Status.OK)
 
 
 # EmberStatus and EzspStatus have been replaced with sl_Status globally.

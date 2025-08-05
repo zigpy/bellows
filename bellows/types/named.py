@@ -1468,6 +1468,73 @@ class sl_Status(basic.enum32):
     NVM3_TOKEN_INIT_FAILED = 0x005C
     # The initialization was aborted as the NVM3 instance was already opened with other parameters
     NVM3_OPENED_WITH_OTHER_PARAMETERS = 0x005D
+    # Initialization aborted, no valid page found
+    NVM3_NO_VALID_PAGES = 0x005E
+    # The object size is not supported
+    NVM3_OBJECT_SIZE_NOT_SUPPORTED = 0x005F
+    # Trying to access a data object which is currently a counter object
+    NVM3_OBJECT_IS_NOT_DATA = 0x0060
+    # Trying to access a counter object which is currently a data object
+    NVM3_OBJECT_IS_NOT_A_COUNTER = 0x0061
+    # The object is too large
+    NVM3_WRITE_DATA_SIZE = 0x0062
+    # Trying to read with a length different from actual object size
+    NVM3_READ_DATA_SIZE = 0x0063
+    # The module was opened with a full NVM
+    NVM3_INIT_WITH_FULL_NVM = 0x0064
+    # Illegal parameter
+    NVM3_RESIZE_PARAMETER = 0x0065
+    # Not enough NVM to complete resize
+    NVM3_RESIZE_NOT_ENOUGH_SPACE = 0x0066
+    # Erase counts are not valid
+    NVM3_ERASE_COUNT_ERROR = 0x0067
+    # A NVM function call was failing
+    NVM3_NVM_ACCESS = 0x0068
+    # Write to memory that is not erased
+    NVM3_WRITE_TO_NOT_ERASED = 0x006D
+    # Invalid NVM address
+    NVM3_INVALID_ADDR = 0x006E
+    # Key validation failure
+    NVM3_KEY_MISMATCH = 0x006F
+    # Size mismatch error
+    NVM3_SIZE_ERROR = 0x0070
+    # Emulator error
+    NVM3_EMULATOR = 0x0071
+
+    # Security status codes
+    # Encryption failed
+    SECURITY_ENCRYPT_ERROR = 0x0072
+    # Error in obtaining crypto key
+    SECURITY_KEY_ERROR = 0x0073
+    # Error in obtaining random number
+    SECURITY_RANDOM_NUM_GEN_ERROR = 0x0074
+
+    ## MVP Driver and MVP Math status codes
+    # Critical fault
+    COMPUTE_DRIVER_FAULT = 0x1501
+    # ALU operation output NaN
+    COMPUTE_DRIVER_ALU_NAN = 0x1502
+    # ALU numeric overflow
+    COMPUTE_DRIVER_ALU_OVERFLOW = 0x1503
+    # ALU numeric underflow
+    COMPUTE_DRIVER_ALU_UNDERFLOW = 0x1504
+    # Overflow during array store
+    COMPUTE_DRIVER_STORE_CONVERSION_OVERFLOW = 0x1505
+    # Underflow during array store conversion
+    COMPUTE_DRIVER_STORE_CONVERSION_UNDERFLOW = 0x1506
+    # Infinity encountered during array store conversion
+    COMPUTE_DRIVER_STORE_CONVERSION_INFINITY = 0x1507
+    # NaN encountered during array store conversion
+    COMPUTE_DRIVER_STORE_CONVERSION_NAN = 0x1508
+
+    # MATH NaN encountered
+    COMPUTE_MATH_NAN = 0x1512
+    # MATH Infinity encountered
+    COMPUTE_MATH_INFINITY = 0x1513
+    # MATH numeric overflow
+    COMPUTE_MATH_OVERFLOW = 0x1514
+    # MATH numeric underflow
+    COMPUTE_MATH_UNDERFLOW = 0x1515
 
     ## Zigbee status codes
     # Packet is dropped by packet-handoff callbacks
@@ -1530,6 +1597,26 @@ class sl_Status(basic.enum32):
     ZIGBEE_PRECONFIGURED_KEY_REQUIRED = 0x0C1D
     # A Zigbee EZSP error has occurred. Track the origin and corresponding EzspStatus for more info.
     ZIGBEE_EZSP_ERROR = 0x0C1E
+    # Node ID discovery failed.
+    ZIGBEE_ID_DISCOVERY_FAILED = 0x0C1F
+    # Message was sent but no APS ACK received.
+    ZIGBEE_NO_APS_ACK = 0x0C20
+    # APS message was canceled.
+    ZIGBEE_APS_MESSAGE_CANCELED = 0x0C21
+    # Node ID discovery not enabled.
+    ZIGBEE_ID_DISCOVERY_NOT_ENABLED = 0x0C22
+    # Message was not sent, Node ID discovery is underway.
+    ZIGBEE_ID_DISCOVERY_UNDERWAY = 0x0C23
+    # The message was not sent because a route discovery is currently underway. There is no route to the target until the route discovery completes.
+    ZIGBEE_SEND_UNICAST_ROUTE_DISCOVERY_UNDERWAY = 0x0C24
+    # Radius is 0 or message has been dropped because route request failed or failed to submit message to tx queue.
+    ZIGBEE_SEND_UNICAST_FAILURE = 0x0C25
+    # No active route to the destination.
+    ZIGBEE_SEND_UNICAST_NO_ROUTE = 0x0C26
+    # Broadcast message timeout while waiting for sleepy children to poll.
+    ZIGBEE_BROADCAST_TO_SLEEPY_CHILDREN_TIMEOUT = 0x0C27
+    # Expected a neighbor to relay the message, but none did.
+    ZIGBEE_BROADCAST_RELAY_FAILED = 0x0C28
 
     @classmethod
     def from_ember_status(
