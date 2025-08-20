@@ -39,3 +39,23 @@ class EZSPv10(EZSPv9):
                     timeout_remaining=0,
                 ),
             )
+
+            rsp = await self.getTokenData(
+                token=t.NV3KeyId.NVM3KEY_STACK_CHILD_TABLE, index=index
+            )
+            assert t.sl_Status.from_ember_status(rsp.status) == t.sl_Status.OK
+
+            entry, remaining = t.NV3ChildTableEntry.deserialize(rsp.value)
+            assert not remaining
+            assert entry.eui64 == eui64
+            assert entry.id == nwk
+
+            if entry.flags != 0x80:
+                entry.flags = 0x80
+
+                (status,) = await self.setTokenData(
+                    token=t.NV3KeyId.NVM3KEY_STACK_CHILD_TABLE,
+                    index=index,
+                    token_data=entry.replace(flags=0x80).serialize(),
+                )
+                assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
