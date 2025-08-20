@@ -717,6 +717,14 @@ class NV3StackNetworkManagementToken(EzspStruct):
     padding: basic.uint8_t
 
 
+class NV3ChildTableEntry(EzspStruct):
+    """NV3 node table entry token value."""
+
+    eui64: named.EUI64
+    id: named.NWK
+    flags: basic.uint8_t
+
+
 class SlRxPacketInfo(EzspStruct):
     """Received packet information.
 
