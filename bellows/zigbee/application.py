@@ -437,7 +437,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             if eui64 in network_info.nwk_addresses
         }
 
+        # Resetting the adapter after writing the child table is important! Otherwise,
+        # NVRAM will not be fully re-read, causing issues.
         await ezsp.write_child_data(children_with_nwk_addresses)
+        await self._reset()
 
         await self._ensure_network_running()
 
