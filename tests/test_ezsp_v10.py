@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
+from bellows.exception import InvalidCommandError
 from bellows.ezsp.v9.commands import GetTokenDataRsp
 import bellows.ezsp.v10
 import bellows.types as t
@@ -294,3 +295,20 @@ async def test_write_child_data_multiple_entries_mixed_scenarios(ezsp_f) -> None
             ).serialize(),
         )
     ]
+
+
+async def test_write_child_data_nv3_interface_unavailable(ezsp_f) -> None:
+    """Test write_child_data when NV3 interface is not available."""
+    ezsp_f.setChildData.return_value = [t.EmberStatus.SUCCESS]
+    ezsp_f.getTokenData = AsyncMock(
+        side_effect=InvalidCommandError("NV3 not available")
+    )
+    ezsp_f.setTokenData = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+
+    # Should complete without raising an exception
+    await ezsp_f.write_child_data({t.EUI64.convert("00:0b:57:ff:fe:2b:d4:57"): 0xC06B})
+
+    assert ezsp_f.getTokenData.mock_calls == [
+        call(token=t.NV3KeyId.NVM3KEY_STACK_CHILD_TABLE, index=0)
+    ]
+    assert ezsp_f.setTokenData.mock_calls == []

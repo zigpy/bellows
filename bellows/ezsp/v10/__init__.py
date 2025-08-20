@@ -6,6 +6,7 @@ import logging
 import voluptuous
 
 import bellows.config
+from bellows.exception import InvalidCommandError
 import bellows.types as t
 
 from . import commands, config
@@ -44,11 +45,17 @@ class EZSPv10(EZSPv9):
             # internal flag in the NVRAM child table is not correctly set (0x00). For
             # working coordinators, it holds the value 0x80. We need to carefully tweak
             # this value to ensure restoration works 100%.
-            rsp = await self.getTokenData(
-                token=t.NV3KeyId.NVM3KEY_STACK_CHILD_TABLE, index=index
-            )
-            if t.sl_Status.from_ember_status(rsp.status) != t.sl_Status.OK:
-                LOGGER.warning("Failed to read NVRAM child info for %d: %r", index, rsp)
+            try:
+                rsp = await self.getTokenData(
+                    token=t.NV3KeyId.NVM3KEY_STACK_CHILD_TABLE, index=index
+                )
+                if t.sl_Status.from_ember_status(rsp.status) != t.sl_Status.OK:
+                    LOGGER.warning(
+                        "Failed to read NVRAM child info for %d: %r", index, rsp
+                    )
+                    continue
+            except (InvalidCommandError, AttributeError):
+                LOGGER.debug("NV3 interface not available, skipping")
                 continue
 
             # We need to be careful and ensure that the value in NVRAM matches our
