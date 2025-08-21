@@ -413,14 +413,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         await ezsp.write_link_keys(network_info.key_table)
 
-        children_with_nwk_addresses = {
-            eui64: network_info.nwk_addresses[eui64]
-            for eui64 in network_info.children
-            if eui64 in network_info.nwk_addresses
-        }
-
-        await ezsp.write_child_data(children_with_nwk_addresses)
-
         # Set the network settings
         parameters = t.EmberNetworkParameters()
         parameters.panId = t.EmberPanId(network_info.pan_id)
@@ -438,6 +430,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         # formNetwork() appears to ignore or reset the nwkUpdateId field
         if network_info.nwk_update_id != 0:
             await ezsp.write_nwk_update_id(network_info.nwk_update_id)
+
+        children_with_nwk_addresses = {
+            eui64: network_info.nwk_addresses[eui64]
+            for eui64 in network_info.children
+            if eui64 in network_info.nwk_addresses
+        }
+
+        # Resetting the adapter after writing the child table is important! Otherwise,
+        # NVRAM will not be fully re-read, causing issues.
+        await ezsp.write_child_data(children_with_nwk_addresses)
+        await self._reset()
 
         await self._ensure_network_running()
 
