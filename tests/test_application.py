@@ -2209,7 +2209,7 @@ async def test_migration_failure_eui64_overwrite_confirmation(
     # Migration explicitly fails if we need to write the EUI64 but the adapter treats it
     # as a write-once operation
     with pytest.raises(
-        zigpy.exceptions.ControllerException,
+        zigpy.exceptions.DestructiveWriteNetworkSettings,
         match=(
             "Please upgrade your adapter firmware. The adapter IEEE address needs to be"
             " replaced and firmware 'Mock version' does not support writing it multiple"
@@ -2229,7 +2229,7 @@ async def test_migration_failure_eui64_overwrite_confirmation(
         app._ezsp, "write_custom_eui64", wraps=app._ezsp.write_custom_eui64
     ), patch.object(app._ezsp, "can_burn_userdata_custom_eui64", return_value=False):
         with pytest.raises(
-            zigpy.exceptions.ControllerException,
+            zigpy.exceptions.CannotWriteNetworkSettings,
             match=(
                 "Please upgrade your adapter firmware. The adapter IEEE address has"
                 " been overwritten and firmware 'Mock version' does not support writing"
