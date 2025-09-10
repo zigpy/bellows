@@ -2032,6 +2032,96 @@ async def test_write_network_info(
     ]
 
 
+@pytest.mark.parametrize(
+    ("node_ieee", "current_eui64", "can_rewrite", "can_burn", "confirmation_flag"),
+    [
+        (
+            zigpy_t.EUI64.UNKNOWN,
+            t.EUI64.convert("00:01:02:03:04:05:06:07"),
+            False,
+            False,
+            False,
+        ),
+        (
+            t.EUI64.convert("00:01:02:03:04:05:06:07"),
+            t.EUI64.convert("00:01:02:03:04:05:06:07"),
+            False,
+            False,
+            False,
+        ),
+        (
+            t.EUI64.convert("aa:aa:aa:aa:aa:aa:aa:aa"),
+            t.EUI64.convert("00:01:02:03:04:05:06:07"),
+            True,
+            False,
+            False,
+        ),
+        (
+            t.EUI64.convert("aa:aa:aa:aa:aa:aa:aa:aa"),
+            t.EUI64.convert("00:01:02:03:04:05:06:07"),
+            False,
+            True,
+            True,
+        ),
+    ],
+)
+async def test_can_write_network_settings(
+    app: ControllerApplication,
+    zigpy_backup: zigpy.backups.NetworkBackup,
+    node_ieee: t.EUI64,
+    current_eui64: t.EUI64,
+    can_rewrite: bool,
+    can_burn: bool,
+    confirmation_flag: bool,
+) -> None:
+    """Test `can_write_network_settings`."""
+    app._ezsp.getEui64 = AsyncMock(return_value=[current_eui64])
+    app._ezsp.can_rewrite_custom_eui64 = AsyncMock(return_value=can_rewrite)
+    app._ezsp.can_burn_userdata_custom_eui64 = AsyncMock(return_value=can_burn)
+    app._get_board_info = AsyncMock(
+        return_value=("Mock board", "Mock Manufacturer", "Mock version")
+    )
+
+    node_info = zigpy_backup.node_info.replace(ieee=node_ieee)
+    network_info = zigpy_backup.network_info
+
+    if confirmation_flag:
+        network_info = network_info.replace(
+            stack_specific={
+                "ezsp": {
+                    **network_info.stack_specific.get("ezsp", {}),
+                    "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it": True,
+                }
+            }
+        )
+
+    assert await app.can_write_network_settings(
+        network_info=network_info,
+        node_info=node_info,
+    )
+
+
+async def test_write_network_info_uses_write_custom_eui64(
+    app: ControllerApplication,
+    zigpy_backup: zigpy.backups.NetworkBackup,
+) -> None:
+    """Test that `write_network_info` uses `write_custom_eui64` correctly."""
+    app._ezsp.can_rewrite_custom_eui64 = AsyncMock(return_value=True)
+    app._ezsp.write_custom_eui64 = AsyncMock()
+
+    different_ieee = t.EUI64.convert("aa:aa:aa:aa:aa:aa:aa:aa")
+    node_info = zigpy_backup.node_info.replace(ieee=different_ieee)
+
+    with patch.object(app, "_reset"):
+        await app.write_network_info(
+            node_info=node_info,
+            network_info=zigpy_backup.network_info,
+        )
+
+    # Verify write_custom_eui64 was called without burn_into_userdata flag
+    assert app._ezsp.write_custom_eui64.mock_calls == [call(different_ieee)]
+
+
 async def test_network_scan(app: ControllerApplication) -> None:
     app._ezsp._protocol.startScan.return_value = [t.sl_Status.OK]
 
