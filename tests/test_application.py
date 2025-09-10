@@ -756,7 +756,7 @@ async def test_request_concurrency_duplicate_failure(
     )
 
     await app.send_packet(packet)
-    app._concurrent_requests_semaphore.max_value = 10000
+    app._concurrent_requests_semaphore.max_concurrency = 10000
     results = await asyncio.gather(
         *(app.send_packet(packet) for _ in range(256 + 1)), return_exceptions=True
     )
@@ -1024,7 +1024,7 @@ async def test_send_packet_unicast_concurrency(app, packet, monkeypatch):
     monkeypatch.setattr(bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_MAINS", 0.5)
     monkeypatch.setattr(bellows.zigbee.application, "MESSAGE_SEND_TIMEOUT_BATTERY", 0.5)
 
-    app._concurrent_requests_semaphore.max_value = 10
+    app._concurrent_requests_semaphore.max_concurrency = 12
 
     max_concurrency = 0
     in_flight_requests = 0
@@ -1073,9 +1073,14 @@ async def test_send_packet_unicast_concurrency(app, packet, monkeypatch):
 
     app._ezsp.send_unicast = AsyncMock(side_effect=send_unicast)
 
-    responses = await asyncio.gather(*[app.send_packet(packet) for _ in range(100)])
+    responses = await asyncio.gather(
+        *[
+            app.send_packet(packet.replace(priority=zigpy_t.PacketPriority.HIGH))
+            for _ in range(100)
+        ]
+    )
     assert len(responses) == 100
-    assert max_concurrency == 10
+    assert max_concurrency == 12
     assert in_flight_requests == 0
 
 
