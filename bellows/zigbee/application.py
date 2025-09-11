@@ -19,7 +19,11 @@ import zigpy.application
 import zigpy.config
 import zigpy.device
 import zigpy.endpoint
-from zigpy.exceptions import NetworkNotFormed
+from zigpy.exceptions import (
+    CannotWriteNetworkSettings,
+    DestructiveWriteNetworkSettings,
+    NetworkNotFormed,
+)
 import zigpy.state
 import zigpy.types
 import zigpy.util
@@ -346,16 +350,63 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         async for nwk, eui64 in ezsp.read_address_table():
             self.state.network_info.nwk_addresses[eui64] = nwk
 
+    async def can_write_network_settings(
+        self,
+        *,
+        network_info: zigpy.state.NetworkInfo,
+        node_info: zigpy.state.NodeInfo,
+    ) -> bool:
+        # If we are not overwriting the EUI64, we can always write the network info
+        if node_info.ieee == zigpy.types.EUI64.UNKNOWN:
+            return True
+
+        ezsp = self._ezsp
+        stack_specific = network_info.stack_specific.get("ezsp", {})
+        (current_eui64,) = await ezsp.getEui64()
+
+        # If we are not actually replacing the EUI64, we can write the network info
+        if node_info.ieee == current_eui64:
+            return True
+
+        # If the adapter supports EUI64 rewriting, we can always write the network info
+        if await ezsp.can_rewrite_custom_eui64():
+            return True
+
+        # If the adapter does not support EUI64 rewriting, we cannot proceed
+        if not await ezsp.can_burn_userdata_custom_eui64():
+            _, _, version = await self._get_board_info()
+            raise CannotWriteNetworkSettings(
+                f"Please upgrade your adapter firmware. The adapter IEEE address"
+                f" has been overwritten and firmware {version!r} does not support"
+                f" writing it a second time."
+            )
+
+        # Otherwise, we need explicit confirmation
+        if not stack_specific.get(
+            "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it"
+        ):
+            _, _, version = await self._get_board_info()
+            raise DestructiveWriteNetworkSettings(
+                f"Please upgrade your adapter firmware. The adapter IEEE address"
+                f" needs to be replaced and firmware {version!r} does not support"
+                f" writing it multiple times."
+            )
+
+        return True
+
     async def write_network_info(
         self, *, network_info: zigpy.state.NetworkInfo, node_info: zigpy.state.NodeInfo
     ) -> None:
         ezsp = self._ezsp
 
+        # Throw an error early if we can't actually restore
+        await self.can_write_network_settings(
+            network_info=network_info, node_info=node_info
+        )
         await self.reset_network_info()
 
         stack_specific = network_info.stack_specific.get("ezsp", {})
         (current_eui64,) = await ezsp.getEui64()
-        wrote_eui64 = False
 
         if (
             node_info.ieee != zigpy.types.EUI64.UNKNOWN
@@ -363,32 +414,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         ):
             if await ezsp.can_rewrite_custom_eui64():
                 await ezsp.write_custom_eui64(node_info.ieee)
-                wrote_eui64 = True
-            elif not stack_specific.get(
-                "i_understand_i_can_update_eui64_only_once_and_i_still_want_to_do_it"
-            ):
-                _, _, version = await self._get_board_info()
-                raise ControllerError(
-                    f"Please upgrade your adapter firmware. The adapter IEEE address"
-                    f" needs to be replaced and firmware {version!r} does not support"
-                    f" writing it multiple times."
-                )
-            elif not await ezsp.can_burn_userdata_custom_eui64():
-                _, _, version = await self._get_board_info()
-                raise ControllerError(
-                    f"Please upgrade your adapter firmware. The adapter IEEE address"
-                    f" has been overwritten and firmware {version!r} does not support"
-                    f" writing it a second time."
-                )
             else:
+                assert await ezsp.can_burn_userdata_custom_eui64()
                 await ezsp.write_custom_eui64(node_info.ieee, burn_into_userdata=True)
-                wrote_eui64 = True
 
-        if wrote_eui64:
-            # Reset after writing the EUI64, as it touches NVRAM
             await self._reset()
         else:
-            # If we cannot write the new EUI64, don't mess up key entries with the
+            # If we do not write the new EUI64, don't mess up key entries with the
             # unwritten EUI64 address
             node_info.ieee = current_eui64
             network_info.tc_link_key.partner_ieee = current_eui64
