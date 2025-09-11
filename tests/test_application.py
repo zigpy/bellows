@@ -1792,7 +1792,7 @@ async def test_startup_new_coordinator_no_groups_joined(app, ieee):
         (None, 32, 32),  # Default config (None) uses chip
         (8, 16, 16),  # Default fallback (8) uses chip
         (16, 32, 16),  # Explicit config overrides chip
-        (1, 32, 1),  # Low explicit config overrides chip
+        (12, 32, 12),  # Low explicit config overrides chip
     ],
 )
 async def test_startup_concurrency_setting(
