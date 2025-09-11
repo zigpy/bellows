@@ -778,3 +778,21 @@ class EZSP:
         """Get flow control type."""
         rsp = await self.send_xncp_frame(xncp.GetFlowControlTypeReq())
         return rsp.flow_control_type
+
+    async def xncp_get_chip_info(self) -> xncp.GetChipInfoRsp:
+        """Get the part number."""
+        return await self.send_xncp_frame(xncp.GetChipInfoReq())
+
+    async def get_default_adapter_concurrency(self) -> int:
+        """Get the recommended concurrency based on chip information."""
+        if FirmwareFeatures.CHIP_INFO not in self._xncp_features:
+            return 8
+
+        chip_info = await self.xncp_get_chip_info()
+
+        # Usually 98304 bytes for MG21
+        if chip_info.ram_size < 100000:
+            return 8
+
+        # Usually 262144 bytes for MG24
+        return 32

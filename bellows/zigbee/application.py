@@ -252,6 +252,19 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._multicast = bellows.multicast.Multicast(ezsp)
             await self._multicast.startup(ezsp_device)
 
+        if self._config[zigpy.config.CONF_MAX_CONCURRENT_REQUESTS] in (
+            None,
+            zigpy.config.defaults.CONF_MAX_CONCURRENT_REQUESTS_DEFAULT,
+        ):
+            max_concurrent_requests = await self._ezsp.get_default_adapter_concurrency()
+        else:
+            max_concurrent_requests = self._config[
+                zigpy.config.CONF_MAX_CONCURRENT_REQUESTS
+            ]
+
+        LOGGER.debug("Setting adapter concurrency to %d", max_concurrent_requests)
+        self._concurrent_requests_semaphore.max_concurrency = max_concurrent_requests
+
     async def load_network_info(self, *, load_devices=False) -> None:
         ezsp = self._ezsp
 
@@ -310,6 +323,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         else:
             flow_control = None
 
+        if FirmwareFeatures.CHIP_INFO in ezsp._xncp_features:
+            chip_info = await ezsp.xncp_get_chip_info()
+        else:
+            chip_info = None
+
         self.state.network_info = zigpy.state.NetworkInfo(
             source=f"bellows@{LIB_VERSION}",
             extended_pan_id=zigpy.types.ExtendedPanId(nwk_params.extendedPanId),
@@ -327,13 +345,18 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             stack_specific=stack_specific,
             metadata={
                 "ezsp": {
+                    "chip_info": (
+                        chip_info.as_dict(recursive=True)
+                        if chip_info is not None
+                        else None
+                    ),
                     "stack_version": ezsp.ezsp_version,
                     "can_burn_userdata_custom_eui64": can_burn_userdata_custom_eui64,
                     "can_rewrite_custom_eui64": can_rewrite_custom_eui64,
                     "flow_control": (
                         flow_control.name.lower() if flow_control is not None else None
                     ),
-                }
+                },
             },
         )
 

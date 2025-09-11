@@ -39,12 +39,14 @@ class XncpCommandId(t.enum16):
     GET_MFG_TOKEN_OVERRIDE_REQ = 0x0002
     GET_BUILD_STRING_REQ = 0x0003
     GET_FLOW_CONTROL_TYPE_REQ = 0x0004
+    GET_CHIP_INFO_REQ = 0x0005
 
     GET_SUPPORTED_FEATURES_RSP = GET_SUPPORTED_FEATURES_REQ | 0x8000
     SET_SOURCE_ROUTE_RSP = SET_SOURCE_ROUTE_REQ | 0x8000
     GET_MFG_TOKEN_OVERRIDE_RSP = GET_MFG_TOKEN_OVERRIDE_REQ | 0x8000
     GET_BUILD_STRING_RSP = GET_BUILD_STRING_REQ | 0x8000
     GET_FLOW_CONTROL_TYPE_RSP = GET_FLOW_CONTROL_TYPE_REQ | 0x8000
+    GET_CHIP_INFO_RSP = GET_CHIP_INFO_REQ | 0x8000
 
     UNKNOWN = 0xFFFF
 
@@ -106,6 +108,9 @@ class FirmwareFeatures(t.bitmap32):
     # The flow control type (software or hardware) can be queried
     FLOW_CONTROL_TYPE = 1 << 4
 
+    # Chip info (e.g. name, RAM size) can be read
+    CHIP_INFO = 1 << 5
+
 
 class XncpCommandPayload(t.Struct):
     pass
@@ -165,6 +170,17 @@ class GetFlowControlTypeReq(XncpCommandPayload):
 @register_command(XncpCommandId.GET_FLOW_CONTROL_TYPE_RSP)
 class GetFlowControlTypeRsp(XncpCommandPayload):
     flow_control_type: FlowControlType
+
+
+@register_command(XncpCommandId.GET_CHIP_INFO_REQ)
+class GetChipInfoReq(XncpCommandPayload):
+    pass
+
+
+@register_command(XncpCommandId.GET_CHIP_INFO_RSP)
+class GetChipInfoRsp(XncpCommandPayload):
+    ram_size: t.uint32_t
+    part_number: t.CharacterString
 
 
 @register_command(XncpCommandId.UNKNOWN)
