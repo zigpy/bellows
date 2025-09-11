@@ -263,7 +263,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             ]
 
         LOGGER.debug("Setting adapter concurrency to %d", max_concurrent_requests)
-        self._concurrent_requests_semaphore.max_value = max_concurrent_requests
+        self._concurrent_requests_semaphore.max_concurrency = max_concurrent_requests
 
     async def load_network_info(self, *, load_devices=False) -> None:
         ezsp = self._ezsp

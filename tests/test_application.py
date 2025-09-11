@@ -1787,12 +1787,12 @@ async def test_startup_new_coordinator_no_groups_joined(app, ieee):
 
 
 @pytest.mark.parametrize(
-    "concurrency_config,chip_concurrency,expected_concurrency",
+    ("concurrency_config", "chip_concurrency", "expected_concurrency"),
     [
-        (None, 32, 32),  # Default config (None) uses chip-based
-        (8, 16, 16),  # Default fallback (8) uses chip-based
-        (16, 32, 16),  # Explicit config overrides chip-based
-        (1, 32, 1),  # Low explicit config overrides chip-based
+        (None, 32, 32),  # Default config (None) uses chip
+        (8, 16, 16),  # Default fallback (8) uses chip
+        (16, 32, 16),  # Explicit config overrides chip
+        (1, 32, 1),  # Low explicit config overrides chip
     ],
 )
 async def test_startup_concurrency_setting(
@@ -1811,7 +1811,9 @@ async def test_startup_concurrency_setting(
         await app.connect()
         await app.start_network()
 
-        assert app._concurrent_requests_semaphore.max_value == expected_concurrency
+        assert (
+            app._concurrent_requests_semaphore.max_concurrency == expected_concurrency
+        )
 
 
 @pytest.mark.parametrize(
