@@ -22,7 +22,7 @@ else:
 import zigpy.config
 
 import bellows.config as conf
-from bellows.exception import EzspError, InvalidCommandError
+from bellows.exception import EzspError, InvalidCommandError, InvalidCommandPayload
 from bellows.ezsp import xncp
 from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig, ValueConfig
 from bellows.ezsp.xncp import FirmwareFeatures, FlowControlType
@@ -736,7 +736,9 @@ class EZSP:
         try:
             rsp_frame = xncp.XncpCommand.from_bytes(data)
         except ValueError:
-            raise InvalidCommandError(f"Invalid XNCP response: {data!r}")
+            raise InvalidCommandPayload(
+                f"Invalid XNCP response: {data!r}", raw_bytes=data
+            )
 
         if isinstance(rsp_frame.payload, xncp.Unknown):
             raise InvalidCommandError(f"XNCP firmware does not support {payload}")
@@ -781,7 +783,15 @@ class EZSP:
 
     async def xncp_get_chip_info(self) -> xncp.GetChipInfoRsp:
         """Get the part number."""
-        return await self.send_xncp_frame(xncp.GetChipInfoReq())
+
+        try:
+            return await self.send_xncp_frame(xncp.GetChipInfoReq())
+        except InvalidCommandPayload:
+            # Beta firmwares had a bug with this command
+            return xncp.GetChipInfoRsp(
+                ram_size=262144,
+                part_number="EFR32MG24A420F1536IM40",
+            )
 
     async def get_default_adapter_concurrency(self) -> int:
         """Get the recommended concurrency based on chip information."""
