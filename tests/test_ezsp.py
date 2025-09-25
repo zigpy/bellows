@@ -10,7 +10,7 @@ import zigpy.config
 
 from bellows import config, uart
 from bellows.ash import NcpFailure
-from bellows.exception import EzspError, InvalidCommandError
+from bellows.exception import EzspError, InvalidCommandError, InvalidCommandPayload
 from bellows.ezsp import EZSP, EZSP_LATEST, xncp
 import bellows.types as t
 
@@ -989,6 +989,30 @@ async def test_xncp_get_chip_info(ezsp_f):
         result = await ezsp_f.xncp_get_chip_info()
 
     assert result == expected_response
+    assert mock_send.mock_calls == [call(xncp.GetChipInfoReq())]
+
+
+async def test_xncp_get_chip_info_invalid_payload_fallback(ezsp_f):
+    """Test graceful fallback when chip info command returns invalid payload."""
+    ezsp_f._xncp_features = xncp.FirmwareFeatures.CHIP_INFO
+
+    with patch.object(
+        ezsp_f,
+        "send_xncp_frame",
+        new=AsyncMock(
+            side_effect=InvalidCommandPayload(
+                "Invalid XNCP response: b'\\x05\\x80\\x02'", b"\x05\x80\x02"
+            )
+        ),
+    ) as mock_send:
+        result = await ezsp_f.xncp_get_chip_info()
+
+    # Should return fallback response for beta firmware bug
+    assert result == xncp.GetChipInfoRsp(
+        ram_size=262144,
+        part_number="EFR32MG24A420F1536IM40",
+    )
+
     assert mock_send.mock_calls == [call(xncp.GetChipInfoReq())]
 
 
