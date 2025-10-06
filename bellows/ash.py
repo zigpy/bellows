@@ -715,4 +715,8 @@ class AshProtocol(asyncio.Protocol):
         )
 
     def send_reset(self) -> None:
+        # Some adapters seem to send a NAK immediately but still process the reset frame
+        # if one eventually makes it through
+        self._write_frame(RstFrame(), prefix=(Reserved.CANCEL,))
+        self._write_frame(RstFrame(), prefix=(Reserved.CANCEL,))
         self._write_frame(RstFrame(), prefix=(Reserved.CANCEL,))
