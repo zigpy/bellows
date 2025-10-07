@@ -438,7 +438,10 @@ async def test_ash_protocol_startup(caplog):
 
     assert ezsp.reset_received.mock_calls == [call(t.NcpResetCode.RESET_SOFTWARE)]
     assert protocol._write_frame.mock_calls == [
-        call(ash.RstFrame(), prefix=(ash.Reserved.CANCEL,))
+        # We send three
+        call(ash.RstFrame(), prefix=(ash.Reserved.CANCEL,)),
+        call(ash.RstFrame(), prefix=(ash.Reserved.CANCEL,)),
+        call(ash.RstFrame(), prefix=(ash.Reserved.CANCEL,)),
     ]
 
     protocol._write_frame.reset_mock()
