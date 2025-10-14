@@ -2789,6 +2789,14 @@ class SecurityManagerDerivedKeyTypeV13(basic.enum16):
     TC_HASHED_LINK_KEY = 5
 
 
+class SourceRouteDiscoveryMode(basic.enum8):
+    """Source route discovery mode."""
+
+    OFF = 0
+    ON = 1
+    RESCHEDULE = 2
+
+
 class RouteRecordState(basic.enum8):
     """Route record state for EmberRouteTableEntry."""
 

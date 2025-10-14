@@ -1944,6 +1944,7 @@ def zigpy_backup() -> zigpy.backups.NetworkBackup:
             channel=t.uint8_t(25),
             channel_mask=t.Channels.ALL_CHANNELS,
             security_level=t.uint8_t(1),
+            tx_power=0,
             network_key=zigpy.state.Key(
                 key=t.KeyData.convert(
                     "41:63:74:75:61:6c:4e:65:74:77:6f:72:6b:4b:65:79"
@@ -2073,7 +2074,7 @@ async def test_write_network_info(
             parameters=t.EmberNetworkParameters(
                 panId=zigpy_backup.network_info.pan_id,
                 extendedPanId=zigpy_backup.network_info.extended_pan_id,
-                radioTxPower=t.uint8_t(8),
+                radioTxPower=t.uint8_t(zigpy_backup.network_info.tx_power),
                 radioChannel=zigpy_backup.network_info.channel,
                 joinMethod=t.EmberJoinMethod.USE_MAC_ASSOCIATION,
                 nwkManagerId=t.EmberNodeId(0x0000),

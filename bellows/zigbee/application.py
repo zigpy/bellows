@@ -253,13 +253,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         backup = self.backups.most_recent_backup()
         if backup is not None:
-            route_table = {
-                t.NWK.convert(dest): t.NWK.convert(next_hop)
-                for dest, next_hop in backup.network_info.metadata.get("ezsp", {})
-                .get("route_table", {})
-                .items()
-            }
-            await self._restore_route_table(route_table)
+            await self._restore_route_table(backup.network_info.route_table)
 
     async def _restore_route_table(self, route_table: dict[t.NWK, t.NWK]) -> None:
         if FirmwareFeatures.RESTORE_ROUTE_TABLE not in self._ezsp._xncp_features:
@@ -357,6 +351,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             key_table=[],
             children=[],
             nwk_addresses={},
+            tx_power=nwk_params.radioTxPower,
             stack_specific=stack_specific,
             metadata={
                 "ezsp": {
@@ -373,7 +368,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     ),
                     # Z2M will not load EZSP backups without this internal key
                     "ezspVersion": ezsp.ezsp_version,
-                    "route_table": {},
                 },
             },
         )
@@ -392,10 +386,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self.state.network_info.nwk_addresses[eui64] = nwk
 
         if FirmwareFeatures.RESTORE_ROUTE_TABLE in ezsp._xncp_features:
-            route_table = self.state.network_info.metadata.setdefault(
-                "ezsp", {}
-            ).setdefault("route_table", {})
-
             for index in range(255 + 1):
                 try:
                     rsp = await ezsp.xncp_get_route_table_entry(index=index)
@@ -414,7 +404,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 ):
                     continue
 
-                route_table[str(rsp.destination)[2:]] = str(rsp.next_hop)[2:]
+                self.state.network_info.route_table[rsp.destination] = rsp.next_hop
 
     async def can_write_network_settings(
         self,
@@ -515,7 +505,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         parameters = t.EmberNetworkParameters()
         parameters.panId = t.EmberPanId(network_info.pan_id)
         parameters.extendedPanId = t.EUI64(network_info.extended_pan_id)
-        parameters.radioTxPower = t.uint8_t(8)
+        parameters.radioTxPower = t.uint8_t(network_info.tx_power)
         parameters.radioChannel = t.uint8_t(network_info.channel)
         parameters.joinMethod = t.EmberJoinMethod.USE_MAC_ASSOCIATION
         parameters.nwkManagerId = t.EmberNodeId(network_info.nwk_manager_id)
