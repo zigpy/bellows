@@ -386,7 +386,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self.state.network_info.nwk_addresses[eui64] = nwk
 
         if FirmwareFeatures.RESTORE_ROUTE_TABLE in ezsp._xncp_features:
-            for index in range(255 + 1):
+            (status, route_table_size) = await ezsp.getConfigurationValue(
+                t.EzspConfigId.CONFIG_ROUTE_TABLE_SIZE
+            )
+
+            for index in range(route_table_size):
                 try:
                     rsp = await ezsp.xncp_get_route_table_entry(index=index)
                 except InvalidCommandError:
