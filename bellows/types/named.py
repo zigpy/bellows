@@ -2808,15 +2808,13 @@ class RouteRecordState(basic.enum8):
 class RouteRecordStatus(basic.enum8):
     """Route record status for EmberRouteTableEntry."""
 
-    ACTIVE = 0
-    BEING_DISCOVERED = 1
-    # ??? = 2
-    UNUSED = 3
-    VALIDATING = 4
+    ACTIVE_AGE_0 = 0x00
+    ACTIVE_AGE_1 = 0x40
+    ACTIVE_AGE_2 = 0x80
 
-    # The purpose of these is unknown but they are associated with an active route
-    ACTIVE_UNKNOWN_2 = 0x40
-    ACTIVE_UNKNOWN_3 = 0x80
+    BEING_DISCOVERED = 0x01
+    UNUSED = 0x03
+    VALIDATING = 0x04
 
 
 class RouteRecordConcentratortype(basic.enum8):

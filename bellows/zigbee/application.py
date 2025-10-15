@@ -270,7 +270,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 index=index,
                 destination=dest,
                 next_hop=next_hop,
-                status=t.RouteRecordStatus.ACTIVE_UNKNOWN_3,
+                status=t.RouteRecordStatus.ACTIVE_AGE_2,
                 cost=0,  # unused
             )
 
@@ -399,9 +399,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 if (
                     rsp.status
                     not in (
-                        t.RouteRecordStatus.ACTIVE,
-                        t.RouteRecordStatus.ACTIVE_UNKNOWN_2,
-                        t.RouteRecordStatus.ACTIVE_UNKNOWN_3,
+                        t.RouteRecordStatus.ACTIVE_AGE_0,
+                        t.RouteRecordStatus.ACTIVE_AGE_1,
+                        t.RouteRecordStatus.ACTIVE_AGE_2,
                     )
                     or rsp.destination == 0xFFFF
                     or rsp.next_hop == 0xFFFF
