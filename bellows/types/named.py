@@ -493,6 +493,32 @@ class EmberStatus(basic.enum8):
     ADDRESS_TABLE_ENTRY_IS_ACTIVE = 0x76
     # An attempt was made to transmit during the suspend period.
     TRANSMISSION_SUSPENDED = 0x77
+
+    # Node ID discovery failed.
+    ID_DISCOVERY_FAILED = 0xC8
+    # Message was sent but no APS ACK received.
+    NO_APS_ACK = 0xC9
+    # APS message was canceled.
+    APS_MESSAGE_CANCELED = 0xCA
+    # Node ID discovery not enabled.
+    ID_DISCOVERY_NOT_ENABLED = 0xCB
+    # Message was not sent, Node ID discovery is underway.
+    ID_DISCOVERY_UNDERWAY = 0xCC
+    # The message was not sent because a route discovery is currently underway. There is
+    # no route to the target until the route discovery completes.
+    SEND_UNICAST_ROUTE_DISCOVERY_UNDERWAY = 0xCD
+    # Radius is 0 or message has been dropped because route request failed or failed to
+    # submit message to tx queue.
+    SEND_UNICAST_FAILURE = 0xCE
+    # No active route to the destination.
+    SEND_UNICAST_NO_ROUTE = 0xCF
+    # Broadcast message timeout while waiting for sleepy children to poll.
+    BROADCAST_TO_SLEEPY_CHILDREN_TIMEOUT = 0xD0
+    # Expected a neighbor to relay the message, but none did.
+    BROADCAST_RELAY_FAILED = 0xD1
+    # Transmit is incomplete.
+    TRANSMIT_INCOMPLETE = 0xD2
+
     # Security match.
     MATCH = 0x78
     # Drop frame.
