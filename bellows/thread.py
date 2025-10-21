@@ -2,7 +2,6 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import functools
 import logging
-import sys
 
 LOGGER = logging.getLogger(__name__)
 
@@ -35,10 +34,7 @@ class EventLoopThread:
         if self.loop is not None and not self.loop.is_closed():
             return
 
-        executor_opts = {"max_workers": 1}
-        if sys.version_info[:2] >= (3, 6):
-            executor_opts["thread_name_prefix"] = __name__
-        executor = ThreadPoolExecutor(**executor_opts)
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=__name__)
 
         thread_started_future = current_loop.create_future()
 

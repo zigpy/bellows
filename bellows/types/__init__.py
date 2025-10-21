@@ -13,7 +13,7 @@ def deserialize_dict(data, schema):
 
 def serialize_dict(args, kwargs, schema):
     params = {
-        **dict(zip(schema.keys(), args)),
+        **dict(zip(schema.keys(), args, strict=False)),
         **kwargs,
     }
 

@@ -152,7 +152,7 @@ def test_close(gw):
 
 async def test_reset_timeout(gw, monkeypatch):
     monkeypatch.setattr(uart, "RESET_TIMEOUT", 0.1)
-    with pytest.raises(asyncio.TimeoutError):
+    with pytest.raises(TimeoutError):
         await gw.reset()
 
 
@@ -223,7 +223,7 @@ async def test_wait_for_startup_reset(gw):
 async def test_wait_for_startup_reset_failure(gw):
     assert gw._startup_reset_future is None
 
-    with pytest.raises(asyncio.TimeoutError):
+    with pytest.raises(TimeoutError):
         await asyncio.wait_for(gw.wait_for_startup_reset(), 0.01)
 
     assert gw._startup_reset_future is None

@@ -3,24 +3,19 @@
 from __future__ import annotations
 
 import asyncio
+from asyncio import timeout as asyncio_timeout
 import collections
+from collections.abc import Callable, Generator
 import contextlib
 import dataclasses
 import functools
 import logging
-import sys
-from typing import Any, Callable, Generator
+from typing import Any
 import urllib.parse
-
-from bellows.ash import NcpFailure
-
-if sys.version_info[:2] < (3, 11):
-    from async_timeout import timeout as asyncio_timeout  # pragma: no cover
-else:
-    from asyncio import timeout as asyncio_timeout  # pragma: no cover
 
 import zigpy.config
 
+from bellows.ash import NcpFailure
 import bellows.config as conf
 from bellows.exception import EzspError, InvalidCommandError, InvalidCommandPayload
 from bellows.ezsp import xncp
@@ -119,7 +114,7 @@ class EZSP:
             try:
                 async with asyncio_timeout(NETWORK_COORDINATOR_STARTUP_RESET_WAIT):
                     await self._gw.wait_for_startup_reset()
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
             else:
                 LOGGER.debug("Received a reset on startup, not resetting again")

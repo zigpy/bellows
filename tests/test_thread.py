@@ -1,12 +1,7 @@
 import asyncio
-import sys
+from asyncio import timeout as asyncio_timeout
 import threading
 from unittest import mock
-
-if sys.version_info[:2] < (3, 11):
-    from async_timeout import timeout as asyncio_timeout  # pragma: no cover
-else:
-    from asyncio import timeout as asyncio_timeout  # pragma: no cover
 
 import pytest
 
@@ -80,9 +75,8 @@ async def test_thread_loop(thread):
 async def test_thread_double_start(thread):
     previous_loop = thread.loop
     await thread.start()
-    if sys.version_info[:2] >= (3, 6):
-        threads = [t for t in threading.enumerate() if "bellows" in t.name]
-        assert len(threads) == 1
+    threads = [t for t in threading.enumerate() if "bellows" in t.name]
+    assert len(threads) == 1
     assert thread.loop is previous_loop
 
 

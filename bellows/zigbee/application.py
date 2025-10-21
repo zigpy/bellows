@@ -1,19 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from asyncio import timeout as asyncio_timeout
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
+import importlib.metadata
 import logging
 import os
 import statistics
-import sys
-from typing import AsyncGenerator
-
-if sys.version_info[:2] < (3, 11):
-    from async_timeout import timeout as asyncio_timeout  # pragma: no cover
-else:
-    from asyncio import timeout as asyncio_timeout  # pragma: no cover
-
-import importlib.metadata
 
 import zigpy.application
 import zigpy.config
@@ -843,7 +837,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             with self._ezsp.callback_for_commands(
                 {"mfglibRxHandler"},
                 callback=lambda _, response: queue.put_nowait(
-                    (datetime.now(timezone.utc), response)
+                    (datetime.now(UTC), response)
                 ),
             ):
                 while True:
@@ -1096,7 +1090,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     cnt._last_reset_value = 0
 
                 LOGGER.debug("%s", counters)
-        except (asyncio.TimeoutError, EzspError) as exc:
+        except (TimeoutError, EzspError) as exc:
             # TODO: converted Silvercrest gateways break without this
             LOGGER.warning("Watchdog heartbeat timeout: %s", repr(exc))
             self._watchdog_failures += 1
