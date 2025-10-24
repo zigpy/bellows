@@ -33,16 +33,12 @@ class Gateway(zigpy.serial.SerialProtocol):
 
     def reset_received(self, code: t.NcpResetCode) -> None:
         """Reset acknowledgement frame receive handler"""
-        # not a reset we've requested. Signal api reset
-        if code is not t.NcpResetCode.RESET_SOFTWARE:
-            self._api.enter_failed_state(code)
-            return
-
         if self._reset_future and not self._reset_future.done():
             self._reset_future.set_result(True)
         elif self._startup_reset_future and not self._startup_reset_future.done():
             self._startup_reset_future.set_result(True)
         else:
+            self._api.enter_failed_state(code)
             LOGGER.warning("Received an unexpected reset: %r", code)
 
     def error_received(self, code: t.NcpResetCode) -> None:
