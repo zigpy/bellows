@@ -356,6 +356,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     "flow_control": (
                         flow_control.name.lower() if flow_control is not None else None
                     ),
+                    "ezspVersion": ezsp.ezsp_version,
                 },
             },
         )

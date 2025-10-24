@@ -1995,6 +1995,7 @@ def zigpy_backup() -> zigpy.backups.NetworkBackup:
                     "can_burn_userdata_custom_eui64": True,
                     "can_rewrite_custom_eui64": True,
                     "chip_info": None,
+                    "ezspVersion": 8,
                 }
             },
         ),
