@@ -33,6 +33,8 @@ class Gateway(zigpy.serial.SerialProtocol):
 
     def reset_received(self, code: t.NcpResetCode) -> None:
         """Reset acknowledgement frame receive handler"""
+        LOGGER.debug("Received reset: %r", code)
+
         if self._reset_future and not self._reset_future.done():
             self._reset_future.set_result(True)
         elif self._startup_reset_future and not self._startup_reset_future.done():
@@ -43,7 +45,10 @@ class Gateway(zigpy.serial.SerialProtocol):
 
     def error_received(self, code: t.NcpResetCode) -> None:
         """Error frame receive handler."""
-        self._api.enter_failed_state(code)
+        if self._reset_future is not None or self._startup_reset_future is not None:
+            LOGGER.debug("Ignoring spurious error during reset: %r", code)
+        else:
+            self._api.enter_failed_state(code)
 
     async def wait_for_startup_reset(self) -> None:
         """Wait for the first reset frame on startup."""
