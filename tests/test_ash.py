@@ -605,6 +605,43 @@ async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
             await host.send_data(b"ncp NAKing until failure")
 
 
+async def test_rstack_cancels_pending_frames() -> None:
+    """Test that RSTACK frame cancels pending data frames."""
+    host_ezsp = MagicMock()
+    ncp_ezsp = MagicMock()
+
+    host = ash.AshProtocol(host_ezsp)
+    ncp = AshNcpProtocol(ncp_ezsp)
+
+    host_transport = FakeTransport(ncp)
+    ncp_transport = FakeTransport(host)
+
+    host.connection_made(host_transport)
+    ncp.connection_made(ncp_transport)
+
+    # Pause the NCP transport so ACKs can't be sent back, creating a pending frame
+    ncp_transport.paused = True
+
+    # Start sending data without awaiting - this will create a pending frame
+    send_task = asyncio.create_task(host.send_data(b"test data"))
+
+    # Give task time to start and create the pending frame
+    await asyncio.sleep(0.1)
+
+    # Verify we have a pending frame
+    assert len(host._pending_data_frames) == 1
+
+    # Trigger RSTACK frame to cancel the pending frame
+    rstack = ash.RStackFrame(version=2, reset_code=t.NcpResetCode.RESET_POWER_ON)
+    host.rstack_frame_received(rstack)
+
+    # Verify task was cancelled with NcpFailure containing the reset code
+    with pytest.raises(ash.NcpFailure) as exc_info:
+        await send_task
+
+    assert exc_info.value.code == t.NcpResetCode.RESET_POWER_ON
+
+
 def test_ncp_failure_comparison() -> None:
     exc1 = ash.NcpFailure(code=t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT)
     exc2 = ash.NcpFailure(code=t.NcpResetCode.RESET_POWER_ON)

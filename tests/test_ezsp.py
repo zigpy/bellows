@@ -304,6 +304,28 @@ async def test_ezsp_connect_failure(disconnect_mock, reset_mock, version_mock):
     assert disconnect_mock.call_count == 1
 
 
+@pytest.mark.parametrize("failures_before_success", [1, 2, 3, 4])
+@patch.object(EZSP, "disconnect", new_callable=AsyncMock)
+async def test_ezsp_connect_retry_success(disconnect_mock, failures_before_success):
+    """Test connection succeeding after N failures."""
+    call_count = 0
+
+    async def startup_reset_mock():
+        nonlocal call_count
+        call_count += 1
+        if call_count <= failures_before_success:
+            raise RuntimeError(f"Startup failed (attempt {call_count})")
+
+    with patch("bellows.uart.connect"):
+        ezsp = make_ezsp(version=4)
+
+        with patch.object(ezsp, "startup_reset", side_effect=startup_reset_mock):
+            await ezsp.connect()
+
+    assert call_count == failures_before_success + 1
+    assert disconnect_mock.call_count == 0
+
+
 async def test_ezsp_newer_version(ezsp_f):
     """Test newer version of ezsp."""
     with patch.object(
