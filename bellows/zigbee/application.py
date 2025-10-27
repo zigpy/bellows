@@ -251,6 +251,19 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._multicast = bellows.multicast.Multicast(ezsp)
             await self._multicast.startup(ezsp_device)
 
+        if self._config[zigpy.config.CONF_MAX_CONCURRENT_REQUESTS] in (
+            None,
+            zigpy.config.defaults.CONF_MAX_CONCURRENT_REQUESTS_DEFAULT,
+        ):
+            max_concurrent_requests = await self._ezsp.get_default_adapter_concurrency()
+        else:
+            max_concurrent_requests = self._config[
+                zigpy.config.CONF_MAX_CONCURRENT_REQUESTS
+            ]
+
+        LOGGER.debug("Setting adapter concurrency to %d", max_concurrent_requests)
+        self._concurrent_requests_semaphore.max_concurrency = max_concurrent_requests
+
         backup = self.backups.most_recent_backup()
         if backup is not None:
             await self._restore_route_table(backup.network_info.route_table)
