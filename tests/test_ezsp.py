@@ -299,8 +299,8 @@ async def test_ezsp_connect_failure(disconnect_mock, reset_mock, version_mock):
             await ezsp.connect()
 
     assert conn_mock.await_count == 1
-    assert reset_mock.await_count == 1
-    assert version_mock.await_count == 1
+    assert reset_mock.await_count == 5
+    assert version_mock.await_count == 5
     assert disconnect_mock.call_count == 1
 
 
