@@ -544,7 +544,7 @@ def test_frame_handler_ignored(app, aps_frame):
         0xFF,
     ),
 )
-def test_send_failure(app, aps, ieee, msg_type):
+async def test_send_failure(app, aps, ieee, msg_type):
     fut = app._pending_requests[(0xBEED, 254)] = asyncio.Future()
     app.ezsp_callback_handler(
         "messageSentHandler", [msg_type, 0xBEED, aps, 254, t.EmberStatus.SUCCESS, b""]
@@ -583,7 +583,7 @@ def test_send_failure_unexpected(app, aps, ieee):
     )
 
 
-def test_send_success(app, aps, ieee):
+async def test_send_success(app, aps, ieee):
     fut = app._pending_requests[(0xBEED, 253)] = asyncio.Future()
     app.ezsp_callback_handler(
         "messageSentHandler",
@@ -1267,7 +1267,7 @@ async def test_watchdog(make_app, monkeypatch, ezsp_version):
                 raise EzspError
             else:
                 return ([0] * 10,)
-        raise asyncio.TimeoutError
+        raise TimeoutError
 
     app._ezsp._protocol.getValue.return_value = [t.EmberStatus.SUCCESS, b"\xFE"]
     app._ezsp._protocol.nop.side_effect = nop_mock
@@ -1286,7 +1286,7 @@ async def test_watchdog(make_app, monkeypatch, ezsp_version):
     await app._watchdog_feed()
 
     # The last time will throw a real error
-    with pytest.raises(asyncio.TimeoutError):
+    with pytest.raises(TimeoutError):
         await app._watchdog_feed()
 
     if ezsp_version == 4:
@@ -1309,7 +1309,7 @@ async def test_watchdog_counters(app, monkeypatch, caplog):
                 raise EzspError
             else:
                 return ([0, 1, 2, 3],)
-        raise asyncio.TimeoutError
+        raise TimeoutError
 
     app._ezsp._protocol.getValue = AsyncMock(
         return_value=[t.EmberStatus.SUCCESS, b"\xFE"]
@@ -1346,7 +1346,7 @@ async def test_ezsp_value_counter(app, monkeypatch):
                 raise EzspError
             else:
                 return {t.EmberCounterType(i): v for i, v in enumerate([0, 1, 2, 3])}
-        raise asyncio.TimeoutError
+        raise TimeoutError
 
     app._ezsp.read_counters = AsyncMock(side_effect=counters_mock)
     app._ezsp.nop = AsyncMock(side_effect=EzspError)
@@ -1846,7 +1846,7 @@ async def test_startup_concurrency_setting(
 )
 async def test_energy_scanning(app, scan_results):
     app._ezsp.startScan = AsyncMock(
-        return_value=list(zip(range(11, 26 + 1), scan_results))
+        return_value=list(zip(range(11, 26 + 1), scan_results, strict=True))
     )
 
     results = await app.energy_scan(

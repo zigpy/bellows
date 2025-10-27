@@ -2,21 +2,16 @@ from __future__ import annotations
 
 import abc
 import asyncio
+from asyncio import timeout as asyncio_timeout
 import binascii
+from collections.abc import AsyncGenerator, Callable, Iterable
 import functools
 import logging
-import sys
 import time
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Callable, Iterable
-
-import zigpy.state
-
-if sys.version_info[:2] < (3, 11):
-    from async_timeout import timeout as asyncio_timeout  # pragma: no cover
-else:
-    from asyncio import timeout as asyncio_timeout  # pragma: no cover
+from typing import TYPE_CHECKING, Any
 
 from zigpy.datastructures import PriorityDynamicBoundedSemaphore
+import zigpy.state
 
 from bellows.config import CONF_EZSP_POLICIES
 from bellows.exception import InvalidCommandError

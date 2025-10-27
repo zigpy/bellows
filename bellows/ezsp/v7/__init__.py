@@ -1,8 +1,8 @@
 """"EZSP Protocol version 7 protocol handler."""
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 import logging
-from typing import AsyncGenerator
 
 import voluptuous
 

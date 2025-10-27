@@ -1,9 +1,9 @@
 """Custom EZSP commands."""
 from __future__ import annotations
 
+from collections.abc import Callable
 import dataclasses
 import logging
-from typing import Callable
 
 import zigpy.types as t
 

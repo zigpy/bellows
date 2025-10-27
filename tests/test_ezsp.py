@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+from asyncio import timeout as asyncio_timeout
 import functools
 import logging
-import sys
+from unittest.mock import ANY, AsyncMock, MagicMock, call, patch
 
 import pytest
 import zigpy.config
@@ -12,16 +13,8 @@ from bellows import config, uart
 from bellows.ash import NcpFailure
 from bellows.exception import EzspError, InvalidCommandError, InvalidCommandPayload
 from bellows.ezsp import EZSP, EZSP_LATEST, xncp
-import bellows.types as t
-
-if sys.version_info[:2] < (3, 11):
-    from async_timeout import timeout as asyncio_timeout  # pragma: no cover
-else:
-    from asyncio import timeout as asyncio_timeout  # pragma: no cover
-
-from unittest.mock import ANY, AsyncMock, MagicMock, call, patch
-
 from bellows.ezsp.v9.commands import GetTokenDataRsp
+import bellows.types as t
 
 DEVICE_CONFIG = {
     zigpy.config.CONF_DEVICE_PATH: "/dev/null",
@@ -447,7 +440,7 @@ async def test_leave_network_no_stack_status(ezsp_f):
 
     with patch.object(ezsp_f, "_command", new_callable=AsyncMock) as cmd_mock:
         cmd_mock.return_value = [t.EmberStatus.SUCCESS]
-        with pytest.raises(asyncio.TimeoutError):
+        with pytest.raises(TimeoutError):
             await ezsp_f.leaveNetwork(timeout=0.01)
 
 
@@ -779,7 +772,7 @@ async def test_wait_for_stack_status(ezsp_f):
 
     # Cancellation clears handlers
     with ezsp_f.wait_for_stack_status(t.sl_Status.NETWORK_DOWN) as stack_status:
-        with pytest.raises(asyncio.TimeoutError):
+        with pytest.raises(TimeoutError):
             async with asyncio_timeout(0.1):
                 assert ezsp_f._stack_status_listeners[t.sl_Status.NETWORK_DOWN]
                 await stack_status

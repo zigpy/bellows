@@ -1,9 +1,9 @@
 """"EZSP Protocol version 4 command."""
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator, Iterable
 import logging
 import random
-from typing import AsyncGenerator, Iterable
 
 import voluptuous as vol
 import zigpy.state
@@ -189,11 +189,11 @@ class EZSPv4(protocol.ProtocolHandler):
 
     async def read_counters(self) -> dict[t.EmberCounterType, t.uint16_t]:
         (res,) = await self.readCounters()
-        return dict(zip(t.EmberCounterType, res))
+        return dict(zip(t.EmberCounterType, res, strict=False))
 
     async def read_and_clear_counters(self) -> dict[t.EmberCounterType, t.uint16_t]:
         (res,) = await self.readAndClearCounters()
-        return dict(zip(t.EmberCounterType, res))
+        return dict(zip(t.EmberCounterType, res, strict=False))
 
     async def set_extended_timeout(
         self, nwk: t.NWK, ieee: t.EUI64, extended_timeout: bool = True

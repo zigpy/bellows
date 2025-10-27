@@ -1,7 +1,7 @@
 """"EZSP Protocol version 14 protocol handler."""
 from __future__ import annotations
 
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 import voluptuous as vol
 from zigpy.exceptions import NetworkNotFormed

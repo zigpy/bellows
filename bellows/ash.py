@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import asyncio
+from asyncio import timeout as asyncio_timeout
 import binascii
 from collections.abc import Coroutine
 import contextlib
@@ -11,11 +12,6 @@ import logging
 import sys
 import time
 import typing
-
-if sys.version_info[:2] < (3, 11):
-    from async_timeout import timeout as asyncio_timeout  # pragma: no cover
-else:
-    from asyncio import timeout as asyncio_timeout  # pragma: no cover
 
 from zigpy.types import BaseDataclassMixin
 
@@ -675,7 +671,7 @@ class AshProtocol(asyncio.Protocol):
                             "NCP has entered into a failed state, not retrying"
                         )
                         raise
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         _LOGGER.debug(
                             "No ACK received in %0.2fs (attempt %d) for %r",
                             self._t_rx_ack,

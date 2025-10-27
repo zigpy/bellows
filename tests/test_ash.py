@@ -70,7 +70,7 @@ class AshNcpProtocol(ash.AshProtocol):
     async def _send_data_frame(self, frame: ash.AshFrame) -> None:
         try:
             return await super()._send_data_frame(frame)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._enter_ncp_error_state(
                 t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT
             )
@@ -549,7 +549,7 @@ async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
         send_task = asyncio.create_task(host.send_data(b"host failure"))
         await asyncio.sleep(host._t_rx_ack * 15)
 
-    with pytest.raises(asyncio.TimeoutError):
+    with pytest.raises(TimeoutError):
         await send_task
 
     ncp_ezsp.data_received.reset_mock()
@@ -575,7 +575,7 @@ async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
         send_task = asyncio.create_task(ncp.send_data(b"ncp failure"))
         await asyncio.sleep(ncp._t_rx_ack * 15)
 
-    with pytest.raises(asyncio.TimeoutError):
+    with pytest.raises(TimeoutError):
         await send_task
 
     assert (

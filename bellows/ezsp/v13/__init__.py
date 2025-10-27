@@ -1,8 +1,8 @@
 """"EZSP Protocol version 13 protocol handler."""
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator, Iterable
 import logging
-from typing import AsyncGenerator, Iterable
 
 import voluptuous as vol
 from zigpy.exceptions import NetworkNotFormed

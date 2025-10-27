@@ -1,7 +1,6 @@
 """"EZSP Protocol version 8 protocol handler."""
 import asyncio
 import logging
-from typing import Tuple
 
 import voluptuous
 
@@ -30,7 +29,7 @@ class EZSPv8(EZSPv7):
         hdr = [self._seq, 0x00, 0x01]
         return bytes(hdr) + t.uint16_t(cmd_id).serialize()
 
-    def _ezsp_frame_rx(self, data: bytes) -> Tuple[int, int, bytes]:
+    def _ezsp_frame_rx(self, data: bytes) -> tuple[int, int, bytes]:
         """Handler for received data frame."""
         seq, data = data[0], data[3:]
         frame_id, data = t.uint16_t.deserialize(data)

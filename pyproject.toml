@@ -12,13 +12,12 @@ authors = [
 ]
 readme = "README.md"
 license = {text = "GPL-3.0"}
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 dependencies = [
     "click",
     "click-log>=0.2.1",
     "voluptuous",
     "zigpy>=0.83.0",
-    'async-timeout; python_version<"3.11"',
 ]
 
 [tool.setuptools.packages.find]

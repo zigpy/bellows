@@ -1,11 +1,6 @@
 import asyncio
+from asyncio import timeout as asyncio_timeout
 import logging
-import sys
-
-if sys.version_info[:2] < (3, 11):
-    from async_timeout import timeout as asyncio_timeout  # pragma: no cover
-else:
-    from asyncio import timeout as asyncio_timeout  # pragma: no cover
 
 import zigpy.config
 import zigpy.serial
