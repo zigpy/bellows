@@ -14,10 +14,15 @@ import zigpy.zdo.types as zdo_t
 
 from bellows.ash import NcpFailure
 import bellows.config as config
-from bellows.exception import ControllerError, EzspError
+from bellows.exception import ControllerError, EzspError, InvalidCommandError
 import bellows.ezsp as ezsp
 from bellows.ezsp.v9.commands import GetTokenDataRsp
-from bellows.ezsp.xncp import FirmwareFeatures, FlowControlType, GetChipInfoRsp
+from bellows.ezsp.xncp import (
+    FirmwareFeatures,
+    FlowControlType,
+    GetChipInfoRsp,
+    GetRouteTableEntryRsp,
+)
 import bellows.types
 import bellows.types as t
 import bellows.types.struct
@@ -2147,14 +2152,8 @@ async def test_load_network_info_route_table(
     ieee: zigpy_t.EUI64,
 ) -> None:
     """Test reading route table during load_network_info."""
-    from bellows.exception import InvalidCommandError
-    from bellows.ezsp.xncp import GetRouteTableEntryRsp
-
     app._ezsp._xncp_features |= FirmwareFeatures.RESTORE_ROUTE_TABLE
-    app._ezsp._protocol.getConfigurationValue.return_value = [
-        t.EmberStatus.SUCCESS,
-        5,
-    ]
+    app._ezsp._protocol.getConfigurationValue.return_value = [t.EmberStatus.SUCCESS, 10]
 
     # Mock route table entries
     route_entries = [
@@ -2193,13 +2192,16 @@ async def test_load_network_info_route_table(
         ),
     ]
 
-    call_count = [0]
+    call_count = 0
 
     async def mock_get_route_entry(index):
-        if call_count[0] >= len(route_entries):
+        nonlocal call_count
+
+        if call_count >= len(route_entries):
             raise InvalidCommandError("No more entries")
-        entry = route_entries[call_count[0]]
-        call_count[0] += 1
+
+        entry = route_entries[call_count]
+        call_count += 1
         return entry
 
     app._ezsp.xncp_get_route_table_entry = AsyncMock(side_effect=mock_get_route_entry)
@@ -2211,7 +2213,9 @@ async def test_load_network_info_route_table(
         t.NWK(0x1234): t.NWK(0x5678),
         t.NWK(0xABCD): t.NWK(0xEF01),
     }
-    assert len(app._ezsp.xncp_get_route_table_entry.mock_calls) == 5
+
+    # We stop reading routes if we read past the end
+    assert len(app._ezsp.xncp_get_route_table_entry.mock_calls) == 6
 
 
 async def test_write_network_info(
