@@ -32,7 +32,12 @@ from bellows.config import (
     CONF_USE_THREAD,
     CONFIG_SCHEMA,
 )
-from bellows.exception import ControllerError, EzspError, StackAlreadyRunning
+from bellows.exception import (
+    ControllerError,
+    EzspError,
+    InvalidCommandError,
+    StackAlreadyRunning,
+)
 import bellows.ezsp
 from bellows.ezsp.xncp import FirmwareFeatures
 import bellows.multicast
@@ -259,6 +264,29 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         LOGGER.debug("Setting adapter concurrency to %d", max_concurrent_requests)
         self._concurrent_requests_semaphore.max_concurrency = max_concurrent_requests
 
+        backup = self.backups.most_recent_backup()
+        if backup is not None:
+            await self._restore_route_table(backup.network_info.route_table)
+
+    async def _restore_route_table(self, route_table: dict[t.NWK, t.NWK]) -> None:
+        if FirmwareFeatures.RESTORE_ROUTE_TABLE not in self._ezsp._xncp_features:
+            LOGGER.debug(
+                "Firmware does not support writing route table, cannot restore"
+            )
+            return
+
+        LOGGER.debug("Restoring route table: %s", route_table)
+
+        for index, (dest, next_hop) in enumerate(route_table.items()):
+            # We unconditionally restore route table entries
+            await self._ezsp.xncp_set_route_table_entry(
+                index=index,
+                destination=dest,
+                next_hop=next_hop,
+                status=t.RouteRecordStatus.ACTIVE_AGE_2,
+                cost=0,  # unused
+            )
+
     async def load_network_info(self, *, load_devices=False) -> None:
         ezsp = self._ezsp
 
@@ -336,6 +364,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             key_table=[],
             children=[],
             nwk_addresses={},
+            tx_power=nwk_params.radioTxPower,
             stack_specific=stack_specific,
             metadata={
                 "ezsp": {
@@ -368,6 +397,31 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         async for nwk, eui64 in ezsp.read_address_table():
             self.state.network_info.nwk_addresses[eui64] = nwk
+
+        if FirmwareFeatures.RESTORE_ROUTE_TABLE in ezsp._xncp_features:
+            (status, route_table_size) = await ezsp.getConfigurationValue(
+                t.EzspConfigId.CONFIG_ROUTE_TABLE_SIZE
+            )
+
+            for index in range(route_table_size):
+                try:
+                    rsp = await ezsp.xncp_get_route_table_entry(index=index)
+                except InvalidCommandError:
+                    break
+
+                if (
+                    rsp.status
+                    not in (
+                        t.RouteRecordStatus.ACTIVE_AGE_0,
+                        t.RouteRecordStatus.ACTIVE_AGE_1,
+                        t.RouteRecordStatus.ACTIVE_AGE_2,
+                    )
+                    or rsp.destination == 0xFFFF
+                    or rsp.next_hop == 0xFFFF
+                ):
+                    continue
+
+                self.state.network_info.route_table[rsp.destination] = rsp.next_hop
 
     async def can_write_network_settings(
         self,
@@ -468,7 +522,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         parameters = t.EmberNetworkParameters()
         parameters.panId = t.EmberPanId(network_info.pan_id)
         parameters.extendedPanId = t.EUI64(network_info.extended_pan_id)
-        parameters.radioTxPower = t.uint8_t(8)
+        parameters.radioTxPower = t.uint8_t(network_info.tx_power)
         parameters.radioChannel = t.uint8_t(network_info.channel)
         parameters.joinMethod = t.EmberJoinMethod.USE_MAC_ASSOCIATION
         parameters.nwkManagerId = t.EmberNodeId(network_info.nwk_manager_id)
@@ -494,6 +548,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._reset()
 
         await self._ensure_network_running()
+
+        await self._restore_route_table(network_info.route_table)
 
     async def reset_network_info(self):
         await self._ezsp.factory_reset()

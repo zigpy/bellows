@@ -2795,3 +2795,31 @@ class SourceRouteDiscoveryMode(basic.enum8):
     OFF = 0
     ON = 1
     RESCHEDULE = 2
+
+
+class RouteRecordState(basic.enum8):
+    """Route record state for EmberRouteTableEntry."""
+
+    NO_LONGER_NEEDED = 0
+    SENT = 1
+    NEEDED = 2
+
+
+class RouteRecordStatus(basic.enum8):
+    """Route record status for EmberRouteTableEntry."""
+
+    ACTIVE_AGE_0 = 0x00
+    ACTIVE_AGE_1 = 0x40
+    ACTIVE_AGE_2 = 0x80
+
+    BEING_DISCOVERED = 0x01
+    UNUSED = 0x03
+    VALIDATING = 0x04
+
+
+class RouteRecordConcentratortype(basic.enum8):
+    """Route record concentrator type for EmberRouteTableEntry."""
+
+    NOT_A_CONCENTRATOR = 0
+    LOW_RAM = 1
+    HIGH_RAM = 2

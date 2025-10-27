@@ -14,10 +14,15 @@ import zigpy.zdo.types as zdo_t
 
 from bellows.ash import NcpFailure
 import bellows.config as config
-from bellows.exception import ControllerError, EzspError
+from bellows.exception import ControllerError, EzspError, InvalidCommandError
 import bellows.ezsp as ezsp
 from bellows.ezsp.v9.commands import GetTokenDataRsp
-from bellows.ezsp.xncp import FirmwareFeatures, FlowControlType, GetChipInfoRsp
+from bellows.ezsp.xncp import (
+    FirmwareFeatures,
+    FlowControlType,
+    GetChipInfoRsp,
+    GetRouteTableEntryRsp,
+)
 import bellows.types
 import bellows.types as t
 import bellows.types.struct
@@ -1787,6 +1792,89 @@ async def test_startup_new_coordinator_no_groups_joined(app, ieee):
 
 
 @pytest.mark.parametrize(
+    ("has_feature", "has_backup"),
+    [
+        (True, True),  # Feature available, backup exists - should restore
+        (False, True),  # No feature, backup exists - should skip with log
+        (True, False),  # Feature available, no backup - should be no-op
+    ],
+)
+async def test_start_network_restores_route_table(
+    app, ieee, has_feature: bool, has_backup: bool
+) -> None:
+    """Test route table restoration during startup."""
+    backup = zigpy.backups.NetworkBackup(
+        node_info=zigpy.state.NodeInfo(
+            nwk=zigpy_t.NWK(0x0000),
+            ieee=ieee,
+            logical_type=zdo_t.LogicalType.Coordinator,
+        ),
+        network_info=zigpy.state.NetworkInfo(
+            extended_pan_id=zigpy_t.ExtendedPanId.convert("aa:bb:cc:dd:ee:ff:aa:bb"),
+            pan_id=zigpy_t.PanId(0x55AA),
+            nwk_update_id=1,
+            nwk_manager_id=zigpy_t.NWK(0x0000),
+            channel=t.uint8_t(25),
+            channel_mask=t.Channels.ALL_CHANNELS,
+            security_level=t.uint8_t(1),
+            tx_power=8,
+            network_key=zigpy.state.Key(
+                key=t.KeyData(b"ActualNetworkKey"),
+                seq=1,
+                tx_counter=0,
+            ),
+            tc_link_key=zigpy.state.Key(
+                key=t.KeyData(b"ZigBeeAlliance09"),
+                partner_ieee=ieee,
+                tx_counter=0,
+            ),
+            key_table=[],
+            children=[],
+            nwk_addresses={},
+            route_table={
+                t.NWK(0x1234): t.NWK(0x5678),
+                t.NWK(0xABCD): t.NWK(0xEF01),
+            },
+            stack_specific={},
+            metadata={},
+        ),
+    )
+
+    if has_backup:
+        app.backups.add_backup(backup)
+
+    with mock_for_startup(app, ieee) as ezsp:
+        if has_feature:
+            ezsp._xncp_features |= FirmwareFeatures.RESTORE_ROUTE_TABLE
+            ezsp.xncp_set_route_table_entry = AsyncMock()
+
+        await app.connect()
+        await app.start_network()
+
+        if has_feature and has_backup:
+            # Should have called xncp_set_route_table_entry for each route
+            assert ezsp.xncp_set_route_table_entry.mock_calls == [
+                call(
+                    index=0,
+                    destination=t.NWK(0x1234),
+                    next_hop=t.NWK(0x5678),
+                    status=t.RouteRecordStatus.ACTIVE_AGE_2,
+                    cost=0,
+                ),
+                call(
+                    index=1,
+                    destination=t.NWK(0xABCD),
+                    next_hop=t.NWK(0xEF01),
+                    status=t.RouteRecordStatus.ACTIVE_AGE_2,
+                    cost=0,
+                ),
+            ]
+        elif has_feature:
+            # Has feature but no backup
+            assert len(ezsp.xncp_set_route_table_entry.mock_calls) == 0
+
+
+@pytest.mark.parametrize(
     ("concurrency_config", "chip_concurrency", "expected_concurrency"),
     [
         (None, 32, 32),  # Default config (None) uses chip
@@ -1944,6 +2032,7 @@ def zigpy_backup() -> zigpy.backups.NetworkBackup:
             channel=t.uint8_t(25),
             channel_mask=t.Channels.ALL_CHANNELS,
             security_level=t.uint8_t(1),
+            tx_power=0,
             network_key=zigpy.state.Key(
                 key=t.KeyData.convert(
                     "41:63:74:75:61:6c:4e:65:74:77:6f:72:6b:4b:65:79"
@@ -1986,6 +2075,10 @@ def zigpy_backup() -> zigpy.backups.NetworkBackup:
                 t.EUI64.convert("ab:cd:00:11:22:33:44:55"): zigpy_t.NWK(0xABCD),
                 t.EUI64.convert("11:22:33:44:55:66:77:88"): zigpy_t.NWK(0x5678),
             },
+            route_table={
+                zigpy_t.NWK(0x1234): zigpy_t.NWK(0x5678),
+                zigpy_t.NWK(0xABCD): zigpy_t.NWK(0xDCBA),
+            },
             stack_specific={"ezsp": {"hashed_tclk": b"thehashedlinkkey".hex()}},
             source=f"bellows@{importlib.metadata.version('bellows')}",
             metadata={
@@ -2010,6 +2103,7 @@ async def test_load_network_info(
     await app.load_network_info(load_devices=True)
 
     zigpy_backup.network_info.metadata["ezsp"]["flow_control"] = None
+    zigpy_backup.network_info.route_table = {}
 
     assert app.state.node_info == zigpy_backup.node_info
     assert app.state.network_info == zigpy_backup.network_info
@@ -2026,6 +2120,8 @@ async def test_load_network_info_xncp_flow_control(
     )
 
     await app.load_network_info(load_devices=True)
+
+    zigpy_backup.network_info.route_table = {}
 
     assert app.state.node_info == zigpy_backup.node_info
     assert app.state.network_info == zigpy_backup.network_info
@@ -2051,6 +2147,77 @@ async def test_load_network_info_chip_info(
     }
 
 
+async def test_load_network_info_route_table(
+    app: ControllerApplication,
+    ieee: zigpy_t.EUI64,
+) -> None:
+    """Test reading route table during load_network_info."""
+    app._ezsp._xncp_features |= FirmwareFeatures.RESTORE_ROUTE_TABLE
+    app._ezsp._protocol.getConfigurationValue.return_value = [t.EmberStatus.SUCCESS, 10]
+
+    # Mock route table entries
+    route_entries = [
+        GetRouteTableEntryRsp(
+            destination=t.NWK(0x1234),
+            next_hop=t.NWK(0x5678),
+            status=t.RouteRecordStatus.ACTIVE_AGE_2,
+            cost=3,
+        ),
+        GetRouteTableEntryRsp(
+            destination=t.NWK(0xABCD),
+            next_hop=t.NWK(0xEF01),
+            status=t.RouteRecordStatus.ACTIVE_AGE_1,
+            cost=1,
+        ),
+        # Inactive entry - should be filtered out
+        GetRouteTableEntryRsp(
+            destination=t.NWK(0x2222),
+            next_hop=t.NWK(0x3333),
+            status=t.RouteRecordStatus.UNUSED,
+            cost=5,
+        ),
+        # Invalid destination - should be filtered out
+        GetRouteTableEntryRsp(
+            destination=t.NWK(0xFFFF),
+            next_hop=t.NWK(0x4444),
+            status=t.RouteRecordStatus.ACTIVE_AGE_0,
+            cost=2,
+        ),
+        # Invalid next_hop - should be filtered out
+        GetRouteTableEntryRsp(
+            destination=t.NWK(0x5555),
+            next_hop=t.NWK(0xFFFF),
+            status=t.RouteRecordStatus.ACTIVE_AGE_0,
+            cost=2,
+        ),
+    ]
+
+    call_count = 0
+
+    async def mock_get_route_entry(index):
+        nonlocal call_count
+
+        if call_count >= len(route_entries):
+            raise InvalidCommandError("No more entries")
+
+        entry = route_entries[call_count]
+        call_count += 1
+        return entry
+
+    app._ezsp.xncp_get_route_table_entry = AsyncMock(side_effect=mock_get_route_entry)
+
+    await app.load_network_info(load_devices=True)
+
+    # Only active entries with valid destination/next_hop should be in the route table
+    assert app.state.network_info.route_table == {
+        t.NWK(0x1234): t.NWK(0x5678),
+        t.NWK(0xABCD): t.NWK(0xEF01),
+    }
+
+    # We stop reading routes if we read past the end
+    assert len(app._ezsp.xncp_get_route_table_entry.mock_calls) == 6
+
+
 async def test_write_network_info(
     app: ControllerApplication,
     ieee: zigpy_t.EUI64,
@@ -2073,7 +2240,7 @@ async def test_write_network_info(
             parameters=t.EmberNetworkParameters(
                 panId=zigpy_backup.network_info.pan_id,
                 extendedPanId=zigpy_backup.network_info.extended_pan_id,
-                radioTxPower=t.uint8_t(8),
+                radioTxPower=t.uint8_t(zigpy_backup.network_info.tx_power),
                 radioChannel=zigpy_backup.network_info.channel,
                 joinMethod=t.EmberJoinMethod.USE_MAC_ASSOCIATION,
                 nwkManagerId=t.EmberNodeId(0x0000),
@@ -2082,6 +2249,27 @@ async def test_write_network_info(
             )
         )
     ]
+
+
+async def test_write_network_info_restores_route_table(
+    app: ControllerApplication,
+    ieee: zigpy_t.EUI64,
+    zigpy_backup: zigpy.backups.NetworkBackup,
+) -> None:
+    """Test that write_network_info restores route table from backup."""
+    app._ezsp._xncp_features |= FirmwareFeatures.RESTORE_ROUTE_TABLE
+    app._ezsp.xncp_set_route_table_entry = AsyncMock()
+
+    with patch.object(app, "_reset"):
+        await app.write_network_info(
+            node_info=zigpy_backup.node_info,
+            network_info=zigpy_backup.network_info,
+        )
+
+    # Should have called xncp_set_route_table_entry for each route in backup
+    assert len(app._ezsp.xncp_set_route_table_entry.mock_calls) == len(
+        zigpy_backup.network_info.route_table
+    )
 
 
 @pytest.mark.parametrize(

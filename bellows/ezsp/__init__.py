@@ -20,7 +20,7 @@ import bellows.config as conf
 from bellows.exception import EzspError, InvalidCommandError, InvalidCommandPayload
 from bellows.ezsp import xncp
 from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig, ValueConfig
-from bellows.ezsp.xncp import FirmwareFeatures, FlowControlType
+from bellows.ezsp.xncp import FirmwareFeatures, FlowControlType, GetRouteTableEntryRsp
 import bellows.types as t
 import bellows.uart
 
@@ -815,3 +815,28 @@ class EZSP:
 
         # Usually 262144 bytes for MG24
         return 32
+
+    async def xncp_get_route_table_entry(
+        self, index: t.uint8_t
+    ) -> GetRouteTableEntryRsp:
+        """Get a route table entry."""
+        return await self.send_xncp_frame(xncp.GetRouteTableEntryReq(index=index))
+
+    async def xncp_set_route_table_entry(
+        self,
+        index: t.uint8_t,
+        destination: t.NWK,
+        next_hop: t.NWK,
+        status: t.RouteRecordStatus,
+        cost: t.uint8_t,
+    ) -> None:
+        """Set a route table entry."""
+        await self.send_xncp_frame(
+            xncp.SetRouteTableEntryReq(
+                index=index,
+                destination=destination,
+                next_hop=next_hop,
+                status=status,
+                cost=cost,
+            )
+        )
