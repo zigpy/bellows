@@ -211,9 +211,18 @@ async def test_connection_lost_reset_error_propagation(monkeypatch):
     assert len(threads) == 0
 
 
-async def test_wait_for_startup_reset(gw):
+@pytest.mark.parametrize(
+    "reset_code",
+    [
+        t.NcpResetCode.RESET_SOFTWARE,
+        t.NcpResetCode.RESET_POWER_ON,
+        t.NcpResetCode.RESET_WATCHDOG,
+        t.NcpResetCode.RESET_EXTERNAL,
+    ],
+)
+async def test_wait_for_startup_reset(gw, reset_code):
     loop = asyncio.get_running_loop()
-    loop.call_later(0.01, gw.reset_received, t.NcpResetCode.RESET_SOFTWARE)
+    loop.call_later(0.01, gw.reset_received, reset_code)
 
     assert gw._startup_reset_future is None
     await gw.wait_for_startup_reset()
@@ -239,8 +248,25 @@ async def test_callbacks(gw):
     ]
 
 
-def test_reset_propagation(gw):
-    gw.reset_received(t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT)
+async def test_error_received_during_reset_ignored(gw):
+    # Set up a reset future to simulate being in the middle of a reset
+    loop = asyncio.get_running_loop()
+    gw._reset_future = loop.create_future()
+
+    # Error should be ignored (not trigger failed state)
+    gw.error_received(t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT)
+    assert gw._api.enter_failed_state.call_count == 0
+
+    # Clean up
+    gw._reset_future.cancel()
+
+
+def test_unexpected_reset_triggers_failed_state(gw):
+    # When no reset is expected, any reset should trigger failed state
+    assert gw._reset_future is None
+    assert gw._startup_reset_future is None
+
+    gw.reset_received(t.NcpResetCode.RESET_SOFTWARE)
     assert gw._api.enter_failed_state.mock_calls == [
-        call(t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT)
+        call(t.NcpResetCode.RESET_SOFTWARE)
     ]

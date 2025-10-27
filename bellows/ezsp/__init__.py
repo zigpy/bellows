@@ -26,6 +26,8 @@ import bellows.uart
 
 from . import v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v16, v17
 
+RESET_ATTEMPTS = 5
+
 EZSP_LATEST = v17.EZSPv17.VERSION
 LOGGER = logging.getLogger(__name__)
 MTOR_MIN_INTERVAL = 60
@@ -130,12 +132,24 @@ class EZSP:
         assert self._gw is None
         self._gw = await bellows.uart.connect(self._config, self, use_thread=use_thread)
 
-        try:
+        for attempt in range(RESET_ATTEMPTS):
             self._protocol = v4.EZSPv4(self.handle_callback, self._gw)
-            await self.startup_reset()
-        except Exception:
-            await self.disconnect()
-            raise
+
+            try:
+                await self.startup_reset()
+                break
+            except Exception as exc:
+                if attempt + 1 < RESET_ATTEMPTS:
+                    LOGGER.debug(
+                        "EZSP startup/reset failed, retrying (%d/%d): %r",
+                        attempt + 1,
+                        RESET_ATTEMPTS,
+                        exc,
+                    )
+                    continue
+
+                await self.disconnect()
+                raise
 
     async def reset(self):
         LOGGER.debug("Resetting EZSP")

@@ -558,6 +558,7 @@ class AshProtocol(asyncio.Protocol):
 
         self._tx_seq = 0
         self._rx_seq = 0
+        self._cancel_pending_data_frames(NcpFailure(code=frame.reset_code))
         self._change_ack_timeout(T_RX_ACK_INIT)
         self._ezsp_protocol.reset_received(frame.reset_code)
 
@@ -582,7 +583,7 @@ class AshProtocol(asyncio.Protocol):
     def _enter_failed_state(self, reset_code: t.NcpResetCode) -> None:
         self._ncp_state = NcpState.FAILED
         self._cancel_pending_data_frames(NcpFailure(code=reset_code))
-        self._ezsp_protocol.reset_received(reset_code)
+        self._ezsp_protocol.error_received(reset_code)
 
     def _write_frame(
         self,

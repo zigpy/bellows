@@ -10,7 +10,7 @@ from bellows.thread import EventLoopThread, ThreadsafeProxy
 import bellows.types as t
 
 LOGGER = logging.getLogger(__name__)
-RESET_TIMEOUT = 5
+RESET_TIMEOUT = 3
 
 
 class Gateway(zigpy.serial.SerialProtocol):
@@ -33,21 +33,22 @@ class Gateway(zigpy.serial.SerialProtocol):
 
     def reset_received(self, code: t.NcpResetCode) -> None:
         """Reset acknowledgement frame receive handler"""
-        # not a reset we've requested. Signal api reset
-        if code is not t.NcpResetCode.RESET_SOFTWARE:
-            self._api.enter_failed_state(code)
-            return
+        LOGGER.debug("Received reset: %r", code)
 
         if self._reset_future and not self._reset_future.done():
             self._reset_future.set_result(True)
         elif self._startup_reset_future and not self._startup_reset_future.done():
             self._startup_reset_future.set_result(True)
         else:
+            self._api.enter_failed_state(code)
             LOGGER.warning("Received an unexpected reset: %r", code)
 
     def error_received(self, code: t.NcpResetCode) -> None:
         """Error frame receive handler."""
-        self._api.enter_failed_state(code)
+        if self._reset_future is not None or self._startup_reset_future is not None:
+            LOGGER.debug("Ignoring spurious error during reset: %r", code)
+        else:
+            self._api.enter_failed_state(code)
 
     async def wait_for_startup_reset(self) -> None:
         """Wait for the first reset frame on startup."""
