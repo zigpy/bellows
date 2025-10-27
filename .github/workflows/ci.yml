@@ -10,7 +10,7 @@ jobs:
     with:
       CODE_FOLDER: bellows
       CACHE_VERSION: 2
-      PYTHON_VERSION_DEFAULT: 3.11.0
+      PYTHON_VERSION_DEFAULT: 3.11.14
       PRE_COMMIT_CACHE_PATH:  ~/.cache/pre-commit
       MINIMUM_COVERAGE_PERCENTAGE: 99
     secrets:
