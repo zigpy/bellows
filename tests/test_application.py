@@ -544,7 +544,7 @@ def test_frame_handler_ignored(app, aps_frame):
         0xFF,
     ),
 )
-def test_send_failure(app, aps, ieee, msg_type):
+async def test_send_failure(app, aps, ieee, msg_type):
     fut = app._pending_requests[(0xBEED, 254)] = asyncio.Future()
     app.ezsp_callback_handler(
         "messageSentHandler", [msg_type, 0xBEED, aps, 254, t.EmberStatus.SUCCESS, b""]
@@ -583,7 +583,7 @@ def test_send_failure_unexpected(app, aps, ieee):
     )
 
 
-def test_send_success(app, aps, ieee):
+async def test_send_success(app, aps, ieee):
     fut = app._pending_requests[(0xBEED, 253)] = asyncio.Future()
     app.ezsp_callback_handler(
         "messageSentHandler",
