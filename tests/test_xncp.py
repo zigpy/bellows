@@ -230,3 +230,64 @@ async def test_xncp_get_xncp_features_fixes(ezsp_f: EZSP) -> None:
         call(xncp.XncpCommand.from_payload(xncp.GetSupportedFeaturesReq()).serialize()),
         call(xncp.XncpCommand.from_payload(xncp.GetSupportedFeaturesReq()).serialize()),
     ]
+
+
+async def test_xncp_route_table_operations(ezsp_f: EZSP) -> None:
+    """Test XNCP get and set route table entry commands."""
+    # Test get route table entry
+    ezsp_f._mock_commands["customFrame"] = customFrame = AsyncMock(
+        return_value=[
+            t.EmberStatus.SUCCESS,
+            xncp.XncpCommand.from_payload(
+                xncp.GetRouteTableEntryRsp(
+                    destination=t.NWK(0x1234),
+                    next_hop=t.NWK(0x5678),
+                    status=t.RouteRecordStatus.ACTIVE_AGE_2,
+                    cost=3,
+                )
+            ).serialize(),
+        ]
+    )
+
+    rsp = await ezsp_f.xncp_get_route_table_entry(index=5)
+    assert rsp.destination == 0x1234
+    assert rsp.next_hop == 0x5678
+    assert rsp.status == t.RouteRecordStatus.ACTIVE_AGE_2
+    assert rsp.cost == 3
+    assert customFrame.mock_calls == [
+        call(
+            xncp.XncpCommand.from_payload(
+                xncp.GetRouteTableEntryReq(index=5)
+            ).serialize()
+        )
+    ]
+
+    # Test set route table entry
+    customFrame.reset_mock()
+    ezsp_f._mock_commands["customFrame"] = customFrame = AsyncMock(
+        return_value=[
+            t.EmberStatus.SUCCESS,
+            xncp.XncpCommand.from_payload(xncp.SetRouteTableEntryRsp()).serialize(),
+        ]
+    )
+
+    await ezsp_f.xncp_set_route_table_entry(
+        index=10,
+        destination=t.NWK(0xABCD),
+        next_hop=t.NWK(0xEF01),
+        status=t.RouteRecordStatus.ACTIVE_AGE_0,
+        cost=1,
+    )
+    assert customFrame.mock_calls == [
+        call(
+            xncp.XncpCommand.from_payload(
+                xncp.SetRouteTableEntryReq(
+                    index=10,
+                    destination=t.NWK(0xABCD),
+                    next_hop=t.NWK(0xEF01),
+                    status=t.RouteRecordStatus.ACTIVE_AGE_0,
+                    cost=1,
+                )
+            ).serialize()
+        )
+    ]
