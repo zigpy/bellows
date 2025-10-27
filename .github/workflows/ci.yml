@@ -10,7 +10,6 @@ jobs:
     with:
       CODE_FOLDER: bellows
       CACHE_VERSION: 2
-      PRE_COMMIT_CACHE_PATH:  ~/.cache/pre-commit
       MINIMUM_COVERAGE_PERCENTAGE: 99
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
