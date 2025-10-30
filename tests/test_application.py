@@ -104,7 +104,7 @@ def _create_app_for_startup(
     nwk_params = bellows.types.struct.EmberNetworkParameters(
         extendedPanId=t.ExtendedPanId.convert("aa:bb:cc:dd:ee:ff:aa:bb"),
         panId=t.EmberPanId(0x55AA),
-        radioTxPower=0,
+        radioTxPower=8,
         radioChannel=25,
         joinMethod=t.EmberJoinMethod.USE_MAC_ASSOCIATION,
         nwkManagerId=t.EmberNodeId(0x0000),
@@ -2032,7 +2032,7 @@ def zigpy_backup() -> zigpy.backups.NetworkBackup:
             channel=t.uint8_t(25),
             channel_mask=t.Channels.ALL_CHANNELS,
             security_level=t.uint8_t(1),
-            tx_power=0,
+            tx_power=8,
             network_key=zigpy.state.Key(
                 key=t.KeyData.convert(
                     "41:63:74:75:61:6c:4e:65:74:77:6f:72:6b:4b:65:79"
