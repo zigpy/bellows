@@ -73,6 +73,8 @@ IEEE_PREFIX_MFG_ID = {
     "54:EF:44": 0x115F,  # Lumi
 }
 
+DEFAULT_TX_POWER = 8  # dBm
+
 LIB_VERSION = importlib.metadata.version("bellows")
 LOGGER = logging.getLogger(__name__)
 
@@ -522,7 +524,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         parameters = t.EmberNetworkParameters()
         parameters.panId = t.EmberPanId(network_info.pan_id)
         parameters.extendedPanId = t.EUI64(network_info.extended_pan_id)
-        parameters.radioTxPower = t.uint8_t(network_info.tx_power)
+        parameters.radioTxPower = (
+            t.uint8_t(network_info.tx_power)
+            if network_info.tx_power is not None
+            else DEFAULT_TX_POWER
+        )
         parameters.radioChannel = t.uint8_t(network_info.channel)
         parameters.joinMethod = t.EmberJoinMethod.USE_MAC_ASSOCIATION
         parameters.nwkManagerId = t.EmberNodeId(network_info.nwk_manager_id)
