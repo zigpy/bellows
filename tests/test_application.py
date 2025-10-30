@@ -28,7 +28,7 @@ import bellows.types as t
 import bellows.types.struct
 import bellows.uart as uart
 import bellows.zigbee.application
-from bellows.zigbee.application import ControllerApplication
+from bellows.zigbee.application import DEFAULT_TX_POWER, ControllerApplication
 import bellows.zigbee.device
 from bellows.zigbee.device import EZSPEndpoint, EZSPGroupEndpoint
 from bellows.zigbee.util import map_rssi_to_energy
@@ -2246,6 +2246,37 @@ async def test_write_network_info(
                 nwkManagerId=t.EmberNodeId(0x0000),
                 nwkUpdateId=zigpy_backup.network_info.nwk_update_id,
                 channels=zigpy_backup.network_info.channel_mask,
+            )
+        )
+    ]
+
+
+async def test_write_network_info_with_none_tx_power(
+    app: ControllerApplication,
+    ieee: zigpy_t.EUI64,
+    zigpy_backup: zigpy.backups.NetworkBackup,
+) -> None:
+    """Test that write_network_info uses DEFAULT_TX_POWER when tx_power is None."""
+    network_info = zigpy_backup.network_info.replace(tx_power=None)
+
+    with patch.object(app, "_reset"):
+        await app.write_network_info(
+            node_info=zigpy_backup.node_info,
+            network_info=network_info,
+        )
+
+    # Verify formNetwork was called with DEFAULT_TX_POWER instead of None
+    assert app._ezsp._protocol.formNetwork.mock_calls == [
+        call(
+            parameters=t.EmberNetworkParameters(
+                panId=network_info.pan_id,
+                extendedPanId=network_info.extended_pan_id,
+                radioTxPower=DEFAULT_TX_POWER,
+                radioChannel=network_info.channel,
+                joinMethod=t.EmberJoinMethod.USE_MAC_ASSOCIATION,
+                nwkManagerId=t.EmberNodeId(0x0000),
+                nwkUpdateId=network_info.nwk_update_id,
+                channels=network_info.channel_mask,
             )
         )
     ]
