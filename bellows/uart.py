@@ -10,7 +10,7 @@ from bellows.thread import EventLoopThread, ThreadsafeProxy
 import bellows.types as t
 
 LOGGER = logging.getLogger(__name__)
-RESET_TIMEOUT = 3
+RESET_TIMEOUT = 2.5
 
 
 class Gateway(zigpy.serial.SerialProtocol):

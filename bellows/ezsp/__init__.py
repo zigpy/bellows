@@ -26,7 +26,7 @@ import bellows.uart
 
 from . import v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v16, v17
 
-RESET_ATTEMPTS = 5
+RESET_ATTEMPTS = 3
 
 EZSP_LATEST = v17.EZSPv17.VERSION
 LOGGER = logging.getLogger(__name__)
