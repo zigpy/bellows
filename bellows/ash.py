@@ -16,6 +16,7 @@ import typing
 from zigpy.types import BaseDataclassMixin
 
 import bellows.types as t
+from bellows.zigbee.util import run_length_debug
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -596,8 +597,13 @@ class AshProtocol(asyncio.Protocol):
             raise NcpFailure("Transport is closed, cannot send frame")
 
         if _LOGGER.isEnabledFor(logging.DEBUG):
-            prefix_str = "".join([f"{r.name} + " for r in prefix])
-            suffix_str = "".join([f" + {r.name}" for r in suffix])
+            prefix_str = run_length_debug(
+                [p.name for p in prefix], joiner=" + ", suffix=" "
+            )
+            suffix_str = run_length_debug(
+                [s.name for s in suffix], joiner=" + ", prefix=" "
+            )
+
             _LOGGER.debug("Sending frame %s%r%s", prefix_str, frame, suffix_str)
 
         data = bytes(prefix) + self._stuff_bytes(frame.to_bytes()) + bytes(suffix)
@@ -713,7 +719,4 @@ class AshProtocol(asyncio.Protocol):
 
     def send_reset(self) -> None:
         # Some adapters seem to send a NAK immediately but still process the reset frame
-        # if one eventually makes it through
-        self._write_frame(RstFrame(), prefix=(Reserved.CANCEL,))
-        self._write_frame(RstFrame(), prefix=(Reserved.CANCEL,))
-        self._write_frame(RstFrame(), prefix=(Reserved.CANCEL,))
+        self._write_frame(RstFrame(), prefix=40 * (Reserved.CANCEL,))

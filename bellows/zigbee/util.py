@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 import logging
 import math
 
@@ -129,3 +130,32 @@ def map_energy_to_rssi(lqi: float) -> float:
         x_0=RSSI_MIN + 0.45 * (RSSI_MAX - RSSI_MIN),
         k=0.13,
     )
+
+
+def run_length_debug(
+    items: Sequence[str],
+    joiner: str,
+    prefix: str = "",
+    suffix: str = "",
+    default: str = "",
+) -> str:
+    """Create a run-length encoded debug string from a sequence of strings."""
+    counts = []
+    unique_items = []
+
+    for item in items:
+        if unique_items and unique_items[-1] == item:
+            counts[-1] += 1
+        else:
+            counts.append(1)
+            unique_items.append(item)
+
+    result = joiner.join(
+        f"{count}*{item}" if count > 1 else item
+        for item, count in zip(unique_items, counts)
+    )
+
+    if not result:
+        return default
+
+    return prefix + result + suffix

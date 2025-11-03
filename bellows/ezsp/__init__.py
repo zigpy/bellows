@@ -26,7 +26,7 @@ import bellows.uart
 
 from . import v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v16, v17
 
-RESET_ATTEMPTS = 5
+RESET_ATTEMPTS = 3
 
 EZSP_LATEST = v17.EZSPv17.VERSION
 LOGGER = logging.getLogger(__name__)
@@ -109,7 +109,7 @@ class EZSP:
         parsed_path = urllib.parse.urlparse(self._config[conf.CONF_DEVICE_PATH])
         return parsed_path.scheme == "socket"
 
-    async def startup_reset(self) -> None:
+    async def _startup_reset(self) -> None:
         """Start EZSP and reset the stack."""
         # `zigbeed` resets on startup
         if self.is_tcp_serial_port:
@@ -128,15 +128,12 @@ class EZSP:
         await self.version()
         await self.get_xncp_features()
 
-    async def connect(self, *, use_thread: bool = True) -> None:
-        assert self._gw is None
-        self._gw = await bellows.uart.connect(self._config, self, use_thread=use_thread)
-
+    async def startup_reset(self) -> None:
         for attempt in range(RESET_ATTEMPTS):
             self._protocol = v4.EZSPv4(self.handle_callback, self._gw)
 
             try:
-                await self.startup_reset()
+                await self._startup_reset()
                 break
             except Exception as exc:
                 if attempt + 1 < RESET_ATTEMPTS:
@@ -150,6 +147,11 @@ class EZSP:
 
                 await self.disconnect()
                 raise
+
+    async def connect(self, *, use_thread: bool = True) -> None:
+        assert self._gw is None
+        self._gw = await bellows.uart.connect(self._config, self, use_thread=use_thread)
+        await self.startup_reset()
 
     async def reset(self):
         LOGGER.debug("Resetting EZSP")
