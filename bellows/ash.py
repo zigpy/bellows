@@ -366,6 +366,7 @@ class AshProtocol(asyncio.Protocol):
 
         self._ncp_reset_code: t.NcpResetCode | None = None
         self._ncp_state: NcpState = NcpState.CONNECTED
+        self._in_reject_condition: bool = False
 
     def connection_made(self, transport):
         self._transport = transport
@@ -392,6 +393,22 @@ class AshProtocol(asyncio.Protocol):
         if self._transport is not None:
             self._transport.close()
             self._transport = None
+
+    def _reject_frame(self) -> None:
+        """Send NAK and enter reject condition if not already rejected."""
+        if self._ncp_state == NcpState.CONNECTED and not self._in_reject_condition:
+            _LOGGER.debug("Entering reject condition, sending NAK")
+            with contextlib.suppress(NcpFailure):
+                self._write_frame(NakFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
+            self._in_reject_condition = True
+        elif self._in_reject_condition:
+            _LOGGER.debug("Already in reject condition, suppressing NAK")
+
+    def _clear_reject_condition(self) -> None:
+        """Clear reject condition and allow future error responses."""
+        if self._in_reject_condition:
+            _LOGGER.debug("Clearing reject condition")
+            self._in_reject_condition = False
 
     @staticmethod
     def _stuff_bytes(data: bytes) -> bytes:
@@ -473,11 +490,12 @@ class AshProtocol(asyncio.Protocol):
                         "Failed to parse frame %r", frame_bytes, exc_info=True
                     )
 
-                    with contextlib.suppress(NcpFailure):
-                        self._write_frame(
-                            NakFrame(res=0, ncp_ready=0, ack_num=self._rx_seq),
-                            prefix=(Reserved.CANCEL,),
-                        )
+                    # Reject DATA frame parse errors (SDK behavior)
+                    if (
+                        len(data) > 0
+                        and (data[0] & DataFrame.MASK) == DataFrame.MASK_VALUE
+                    ):
+                        self._reject_frame()
                 else:
                     self.frame_received(frame)
             elif reserved_byte == Reserved.CANCEL:
@@ -544,14 +562,18 @@ class AshProtocol(asyncio.Protocol):
             self._rx_seq = (frame.frm_num + 1) % 8
             self._write_frame(AckFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
 
+            # Clear reject condition on valid in-sequence DATA frame
+            self._clear_reject_condition()
+
             self._ezsp_protocol.data_received(frame.ezsp_frame)
         elif frame.re_tx:
             # Retransmitted frames must be immediately ACKed even if they are out of
             # sequence
             self._write_frame(AckFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
         else:
-            _LOGGER.debug("Received an out of sequence frame: %r", frame)
-            self._write_frame(NakFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
+            # Out-of-sequence non-retransmitted frame: reject it
+            _LOGGER.debug("Received out-of-sequence frame: %r", frame)
+            self._reject_frame()
 
     def rstack_frame_received(self, frame: RStackFrame) -> None:
         self._ncp_reset_code = None
@@ -559,6 +581,7 @@ class AshProtocol(asyncio.Protocol):
 
         self._tx_seq = 0
         self._rx_seq = 0
+        self._clear_reject_condition()
         self._cancel_pending_data_frames(NcpFailure(code=frame.reset_code))
         self._change_ack_timeout(T_RX_ACK_INIT)
         self._ezsp_protocol.reset_received(frame.reset_code)
@@ -572,6 +595,7 @@ class AshProtocol(asyncio.Protocol):
     def rst_frame_received(self, frame: RstFrame) -> None:
         self._ncp_reset_code = None
         self._ncp_state = NcpState.CONNECTED
+        self._clear_reject_condition()
 
     def error_frame_received(self, frame: ErrorFrame) -> None:
         _LOGGER.debug("NCP has entered failed state: %s", frame.reset_code)
