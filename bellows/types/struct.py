@@ -376,6 +376,18 @@ class NV3StackTrustCenterToken(EzspStruct):
     key: named.KeyData
 
 
+class NV3StackNodeData(EzspStruct):
+    """NV3 stack node data token value."""
+
+    panId: named.EmberPanId
+    radioTxPower: basic.int8s
+    radioFreqChannel: basic.uint8_t
+    stackProfile: basic.uint8_t  # Always 0x02
+    nodeType: named.EmberNodeType
+    zigbeeNodeId: named.EmberNodeId
+    extendedPanId: named.ExtendedPanId
+
+
 class EmberKeyStruct(EzspStruct):
     # A structure containing a key and its associated data.
     # A bitmask indicating the presence of data within the various fields

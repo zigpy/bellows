@@ -20,7 +20,12 @@ import bellows.config as conf
 from bellows.exception import EzspError, InvalidCommandError, InvalidCommandPayload
 from bellows.ezsp import xncp
 from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig, ValueConfig
-from bellows.ezsp.xncp import FirmwareFeatures, FlowControlType, GetRouteTableEntryRsp
+from bellows.ezsp.xncp import (
+    FirmwareFeatures,
+    FlowControlType,
+    GetRouteTableEntryRsp,
+    GetTxPowerInfoRsp,
+)
 import bellows.types as t
 import bellows.uart
 
@@ -842,3 +847,8 @@ class EZSP:
                 cost=cost,
             )
         )
+
+    async def xncp_get_tx_power_info(self, country_code: str) -> GetTxPowerInfoRsp:
+        """Get maximum and recommended TX power for a country (ISO 3166-1 alpha-2)."""
+        code = country_code.upper().encode("ascii")
+        return await self.send_xncp_frame(xncp.GetMaxTxPowerReq(country_code=code))
