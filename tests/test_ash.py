@@ -795,6 +795,37 @@ async def test_reject_condition_retransmitted_frames_always_acked() -> None:
     assert len(ack_calls) >= 1
 
 
+async def test_reject_condition_firmware_amplification_bug() -> None:
+    """Test reject condition prevents OpenThread RCP amplification."""
+    ezsp = MagicMock()
+    protocol = ash.AshProtocol(ezsp)
+    transport = MagicMock()
+    transport.is_closing.return_value = False
+    protocol.connection_made(transport)
+
+    protocol._ncp_state = ash.NcpState.CONNECTED
+
+    # Simulate firmware sending garbage that happens to end with ~
+    protocol.data_received(b"\x00\x06p1A A0 54 1A]\n\x07K~")
+
+    # ASH enters reject condition and sends a NAK
+    assert len(transport.write.mock_calls) == 1
+
+    transport.write.reset_mock()
+
+    # Firmware responds to the NAK with yet another corrupt frame
+    protocol.data_received(b"\x00\x06pFraming error 6: [\xca\xfd~")
+
+    # We no longer reply, as we are in a reject condition
+    assert len(transport.write.mock_calls) == 0
+
+    # Firmware sends yet another corrupt response
+    protocol.data_received(b"\x00\x06p1A A0 54 1A]\n\x07K~")
+
+    # Still suppressing - no amplification
+    assert len(transport.write.mock_calls) == 0
+
+
 def test_ncp_failure_comparison() -> None:
     exc1 = ash.NcpFailure(code=t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT)
     exc2 = ash.NcpFailure(code=t.NcpResetCode.RESET_POWER_ON)
