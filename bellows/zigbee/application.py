@@ -174,7 +174,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         actual_power = int(tx_power)
         await self._ezsp.setRadioPower(power=actual_power)
 
-        # We intentionally do not reset after changing the TX power
+        # We intentionally do not reset after changing the TX power. Instead, we just
+        # persist the changes to NVRAM (if necessary), they will be reloaded on next
+        # boot.
         await repairs.update_tx_power(self._ezsp, tx_power=actual_power)
 
         return float(actual_power)

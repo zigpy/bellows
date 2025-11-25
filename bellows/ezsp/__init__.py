@@ -851,4 +851,4 @@ class EZSP:
     async def xncp_get_tx_power_info(self, country_code: str) -> GetTxPowerInfoRsp:
         """Get maximum and recommended TX power for a country (ISO 3166-1 alpha-2)."""
         code = country_code.upper().encode("ascii")
-        return await self.send_xncp_frame(xncp.GetMaxTxPowerReq(country_code=code))
+        return await self.send_xncp_frame(xncp.GetTxPowerInfoReq(country_code=code))
