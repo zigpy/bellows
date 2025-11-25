@@ -396,7 +396,7 @@ class AshProtocol(asyncio.Protocol):
 
     def _reject_frame(self) -> None:
         """Send NAK and enter reject condition if not already rejected."""
-        if self._ncp_state == NcpState.CONNECTED and not self._in_reject_condition:
+        if self._ncp_state is NcpState.CONNECTED and not self._in_reject_condition:
             _LOGGER.debug("Entering reject condition, sending NAK")
             with contextlib.suppress(NcpFailure):
                 self._write_frame(NakFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
@@ -653,7 +653,7 @@ class AshProtocol(asyncio.Protocol):
 
             try:
                 for attempt in range(ACK_TIMEOUTS):
-                    if self._ncp_state == NcpState.FAILED:
+                    if self._ncp_state is NcpState.FAILED:
                         _LOGGER.debug(
                             "NCP is in a failed state, not sending: %r", frame
                         )
