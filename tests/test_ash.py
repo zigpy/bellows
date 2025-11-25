@@ -639,6 +639,193 @@ async def test_rstack_cancels_pending_frames() -> None:
     assert exc_info.value.code == t.NcpResetCode.RESET_POWER_ON
 
 
+async def test_reject_condition_prevents_nak_amplification(caplog) -> None:
+    """Test that reject condition prevents NAK amplification on repeated errors."""
+    caplog.set_level(logging.DEBUG)
+
+    ezsp = MagicMock()
+    protocol = ash.AshProtocol(ezsp)
+    transport = MagicMock()
+    transport.is_closing.return_value = False
+    protocol.connection_made(transport)
+
+    # Start connected
+    protocol._ncp_state = ash.NcpState.CONNECTED
+
+    # Send first bad DATA frame with invalid CRC (control byte 0x00 = DATA frame)
+    bad_frame_1 = b"\x00Some bad data\xDE\xAD"  # Invalid CRC
+    protocol.data_received(bad_frame_1 + bytes([ash.Reserved.FLAG]))
+
+    # Should enter reject condition and send one NAK
+    assert "Entering reject condition" in caplog.text
+    nak_calls = [
+        c
+        for c in transport.write.mock_calls
+        if c.args and (c.args[0][0] & ash.NakFrame.MASK) == ash.NakFrame.MASK_VALUE
+    ]
+    assert len(nak_calls) == 1
+
+    caplog.clear()
+    transport.write.reset_mock()
+
+    # Send second bad DATA frame with invalid CRC
+    bad_frame_2 = b"\x00More bad data\xBE\xEF"  # Invalid CRC
+    protocol.data_received(bad_frame_2 + bytes([ash.Reserved.FLAG]))
+
+    # Should suppress NAK due to reject condition
+    assert "Already in reject condition" in caplog.text
+    assert len(transport.write.mock_calls) == 0
+
+    caplog.clear()
+
+    # Send third bad DATA frame with invalid CRC
+    bad_frame_3 = b"\x00Even more bad data\xCA\xFE"  # Invalid CRC
+    protocol.data_received(bad_frame_3 + bytes([ash.Reserved.FLAG]))
+
+    # Still suppressing
+    assert "Already in reject condition" in caplog.text
+    assert len(transport.write.mock_calls) == 0
+
+    caplog.clear()
+
+    # Send valid in-sequence DATA frame to clear reject condition
+    protocol._rx_seq = 0
+    good_frame = ash.DataFrame(frm_num=0, re_tx=0, ack_num=0, ezsp_frame=b"good")
+    protocol.data_received(good_frame.to_bytes() + bytes([ash.Reserved.FLAG]))
+
+    # Should clear reject condition and send ACK
+    assert "Clearing reject condition" in caplog.text
+    assert protocol._in_reject_condition is False
+
+    caplog.clear()
+    transport.write.reset_mock()
+
+    # Now another bad frame should trigger reject condition again
+    bad_frame_4 = b"\x00Bad again\xFA\xDE"  # Invalid CRC
+    protocol.data_received(bad_frame_4 + bytes([ash.Reserved.FLAG]))
+
+    # Should enter reject condition again and send NAK
+    assert "Entering reject condition" in caplog.text
+    nak_calls = [
+        c
+        for c in transport.write.mock_calls
+        if c.args and (c.args[0][0] & ash.NakFrame.MASK) == ash.NakFrame.MASK_VALUE
+    ]
+    assert len(nak_calls) == 1
+
+
+async def test_reject_condition_out_of_sequence_frames(caplog) -> None:
+    """Test that reject condition prevents NAK amplification on out-of-sequence frames."""
+    caplog.set_level(logging.DEBUG)
+
+    ezsp = MagicMock()
+    protocol = ash.AshProtocol(ezsp)
+    transport = MagicMock()
+    transport.is_closing.return_value = False
+    protocol.connection_made(transport)
+
+    protocol._ncp_state = ash.NcpState.CONNECTED
+    protocol._rx_seq = 3  # Expecting frame 3
+
+    # Send out-of-sequence frame 4 (not retransmitted)
+    frame_4 = ash.DataFrame(frm_num=4, re_tx=0, ack_num=0, ezsp_frame=b"frame 4")
+    protocol.data_received(frame_4.to_bytes() + bytes([ash.Reserved.FLAG]))
+
+    # Should enter reject condition and send NAK
+    assert "Entering reject condition" in caplog.text
+    assert protocol._in_reject_condition is True
+    nak_calls = [
+        c
+        for c in transport.write.mock_calls
+        if c.args and (c.args[0][0] & ash.NakFrame.MASK) == ash.NakFrame.MASK_VALUE
+    ]
+    assert len(nak_calls) == 1
+
+    caplog.clear()
+    transport.write.reset_mock()
+
+    # Send another out-of-sequence frame 5
+    frame_5 = ash.DataFrame(frm_num=5, re_tx=0, ack_num=0, ezsp_frame=b"frame 5")
+    protocol.data_received(frame_5.to_bytes() + bytes([ash.Reserved.FLAG]))
+
+    # Should suppress NAK due to reject condition
+    assert "Already in reject condition" in caplog.text
+    assert len(transport.write.mock_calls) == 0
+
+    # Send another out-of-sequence frame 6
+    frame_6 = ash.DataFrame(frm_num=6, re_tx=0, ack_num=0, ezsp_frame=b"frame 6")
+    protocol.data_received(frame_6.to_bytes() + bytes([ash.Reserved.FLAG]))
+
+    # Still suppressing
+    assert len(transport.write.mock_calls) == 0
+
+    caplog.clear()
+
+    # Finally send the expected frame 3
+    frame_3 = ash.DataFrame(frm_num=3, re_tx=0, ack_num=0, ezsp_frame=b"frame 3")
+    protocol.data_received(frame_3.to_bytes() + bytes([ash.Reserved.FLAG]))
+
+    # Should clear reject condition
+    assert "Clearing reject condition" in caplog.text
+    assert protocol._in_reject_condition is False
+
+
+async def test_reject_condition_retransmitted_frames_always_acked() -> None:
+    """Test that retransmitted out-of-sequence frames are ACKed without entering reject."""
+    ezsp = MagicMock()
+    protocol = ash.AshProtocol(ezsp)
+    transport = MagicMock()
+    transport.is_closing.return_value = False
+    protocol.connection_made(transport)
+
+    protocol._ncp_state = ash.NcpState.CONNECTED
+    protocol._rx_seq = 3  # Expecting frame 3
+
+    # Send out-of-sequence retransmitted frame (re_tx=1)
+    retx_frame = ash.DataFrame(frm_num=4, re_tx=1, ack_num=0, ezsp_frame=b"retx")
+    protocol.data_received(retx_frame.to_bytes() + bytes([ash.Reserved.FLAG]))
+
+    # Should send ACK, not NAK, and not enter reject condition
+    assert protocol._in_reject_condition is False
+    ack_calls = [
+        c
+        for c in transport.write.mock_calls
+        if c.args and (c.args[0][0] & ash.AckFrame.MASK) == ash.AckFrame.MASK_VALUE
+    ]
+    assert len(ack_calls) >= 1
+
+
+async def test_reject_condition_firmware_amplification_bug() -> None:
+    """Test reject condition prevents OpenThread RCP amplification."""
+    ezsp = MagicMock()
+    protocol = ash.AshProtocol(ezsp)
+    transport = MagicMock()
+    transport.is_closing.return_value = False
+    protocol.connection_made(transport)
+
+    protocol._ncp_state = ash.NcpState.CONNECTED
+
+    # Simulate firmware sending garbage that happens to end with ~
+    protocol.data_received(b"\x00\x06p1A A0 54 1A]\n\x07K~")
+
+    # ASH enters reject condition and sends a NAK
+    assert len(transport.write.mock_calls) == 1
+
+    transport.write.reset_mock()
+
+    # Firmware responds to the NAK with yet another corrupt frame
+    protocol.data_received(b"\x00\x06pFraming error 6: [\xca\xfd~")
+
+    # We no longer reply, as we are in a reject condition
+    assert len(transport.write.mock_calls) == 0
+
+    # Firmware sends yet another corrupt response
+    protocol.data_received(b"\x00\x06p1A A0 54 1A]\n\x07K~")
+
+    # Still suppressing - no amplification
+    assert len(transport.write.mock_calls) == 0
+
+
 def test_ncp_failure_comparison() -> None:
     exc1 = ash.NcpFailure(code=t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT)
     exc2 = ash.NcpFailure(code=t.NcpResetCode.RESET_POWER_ON)
