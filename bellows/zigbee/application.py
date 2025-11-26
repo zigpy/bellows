@@ -153,6 +153,34 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         return None, None, None
 
+    async def _get_recommended_tx_power(self, country: str) -> float:
+        """Get firmware recommended TX power for the given country."""
+        if FirmwareFeatures.TX_POWER_INFO not in self._ezsp._xncp_features:
+            return await super()._get_recommended_tx_power(country)
+
+        tx_power_info = await self._ezsp.xncp_get_tx_power_info(country)
+        return tx_power_info.recommended_power_dbm
+
+    async def _get_maximum_tx_power(self, country: str) -> float:
+        """Get firmware maximum TX power for the given country."""
+        if FirmwareFeatures.TX_POWER_INFO not in self._ezsp._xncp_features:
+            return await super()._get_maximum_tx_power(country)
+
+        tx_power_info = await self._ezsp.xncp_get_tx_power_info(country)
+        return tx_power_info.max_power_dbm
+
+    async def _set_tx_power(self, tx_power: float) -> float | None:
+        """Set TX power (if supported by the radio), returning the actual TX power."""
+        actual_power = int(tx_power)
+        await self._ezsp.setRadioPower(power=actual_power)
+
+        # We intentionally do not reset after changing the TX power. Instead, we just
+        # persist the changes to NVRAM (if necessary), they will be reloaded on next
+        # boot.
+        await repairs.update_tx_power(self._ezsp, tx_power=actual_power)
+
+        return float(actual_power)
+
     async def connect(self) -> None:
         self._ezsp = bellows.ezsp.EZSP(self.config[zigpy.config.CONF_DEVICE], self)
 

@@ -22,6 +22,7 @@ from bellows.ezsp.xncp import (
     FlowControlType,
     GetChipInfoRsp,
     GetRouteTableEntryRsp,
+    GetTxPowerInfoRsp,
 )
 import bellows.types
 import bellows.types as t
@@ -2639,3 +2640,46 @@ async def test_migration_failure_eui64_overwrite_confirmation(
         assert app._ezsp.write_custom_eui64.mock_calls == [
             call(t.EUI64.convert("aa:aa:aa:aa:aa:aa:aa:aa"), burn_into_userdata=True)
         ]
+
+
+async def test_tx_power_with_xncp_feature(app: ControllerApplication) -> None:
+    """Test TX power methods with XNCP TX_POWER_INFO feature."""
+    app._ezsp._xncp_features |= FirmwareFeatures.TX_POWER_INFO
+    app._ezsp.xncp_get_tx_power_info = AsyncMock(
+        return_value=GetTxPowerInfoRsp(recommended_power_dbm=10, max_power_dbm=20)
+    )
+
+    assert await app.get_recommended_tx_power("US") == 10.0
+    assert await app.get_maximum_tx_power("US") == 20.0
+
+
+async def test_tx_power_without_xncp_feature(app: ControllerApplication) -> None:
+    """Test TX power methods fall back to parent class without XNCP feature."""
+    app._ezsp._xncp_features = FirmwareFeatures.NONE
+    app._ezsp.xncp_get_tx_power_info = AsyncMock()
+
+    app_cls = zigpy.application.ControllerApplication
+
+    ezsp_rec_tx_power = await app.get_recommended_tx_power("US")
+    base_rec_tx_power = await app_cls.get_recommended_tx_power(app, "US")
+    assert ezsp_rec_tx_power == base_rec_tx_power
+
+    ezsp_max_tx_power = await app.get_maximum_tx_power("US")
+    base_max_tx_power = await app_cls.get_maximum_tx_power(app, "US")
+    assert ezsp_max_tx_power == base_max_tx_power
+
+    assert len(app._ezsp.xncp_get_tx_power_info.mock_calls) == 0
+
+
+async def test_set_tx_power(app: ControllerApplication) -> None:
+    """Test set_tx_power with float-to-int conversion and NVRAM persistence."""
+    app._ezsp.setRadioPower = AsyncMock()
+
+    with patch(
+        "bellows.zigbee.repairs.update_tx_power", return_value=True
+    ) as mock_update:
+        result = await app.set_tx_power(12.7)
+
+    assert result == 12.0
+    assert app._ezsp.setRadioPower.mock_calls == [call(power=12)]
+    assert mock_update.mock_calls == [call(app._ezsp, tx_power=12)]
