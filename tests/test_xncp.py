@@ -291,3 +291,26 @@ async def test_xncp_route_table_operations(ezsp_f: EZSP) -> None:
             ).serialize()
         )
     ]
+
+
+async def test_xncp_get_tx_power_info(ezsp_f: EZSP) -> None:
+    """Test XNCP get_tx_power_info."""
+    ezsp_f._mock_commands["customFrame"] = customFrame = AsyncMock(
+        return_value=[
+            t.EmberStatus.SUCCESS,
+            xncp.XncpCommand.from_payload(
+                xncp.GetTxPowerInfoRsp(recommended_power_dbm=10, max_power_dbm=20)
+            ).serialize(),
+        ]
+    )
+
+    rsp = await ezsp_f.xncp_get_tx_power_info("us")
+    assert rsp.recommended_power_dbm == 10
+    assert rsp.max_power_dbm == 20
+    assert customFrame.mock_calls == [
+        call(
+            xncp.XncpCommand.from_payload(
+                xncp.GetTxPowerInfoReq(country_code=b"US")
+            ).serialize()
+        )
+    ]

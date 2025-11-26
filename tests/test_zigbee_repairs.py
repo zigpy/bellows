@@ -174,3 +174,69 @@ async def test_fix_invalid_tclk_all_versions(
         ]
     else:
         assert "NV3 interface not available in this firmware" in caplog.text
+
+
+async def test_update_tx_power(ezsp_f: EZSP, caplog) -> None:
+    """Test update_tx_power behavior in various scenarios."""
+    token_data = t.NV3StackNodeData(
+        panId=t.EmberPanId(0x1234),
+        radioTxPower=t.int8s(5),
+        radioFreqChannel=t.uint8_t(15),
+        stackProfile=t.uint8_t(0x02),
+        nodeType=t.EmberNodeType.COORDINATOR,
+        zigbeeNodeId=t.EmberNodeId(0x0000),
+        extendedPanId=t.ExtendedPanId.convert("AA:BB:CC:DD:EE:FF:00:11"),
+    )
+
+    # Test 1: NV3 interface unavailable
+    ezsp_f.getTokenData = AsyncMock(side_effect=InvalidCommandError())
+    with caplog.at_level(logging.WARNING):
+        assert await repairs.update_tx_power(ezsp_f, tx_power=10) is False
+    assert "NV3 interface not available in this firmware" in caplog.text
+
+    # Test 2: TX power already correct (no write needed)
+    ezsp_f.getTokenData = AsyncMock(
+        return_value=GetTokenDataRsp(
+            status=t.EmberStatus.SUCCESS,
+            value=token_data.replace(radioTxPower=t.int8s(10)).serialize(),
+        )
+    )
+    ezsp_f.setTokenData = AsyncMock()
+    ezsp_f.getNetworkParameters = AsyncMock()
+    assert await repairs.update_tx_power(ezsp_f, tx_power=10) is False
+    assert len(ezsp_f.setTokenData.mock_calls) == 0
+    assert len(ezsp_f.getNetworkParameters.mock_calls) == 0
+
+    # Test 3: Successful TX power update
+    ezsp_f.getTokenData = AsyncMock(
+        return_value=GetTokenDataRsp(
+            status=t.EmberStatus.SUCCESS,
+            value=token_data.serialize(),
+        )
+    )
+    ezsp_f.getNetworkParameters = AsyncMock(
+        return_value=[
+            t.EmberStatus.SUCCESS,
+            t.EmberNodeType.COORDINATOR,
+            t.EmberNetworkParameters(
+                panId=t.EmberPanId(0x1234),
+                extendedPanId=t.ExtendedPanId.convert("AA:BB:CC:DD:EE:FF:00:11"),
+                radioChannel=t.uint8_t(15),
+                radioTxPower=t.int8s(5),
+                joinMethod=t.EmberJoinMethod.USE_MAC_ASSOCIATION,
+                nwkManagerId=t.EmberNodeId(0x0000),
+                nwkUpdateId=t.uint8_t(0),
+                channels=t.Channels.ALL_CHANNELS,
+            ),
+        ]
+    )
+    ezsp_f.setTokenData = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+
+    assert await repairs.update_tx_power(ezsp_f, tx_power=15) is True
+    assert ezsp_f.setTokenData.mock_calls == [
+        call(
+            token=t.NV3KeyId.NVM3KEY_STACK_NODE_DATA,
+            index=0,
+            token_data=token_data.replace(radioTxPower=t.int8s(15)).serialize(),
+        )
+    ]
