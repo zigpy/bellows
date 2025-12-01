@@ -409,9 +409,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     "flow_control": (
                         flow_control.name.lower() if flow_control is not None else None
                     ),
-                    # Z2M will not load EZSP backups without this internal key
-                    "ezspVersion": ezsp.ezsp_version,
                 },
+                # Z2M will not load EZSP backups without this internal key
+                "ezspVersion": ezsp.ezsp_version,
             },
         )
 
