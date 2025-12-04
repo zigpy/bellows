@@ -190,7 +190,7 @@ async def test_update_tx_power(ezsp_f: EZSP, caplog) -> None:
 
     # Test 1: NV3 interface unavailable
     ezsp_f.getTokenData = AsyncMock(side_effect=InvalidCommandError())
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.DEBUG):
         assert await repairs.update_tx_power(ezsp_f, tx_power=10) is False
     assert "NV3 interface not available in this firmware" in caplog.text
 
