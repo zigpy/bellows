@@ -58,7 +58,7 @@ async def update_tx_power(ezsp: EZSP, tx_power: int) -> bool:
         rsp = await ezsp.getTokenData(token=t.NV3KeyId.NVM3KEY_STACK_NODE_DATA, index=0)
         assert t.sl_Status.from_ember_status(rsp.status) == t.sl_Status.OK
     except (InvalidCommandError, AttributeError, AssertionError):
-        LOGGER.warning("NV3 interface not available in this firmware, please upgrade!")
+        LOGGER.debug("NV3 interface not available in this firmware, please upgrade!")
         return False
 
     token, remaining = t.NV3StackNodeData.deserialize(rsp.value)
