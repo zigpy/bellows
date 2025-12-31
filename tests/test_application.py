@@ -71,6 +71,10 @@ def make_app(monkeypatch, ieee):
         app.handle_message = MagicMock()
         app.packet_received = MagicMock()
 
+        # Set up event subscriptions normally done in connect()
+        app._ezsp._protocol.on_event("packet_received", app._on_packet_received)
+        app._ezsp._protocol.on_event("message_sent", app._on_message_sent)
+
         return app
 
     return inner
@@ -431,8 +435,8 @@ def aps_frame():
 
 
 def _handle_incoming_aps_frame(app, aps_frame, type):
-    app.ezsp_callback_handler(
-        "incomingMessageHandler",
+    # Call protocol handler directly (v4/v8 field order)
+    app._ezsp._protocol._handle_incoming_message(
         list(
             dict(
                 type=type,
@@ -444,7 +448,16 @@ def _handle_incoming_aps_frame(app, aps_frame, type):
                 addressIndex=78,
                 message=b"test message",
             ).values()
-        ),
+        )
+    )
+
+
+def _handle_message_sent(
+    app, msg_type, destination, aps_frame, message_tag, status, message
+):
+    # Call protocol handler directly (v4/v8 field order)
+    app._ezsp._protocol._handle_message_sent(
+        [msg_type, destination, aps_frame, message_tag, status, message]
     )
 
 
@@ -552,9 +565,7 @@ def test_frame_handler_ignored(app, aps_frame):
 )
 async def test_send_failure(app, aps, ieee, msg_type):
     fut = app._pending_requests[(0xBEED, 254)] = asyncio.Future()
-    app.ezsp_callback_handler(
-        "messageSentHandler", [msg_type, 0xBEED, aps, 254, t.EmberStatus.SUCCESS, b""]
-    )
+    _handle_message_sent(app, msg_type, 0xBEED, aps, 254, t.EmberStatus.SUCCESS, b"")
     assert fut.result() == (t.sl_Status.OK, "message send success")
 
 
@@ -562,54 +573,47 @@ async def test_dup_send_failure(app, aps, ieee):
     fut = app._pending_requests[(0xBEED, 254)] = asyncio.Future()
     fut.set_result("Already set")
 
-    app.ezsp_callback_handler(
-        "messageSentHandler",
-        [
-            t.EmberIncomingMessageType.INCOMING_UNICAST,
-            0xBEED,
-            aps,
-            254,
-            sentinel.status,
-            b"",
-        ],
+    _handle_message_sent(
+        app,
+        t.EmberIncomingMessageType.INCOMING_UNICAST,
+        0xBEED,
+        aps,
+        254,
+        sentinel.status,
+        b"",
     )
 
 
 def test_send_failure_unexpected(app, aps, ieee):
-    app.ezsp_callback_handler(
-        "messageSentHandler",
-        [
-            t.EmberIncomingMessageType.INCOMING_BROADCAST_LOOPBACK,
-            0xBEED,
-            aps,
-            257,
-            1,
-            b"",
-        ],
+    _handle_message_sent(
+        app,
+        t.EmberIncomingMessageType.INCOMING_BROADCAST_LOOPBACK,
+        0xBEED,
+        aps,
+        257,
+        1,
+        b"",
     )
 
 
 async def test_send_success(app, aps, ieee):
     fut = app._pending_requests[(0xBEED, 253)] = asyncio.Future()
-    app.ezsp_callback_handler(
-        "messageSentHandler",
-        [
-            t.EmberIncomingMessageType.INCOMING_MULTICAST_LOOPBACK,
-            0xBEED,
-            aps,
-            253,
-            t.EmberStatus.SUCCESS,
-            b"",
-        ],
+    _handle_message_sent(
+        app,
+        t.EmberIncomingMessageType.INCOMING_MULTICAST_LOOPBACK,
+        0xBEED,
+        aps,
+        253,
+        t.EmberStatus.SUCCESS,
+        b"",
     )
 
     assert fut.result() == (t.sl_Status.OK, "message send success")
 
 
 def test_unexpected_send_success(app, aps, ieee):
-    app.ezsp_callback_handler(
-        "messageSentHandler",
-        [t.EmberIncomingMessageType.INCOMING_MULTICAST, 0xBEED, aps, 253, 0, b""],
+    _handle_message_sent(
+        app, t.EmberIncomingMessageType.INCOMING_MULTICAST, 0xBEED, aps, 253, 0, b""
     )
 
 
@@ -737,26 +741,24 @@ def packet():
 async def test_request_concurrency_duplicate_failure(
     make_app, packet: zigpy_t.ZigbeePacket
 ) -> None:
+    # Increase the send timeout, CI is inconsistent with the default
+    app = make_app({}, send_timeout=0.5)
+
     def send_unicast(aps_frame, data, message_tag, nwk):
         asyncio.get_running_loop().call_soon(
-            app.ezsp_callback_handler,
-            "messageSentHandler",
-            list(
-                dict(
-                    type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
-                    indexOrDestination=0x1234,
-                    apsFrame=aps_frame,
-                    messageTag=message_tag,
-                    status=bellows.types.sl_Status.OK,
-                    message=b"",
-                ).values()
-            ),
+            app._ezsp._protocol._handle_message_sent,
+            [
+                t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+                0x1234,
+                aps_frame,
+                message_tag,
+                bellows.types.sl_Status.OK,
+                b"",
+            ],
         )
 
         return [bellows.types.sl_Status.OK, 0x12]
 
-    # Increase the send timeout, CI is inconsistent with the default
-    app = make_app({}, send_timeout=0.5)
     app._ezsp.send_unicast = AsyncMock(
         side_effect=send_unicast, spec=app._ezsp.send_unicast
     )
@@ -791,18 +793,15 @@ async def _test_send_packet_unicast(
     def send_unicast(*args, **kwargs):
         asyncio.get_running_loop().call_later(
             0.01,
-            app.ezsp_callback_handler,
-            "messageSentHandler",
-            list(
-                dict(
-                    type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
-                    indexOrDestination=0x1234,
-                    apsFrame=sentinel.aps,
-                    messageTag=sentinel.msg_tag,
-                    status=sent_handler_status,
-                    message=b"",
-                ).values()
-            ),
+            app._ezsp._protocol._handle_message_sent,
+            [
+                t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+                0x1234,
+                sentinel.aps,
+                sentinel.msg_tag,
+                sent_handler_status,
+                b"",
+            ],
         )
 
         return [status, 0x12]
@@ -1045,18 +1044,8 @@ async def test_send_packet_unicast_concurrency(app, packet, monkeypatch):
 
         await asyncio.sleep(0.01)
 
-        app.ezsp_callback_handler(
-            "messageSentHandler",
-            list(
-                dict(
-                    type=type,
-                    indexOrDestination=indexOrDestination,
-                    apsFrame=apsFrame,
-                    messageTag=messageTag,
-                    status=t.EmberStatus.SUCCESS,
-                    message=b"",
-                ).values()
-            ),
+        app._ezsp._protocol._handle_message_sent(
+            [type, indexOrDestination, apsFrame, messageTag, t.EmberStatus.SUCCESS, b""]
         )
 
     async def send_unicast(nwk, aps_frame, message_tag, data):
@@ -1102,18 +1091,15 @@ async def test_send_packet_broadcast(app, packet):
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
     asyncio.get_running_loop().call_soon(
-        app.ezsp_callback_handler,
-        "messageSentHandler",
-        list(
-            dict(
-                type=t.EmberOutgoingMessageType.OUTGOING_BROADCAST,
-                indexOrDestination=0xFFFE,
-                apsFrame=sentinel.aps,
-                messageTag=sentinel.msg_tag,
-                status=t.EmberStatus.SUCCESS,
-                message=b"",
-            ).values()
-        ),
+        app._ezsp._protocol._handle_message_sent,
+        [
+            t.EmberOutgoingMessageType.OUTGOING_BROADCAST,
+            0xFFFE,
+            sentinel.aps,
+            sentinel.msg_tag,
+            t.EmberStatus.SUCCESS,
+            b"",
+        ],
     )
 
     await app.send_packet(packet)
@@ -1148,18 +1134,15 @@ async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
     asyncio.get_running_loop().call_soon(
-        app.ezsp_callback_handler,
-        "messageSentHandler",
-        list(
-            dict(
-                type=t.EmberOutgoingMessageType.OUTGOING_BROADCAST,
-                indexOrDestination=0xFFFE,
-                apsFrame=sentinel.aps,
-                messageTag=sentinel.msg_tag,
-                status=t.EmberStatus.DELIVERY_FAILED,
-                message=b"",
-            ).values()
-        ),
+        app._ezsp._protocol._handle_message_sent,
+        [
+            t.EmberOutgoingMessageType.OUTGOING_BROADCAST,
+            0xFFFE,
+            sentinel.aps,
+            sentinel.msg_tag,
+            t.EmberStatus.DELIVERY_FAILED,
+            b"",
+        ],
     )
 
     # Does not throw an error
@@ -1201,18 +1184,15 @@ async def test_send_packet_multicast(app, packet):
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
     asyncio.get_running_loop().call_soon(
-        app.ezsp_callback_handler,
-        "messageSentHandler",
-        list(
-            dict(
-                type=t.EmberOutgoingMessageType.OUTGOING_MULTICAST,
-                indexOrDestination=0x1234,
-                apsFrame=sentinel.aps,
-                messageTag=sentinel.msg_tag,
-                status=t.EmberStatus.SUCCESS,
-                message=b"",
-            ).values()
-        ),
+        app._ezsp._protocol._handle_message_sent,
+        [
+            t.EmberOutgoingMessageType.OUTGOING_MULTICAST,
+            0x1234,
+            sentinel.aps,
+            sentinel.msg_tag,
+            t.EmberStatus.SUCCESS,
+            b"",
+        ],
     )
 
     await app.send_packet(packet)

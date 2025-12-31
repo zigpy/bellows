@@ -11,7 +11,9 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from zigpy.datastructures import PriorityDynamicBoundedSemaphore
+from zigpy.event.event_base import EventBase
 import zigpy.state
+import zigpy.types
 
 from bellows.config import CONF_EZSP_POLICIES
 from bellows.exception import InvalidCommandError
@@ -27,13 +29,14 @@ EZSP_CMD_TIMEOUT = 10
 MAX_COMMAND_CONCURRENCY = 1
 
 
-class ProtocolHandler(abc.ABC):
+class ProtocolHandler(EventBase, abc.ABC):
     """EZSP protocol specific handler."""
 
     COMMANDS = {}
     VERSION = None
 
     def __init__(self, cb_handler: Callable, gateway: Gateway) -> None:
+        super().__init__()
         self._handle_callback = cb_handler
         self._awaiting = {}
         self._gw = gateway
@@ -179,52 +182,6 @@ class ProtocolHandler(abc.ABC):
         if data:
             LOGGER.debug("Frame contains trailing data: %s", data)
 
-        if (
-            frame_name == "incomingMessageHandler"
-            and result[1].options & t.EmberApsOption.APS_OPTION_FRAGMENT
-        ):
-            # Extract received APS frame and sender
-            aps_frame = result[1]
-            sender = result[4]
-
-            # The fragment count and index are encoded in the groupId field
-            fragment_count = (aps_frame.groupId >> 8) & 0xFF
-            fragment_index = aps_frame.groupId & 0xFF
-
-            (
-                complete,
-                reassembled,
-                frag_count,
-                frag_index,
-            ) = self._fragment_manager.handle_incoming_fragment(
-                sender_nwk=sender,
-                aps_sequence=aps_frame.sequence,
-                profile_id=aps_frame.profileId,
-                cluster_id=aps_frame.clusterId,
-                fragment_count=fragment_count,
-                fragment_index=fragment_index,
-                payload=result[7],
-            )
-
-            ack_task = asyncio.create_task(
-                self._send_fragment_ack(sender, aps_frame, frag_count, frag_index)
-            )  # APS Ack
-
-            self._fragment_ack_tasks.add(ack_task)
-            ack_task.add_done_callback(lambda t: self._fragment_ack_tasks.discard(t))
-
-            if not complete:
-                # Do not pass partial data up the stack
-                LOGGER.debug("Fragment reassembly not complete. waiting for more data.")
-                return
-
-            # Replace partial data with fully reassembled data
-            result[7] = reassembled
-
-            LOGGER.debug(
-                "Reassembled fragmented message. Proceeding with normal handling."
-            )
-
         if sequence in self._awaiting:
             expected_id, schema, future = self._awaiting.pop(sequence)
             try:
@@ -246,8 +203,19 @@ class ProtocolHandler(abc.ABC):
                     sequence,
                     self.COMMANDS_BY_ID.get(expected_id, [expected_id])[0],
                 )
-        else:
-            self._handle_callback(frame_name, result)
+
+            return
+
+        # Handle callbacks via version-specific methods that emit events
+        if frame_name == "incomingMessageHandler":
+            if not self._handle_incoming_message(result):
+                # Fragment incomplete, skip legacy callback
+                return
+        elif frame_name == "messageSentHandler":
+            self._handle_message_sent(result)
+
+        # Always call legacy callback handler for backwards compatibility
+        self._handle_callback(frame_name, result)
 
     async def _send_fragment_ack(
         self,
@@ -386,3 +354,16 @@ class ProtocolHandler(abc.ABC):
         self, nwk: t.NWK, ieee: t.EUI64, extended_timeout: bool = True
     ) -> None:
         raise NotImplementedError()
+
+    @abc.abstractmethod
+    def _handle_incoming_message(self, args: list) -> bool:
+        """Handle incomingMessageHandler callback and emit packet_received event.
+
+        Returns True if message was fully handled, False if fragment is incomplete.
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def _handle_message_sent(self, args: list) -> None:
+        """Handle messageSentHandler callback and emit message_sent event."""
+        raise NotImplementedError

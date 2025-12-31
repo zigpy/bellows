@@ -1,17 +1,22 @@
 """"EZSP Protocol version 14 protocol handler."""
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncGenerator
+import logging
 
 import voluptuous as vol
 from zigpy.exceptions import NetworkNotFormed
 import zigpy.state
+import zigpy.types
 
 import bellows.config
 import bellows.types as t
 
 from . import commands, config
 from ..v13 import EZSPv13
+
+LOGGER = logging.getLogger(__name__)
 
 
 class EZSPv14(EZSPv13):
@@ -144,3 +149,116 @@ class EZSPv14(EZSPv13):
         )
 
         return status, sequence
+
+    def _handle_incoming_message(self, args: list) -> bool:
+        """Handle incomingMessageHandler callback and emit packet_received event.
+
+        Returns True if message was fully handled, False if fragment is incomplete.
+        """
+        (
+            message_type,
+            aps_frame,
+            sender,
+            eui64,
+            binding_index,
+            address_index,
+            lqi,
+            rssi,
+            timestamp,
+            message,
+        ) = args
+
+        # Handle fragmented messages
+        if aps_frame.options & t.EmberApsOption.APS_OPTION_FRAGMENT:
+            fragment_count = (aps_frame.groupId >> 8) & 0xFF
+            fragment_index = aps_frame.groupId & 0xFF
+
+            (
+                complete,
+                reassembled,
+                frag_count,
+                frag_index,
+            ) = self._fragment_manager.handle_incoming_fragment(
+                sender_nwk=sender,
+                aps_sequence=aps_frame.sequence,
+                profile_id=aps_frame.profileId,
+                cluster_id=aps_frame.clusterId,
+                fragment_count=fragment_count,
+                fragment_index=fragment_index,
+                payload=message,
+            )
+
+            ack_task = asyncio.create_task(
+                self._send_fragment_ack(sender, aps_frame, frag_count, frag_index)
+            )
+            self._fragment_ack_tasks.add(ack_task)
+            ack_task.add_done_callback(lambda t: self._fragment_ack_tasks.discard(t))
+
+            if not complete:
+                LOGGER.debug("Fragment reassembly not complete, waiting for more data")
+                return False
+
+            LOGGER.debug("Reassembled fragmented message, proceeding with handling")
+            message = reassembled
+
+        # Determine destination address based on message type
+        if message_type == t.EmberIncomingMessageType.INCOMING_BROADCAST:
+            dst = zigpy.types.AddrModeAddress(
+                addr_mode=zigpy.types.AddrMode.Broadcast,
+                address=zigpy.types.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
+            )
+        elif message_type == t.EmberIncomingMessageType.INCOMING_MULTICAST:
+            dst = zigpy.types.AddrModeAddress(
+                addr_mode=zigpy.types.AddrMode.Group,
+                address=aps_frame.groupId,
+            )
+        elif message_type == t.EmberIncomingMessageType.INCOMING_UNICAST:
+            # We don't know our own NWK at this level, leave as None
+            dst = None
+        else:
+            LOGGER.debug("Ignoring message type: %r", message_type)
+            return True
+
+        self.emit(
+            "packet_received",
+            zigpy.types.ZigbeePacket(
+                src=zigpy.types.AddrModeAddress(
+                    addr_mode=zigpy.types.AddrMode.NWK,
+                    address=zigpy.types.NWK(sender),
+                ),
+                src_ep=aps_frame.sourceEndpoint,
+                dst=dst,
+                dst_ep=aps_frame.destinationEndpoint,
+                tsn=aps_frame.sequence,
+                profile_id=aps_frame.profileId,
+                cluster_id=aps_frame.clusterId,
+                data=zigpy.types.SerializableBytes(message),
+                lqi=lqi,
+                rssi=rssi,
+            ),
+        )
+
+        return True
+
+    def _handle_message_sent(self, args: list) -> None:
+        """Handle messageSentHandler callback and emit message_sent event."""
+        (
+            status,
+            message_type,
+            destination,
+            aps_frame,
+            message_tag,
+            message,
+        ) = args
+
+        self.emit(
+            "message_sent",
+            (
+                status,  # Already sl_Status in v14
+                message_type,
+                destination,
+                aps_frame,
+                message_tag,
+                message,
+            ),
+        )

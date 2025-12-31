@@ -241,6 +241,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             cnt_group.reset()
 
         ezsp.add_callback(self.ezsp_callback_handler)
+
+        # Subscribe to protocol-level events
+        ezsp._protocol.on_event("packet_received", self._on_packet_received)
+        ezsp._protocol.on_event("message_sent", self._on_message_sent)
+
         self.controller_event.set()
 
         group_membership = {}
@@ -621,72 +626,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def ezsp_callback_handler(self, frame_name, args):
         LOGGER.debug("Received %s frame with %s", frame_name, args)
-        if frame_name == "incomingMessageHandler":
-            if self._ezsp.ezsp_version >= 14:
-                (
-                    message_type,
-                    aps_frame,
-                    nwk,
-                    _eui64,
-                    binding_index,
-                    address_index,
-                    lqi,
-                    rssi,
-                    _timestamp,
-                    message,
-                ) = args
-            else:
-                (
-                    message_type,
-                    aps_frame,
-                    lqi,
-                    rssi,
-                    nwk,
-                    binding_index,
-                    address_index,
-                    message,
-                ) = args
-
-            self._handle_frame(
-                message_type=message_type,
-                aps_frame=aps_frame,
-                lqi=lqi,
-                rssi=rssi,
-                sender=nwk,
-                binding_index=binding_index,
-                address_index=address_index,
-                message=message,
-            )
-        elif frame_name == "messageSentHandler":
-            if self._ezsp.ezsp_version >= 14:
-                (
-                    status,
-                    message_type,
-                    destination,
-                    aps_frame,
-                    message_tag,
-                    message,
-                ) = args
-            else:
-                (
-                    message_type,
-                    destination,
-                    aps_frame,
-                    message_tag,
-                    status,
-                    message,
-                ) = args
-                status = t.sl_Status.from_ember_status(status)
-
-            self._handle_frame_sent(
-                message_type=message_type,
-                destination=destination,
-                aps_frame=aps_frame,
-                message_tag=message_tag,
-                status=status,
-                message=message,
-            )
-        elif frame_name == "trustCenterJoinHandler":
+        if frame_name == "trustCenterJoinHandler":
             self._handle_tc_join_handler(*args)
         elif frame_name == "incomingRouteRecordHandler":
             self.handle_route_record(*args)
@@ -697,64 +637,27 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         elif frame_name == "idConflictHandler":
             self._handle_id_conflict(*args)
 
-    def _handle_frame(
-        self,
-        message_type: t.EmberIncomingMessageType,
-        aps_frame: t.EmberApsFrame,
-        lqi: t.uint8_t,
-        rssi: t.int8s,
-        sender: t.EmberNodeId,
-        binding_index: t.uint8_t,
-        address_index: t.uint8_t,
-        message: bytes,
-    ) -> None:
-        if message_type == t.EmberIncomingMessageType.INCOMING_BROADCAST:
-            dst = zigpy.types.AddrModeAddress(
-                addr_mode=zigpy.types.AddrMode.Broadcast,
-                address=zigpy.types.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
-            )
-            self.state.counters[COUNTERS_CTRL][COUNTER_RX_BCAST].increment()
-        elif message_type == t.EmberIncomingMessageType.INCOMING_MULTICAST:
-            dst = zigpy.types.AddrModeAddress(
-                addr_mode=zigpy.types.AddrMode.Group, address=aps_frame.groupId
-            )
-            self.state.counters[COUNTERS_CTRL][COUNTER_RX_MCAST].increment()
-        elif message_type == t.EmberIncomingMessageType.INCOMING_UNICAST:
-            dst = zigpy.types.AddrModeAddress(
-                addr_mode=zigpy.types.AddrMode.NWK, address=self.state.node_info.nwk
+    def _on_packet_received(self, packet: zigpy.types.ZigbeePacket) -> None:
+        """Handle packet_received event from protocol handler."""
+        if packet.dst is None:
+            packet = packet.replace(
+                dst=zigpy.types.AddrModeAddress(
+                    addr_mode=zigpy.types.AddrMode.NWK,
+                    address=self.state.node_info.nwk,
+                )
             )
             self.state.counters[COUNTERS_CTRL][COUNTER_RX_UNICAST].increment()
-        else:
-            LOGGER.debug("Ignoring message type: %r", message_type)
-            return
+        elif packet.dst.addr_mode == zigpy.types.AddrMode.Broadcast:
+            self.state.counters[COUNTERS_CTRL][COUNTER_RX_BCAST].increment()
+        elif packet.dst.addr_mode == zigpy.types.AddrMode.Group:
+            self.state.counters[COUNTERS_CTRL][COUNTER_RX_MCAST].increment()
 
-        self.packet_received(
-            zigpy.types.ZigbeePacket(
-                src=zigpy.types.AddrModeAddress(
-                    addr_mode=zigpy.types.AddrMode.NWK,
-                    address=sender,
-                ),
-                src_ep=aps_frame.sourceEndpoint,
-                dst=dst,
-                dst_ep=aps_frame.destinationEndpoint,
-                tsn=aps_frame.sequence,
-                profile_id=aps_frame.profileId,
-                cluster_id=aps_frame.clusterId,
-                data=zigpy.types.SerializableBytes(message),
-                lqi=lqi,
-                rssi=rssi,
-            )
-        )
+        self.packet_received(packet)
 
-    def _handle_frame_sent(
-        self,
-        message_type: t.EmberIncomingMessageType,
-        destination: t.EmberNodeId,
-        aps_frame: t.EmberApsFrame,
-        message_tag: int,
-        status: t.sl_Status,
-        message: bytes,
-    ):
+    def _on_message_sent(self, data: tuple) -> None:
+        """Handle message_sent event from protocol handler."""
+        status, message_type, destination, aps_frame, message_tag, message = data
+
         if status == t.sl_Status.OK:
             msg = "success"
         else:
