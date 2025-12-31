@@ -29,11 +29,11 @@ from bellows.ezsp.xncp import (
 import bellows.types as t
 import bellows.uart
 
-from . import v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v16, v17
+from . import v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v16, v17, v18
 
 RESET_ATTEMPTS = 3
 
-EZSP_LATEST = v17.EZSPv17.VERSION
+EZSP_LATEST = v18.EZSPv18.VERSION
 LOGGER = logging.getLogger(__name__)
 MTOR_MIN_INTERVAL = 60
 MTOR_MAX_INTERVAL = 3600
@@ -61,6 +61,7 @@ class EZSP:
         v14.EZSPv14.VERSION: v14.EZSPv14,
         v16.EZSPv16.VERSION: v16.EZSPv16,
         v17.EZSPv17.VERSION: v17.EZSPv17,
+        v18.EZSPv18.VERSION: v18.EZSPv18,
     }
 
     def __init__(self, device_config: dict, application: Any | None = None):
