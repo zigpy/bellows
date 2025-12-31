@@ -800,17 +800,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 exc,
             )
 
-    async def _handle_no_such_device(self, sender: int) -> None:
-        """Try to match unknown device by its EUI64 address."""
-        status, ieee = await self._ezsp.lookupEui64ByNodeId(nodeId=sender)
-        status = t.sl_Status.from_ember_status(status)
-
-        if status == t.sl_Status.OK:
-            LOGGER.debug("Found %s ieee for %s sender", ieee, sender)
-            self.handle_join(sender, ieee, 0)
-            return
-        LOGGER.debug("Couldn't look up ieee for %s", sender)
-
     def _handle_tc_join_handler(
         self,
         nwk: t.EmberNodeId,

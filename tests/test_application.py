@@ -1600,35 +1600,6 @@ def test_handle_id_conflict(app, ieee):
     assert app.handle_leave.call_args[0][0] == nwk
 
 
-async def test_handle_no_such_device(app, ieee):
-    """Test handling of an unknown device IEEE lookup."""
-
-    app._ezsp.lookupEui64ByNodeId = AsyncMock()
-
-    p1 = patch.object(
-        app._ezsp,
-        "lookupEui64ByNodeId",
-        AsyncMock(return_value=(t.EmberStatus.ERR_FATAL, ieee)),
-    )
-    p2 = patch.object(app, "handle_join")
-    with p1 as lookup_mock, p2 as handle_join_mock:
-        await app._handle_no_such_device(sentinel.nwk)
-        assert lookup_mock.mock_calls == [call(nodeId=sentinel.nwk)]
-        assert handle_join_mock.call_count == 0
-
-    p1 = patch.object(
-        app._ezsp,
-        "lookupEui64ByNodeId",
-        AsyncMock(return_value=(t.EmberStatus.SUCCESS, sentinel.ieee)),
-    )
-    with p1 as lookup_mock, p2 as handle_join_mock:
-        await app._handle_no_such_device(sentinel.nwk)
-        assert lookup_mock.mock_calls == [call(nodeId=sentinel.nwk)]
-        assert handle_join_mock.call_count == 1
-        assert handle_join_mock.call_args[0][0] == sentinel.nwk
-        assert handle_join_mock.call_args[0][1] == sentinel.ieee
-
-
 async def test_cleanup_tc_link_key(app):
     """Test cleaning up tc link key."""
     ezsp = app._ezsp
