@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from asyncio import timeout as asyncio_timeout
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from datetime import UTC, datetime
 import importlib.metadata
 import logging
@@ -97,6 +97,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._multicast = None
         self._mfg_id_task: asyncio.Task | None = None
         self._pending_requests = {}
+        self._protocol_on_remove_callbacks: list[Callable[[], None]] = []
         self._watchdog_failures = 0
         self._watchdog_feed_counter = 0
 
@@ -241,10 +242,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             cnt_group.reset()
 
         ezsp.add_callback(self.ezsp_callback_handler)
-
-        # Subscribe to protocol-level events
-        ezsp._protocol.on_event("packet_received", self._on_packet_received)
-        ezsp._protocol.on_event("message_sent", self._on_message_sent)
+        self._subscribe_to_protocol_events()
 
         self.controller_event.set()
 
@@ -607,14 +605,33 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         else:
             await self._ezsp.leaveNetwork()
 
+    def _unsubscribe_from_protocol_events(self) -> None:
+        """Unsubscribe from protocol events."""
+        for callback in self._protocol_on_remove_callbacks:
+            callback()
+
+        self._protocol_on_remove_callbacks.clear()
+
     async def _reset(self):
+        self._unsubscribe_from_protocol_events()
         self._ezsp.stop_ezsp()
         await self._ezsp.startup_reset()
         await self._ezsp.write_config(self.config[CONF_EZSP_CONFIG])
+        self._subscribe_to_protocol_events()
+
+    def _subscribe_to_protocol_events(self) -> None:
+        """Subscribe to protocol-level events."""
+        self._protocol_on_remove_callbacks.append(
+            self._ezsp._protocol.on_event("packet_received", self._on_packet_received)
+        )
+        self._protocol_on_remove_callbacks.append(
+            self._ezsp._protocol.on_event("message_sent", self._on_message_sent)
+        )
 
     async def disconnect(self):
         # TODO: how do you shut down the stack?
         self.controller_event.clear()
+        self._unsubscribe_from_protocol_events()
         if self._ezsp is not None:
             await self._ezsp.disconnect()
             self._ezsp = None

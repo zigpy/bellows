@@ -71,9 +71,8 @@ def make_app(monkeypatch, ieee):
         app.handle_message = MagicMock()
         app.packet_received = MagicMock()
 
-        # Set up event subscriptions normally done in connect()
-        app._ezsp._protocol.on_event("packet_received", app._on_packet_received)
-        app._ezsp._protocol.on_event("message_sent", app._on_message_sent)
+        # Set up event subscriptions normally done in start_network()
+        app._subscribe_to_protocol_events()
 
         return app
 
