@@ -639,7 +639,8 @@ class EZSP:
         ezsp_config = {}
         ezsp_values = {}
 
-        for cfg in DEFAULT_CONFIG[self._ezsp_version]:
+        # If a protocol version is not explicitly supported, use config for the latest
+        for cfg in DEFAULT_CONFIG.get(self._ezsp_version, DEFAULT_CONFIG[EZSP_LATEST]):
             if isinstance(cfg, RuntimeConfig):
                 ezsp_config[cfg.config_id.name] = dataclasses.replace(
                     cfg, config_id=t.EzspConfigId[cfg.config_id.name]
