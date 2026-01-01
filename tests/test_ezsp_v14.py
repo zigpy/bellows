@@ -235,29 +235,31 @@ def test_handle_parsed_callback_incoming_message(ezsp_f) -> None:
     handler = MagicMock()
     ezsp_f.on_event(PacketReceivedEvent.event_type, handler)
 
-    aps_frame = t.EmberApsFrame(
-        profileId=0x0104,
-        clusterId=0x0006,
-        sourceEndpoint=1,
-        destinationEndpoint=2,
-        options=t.EmberApsOption.APS_OPTION_NONE,
-        groupId=0x0000,
-        sequence=0x42,
-    )
-
-    # v14 field order: type, apsFrame, lqi, rssi, sender, bindingIndex, addressIndex, message
     ezsp_f.handle_parsed_callback(
         "incomingMessageHandler",
-        [
-            t.EmberIncomingMessageType.INCOMING_UNICAST,
-            aps_frame,
-            200,  # lqi
-            -40,  # rssi
-            t.EmberNodeId(0x1234),  # sender
-            0,  # binding_index
-            0,  # address_index
-            b"test message",
-        ],
+        {
+            "message_type": t.EmberIncomingMessageType.INCOMING_UNICAST,
+            "aps_frame": t.EmberApsFrame(
+                profileId=260,
+                clusterId=8,
+                sourceEndpoint=1,
+                destinationEndpoint=1,
+                options=(
+                    t.EmberApsOption.APS_OPTION_RETRY
+                    | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                ),
+                groupId=0,
+                sequence=168,
+            ),
+            "nwk": 0x1174,
+            "eui64": t.EUI64.convert("00:00:00:00:00:00:00:00"),
+            "binding_index": 255,
+            "address_index": 13,
+            "lqi": 192,
+            "rssi": -63,
+            "timestamp": 1333671578,
+            "message": b"\x18,\x0b\x04\x00",
+        }.values(),
     )
 
     assert handler.mock_calls == [
@@ -266,17 +268,17 @@ def test_handle_parsed_callback_incoming_message(ezsp_f) -> None:
                 packet=zigpy.types.ZigbeePacket(
                     src=zigpy.types.AddrModeAddress(
                         addr_mode=zigpy.types.AddrMode.NWK,
-                        address=zigpy.types.NWK(0x1234),
+                        address=zigpy.types.NWK(0x1174),
                     ),
                     src_ep=1,
                     dst=None,
-                    dst_ep=2,
-                    tsn=0x42,
+                    dst_ep=1,
+                    tsn=168,
                     profile_id=0x0104,
-                    cluster_id=0x0006,
-                    data=zigpy.types.SerializableBytes(b"test message"),
-                    lqi=200,
-                    rssi=-40,
+                    cluster_id=0x0008,
+                    data=zigpy.types.SerializableBytes(b"\x18,\x0b\x04\x00"),
+                    lqi=192,
+                    rssi=-63,
                 )
             )
         )
@@ -288,27 +290,27 @@ def test_handle_parsed_callback_message_sent(ezsp_f) -> None:
     handler = MagicMock()
     ezsp_f.on_event(MessageSentEvent.event_type, handler)
 
-    aps_frame = t.EmberApsFrame(
-        profileId=0x0104,
-        clusterId=0x0006,
-        sourceEndpoint=1,
-        destinationEndpoint=2,
-        options=t.EmberApsOption.APS_OPTION_NONE,
-        groupId=0x0000,
-        sequence=0x42,
-    )
-
-    # v14 field order: status, type, nwk, apsFrame, messageTag, message
     ezsp_f.handle_parsed_callback(
         "messageSentHandler",
-        [
-            t.sl_Status.OK,
-            t.EmberOutgoingMessageType.OUTGOING_DIRECT,
-            t.EmberNodeId(0x1234),
-            aps_frame,
-            0x42,  # message_tag
-            b"sent message",
-        ],
+        {
+            "status": t.sl_Status.OK,
+            "message_type": t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+            "nwk": 0x0E0D,
+            "aps_frame": t.EmberApsFrame(
+                profileId=260,
+                clusterId=513,
+                sourceEndpoint=1,
+                destinationEndpoint=1,
+                options=(
+                    t.EmberApsOption.APS_OPTION_RETRY
+                    | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                ),
+                groupId=0,
+                sequence=236,
+            ),
+            "message_tag": 103,
+            "message": b"",
+        }.values(),
     )
 
     assert handler.mock_calls == [
@@ -316,10 +318,21 @@ def test_handle_parsed_callback_message_sent(ezsp_f) -> None:
             MessageSentEvent(
                 status=t.sl_Status.OK,
                 message_type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
-                destination=t.EmberNodeId(0x1234),
-                aps_frame=aps_frame,
-                message_tag=0x42,
-                message_contents=b"sent message",
+                destination=t.EmberNodeId(0x0E0D),
+                aps_frame=t.EmberApsFrame(
+                    profileId=260,
+                    clusterId=513,
+                    sourceEndpoint=1,
+                    destinationEndpoint=1,
+                    options=(
+                        t.EmberApsOption.APS_OPTION_RETRY
+                        | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                    ),
+                    groupId=0,
+                    sequence=236,
+                ),
+                message_tag=103,
+                message_contents=b"",
             )
         )
     ]
