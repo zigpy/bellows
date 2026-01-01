@@ -67,26 +67,6 @@ class EmberApsFrame(EzspStruct):
     sequence: basic.uint8_t
 
 
-class EmberApsFrameV18(EzspStruct):
-    # ZigBee APS frame parameters (EZSP v18+).
-    # The application profile ID that describes the format of the message.
-    profileId: basic.uint16_t
-    # The cluster ID for this message.
-    clusterId: basic.uint16_t
-    # The source endpoint.
-    sourceEndpoint: basic.uint8_t
-    # The destination endpoint.
-    destinationEndpoint: basic.uint8_t
-    # A bitmask of options.
-    options: named.EmberApsOption
-    # The group ID for this message, if it is multicast mode.
-    groupId: basic.uint16_t
-    # The sequence number.
-    sequence: basic.uint8_t
-    # The radius of the message. (Added in EZSP v18)
-    radius: basic.uint8_t
-
-
 class EmberBindingTableEntry(EzspStruct):
     # An entry in the binding table.
     # The type of binding.

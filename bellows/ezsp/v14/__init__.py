@@ -156,11 +156,13 @@ class EZSPv14(EZSPv13):
             (
                 message_type,
                 aps_frame,
-                lqi,
-                rssi,
                 sender,
+                _eui64,
                 binding_index,
                 address_index,
+                lqi,
+                rssi,
+                _timestamp,
                 message,
             ) = args
 

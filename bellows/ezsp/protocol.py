@@ -265,7 +265,7 @@ class ProtocolHandler(EventBase, abc.ABC):
     def _handle_incoming_message(
         self,
         message_type: t.EmberIncomingMessageType,
-        aps_frame: t.EmberApsFrame | t.EmberApsFrameV18,
+        aps_frame: t.EmberApsFrame,
         sender: zigpy.types.NWK,
         eui64: zigpy.types.EUI64 | None,
         binding_index: t.uint8_t,
