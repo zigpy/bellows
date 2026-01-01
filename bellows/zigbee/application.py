@@ -39,6 +39,7 @@ from bellows.exception import (
     StackAlreadyRunning,
 )
 import bellows.ezsp
+from bellows.ezsp.protocol import MessageSentEvent, PacketReceivedEvent
 from bellows.ezsp.xncp import FirmwareFeatures
 import bellows.multicast
 import bellows.types as t
@@ -622,10 +623,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     def _subscribe_to_protocol_events(self) -> None:
         """Subscribe to protocol-level events."""
         self._protocol_on_remove_callbacks.append(
-            self._ezsp._protocol.on_event("packet_received", self._on_packet_received)
+            self._ezsp._protocol.on_event(
+                PacketReceivedEvent.event_type, self._on_packet_received
+            )
         )
         self._protocol_on_remove_callbacks.append(
-            self._ezsp._protocol.on_event("message_sent", self._on_message_sent)
+            self._ezsp._protocol.on_event(
+                MessageSentEvent.event_type, self._on_message_sent
+            )
         )
 
     async def disconnect(self):
@@ -654,8 +659,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         elif frame_name == "idConflictHandler":
             self._handle_id_conflict(*args)
 
-    def _on_packet_received(self, packet: zigpy.types.ZigbeePacket) -> None:
+    def _on_packet_received(self, message: PacketReceivedEvent) -> None:
         """Handle packet_received event from protocol handler."""
+        packet = message.packet
+
+        # The protocol handler doesn't know our current NWK address
         if packet.dst is None:
             packet = packet.replace(
                 dst=zigpy.types.AddrModeAddress(
@@ -663,6 +671,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     address=self.state.node_info.nwk,
                 )
             )
+
+        if packet.dst.addr_mode == zigpy.types.AddrMode.NWK:
             self.state.counters[COUNTERS_CTRL][COUNTER_RX_UNICAST].increment()
         elif packet.dst.addr_mode == zigpy.types.AddrMode.Broadcast:
             self.state.counters[COUNTERS_CTRL][COUNTER_RX_BCAST].increment()
@@ -671,40 +681,38 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         self.packet_received(packet)
 
-    def _on_message_sent(self, data: tuple) -> None:
+    def _on_message_sent(self, event: MessageSentEvent) -> None:
         """Handle message_sent event from protocol handler."""
-        status, message_type, destination, aps_frame, message_tag, message = data
-
-        if status == t.sl_Status.OK:
+        if event.status == t.sl_Status.OK:
             msg = "success"
         else:
             msg = "failure"
 
-        if message_type in (
+        if event.message_type in (
             t.EmberOutgoingMessageType.OUTGOING_BROADCAST,
             t.EmberOutgoingMessageType.OUTGOING_BROADCAST_WITH_ALIAS,
         ):
             cnt_name = f"broadcast_tx_{msg}"
-        elif message_type in (
+        elif event.message_type in (
             t.EmberOutgoingMessageType.OUTGOING_MULTICAST,
             t.EmberOutgoingMessageType.OUTGOING_MULTICAST_WITH_ALIAS,
         ):
             cnt_name = f"multicast_tx_{msg}"
-        elif message_type in (
+        elif event.message_type in (
             t.EmberOutgoingMessageType.OUTGOING_DIRECT,
             t.EmberOutgoingMessageType.OUTGOING_VIA_ADDRESS_TABLE,
         ):
             cnt_name = f"unicast_tx_{msg}"
-        elif message_type == t.EmberOutgoingMessageType.OUTGOING_VIA_BINDING:
+        elif event.message_type == t.EmberOutgoingMessageType.OUTGOING_VIA_BINDING:
             cnt_name = f"via_binding_tx_{msg}"
         else:
             cnt_name = f"unknown_msg_type_{msg}"
 
-        pending_tag = (destination, message_tag)
+        pending_tag = (event.destination, event.message_tag)
 
         try:
             future = self._pending_requests[pending_tag]
-            future.set_result((status, f"message send {msg}"))
+            future.set_result((event.status, f"message send {msg}"))
             self.state.counters[COUNTERS_CTRL][cnt_name].increment()
         except KeyError:
             self.state.counters[COUNTERS_CTRL][f"{cnt_name}_unexpected"].increment()
