@@ -951,6 +951,32 @@ async def test_cfg_initialize_skip():
         )
 
 
+@pytest.mark.parametrize("unsupported_version", [15, 18, 99])
+async def test_unsupported_ezsp_version_startup(unsupported_version: int, caplog):
+    """Test that startup works with an unsupported EZSP version."""
+    ezsp = make_ezsp(version=unsupported_version)
+
+    with patch("bellows.uart.connect"):
+        await ezsp.connect()
+
+    # The EZSP version should be stored as the unsupported version
+    assert ezsp._ezsp_version == unsupported_version
+
+    # But the protocol should fall back to the latest
+    assert ezsp._protocol.VERSION == EZSP_LATEST
+
+    assert f"Protocol version {unsupported_version} is not supported" in caplog.text
+
+    ezsp.getConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, 0))
+    ezsp.setConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
+    ezsp.setValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
+    ezsp.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\xFF"))
+
+    # Startup should not fail
+    await ezsp.write_config({})
+    assert len(ezsp.setConfigurationValue.mock_calls) > 0
+
+
 async def test_reset_custom_eui64(ezsp_f):
     """Test resetting custom EUI64."""
     # No NV3 interface
