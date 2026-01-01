@@ -206,11 +206,9 @@ async def test_incoming_fragmented_message_incomplete(prot_hndl, caplog):
             len(prot_hndl._fragment_ack_tasks) == 0
         ), "Done callback should have removed task"
 
-        assert len(prot_hndl._handle_callback.mock_calls) == 0
-        assert "Fragment reassembly not complete, waiting for more data" in caplog.text
-        assert prot_hndl._send_fragment_ack.mock_calls == [
-            call(sender, aps_frame, 2, 0)
-        ]
+        prot_hndl._handle_callback.assert_not_called()
+        assert "Fragment reassembly not complete. waiting for more data." in caplog.text
+        mock_ack.assert_called_once_with(sender, aps_frame, 2, 0)
 
 
 async def test_incoming_fragmented_message_complete(prot_hndl, caplog):
@@ -243,6 +241,7 @@ async def test_incoming_fragmented_message_complete(prot_hndl, caplog):
         groupId=513,  # fragment_count=2, fragment_index=1
         sequence=238,
     )
+    reassembled = b"complete message"
 
     with patch.object(prot_hndl, "_send_fragment_ack", new=AsyncMock()) as mock_ack:
         mock_ack.return_value = None
@@ -257,14 +256,12 @@ async def test_incoming_fragmented_message_complete(prot_hndl, caplog):
             len(prot_hndl._fragment_ack_tasks) == 0
         ), "Done callback should have removed task"
 
-        assert len(prot_hndl._handle_callback.mock_calls) == 0
+        prot_hndl._handle_callback.assert_not_called()
         assert (
-            "Reassembled fragmented message, proceeding with handling"
+            "Reassembled fragmented message. Proceeding with normal handling."
             not in caplog.text
         )
-        assert prot_hndl._send_fragment_ack.mock_calls == [
-            call(sender, aps_frame_1, 2, 0)
-        ]
+        mock_ack.assert_called_with(sender, aps_frame_1, 2, 0)
 
         # Packet 2
         prot_hndl(packet2)
@@ -275,24 +272,21 @@ async def test_incoming_fragmented_message_complete(prot_hndl, caplog):
             len(prot_hndl._fragment_ack_tasks) == 0
         ), "Done callback should have removed task"
 
-        # Legacy callback is called with original args (last fragment's payload)
-        assert prot_hndl._handle_callback.mock_calls == [
-            call(
-                "incomingMessageHandler",
-                [
-                    t.EmberIncomingMessageType.INCOMING_UNICAST,
-                    aps_frame_2,
-                    255,  # lastHopLqi
-                    -8,  # lastHopRssi
-                    sender,
-                    255,  # bindingIndex
-                    255,  # addressIndex
-                    b"message",  # Original last fragment payload, not reassembled
-                ],
-            )
-        ]
-        assert "Reassembled fragmented message, proceeding with handling" in caplog.text
-        assert prot_hndl._send_fragment_ack.mock_calls == [
-            call(sender, aps_frame_1, 2, 0),
-            call(sender, aps_frame_2, 2, 1),
-        ]
+        prot_hndl._handle_callback.assert_called_once_with(
+            "incomingMessageHandler",
+            [
+                t.EmberIncomingMessageType.INCOMING_UNICAST,  # 0x00
+                aps_frame_2,  # Parsed APS frame
+                255,  # lastHopLqi: 0xFF
+                -8,  # lastHopRssi: 0xF8
+                sender,  # 0x1D6F
+                255,  # bindingIndex: 0xFF
+                255,  # addressIndex: 0xFF
+                reassembled,  # Reassembled payload
+            ],
+        )
+        assert (
+            "Reassembled fragmented message. Proceeding with normal handling."
+            in caplog.text
+        )
+        mock_ack.assert_called_with(sender, aps_frame_2, 2, 1)
