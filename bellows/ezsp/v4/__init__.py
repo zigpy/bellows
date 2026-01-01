@@ -275,7 +275,7 @@ class EZSPv4(protocol.ProtocolHandler):
             ) = args
 
             self._handle_message_sent(
-                type=message_type,
+                message_type=message_type,
                 destination=destination,
                 aps_frame=aps_frame,
                 message_tag=message_tag,

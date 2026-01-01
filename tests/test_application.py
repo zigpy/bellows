@@ -16,6 +16,7 @@ from bellows.ash import NcpFailure
 import bellows.config as config
 from bellows.exception import ControllerError, EzspError, InvalidCommandError
 import bellows.ezsp as ezsp
+from bellows.ezsp.protocol import MessageSentEvent, PacketReceivedEvent
 from bellows.ezsp.v9.commands import GetTokenDataRsp
 from bellows.ezsp.xncp import (
     FirmwareFeatures,
@@ -546,7 +547,7 @@ async def test_request_concurrency_duplicate_failure(
 ) -> None:
     def send_unicast(aps_frame, data, message_tag, nwk):
         asyncio.get_running_loop().call_soon(
-            app.ezsp_callback_handler,
+            app._ezsp._protocol.handle_parsed_callback,
             "messageSentHandler",
             list(
                 dict(
@@ -598,7 +599,7 @@ async def _test_send_packet_unicast(
     def send_unicast(*args, **kwargs):
         asyncio.get_running_loop().call_later(
             0.01,
-            app.ezsp_callback_handler,
+            app._ezsp._protocol.handle_parsed_callback,
             "messageSentHandler",
             list(
                 dict(
@@ -852,7 +853,7 @@ async def test_send_packet_unicast_concurrency(app, packet, monkeypatch):
 
         await asyncio.sleep(0.01)
 
-        app.ezsp_callback_handler(
+        app._ezsp._protocol.handle_parsed_callback(
             "messageSentHandler",
             list(
                 dict(
@@ -909,7 +910,7 @@ async def test_send_packet_broadcast(app, packet):
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
     asyncio.get_running_loop().call_soon(
-        app.ezsp_callback_handler,
+        app._ezsp._protocol.handle_parsed_callback,
         "messageSentHandler",
         list(
             dict(
@@ -955,7 +956,7 @@ async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
     asyncio.get_running_loop().call_soon(
-        app.ezsp_callback_handler,
+        app._ezsp._protocol.handle_parsed_callback,
         "messageSentHandler",
         list(
             dict(
@@ -1008,7 +1009,7 @@ async def test_send_packet_multicast(app, packet):
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
     asyncio.get_running_loop().call_soon(
-        app.ezsp_callback_handler,
+        app._ezsp._protocol.handle_parsed_callback,
         "messageSentHandler",
         list(
             dict(
@@ -2461,3 +2462,144 @@ async def test_set_tx_power(app: ControllerApplication) -> None:
     assert result == 12.0
     assert app._ezsp.setRadioPower.mock_calls == [call(power=12)]
     assert mock_update.mock_calls == [call(app._ezsp, tx_power=12)]
+
+
+async def test_reset_resubscribes_events(app: ControllerApplication) -> None:
+    """Test that _reset unsubscribes, resets, and resubscribes to protocol events."""
+    app._ezsp.stop_ezsp = MagicMock()
+    app._ezsp.startup_reset = AsyncMock()
+    app._ezsp.write_config = AsyncMock()
+
+    # Add a dummy callback to verify unsubscribe is called
+    unsubscribe_mock = MagicMock()
+    app._protocol_on_remove_callbacks.append(unsubscribe_mock)
+
+    await app._reset()
+
+    # Verify unsubscribe was called
+    assert unsubscribe_mock.mock_calls == [call()]
+
+    # Verify EZSP reset sequence
+    assert len(app._ezsp.stop_ezsp.mock_calls) == 1
+    assert len(app._ezsp.startup_reset.mock_calls) == 1
+    assert len(app._ezsp.write_config.mock_calls) == 1
+
+    # Verify we resubscribed (callbacks list should have 2 entries now)
+    assert len(app._protocol_on_remove_callbacks) == 2
+
+
+def test_on_packet_received_unicast(app: ControllerApplication) -> None:
+    """Test _on_packet_received with unicast message (dst=None gets replaced)."""
+    app.state.node_info.nwk = zigpy_t.NWK(0x0000)
+
+    packet_received_mock = MagicMock()
+    app.packet_received = packet_received_mock
+
+    # Unicast packets have dst=None, protocol handler doesn't know our NWK
+    event = PacketReceivedEvent(
+        packet=zigpy_t.ZigbeePacket(
+            src=zigpy_t.AddrModeAddress(
+                addr_mode=zigpy_t.AddrMode.NWK,
+                address=zigpy_t.NWK(0x1234),
+            ),
+            src_ep=1,
+            dst=None,  # Will be replaced with our NWK
+            dst_ep=2,
+            tsn=0x42,
+            profile_id=0x0104,
+            cluster_id=0x0006,
+            data=zigpy_t.SerializableBytes(b"test"),
+            lqi=200,
+            rssi=-40,
+        )
+    )
+
+    app._on_packet_received(event)
+
+    # Verify packet_received was called with dst replaced
+    assert packet_received_mock.mock_calls == [
+        call(
+            zigpy_t.ZigbeePacket(
+                src=zigpy_t.AddrModeAddress(
+                    addr_mode=zigpy_t.AddrMode.NWK,
+                    address=zigpy_t.NWK(0x1234),
+                ),
+                src_ep=1,
+                dst=zigpy_t.AddrModeAddress(
+                    addr_mode=zigpy_t.AddrMode.NWK,
+                    address=zigpy_t.NWK(0x0000),
+                ),
+                dst_ep=2,
+                tsn=0x42,
+                profile_id=0x0104,
+                cluster_id=0x0006,
+                data=zigpy_t.SerializableBytes(b"test"),
+                lqi=200,
+                rssi=-40,
+            )
+        )
+    ]
+
+
+def test_on_packet_received_broadcast(app: ControllerApplication) -> None:
+    """Test _on_packet_received with broadcast message."""
+    packet_received_mock = MagicMock()
+    app.packet_received = packet_received_mock
+
+    event = PacketReceivedEvent(
+        packet=zigpy_t.ZigbeePacket(
+            src=zigpy_t.AddrModeAddress(
+                addr_mode=zigpy_t.AddrMode.NWK,
+                address=zigpy_t.NWK(0x1234),
+            ),
+            src_ep=1,
+            dst=zigpy_t.AddrModeAddress(
+                addr_mode=zigpy_t.AddrMode.Broadcast,
+                address=zigpy_t.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
+            ),
+            dst_ep=2,
+            tsn=0x42,
+            profile_id=0x0104,
+            cluster_id=0x0006,
+            data=zigpy_t.SerializableBytes(b"broadcast"),
+            lqi=200,
+            rssi=-40,
+        )
+    )
+
+    app._on_packet_received(event)
+
+    # Verify packet_received was called with the same packet (dst already set)
+    assert packet_received_mock.mock_calls == [call(event.packet)]
+
+
+def test_on_packet_received_multicast(app: ControllerApplication) -> None:
+    """Test _on_packet_received with multicast message."""
+    packet_received_mock = MagicMock()
+    app.packet_received = packet_received_mock
+
+    event = PacketReceivedEvent(
+        packet=zigpy_t.ZigbeePacket(
+            src=zigpy_t.AddrModeAddress(
+                addr_mode=zigpy_t.AddrMode.NWK,
+                address=zigpy_t.NWK(0x1234),
+            ),
+            src_ep=1,
+            dst=zigpy_t.AddrModeAddress(
+                addr_mode=zigpy_t.AddrMode.Group,
+                address=0x5678,
+            ),
+            dst_ep=2,
+            tsn=0x42,
+            profile_id=0x0104,
+            cluster_id=0x0006,
+            data=zigpy_t.SerializableBytes(b"multicast"),
+            lqi=200,
+            rssi=-40,
+        )
+    )
+
+    app._on_packet_received(event)
+
+    # Verify packet_received was called with the same packet (dst already set)
+    assert packet_received_mock.mock_calls == [call(event.packet)]
