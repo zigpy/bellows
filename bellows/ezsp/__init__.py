@@ -748,7 +748,7 @@ class EZSP:
         LOGGER.debug("Sending XNCP frame: %s", req_frame)
         status, data = await self.customFrame(req_frame.serialize())
 
-        if status != t.EmberStatus.SUCCESS:
+        if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
             raise InvalidCommandError("XNCP is not supported")
 
         try:
@@ -763,7 +763,7 @@ class EZSP:
 
         LOGGER.debug("Received XNCP frame: %s", rsp_frame)
 
-        if rsp_frame.status != t.EmberStatus.SUCCESS:
+        if t.sl_Status.from_ember_status(rsp_frame.status) != t.sl_Status.OK:
             raise InvalidCommandError(f"XNCP response error: {rsp_frame.status}")
 
         return rsp_frame.payload

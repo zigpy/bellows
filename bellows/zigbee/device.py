@@ -60,7 +60,7 @@ class EZSPEndpoint(zigpy.endpoint.Endpoint):
 
 
 class EZSPGroupEndpoint(EZSPEndpoint):
-    async def add_to_group(self, grp_id: int, name: str = None) -> t.EmberStatus:
+    async def add_to_group(self, grp_id: int, name: str = None) -> None:
         if grp_id in self.member_of:
             return
 
