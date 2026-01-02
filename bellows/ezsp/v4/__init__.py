@@ -15,6 +15,7 @@ from bellows.zigbee.util import ezsp_key_to_zigpy_key
 
 from . import commands, config
 from .. import protocol
+from ..protocol import MessageSentEvent
 
 LOGGER = logging.getLogger(__name__)
 
@@ -270,11 +271,14 @@ class EZSPv4(protocol.ProtocolHandler):
         status: t.EmberStatus,
         message: t.LVBytes,
     ) -> None:
-        self._handle_message_sent(
-            message_type=message_type,
-            destination=destination,
-            aps_frame=aps_frame,
-            message_tag=message_tag,
-            status=t.sl_Status.from_ember_status(status),
-            message_contents=message,
+        self.emit(
+            MessageSentEvent.event_type,
+            MessageSentEvent(
+                status=t.sl_Status.from_ember_status(status),
+                message_type=message_type,
+                destination=destination,
+                aps_frame=aps_frame,
+                message_tag=message_tag,
+                message_contents=message,
+            ),
         )

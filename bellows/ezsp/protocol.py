@@ -378,27 +378,6 @@ class ProtocolHandler(EventBase, abc.ABC):
             ),
         )
 
-    def _handle_message_sent(
-        self,
-        message_type: t.EmberOutgoingMessageType,
-        destination: t.uint16_t,
-        aps_frame: t.EmberApsFrame,
-        message_tag: t.uint8_t,
-        status: t.sl_Status,
-        message_contents: t.LVBytes,
-    ) -> None:
-        self.emit(
-            MessageSentEvent.event_type,
-            MessageSentEvent(
-                status=t.sl_Status.from_ember_status(status),
-                message_type=message_type,
-                destination=destination,
-                aps_frame=aps_frame,
-                message_tag=message_tag,
-                message_contents=message_contents,
-            ),
-        )
-
     def _handle_trustCenterJoinHandler(
         self,
         nwk: t.EmberNodeId,

@@ -13,6 +13,7 @@ import bellows.config
 import bellows.types as t
 
 from . import commands, config
+from ..protocol import MessageSentEvent
 from ..v13 import EZSPv13
 
 LOGGER = logging.getLogger(__name__)
@@ -184,11 +185,14 @@ class EZSPv14(EZSPv13):
         message_tag: t.uint8_t,
         message: t.LVBytes,
     ) -> None:
-        self._handle_message_sent(
-            message_type=message_type,
-            destination=destination,
-            aps_frame=aps_frame,
-            message_tag=message_tag,
-            status=status,
-            message_contents=message,
+        self.emit(
+            MessageSentEvent.event_type,
+            MessageSentEvent(
+                status=status,
+                message_type=message_type,
+                destination=destination,
+                aps_frame=aps_frame,
+                message_tag=message_tag,
+                message_contents=message,
+            ),
         )
