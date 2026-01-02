@@ -4,7 +4,6 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator, Iterable
 import logging
 import random
-from typing import Any
 
 import voluptuous as vol
 import zigpy.state
@@ -16,7 +15,6 @@ from bellows.zigbee.util import ezsp_key_to_zigpy_key
 
 from . import commands, config
 from .. import protocol
-from ..protocol import IdConflictEvent, RouteRecordEvent, TrustCenterJoinEvent
 
 LOGGER = logging.getLogger(__name__)
 
@@ -239,77 +237,44 @@ class EZSPv4(protocol.ProtocolHandler):
             newExtendedTimeout=extended_timeout,
         )
 
-    def handle_parsed_callback(self, frame_name: str, args: list[Any]) -> None:
-        """Handle a parsed callback frame."""
-        if frame_name == "incomingMessageHandler":
-            (
-                message_type,
-                aps_frame,
-                lqi,
-                rssi,
-                sender,
-                binding_index,
-                address_index,
-                message,
-            ) = args
+    def _handle_incomingMessageHandler(
+        self,
+        message_type: t.EmberIncomingMessageType,
+        aps_frame: t.EmberApsFrame,
+        lqi: t.uint8_t,
+        rssi: t.int8s,
+        sender: t.EmberNodeId,
+        binding_index: t.uint8_t,
+        address_index: t.uint8_t,
+        message: t.LVBytes,
+    ) -> None:
+        self._handle_incoming_message(
+            message_type=message_type,
+            aps_frame=aps_frame,
+            sender=sender,
+            eui64=None,
+            binding_index=binding_index,
+            address_index=address_index,
+            lqi=lqi,
+            rssi=rssi,
+            timestamp=None,
+            message=message,
+        )
 
-            self._handle_incoming_message(
-                message_type=message_type,
-                aps_frame=aps_frame,
-                sender=sender,
-                eui64=None,
-                binding_index=binding_index,
-                address_index=address_index,
-                lqi=lqi,
-                rssi=rssi,
-                timestamp=None,
-                message=message,
-            )
-        elif frame_name == "messageSentHandler":
-            (
-                message_type,
-                destination,
-                aps_frame,
-                message_tag,
-                status,
-                message,
-            ) = args
-
-            self._handle_message_sent(
-                message_type=message_type,
-                destination=destination,
-                aps_frame=aps_frame,
-                message_tag=message_tag,
-                status=t.sl_Status.from_ember_status(status),
-                message_contents=message,
-            )
-        elif frame_name == "trustCenterJoinHandler":
-            nwk, ieee, device_update_status, decision, parent_nwk = args
-            self.emit(
-                TrustCenterJoinEvent.event_type,
-                TrustCenterJoinEvent(
-                    nwk=nwk,
-                    ieee=ieee,
-                    device_update_status=device_update_status,
-                    decision=decision,
-                    parent_nwk=parent_nwk,
-                ),
-            )
-        elif frame_name == "incomingRouteRecordHandler":
-            nwk, ieee, lqi, rssi, relays = args
-            self.emit(
-                RouteRecordEvent.event_type,
-                RouteRecordEvent(
-                    nwk=nwk,
-                    ieee=ieee,
-                    lqi=lqi,
-                    rssi=rssi,
-                    relays=relays,
-                ),
-            )
-        elif frame_name == "idConflictHandler":
-            (nwk,) = args
-            self.emit(
-                IdConflictEvent.event_type,
-                IdConflictEvent(nwk=nwk),
-            )
+    def _handle_messageSentHandler(
+        self,
+        message_type: t.EmberOutgoingMessageType,
+        destination: t.EmberNodeId,
+        aps_frame: t.EmberApsFrame,
+        message_tag: t.uint8_t,
+        status: t.EmberStatus,
+        message: t.LVBytes,
+    ) -> None:
+        self._handle_message_sent(
+            message_type=message_type,
+            destination=destination,
+            aps_frame=aps_frame,
+            message_tag=message_tag,
+            status=t.sl_Status.from_ember_status(status),
+            message_contents=message,
+        )

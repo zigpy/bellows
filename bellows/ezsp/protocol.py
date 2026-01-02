@@ -257,13 +257,15 @@ class ProtocolHandler(EventBase, abc.ABC):
 
         self.handle_parsed_callback(frame_name, result)
 
-        # Always call legacy callback handler for backwards compatibility
+        # Legacy callback system for CLI tools
         self._handle_callback(frame_name, result)
 
-    @abc.abstractmethod
     def handle_parsed_callback(self, frame_name: str, args: list[Any]) -> None:
-        """Handle a parsed callback frame."""
-        raise NotImplementedError
+        """Dispatch a callback frame to the appropriate handler method."""
+        handler = getattr(self, f"_handle_{frame_name}", None)
+
+        if handler is not None:
+            handler(*args)
 
     async def _send_fragment_ack(
         self,
@@ -395,6 +397,50 @@ class ProtocolHandler(EventBase, abc.ABC):
                 message_tag=message_tag,
                 message_contents=message_contents,
             ),
+        )
+
+    def _handle_trustCenterJoinHandler(
+        self,
+        nwk: t.EmberNodeId,
+        ieee: t.EUI64,
+        device_update_status: t.EmberDeviceUpdate,
+        decision: t.EmberJoinDecision,
+        parent_nwk: t.EmberNodeId,
+    ) -> None:
+        self.emit(
+            TrustCenterJoinEvent.event_type,
+            TrustCenterJoinEvent(
+                nwk=nwk,
+                ieee=ieee,
+                device_update_status=device_update_status,
+                decision=decision,
+                parent_nwk=parent_nwk,
+            ),
+        )
+
+    def _handle_incomingRouteRecordHandler(
+        self,
+        nwk: t.EmberNodeId,
+        ieee: t.EUI64,
+        lqi: t.uint8_t,
+        rssi: t.int8s,
+        relays: t.LVList[t.EmberNodeId],
+    ) -> None:
+        self.emit(
+            RouteRecordEvent.event_type,
+            RouteRecordEvent(
+                nwk=nwk,
+                ieee=ieee,
+                lqi=lqi,
+                rssi=rssi,
+                relays=relays,
+            ),
+        )
+
+    def _handle_idConflictHandler(self, nwk: t.EmberNodeId) -> None:
+        self.emit(
+            IdConflictEvent.event_type,
+            IdConflictEvent(nwk=nwk),
         )
 
     def __getattr__(self, name: str) -> Callable:
