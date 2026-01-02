@@ -16,6 +16,13 @@ from bellows.ash import NcpFailure
 import bellows.config as config
 from bellows.exception import ControllerError, EzspError, InvalidCommandError
 import bellows.ezsp as ezsp
+from bellows.ezsp.protocol import (
+    IdConflictEvent,
+    MessageSentEvent,
+    PacketReceivedEvent,
+    RouteRecordEvent,
+    TrustCenterJoinEvent,
+)
 from bellows.ezsp.v9.commands import GetTokenDataRsp
 from bellows.ezsp.xncp import (
     FirmwareFeatures,
@@ -70,6 +77,9 @@ def make_app(monkeypatch, ieee):
         app._in_flight_msg = asyncio.Semaphore()
         app.handle_message = MagicMock()
         app.packet_received = MagicMock()
+
+        # Set up event subscriptions normally done in start_network()
+        app._subscribe_to_protocol_events()
 
         return app
 
@@ -417,215 +427,18 @@ async def test_startup_no_board_info(app, ieee, caplog):
     assert "EZSP Radio does not support getMfgToken command" in caplog.text
 
 
-@pytest.fixture
-def aps_frame():
-    return t.EmberApsFrame(
-        profileId=0x1234,
-        clusterId=0x5678,
-        sourceEndpoint=0x9A,
-        destinationEndpoint=0xBC,
-        options=t.EmberApsOption.APS_OPTION_NONE,
-        groupId=0x0000,
-        sequence=0xDE,
-    )
-
-
-def _handle_incoming_aps_frame(app, aps_frame, type):
-    app.ezsp_callback_handler(
-        "incomingMessageHandler",
-        list(
-            dict(
-                type=type,
-                apsFrame=aps_frame,
-                lastHopLqi=123,
-                lastHopRssi=-45,
-                sender=0xABCD,
-                bindingIndex=56,
-                addressIndex=78,
-                message=b"test message",
-            ).values()
-        ),
-    )
-
-
-def test_frame_handler_unicast(app, aps_frame):
-    _handle_incoming_aps_frame(
-        app, aps_frame, type=t.EmberIncomingMessageType.INCOMING_UNICAST
-    )
-    assert app.packet_received.call_count == 1
-
-    packet = app.packet_received.mock_calls[0].args[0]
-    assert packet.profile_id == 0x1234
-    assert packet.cluster_id == 0x5678
-    assert packet.src_ep == 0x9A
-    assert packet.dst_ep == 0xBC
-    assert packet.tsn == 0xDE
-    assert packet.src.addr_mode == zigpy_t.AddrMode.NWK
-    assert packet.src.address == 0xABCD
-    assert packet.dst.addr_mode == zigpy_t.AddrMode.NWK
-    assert packet.dst.address == app.state.node_info.nwk
-    assert packet.data.serialize() == b"test message"
-    assert packet.lqi == 123
-    assert packet.rssi == -45
-
-    assert (
-        app.state.counters[bellows.zigbee.application.COUNTERS_CTRL][
-            bellows.zigbee.application.COUNTER_RX_UNICAST
-        ]
-        == 1
-    )
-
-
-def test_frame_handler_broadcast(app, aps_frame):
-    _handle_incoming_aps_frame(
-        app, aps_frame, type=t.EmberIncomingMessageType.INCOMING_BROADCAST
-    )
-    assert app.packet_received.call_count == 1
-
-    packet = app.packet_received.mock_calls[0].args[0]
-    assert packet.profile_id == 0x1234
-    assert packet.cluster_id == 0x5678
-    assert packet.src_ep == 0x9A
-    assert packet.dst_ep == 0xBC
-    assert packet.tsn == 0xDE
-    assert packet.src.addr_mode == zigpy_t.AddrMode.NWK
-    assert packet.src.address == 0xABCD
-    assert packet.dst.addr_mode == zigpy_t.AddrMode.Broadcast
-    assert packet.dst.address == zigpy_t.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR
-    assert packet.data.serialize() == b"test message"
-    assert packet.lqi == 123
-    assert packet.rssi == -45
-
-    assert (
-        app.state.counters[bellows.zigbee.application.COUNTERS_CTRL][
-            bellows.zigbee.application.COUNTER_RX_BCAST
-        ]
-        == 1
-    )
-
-
-def test_frame_handler_multicast(app, aps_frame):
-    aps_frame.groupId = 0xEF12
-    _handle_incoming_aps_frame(
-        app, aps_frame, type=t.EmberIncomingMessageType.INCOMING_MULTICAST
-    )
-
-    assert app.packet_received.call_count == 1
-
-    packet = app.packet_received.mock_calls[0].args[0]
-    assert packet.profile_id == 0x1234
-    assert packet.cluster_id == 0x5678
-    assert packet.src_ep == 0x9A
-    assert packet.dst_ep == 0xBC
-    assert packet.tsn == 0xDE
-    assert packet.src.addr_mode == zigpy_t.AddrMode.NWK
-    assert packet.src.address == 0xABCD
-    assert packet.dst.addr_mode == zigpy_t.AddrMode.Group
-    assert packet.dst.address == 0xEF12
-    assert packet.data.serialize() == b"test message"
-    assert packet.lqi == 123
-    assert packet.rssi == -45
-
-    assert (
-        app.state.counters[bellows.zigbee.application.COUNTERS_CTRL][
-            bellows.zigbee.application.COUNTER_RX_MCAST
-        ]
-        == 1
-    )
-
-
-def test_frame_handler_ignored(app, aps_frame):
-    _handle_incoming_aps_frame(
-        app, aps_frame, type=t.EmberIncomingMessageType.INCOMING_BROADCAST_LOOPBACK
-    )
-    assert app.packet_received.call_count == 0
-
-
-@pytest.mark.parametrize(
-    "msg_type",
-    (
-        t.EmberIncomingMessageType.INCOMING_BROADCAST,
-        t.EmberIncomingMessageType.INCOMING_MULTICAST,
-        t.EmberIncomingMessageType.INCOMING_UNICAST,
-        0xFF,
-    ),
-)
-async def test_send_failure(app, aps, ieee, msg_type):
-    fut = app._pending_requests[(0xBEED, 254)] = asyncio.Future()
-    app.ezsp_callback_handler(
-        "messageSentHandler", [msg_type, 0xBEED, aps, 254, t.EmberStatus.SUCCESS, b""]
-    )
-    assert fut.result() == (t.sl_Status.OK, "message send success")
-
-
-async def test_dup_send_failure(app, aps, ieee):
-    fut = app._pending_requests[(0xBEED, 254)] = asyncio.Future()
-    fut.set_result("Already set")
-
-    app.ezsp_callback_handler(
-        "messageSentHandler",
-        [
-            t.EmberIncomingMessageType.INCOMING_UNICAST,
-            0xBEED,
-            aps,
-            254,
-            sentinel.status,
-            b"",
-        ],
-    )
-
-
-def test_send_failure_unexpected(app, aps, ieee):
-    app.ezsp_callback_handler(
-        "messageSentHandler",
-        [
-            t.EmberIncomingMessageType.INCOMING_BROADCAST_LOOPBACK,
-            0xBEED,
-            aps,
-            257,
-            1,
-            b"",
-        ],
-    )
-
-
-async def test_send_success(app, aps, ieee):
-    fut = app._pending_requests[(0xBEED, 253)] = asyncio.Future()
-    app.ezsp_callback_handler(
-        "messageSentHandler",
-        [
-            t.EmberIncomingMessageType.INCOMING_MULTICAST_LOOPBACK,
-            0xBEED,
-            aps,
-            253,
-            t.EmberStatus.SUCCESS,
-            b"",
-        ],
-    )
-
-    assert fut.result() == (t.sl_Status.OK, "message send success")
-
-
-def test_unexpected_send_success(app, aps, ieee):
-    app.ezsp_callback_handler(
-        "messageSentHandler",
-        [t.EmberIncomingMessageType.INCOMING_MULTICAST, 0xBEED, aps, 253, 0, b""],
-    )
-
-
 async def test_join_handler(app, ieee):
     # Calls device.initialize, leaks a task
     app.handle_join = MagicMock()
     app.cleanup_tc_link_key = AsyncMock()
-    app.ezsp_callback_handler(
-        "trustCenterJoinHandler",
-        [
-            1,
-            ieee,
-            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
-            t.EmberJoinDecision.NO_ACTION,
-            sentinel.parent,
-        ],
+    app._on_trust_center_join(
+        TrustCenterJoinEvent(
+            nwk=1,
+            ieee=ieee,
+            device_update_status=t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            decision=t.EmberJoinDecision.NO_ACTION,
+            parent_nwk=sentinel.parent,
+        )
     )
     await asyncio.sleep(0)
     assert ieee not in app.devices
@@ -639,15 +452,14 @@ async def test_join_handler(app, ieee):
     # cleanup TCLK, but no join handling
     app.handle_join.reset_mock()
     app.cleanup_tc_link_key.reset_mock()
-    app.ezsp_callback_handler(
-        "trustCenterJoinHandler",
-        [
-            1,
-            ieee,
-            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
-            t.EmberJoinDecision.DENY_JOIN,
-            sentinel.parent,
-        ],
+    app._on_trust_center_join(
+        TrustCenterJoinEvent(
+            nwk=1,
+            ieee=ieee,
+            device_update_status=t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            decision=t.EmberJoinDecision.DENY_JOIN,
+            parent_nwk=sentinel.parent,
+        )
     )
     await asyncio.sleep(0)
     assert app.cleanup_tc_link_key.await_count == 1
@@ -658,8 +470,14 @@ async def test_join_handler(app, ieee):
 def test_leave_handler(app, ieee):
     app.handle_join = MagicMock()
     app.devices[ieee] = MagicMock()
-    app.ezsp_callback_handler(
-        "trustCenterJoinHandler", [1, ieee, t.EmberDeviceUpdate.DEVICE_LEFT, None, None]
+    app._on_trust_center_join(
+        TrustCenterJoinEvent(
+            nwk=1,
+            ieee=ieee,
+            device_update_status=t.EmberDeviceUpdate.DEVICE_LEFT,
+            decision=t.EmberJoinDecision.NO_ACTION,
+            parent_nwk=t.EmberNodeId(0x0000),
+        )
     )
     assert ieee in app.devices
     assert app.handle_join.call_count == 0
@@ -739,7 +557,7 @@ async def test_request_concurrency_duplicate_failure(
 ) -> None:
     def send_unicast(aps_frame, data, message_tag, nwk):
         asyncio.get_running_loop().call_soon(
-            app.ezsp_callback_handler,
+            app._ezsp._protocol.handle_parsed_callback,
             "messageSentHandler",
             list(
                 dict(
@@ -791,7 +609,7 @@ async def _test_send_packet_unicast(
     def send_unicast(*args, **kwargs):
         asyncio.get_running_loop().call_later(
             0.01,
-            app.ezsp_callback_handler,
+            app._ezsp._protocol.handle_parsed_callback,
             "messageSentHandler",
             list(
                 dict(
@@ -923,15 +741,14 @@ async def test_send_packet_unicast_extended_timeout_with_acks(app, ieee, packet)
 
     asyncio.get_running_loop().call_later(
         0.1,
-        app.ezsp_callback_handler,
-        "incomingRouteRecordHandler",
-        {
-            "source": packet.dst.address,
-            "sourceEui": ieee,
-            "lastHopLqi": 123,
-            "lastHopRssi": -60,
-            "relayList": [0x1234],
-        }.values(),
+        app._on_route_record,
+        RouteRecordEvent(
+            nwk=packet.dst.address,
+            ieee=ieee,
+            lqi=123,
+            rssi=-60,
+            relays=[0x1234],
+        ),
     )
 
     await _test_send_packet_unicast(
@@ -953,15 +770,14 @@ async def test_send_packet_unicast_extended_timeout_without_acks(app, ieee, pack
 
     asyncio.get_running_loop().call_later(
         0.1,
-        app.ezsp_callback_handler,
-        "incomingRouteRecordHandler",
-        {
-            "source": packet.dst.address,
-            "sourceEui": ieee,
-            "lastHopLqi": 123,
-            "lastHopRssi": -60,
-            "relayList": [0x1234],
-        }.values(),
+        app._on_route_record,
+        RouteRecordEvent(
+            nwk=packet.dst.address,
+            ieee=ieee,
+            lqi=123,
+            rssi=-60,
+            relays=[0x1234],
+        ),
     )
 
     await _test_send_packet_unicast(
@@ -1045,7 +861,7 @@ async def test_send_packet_unicast_concurrency(app, packet, monkeypatch):
 
         await asyncio.sleep(0.01)
 
-        app.ezsp_callback_handler(
+        app._ezsp._protocol.handle_parsed_callback(
             "messageSentHandler",
             list(
                 dict(
@@ -1102,7 +918,7 @@ async def test_send_packet_broadcast(app, packet):
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
     asyncio.get_running_loop().call_soon(
-        app.ezsp_callback_handler,
+        app._ezsp._protocol.handle_parsed_callback,
         "messageSentHandler",
         list(
             dict(
@@ -1148,7 +964,7 @@ async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
     asyncio.get_running_loop().call_soon(
-        app.ezsp_callback_handler,
+        app._ezsp._protocol.handle_parsed_callback,
         "messageSentHandler",
         list(
             dict(
@@ -1201,7 +1017,7 @@ async def test_send_packet_multicast(app, packet):
     app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
 
     asyncio.get_running_loop().call_soon(
-        app.ezsp_callback_handler,
+        app._ezsp._protocol.handle_parsed_callback,
         "messageSentHandler",
         list(
             dict(
@@ -1570,20 +1386,18 @@ def test_coordinator_model_manuf(coordinator):
 def test_handle_route_record(app):
     """Test route record handling for an existing device."""
     app.handle_relays = MagicMock(spec_set=app.handle_relays)
-    app.ezsp_callback_handler(
-        "incomingRouteRecordHandler",
-        [sentinel.nwk, sentinel.ieee, sentinel.lqi, sentinel.rssi, sentinel.relays],
+    app._on_route_record(
+        RouteRecordEvent(
+            nwk=sentinel.nwk,
+            ieee=sentinel.ieee,
+            lqi=sentinel.lqi,
+            rssi=sentinel.rssi,
+            relays=sentinel.relays,
+        )
     )
-    app.handle_relays.assert_called_once_with(nwk=sentinel.nwk, relays=sentinel.relays)
-
-
-def test_handle_route_error(app):
-    """Test route error handler."""
-    app.handle_relays = MagicMock(spec_set=app.handle_relays)
-    app.ezsp_callback_handler(
-        "incomingRouteErrorHandler", [sentinel.status, sentinel.nwk]
-    )
-    app.handle_relays.assert_not_called()
+    assert app.handle_relays.mock_calls == [
+        call(nwk=sentinel.nwk, relays=sentinel.relays)
+    ]
 
 
 def test_handle_id_conflict(app, ieee):
@@ -1592,41 +1406,12 @@ def test_handle_id_conflict(app, ieee):
     app.add_device(ieee, nwk)
     app.handle_leave = MagicMock()
 
-    app.ezsp_callback_handler("idConflictHandler", [nwk + 1])
+    app._on_id_conflict(IdConflictEvent(nwk=nwk + 1))
     assert app.handle_leave.call_count == 0
 
-    app.ezsp_callback_handler("idConflictHandler", [nwk])
+    app._on_id_conflict(IdConflictEvent(nwk=nwk))
     assert app.handle_leave.call_count == 1
     assert app.handle_leave.call_args[0][0] == nwk
-
-
-async def test_handle_no_such_device(app, ieee):
-    """Test handling of an unknown device IEEE lookup."""
-
-    app._ezsp.lookupEui64ByNodeId = AsyncMock()
-
-    p1 = patch.object(
-        app._ezsp,
-        "lookupEui64ByNodeId",
-        AsyncMock(return_value=(t.EmberStatus.ERR_FATAL, ieee)),
-    )
-    p2 = patch.object(app, "handle_join")
-    with p1 as lookup_mock, p2 as handle_join_mock:
-        await app._handle_no_such_device(sentinel.nwk)
-        assert lookup_mock.mock_calls == [call(nodeId=sentinel.nwk)]
-        assert handle_join_mock.call_count == 0
-
-    p1 = patch.object(
-        app._ezsp,
-        "lookupEui64ByNodeId",
-        AsyncMock(return_value=(t.EmberStatus.SUCCESS, sentinel.ieee)),
-    )
-    with p1 as lookup_mock, p2 as handle_join_mock:
-        await app._handle_no_such_device(sentinel.nwk)
-        assert lookup_mock.mock_calls == [call(nodeId=sentinel.nwk)]
-        assert handle_join_mock.call_count == 1
-        assert handle_join_mock.call_args[0][0] == sentinel.nwk
-        assert handle_join_mock.call_args[0][1] == sentinel.ieee
 
 
 async def test_cleanup_tc_link_key(app):
@@ -1673,26 +1458,24 @@ async def test_set_mfg_id(ieee, expected_mfg_id, app):
     app.handle_join = MagicMock()
     app.cleanup_tc_link_key = AsyncMock()
 
-    app.ezsp_callback_handler(
-        "trustCenterJoinHandler",
-        [
-            1,
-            t.EUI64.convert(ieee),
-            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
-            t.EmberJoinDecision.NO_ACTION,
-            sentinel.parent,
-        ],
+    app._on_trust_center_join(
+        TrustCenterJoinEvent(
+            nwk=1,
+            ieee=t.EUI64.convert(ieee),
+            device_update_status=t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            decision=t.EmberJoinDecision.NO_ACTION,
+            parent_nwk=sentinel.parent,
+        )
     )
     # preempt
-    app.ezsp_callback_handler(
-        "trustCenterJoinHandler",
-        [
-            1,
-            t.EUI64.convert(ieee),
-            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
-            t.EmberJoinDecision.NO_ACTION,
-            sentinel.parent,
-        ],
+    app._on_trust_center_join(
+        TrustCenterJoinEvent(
+            nwk=1,
+            ieee=t.EUI64.convert(ieee),
+            device_update_status=t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            decision=t.EmberJoinDecision.NO_ACTION,
+            parent_nwk=sentinel.parent,
+        )
     )
     await asyncio.sleep(0.20)
     if expected_mfg_id is not None:
@@ -2683,3 +2466,166 @@ async def test_set_tx_power(app: ControllerApplication) -> None:
     assert result == 12.0
     assert app._ezsp.setRadioPower.mock_calls == [call(power=12)]
     assert mock_update.mock_calls == [call(app._ezsp, tx_power=12)]
+
+
+async def test_reset_resubscribes_events(app: ControllerApplication) -> None:
+    """Test that _reset unsubscribes, resets, and resubscribes to protocol events."""
+    app._ezsp.stop_ezsp = MagicMock()
+    app._ezsp.startup_reset = AsyncMock()
+    app._ezsp.write_config = AsyncMock()
+
+    # Add a dummy callback to verify unsubscribe is called
+    unsubscribe_mock = MagicMock()
+    app._protocol_on_remove_callbacks.append(unsubscribe_mock)
+
+    await app._reset()
+
+    # Verify unsubscribe was called
+    assert unsubscribe_mock.mock_calls == [call()]
+
+    # Verify EZSP reset sequence
+    assert len(app._ezsp.stop_ezsp.mock_calls) == 1
+    assert len(app._ezsp.startup_reset.mock_calls) == 1
+    assert len(app._ezsp.write_config.mock_calls) == 1
+
+    # Verify we resubscribed (callbacks list should have 5 entries now)
+    assert len(app._protocol_on_remove_callbacks) == 5
+
+
+def test_on_packet_received_unicast(app: ControllerApplication) -> None:
+    """Test _on_packet_received with unicast message (dst=None gets replaced)."""
+    app.state.node_info.nwk = zigpy_t.NWK(0x0000)
+
+    packet_received_mock = MagicMock()
+    app.packet_received = packet_received_mock
+
+    # Unicast packets have dst=None, protocol handler doesn't know our NWK
+    event = PacketReceivedEvent(
+        packet=zigpy_t.ZigbeePacket(
+            src=zigpy_t.AddrModeAddress(
+                addr_mode=zigpy_t.AddrMode.NWK,
+                address=zigpy_t.NWK(0x1234),
+            ),
+            src_ep=1,
+            dst=None,  # Will be replaced with our NWK
+            dst_ep=2,
+            tsn=0x42,
+            profile_id=0x0104,
+            cluster_id=0x0006,
+            data=zigpy_t.SerializableBytes(b"test"),
+            lqi=200,
+            rssi=-40,
+        )
+    )
+
+    app._on_packet_received(event)
+
+    # Verify packet_received was called with dst replaced
+    assert packet_received_mock.mock_calls == [
+        call(
+            zigpy_t.ZigbeePacket(
+                src=zigpy_t.AddrModeAddress(
+                    addr_mode=zigpy_t.AddrMode.NWK,
+                    address=zigpy_t.NWK(0x1234),
+                ),
+                src_ep=1,
+                dst=zigpy_t.AddrModeAddress(
+                    addr_mode=zigpy_t.AddrMode.NWK,
+                    address=zigpy_t.NWK(0x0000),
+                ),
+                dst_ep=2,
+                tsn=0x42,
+                profile_id=0x0104,
+                cluster_id=0x0006,
+                data=zigpy_t.SerializableBytes(b"test"),
+                lqi=200,
+                rssi=-40,
+            )
+        )
+    ]
+
+
+def test_on_packet_received_broadcast(app: ControllerApplication) -> None:
+    """Test _on_packet_received with broadcast message."""
+    packet_received_mock = MagicMock()
+    app.packet_received = packet_received_mock
+
+    event = PacketReceivedEvent(
+        packet=zigpy_t.ZigbeePacket(
+            src=zigpy_t.AddrModeAddress(
+                addr_mode=zigpy_t.AddrMode.NWK,
+                address=zigpy_t.NWK(0x1234),
+            ),
+            src_ep=1,
+            dst=zigpy_t.AddrModeAddress(
+                addr_mode=zigpy_t.AddrMode.Broadcast,
+                address=zigpy_t.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
+            ),
+            dst_ep=2,
+            tsn=0x42,
+            profile_id=0x0104,
+            cluster_id=0x0006,
+            data=zigpy_t.SerializableBytes(b"broadcast"),
+            lqi=200,
+            rssi=-40,
+        )
+    )
+
+    app._on_packet_received(event)
+
+    # Verify packet_received was called with the same packet (dst already set)
+    assert packet_received_mock.mock_calls == [call(event.packet)]
+
+
+def test_on_packet_received_multicast(app: ControllerApplication) -> None:
+    """Test _on_packet_received with multicast message."""
+    packet_received_mock = MagicMock()
+    app.packet_received = packet_received_mock
+
+    event = PacketReceivedEvent(
+        packet=zigpy_t.ZigbeePacket(
+            src=zigpy_t.AddrModeAddress(
+                addr_mode=zigpy_t.AddrMode.NWK,
+                address=zigpy_t.NWK(0x1234),
+            ),
+            src_ep=1,
+            dst=zigpy_t.AddrModeAddress(
+                addr_mode=zigpy_t.AddrMode.Group,
+                address=0x5678,
+            ),
+            dst_ep=2,
+            tsn=0x42,
+            profile_id=0x0104,
+            cluster_id=0x0006,
+            data=zigpy_t.SerializableBytes(b"multicast"),
+            lqi=200,
+            rssi=-40,
+        )
+    )
+
+    app._on_packet_received(event)
+
+    # Verify packet_received was called with the same packet (dst already set)
+    assert packet_received_mock.mock_calls == [call(event.packet)]
+
+
+async def test_on_message_sent_via_binding(app: ControllerApplication) -> None:
+    """Test _on_message_sent with OUTGOING_VIA_BINDING message type."""
+    # Create a pending request future
+    future = asyncio.get_running_loop().create_future()
+    app._pending_requests[(0x1234, 0x42)] = future
+
+    event = MessageSentEvent(
+        status=t.sl_Status.OK,
+        message_type=t.EmberOutgoingMessageType.OUTGOING_VIA_BINDING,
+        destination=0x1234,
+        aps_frame=t.EmberApsFrame(),
+        message_tag=0x42,
+        message_contents=b"test",
+    )
+
+    app._on_message_sent(event)
+
+    # Verify the future was resolved
+    assert future.done()
+    assert future.result() == (t.sl_Status.OK, "message send success")

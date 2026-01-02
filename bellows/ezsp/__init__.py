@@ -364,7 +364,7 @@ class EZSP:
         try:
             self._protocol(data)
         except Exception:
-            LOGGER.warning("Failed to parse frame, ignoring")
+            LOGGER.warning("Failed to parse frame. This is a bug!", exc_info=True)
 
     async def get_board_info(
         self,

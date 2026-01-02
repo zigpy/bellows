@@ -2,16 +2,21 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+import logging
 
 import voluptuous as vol
 from zigpy.exceptions import NetworkNotFormed
 import zigpy.state
+import zigpy.types
 
 import bellows.config
 import bellows.types as t
 
 from . import commands, config
+from ..protocol import MessageSentEvent
 from ..v13 import EZSPv13
+
+LOGGER = logging.getLogger(__name__)
 
 
 class EZSPv14(EZSPv13):
@@ -144,3 +149,50 @@ class EZSPv14(EZSPv13):
         )
 
         return status, sequence
+
+    def _handle_incomingMessageHandler(
+        self,
+        message_type: t.EmberIncomingMessageType,
+        aps_frame: t.EmberApsFrame,
+        sender: t.EmberNodeId,
+        eui64: t.EUI64,
+        binding_index: t.uint8_t,
+        address_index: t.uint8_t,
+        lqi: t.uint8_t,
+        rssi: t.int8s,
+        timestamp: t.uint32_t,
+        message: t.LVBytes,
+    ) -> None:
+        self._handle_incoming_message(
+            message_type=message_type,
+            aps_frame=aps_frame,
+            sender=sender,
+            eui64=None,
+            binding_index=binding_index,
+            address_index=address_index,
+            lqi=lqi,
+            rssi=rssi,
+            timestamp=None,
+            message=message,
+        )
+
+    def _handle_messageSentHandler(
+        self,
+        status: t.sl_Status,
+        message_type: t.EmberOutgoingMessageType,
+        destination: t.EmberNodeId,
+        aps_frame: t.EmberApsFrame,
+        message_tag: t.uint8_t,
+        message: t.LVBytes,
+    ) -> None:
+        self.emit(
+            MessageSentEvent.event_type,
+            MessageSentEvent(
+                status=status,
+                message_type=message_type,
+                destination=destination,
+                aps_frame=aps_frame,
+                message_tag=message_tag,
+                message_contents=message,
+            ),
+        )

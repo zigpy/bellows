@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from asyncio import timeout as asyncio_timeout
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from datetime import UTC, datetime
 import importlib.metadata
 import logging
@@ -39,6 +39,13 @@ from bellows.exception import (
     StackAlreadyRunning,
 )
 import bellows.ezsp
+from bellows.ezsp.protocol import (
+    IdConflictEvent,
+    MessageSentEvent,
+    PacketReceivedEvent,
+    RouteRecordEvent,
+    TrustCenterJoinEvent,
+)
 from bellows.ezsp.xncp import FirmwareFeatures
 import bellows.multicast
 import bellows.types as t
@@ -97,6 +104,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._multicast = None
         self._mfg_id_task: asyncio.Task | None = None
         self._pending_requests = {}
+        self._protocol_on_remove_callbacks: list[Callable[[], None]] = []
         self._watchdog_failures = 0
         self._watchdog_feed_counter = 0
 
@@ -240,7 +248,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         for cnt_group in self.state.counters:
             cnt_group.reset()
 
-        ezsp.add_callback(self.ezsp_callback_handler)
+        self._subscribe_to_protocol_events()
+
         self.controller_event.set()
 
         group_membership = {}
@@ -602,14 +611,52 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         else:
             await self._ezsp.leaveNetwork()
 
+    def _unsubscribe_from_protocol_events(self) -> None:
+        """Unsubscribe from protocol events."""
+        for callback in self._protocol_on_remove_callbacks:
+            callback()
+
+        self._protocol_on_remove_callbacks.clear()
+
     async def _reset(self):
+        self._unsubscribe_from_protocol_events()
         self._ezsp.stop_ezsp()
         await self._ezsp.startup_reset()
         await self._ezsp.write_config(self.config[CONF_EZSP_CONFIG])
+        self._subscribe_to_protocol_events()
+
+    def _subscribe_to_protocol_events(self) -> None:
+        """Subscribe to protocol-level events."""
+        self._protocol_on_remove_callbacks.append(
+            self._ezsp._protocol.on_event(
+                PacketReceivedEvent.event_type, self._on_packet_received
+            )
+        )
+        self._protocol_on_remove_callbacks.append(
+            self._ezsp._protocol.on_event(
+                MessageSentEvent.event_type, self._on_message_sent
+            )
+        )
+        self._protocol_on_remove_callbacks.append(
+            self._ezsp._protocol.on_event(
+                TrustCenterJoinEvent.event_type, self._on_trust_center_join
+            )
+        )
+        self._protocol_on_remove_callbacks.append(
+            self._ezsp._protocol.on_event(
+                RouteRecordEvent.event_type, self._on_route_record
+            )
+        )
+        self._protocol_on_remove_callbacks.append(
+            self._ezsp._protocol.on_event(
+                IdConflictEvent.event_type, self._on_id_conflict
+            )
+        )
 
     async def disconnect(self):
         # TODO: how do you shut down the stack?
         self.controller_event.clear()
+        self._unsubscribe_from_protocol_events()
         if self._ezsp is not None:
             await self._ezsp.disconnect()
             self._ezsp = None
@@ -619,172 +666,60 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         # of the device itself.
         await self._ezsp.removeDevice(dev.nwk, dev.ieee, dev.ieee)
 
-    def ezsp_callback_handler(self, frame_name, args):
-        LOGGER.debug("Received %s frame with %s", frame_name, args)
-        if frame_name == "incomingMessageHandler":
-            if self._ezsp.ezsp_version >= 14:
-                (
-                    message_type,
-                    aps_frame,
-                    nwk,
-                    _eui64,
-                    binding_index,
-                    address_index,
-                    lqi,
-                    rssi,
-                    _timestamp,
-                    message,
-                ) = args
-            else:
-                (
-                    message_type,
-                    aps_frame,
-                    lqi,
-                    rssi,
-                    nwk,
-                    binding_index,
-                    address_index,
-                    message,
-                ) = args
+    def _on_packet_received(self, message: PacketReceivedEvent) -> None:
+        """Handle packet_received event from protocol handler."""
+        packet = message.packet
 
-            self._handle_frame(
-                message_type=message_type,
-                aps_frame=aps_frame,
-                lqi=lqi,
-                rssi=rssi,
-                sender=nwk,
-                binding_index=binding_index,
-                address_index=address_index,
-                message=message,
-            )
-        elif frame_name == "messageSentHandler":
-            if self._ezsp.ezsp_version >= 14:
-                (
-                    status,
-                    message_type,
-                    destination,
-                    aps_frame,
-                    message_tag,
-                    message,
-                ) = args
-            else:
-                (
-                    message_type,
-                    destination,
-                    aps_frame,
-                    message_tag,
-                    status,
-                    message,
-                ) = args
-                status = t.sl_Status.from_ember_status(status)
-
-            self._handle_frame_sent(
-                message_type=message_type,
-                destination=destination,
-                aps_frame=aps_frame,
-                message_tag=message_tag,
-                status=status,
-                message=message,
-            )
-        elif frame_name == "trustCenterJoinHandler":
-            self._handle_tc_join_handler(*args)
-        elif frame_name == "incomingRouteRecordHandler":
-            self.handle_route_record(*args)
-        elif frame_name == "incomingRouteErrorHandler":
-            status, nwk = args
-            status = t.sl_Status.from_ember_status(status)
-            self.handle_route_error(status, nwk)
-        elif frame_name == "idConflictHandler":
-            self._handle_id_conflict(*args)
-
-    def _handle_frame(
-        self,
-        message_type: t.EmberIncomingMessageType,
-        aps_frame: t.EmberApsFrame,
-        lqi: t.uint8_t,
-        rssi: t.int8s,
-        sender: t.EmberNodeId,
-        binding_index: t.uint8_t,
-        address_index: t.uint8_t,
-        message: bytes,
-    ) -> None:
-        if message_type == t.EmberIncomingMessageType.INCOMING_BROADCAST:
-            dst = zigpy.types.AddrModeAddress(
-                addr_mode=zigpy.types.AddrMode.Broadcast,
-                address=zigpy.types.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
-            )
-            self.state.counters[COUNTERS_CTRL][COUNTER_RX_BCAST].increment()
-        elif message_type == t.EmberIncomingMessageType.INCOMING_MULTICAST:
-            dst = zigpy.types.AddrModeAddress(
-                addr_mode=zigpy.types.AddrMode.Group, address=aps_frame.groupId
-            )
-            self.state.counters[COUNTERS_CTRL][COUNTER_RX_MCAST].increment()
-        elif message_type == t.EmberIncomingMessageType.INCOMING_UNICAST:
-            dst = zigpy.types.AddrModeAddress(
-                addr_mode=zigpy.types.AddrMode.NWK, address=self.state.node_info.nwk
-            )
-            self.state.counters[COUNTERS_CTRL][COUNTER_RX_UNICAST].increment()
-        else:
-            LOGGER.debug("Ignoring message type: %r", message_type)
-            return
-
-        self.packet_received(
-            zigpy.types.ZigbeePacket(
-                src=zigpy.types.AddrModeAddress(
+        # The protocol handler doesn't know our current NWK address
+        if packet.dst is None:
+            packet = packet.replace(
+                dst=zigpy.types.AddrModeAddress(
                     addr_mode=zigpy.types.AddrMode.NWK,
-                    address=sender,
-                ),
-                src_ep=aps_frame.sourceEndpoint,
-                dst=dst,
-                dst_ep=aps_frame.destinationEndpoint,
-                tsn=aps_frame.sequence,
-                profile_id=aps_frame.profileId,
-                cluster_id=aps_frame.clusterId,
-                data=zigpy.types.SerializableBytes(message),
-                lqi=lqi,
-                rssi=rssi,
+                    address=self.state.node_info.nwk,
+                )
             )
-        )
 
-    def _handle_frame_sent(
-        self,
-        message_type: t.EmberIncomingMessageType,
-        destination: t.EmberNodeId,
-        aps_frame: t.EmberApsFrame,
-        message_tag: int,
-        status: t.sl_Status,
-        message: bytes,
-    ):
-        if status == t.sl_Status.OK:
+        if packet.dst.addr_mode == zigpy.types.AddrMode.NWK:
+            self.state.counters[COUNTERS_CTRL][COUNTER_RX_UNICAST].increment()
+        elif packet.dst.addr_mode == zigpy.types.AddrMode.Broadcast:
+            self.state.counters[COUNTERS_CTRL][COUNTER_RX_BCAST].increment()
+        elif packet.dst.addr_mode == zigpy.types.AddrMode.Group:
+            self.state.counters[COUNTERS_CTRL][COUNTER_RX_MCAST].increment()
+
+        self.packet_received(packet)
+
+    def _on_message_sent(self, event: MessageSentEvent) -> None:
+        """Handle message_sent event from protocol handler."""
+        if event.status == t.sl_Status.OK:
             msg = "success"
         else:
             msg = "failure"
 
-        if message_type in (
+        if event.message_type in (
             t.EmberOutgoingMessageType.OUTGOING_BROADCAST,
             t.EmberOutgoingMessageType.OUTGOING_BROADCAST_WITH_ALIAS,
         ):
             cnt_name = f"broadcast_tx_{msg}"
-        elif message_type in (
+        elif event.message_type in (
             t.EmberOutgoingMessageType.OUTGOING_MULTICAST,
             t.EmberOutgoingMessageType.OUTGOING_MULTICAST_WITH_ALIAS,
         ):
             cnt_name = f"multicast_tx_{msg}"
-        elif message_type in (
+        elif event.message_type in (
             t.EmberOutgoingMessageType.OUTGOING_DIRECT,
             t.EmberOutgoingMessageType.OUTGOING_VIA_ADDRESS_TABLE,
         ):
             cnt_name = f"unicast_tx_{msg}"
-        elif message_type == t.EmberOutgoingMessageType.OUTGOING_VIA_BINDING:
+        elif event.message_type == t.EmberOutgoingMessageType.OUTGOING_VIA_BINDING:
             cnt_name = f"via_binding_tx_{msg}"
         else:
             cnt_name = f"unknown_msg_type_{msg}"
 
-        pending_tag = (destination, message_tag)
+        pending_tag = (event.destination, event.message_tag)
 
         try:
             future = self._pending_requests[pending_tag]
-            future.set_result((status, f"message send {msg}"))
+            future.set_result((event.status, f"message send {msg}"))
             self.state.counters[COUNTERS_CTRL][cnt_name].increment()
         except KeyError:
             self.state.counters[COUNTERS_CTRL][f"{cnt_name}_unexpected"].increment()
@@ -800,44 +735,31 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 exc,
             )
 
-    async def _handle_no_such_device(self, sender: int) -> None:
-        """Try to match unknown device by its EUI64 address."""
-        status, ieee = await self._ezsp.lookupEui64ByNodeId(nodeId=sender)
-        status = t.sl_Status.from_ember_status(status)
-
-        if status == t.sl_Status.OK:
-            LOGGER.debug("Found %s ieee for %s sender", ieee, sender)
-            self.handle_join(sender, ieee, 0)
-            return
-        LOGGER.debug("Couldn't look up ieee for %s", sender)
-
-    def _handle_tc_join_handler(
-        self,
-        nwk: t.EmberNodeId,
-        ieee: t.EUI64,
-        device_update_status: t.EmberDeviceUpdate,
-        decision: t.EmberJoinDecision,
-        parent_nwk: t.EmberNodeId,
-    ) -> None:
-        """Trust Center Join handler."""
-        if device_update_status == t.EmberDeviceUpdate.DEVICE_LEFT:
-            self.handle_leave(nwk, ieee)
+    def _on_trust_center_join(self, event: TrustCenterJoinEvent) -> None:
+        """Handle trust_center_join event from protocol handler."""
+        if event.device_update_status == t.EmberDeviceUpdate.DEVICE_LEFT:
+            self.handle_leave(event.nwk, event.ieee)
             return
 
-        if device_update_status == t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN:
-            self.create_task(self.cleanup_tc_link_key(ieee), "cleanup_tc_link_key")
+        if (
+            event.device_update_status
+            == t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN
+        ):
+            self.create_task(
+                self.cleanup_tc_link_key(event.ieee), "cleanup_tc_link_key"
+            )
 
-        if decision == t.EmberJoinDecision.DENY_JOIN:
+        if event.decision == t.EmberJoinDecision.DENY_JOIN:
             # no point in handling the join if it was denied
             return
 
-        mfg_id = IEEE_PREFIX_MFG_ID.get(str(ieee)[:8].upper())
+        mfg_id = IEEE_PREFIX_MFG_ID.get(str(event.ieee)[:8].upper())
 
         if mfg_id is not None:
             if self._mfg_id_task and not self._mfg_id_task.done():
                 self._mfg_id_task.cancel()
             self._mfg_id_task = asyncio.create_task(self._reset_mfg_id(mfg_id))
-        self.handle_join(nwk, ieee, parent_nwk)
+        self.handle_join(event.nwk, event.ieee, event.parent_nwk)
 
     async def _reset_mfg_id(self, mfg_id: int) -> None:
         """Resets manufacturer id if was temporary overridden by a joining device."""
@@ -1131,20 +1053,21 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         return await super().permit(time_s)
 
-    def _handle_id_conflict(self, nwk: t.EmberNodeId) -> None:
-        LOGGER.warning("NWK conflict is reported for 0x%04x", nwk)
+    def _on_id_conflict(self, event: IdConflictEvent) -> None:
+        """Handle id_conflict event from protocol handler."""
+        LOGGER.warning("NWK conflict is reported for 0x%04x", event.nwk)
         self.state.counters[COUNTERS_CTRL][COUNTER_NWK_CONFLICTS].increment()
         for device in self.devices.values():
-            if device.nwk != nwk:
+            if device.nwk != event.nwk:
                 continue
             LOGGER.warning(
                 "Found %s device for 0x%04x NWK conflict: %s %s",
                 device.ieee,
-                nwk,
+                event.nwk,
                 device.manufacturer,
                 device.model,
             )
-            self.handle_leave(nwk, device.ieee)
+            self.handle_leave(event.nwk, device.ieee)
 
     async def _watchdog_loop(self):
         self._watchdog_failures = 0
@@ -1205,18 +1128,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         LOGGER.debug("Free buffers status %s, value: %s", status, buffers)
         return buffers
 
-    def handle_route_record(
-        self,
-        nwk: t.EmberNodeId,
-        ieee: t.EUI64,
-        lqi: t.uint8_t,
-        rssi: t.int8s,
-        relays: t.LVList[t.EmberNodeId],
-    ) -> None:
+    def _on_route_record(self, event: RouteRecordEvent) -> None:
+        """Handle route_record event from protocol handler."""
         LOGGER.debug(
-            "Processing route record request: %s", (nwk, ieee, lqi, rssi, relays)
+            "Processing route record request: %s",
+            (event.nwk, event.ieee, event.lqi, event.rssi, event.relays),
         )
-        self.handle_relays(nwk=nwk, relays=relays)
-
-    def handle_route_error(self, status: t.sl_Status, nwk: t.EmberNodeId) -> None:
-        LOGGER.debug("Processing route error: status=%s, nwk=%s", status, nwk)
+        self.handle_relays(nwk=event.nwk, relays=event.relays)
