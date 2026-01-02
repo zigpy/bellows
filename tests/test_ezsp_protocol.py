@@ -6,7 +6,12 @@ import pytest
 import zigpy.types
 
 from bellows.ezsp import EZSP
-from bellows.ezsp.protocol import PacketReceivedEvent
+from bellows.ezsp.protocol import (
+    IdConflictEvent,
+    PacketReceivedEvent,
+    RouteRecordEvent,
+    TrustCenterJoinEvent,
+)
 import bellows.ezsp.v4
 import bellows.ezsp.v9
 from bellows.ezsp.v9.commands import GetTokenDataRsp
@@ -423,3 +428,76 @@ def test_incoming_message_ignored_type(prot_hndl, caplog) -> None:
     # No event should be emitted for ignored message types
     assert len(handler.mock_calls) == 0
     assert "Ignoring message type" in caplog.text
+
+
+def test_trust_center_join_handler(prot_hndl) -> None:
+    """Test trustCenterJoinHandler callback."""
+    handler = MagicMock()
+    prot_hndl.on_event(TrustCenterJoinEvent.event_type, handler)
+
+    ieee = t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11")
+    prot_hndl.handle_parsed_callback(
+        "trustCenterJoinHandler",
+        {
+            "newNodeId": t.EmberNodeId(0x1234),
+            "newNodeEui64": ieee,
+            "status": t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            "policyDecision": t.EmberJoinDecision.NO_ACTION,
+            "parentOfNewNodeId": t.EmberNodeId(0x0000),
+        }.values(),
+    )
+
+    assert handler.mock_calls == [
+        call(
+            TrustCenterJoinEvent(
+                nwk=t.EmberNodeId(0x1234),
+                ieee=ieee,
+                device_update_status=t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+                decision=t.EmberJoinDecision.NO_ACTION,
+                parent_nwk=t.EmberNodeId(0x0000),
+            )
+        )
+    ]
+
+
+def test_incoming_route_record_handler(prot_hndl) -> None:
+    """Test incomingRouteRecordHandler callback."""
+    handler = MagicMock()
+    prot_hndl.on_event(RouteRecordEvent.event_type, handler)
+
+    ieee = t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11")
+    prot_hndl.handle_parsed_callback(
+        "incomingRouteRecordHandler",
+        {
+            "source": t.EmberNodeId(0x1234),
+            "sourceEui": ieee,
+            "lastHopLqi": t.uint8_t(200),
+            "lastHopRssi": t.int8s(-40),
+            "relayList": [t.EmberNodeId(0x0001), t.EmberNodeId(0x0002)],
+        }.values(),
+    )
+
+    assert handler.mock_calls == [
+        call(
+            RouteRecordEvent(
+                nwk=t.EmberNodeId(0x1234),
+                ieee=ieee,
+                lqi=t.uint8_t(200),
+                rssi=t.int8s(-40),
+                relays=[t.EmberNodeId(0x0001), t.EmberNodeId(0x0002)],
+            )
+        )
+    ]
+
+
+def test_id_conflict_handler(prot_hndl) -> None:
+    """Test idConflictHandler callback."""
+    handler = MagicMock()
+    prot_hndl.on_event(IdConflictEvent.event_type, handler)
+
+    prot_hndl.handle_parsed_callback(
+        "idConflictHandler",
+        {"conflictingId": t.EmberNodeId(0x1234)}.values(),
+    )
+
+    assert handler.mock_calls == [call(IdConflictEvent(nwk=t.EmberNodeId(0x1234)))]

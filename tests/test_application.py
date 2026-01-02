@@ -2607,3 +2607,25 @@ def test_on_packet_received_multicast(app: ControllerApplication) -> None:
 
     # Verify packet_received was called with the same packet (dst already set)
     assert packet_received_mock.mock_calls == [call(event.packet)]
+
+
+async def test_on_message_sent_via_binding(app: ControllerApplication) -> None:
+    """Test _on_message_sent with OUTGOING_VIA_BINDING message type."""
+    # Create a pending request future
+    future = asyncio.get_running_loop().create_future()
+    app._pending_requests[(0x1234, 0x42)] = future
+
+    event = MessageSentEvent(
+        status=t.sl_Status.OK,
+        message_type=t.EmberOutgoingMessageType.OUTGOING_VIA_BINDING,
+        destination=0x1234,
+        aps_frame=t.EmberApsFrame(),
+        message_tag=0x42,
+        message_contents=b"test",
+    )
+
+    app._on_message_sent(event)
+
+    # Verify the future was resolved
+    assert future.done()
+    assert future.result() == (t.sl_Status.OK, "message send success")
