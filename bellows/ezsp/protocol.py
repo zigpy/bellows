@@ -49,6 +49,35 @@ class PacketReceivedEvent:
     packet: zigpy.types.ZigbeePacket
 
 
+@dataclass(frozen=True, kw_only=True)
+class TrustCenterJoinEvent:
+    event_type: Final[str] = "trust_center_join"
+
+    nwk: t.EmberNodeId
+    ieee: t.EUI64
+    device_update_status: t.EmberDeviceUpdate
+    decision: t.EmberJoinDecision
+    parent_nwk: t.EmberNodeId
+
+
+@dataclass(frozen=True, kw_only=True)
+class RouteRecordEvent:
+    event_type: Final[str] = "route_record"
+
+    nwk: t.EmberNodeId
+    ieee: t.EUI64
+    lqi: t.uint8_t
+    rssi: t.int8s
+    relays: t.LVList[t.EmberNodeId]
+
+
+@dataclass(frozen=True, kw_only=True)
+class IdConflictEvent:
+    event_type: Final[str] = "id_conflict"
+
+    nwk: t.EmberNodeId
+
+
 class ProtocolHandler(EventBase, abc.ABC):
     """EZSP protocol specific handler."""
 

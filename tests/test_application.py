@@ -16,7 +16,13 @@ from bellows.ash import NcpFailure
 import bellows.config as config
 from bellows.exception import ControllerError, EzspError, InvalidCommandError
 import bellows.ezsp as ezsp
-from bellows.ezsp.protocol import MessageSentEvent, PacketReceivedEvent
+from bellows.ezsp.protocol import (
+    IdConflictEvent,
+    MessageSentEvent,
+    PacketReceivedEvent,
+    RouteRecordEvent,
+    TrustCenterJoinEvent,
+)
 from bellows.ezsp.v9.commands import GetTokenDataRsp
 from bellows.ezsp.xncp import (
     FirmwareFeatures,
@@ -425,15 +431,14 @@ async def test_join_handler(app, ieee):
     # Calls device.initialize, leaks a task
     app.handle_join = MagicMock()
     app.cleanup_tc_link_key = AsyncMock()
-    app.ezsp_callback_handler(
-        "trustCenterJoinHandler",
-        [
-            1,
-            ieee,
-            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
-            t.EmberJoinDecision.NO_ACTION,
-            sentinel.parent,
-        ],
+    app._on_trust_center_join(
+        TrustCenterJoinEvent(
+            nwk=1,
+            ieee=ieee,
+            device_update_status=t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            decision=t.EmberJoinDecision.NO_ACTION,
+            parent_nwk=sentinel.parent,
+        )
     )
     await asyncio.sleep(0)
     assert ieee not in app.devices
@@ -447,15 +452,14 @@ async def test_join_handler(app, ieee):
     # cleanup TCLK, but no join handling
     app.handle_join.reset_mock()
     app.cleanup_tc_link_key.reset_mock()
-    app.ezsp_callback_handler(
-        "trustCenterJoinHandler",
-        [
-            1,
-            ieee,
-            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
-            t.EmberJoinDecision.DENY_JOIN,
-            sentinel.parent,
-        ],
+    app._on_trust_center_join(
+        TrustCenterJoinEvent(
+            nwk=1,
+            ieee=ieee,
+            device_update_status=t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            decision=t.EmberJoinDecision.DENY_JOIN,
+            parent_nwk=sentinel.parent,
+        )
     )
     await asyncio.sleep(0)
     assert app.cleanup_tc_link_key.await_count == 1
@@ -466,8 +470,14 @@ async def test_join_handler(app, ieee):
 def test_leave_handler(app, ieee):
     app.handle_join = MagicMock()
     app.devices[ieee] = MagicMock()
-    app.ezsp_callback_handler(
-        "trustCenterJoinHandler", [1, ieee, t.EmberDeviceUpdate.DEVICE_LEFT, None, None]
+    app._on_trust_center_join(
+        TrustCenterJoinEvent(
+            nwk=1,
+            ieee=ieee,
+            device_update_status=t.EmberDeviceUpdate.DEVICE_LEFT,
+            decision=t.EmberJoinDecision.NO_ACTION,
+            parent_nwk=t.EmberNodeId(0x0000),
+        )
     )
     assert ieee in app.devices
     assert app.handle_join.call_count == 0
@@ -731,15 +741,14 @@ async def test_send_packet_unicast_extended_timeout_with_acks(app, ieee, packet)
 
     asyncio.get_running_loop().call_later(
         0.1,
-        app.ezsp_callback_handler,
-        "incomingRouteRecordHandler",
-        {
-            "source": packet.dst.address,
-            "sourceEui": ieee,
-            "lastHopLqi": 123,
-            "lastHopRssi": -60,
-            "relayList": [0x1234],
-        }.values(),
+        app._on_route_record,
+        RouteRecordEvent(
+            nwk=packet.dst.address,
+            ieee=ieee,
+            lqi=123,
+            rssi=-60,
+            relays=[0x1234],
+        ),
     )
 
     await _test_send_packet_unicast(
@@ -761,15 +770,14 @@ async def test_send_packet_unicast_extended_timeout_without_acks(app, ieee, pack
 
     asyncio.get_running_loop().call_later(
         0.1,
-        app.ezsp_callback_handler,
-        "incomingRouteRecordHandler",
-        {
-            "source": packet.dst.address,
-            "sourceEui": ieee,
-            "lastHopLqi": 123,
-            "lastHopRssi": -60,
-            "relayList": [0x1234],
-        }.values(),
+        app._on_route_record,
+        RouteRecordEvent(
+            nwk=packet.dst.address,
+            ieee=ieee,
+            lqi=123,
+            rssi=-60,
+            relays=[0x1234],
+        ),
     )
 
     await _test_send_packet_unicast(
@@ -1378,20 +1386,18 @@ def test_coordinator_model_manuf(coordinator):
 def test_handle_route_record(app):
     """Test route record handling for an existing device."""
     app.handle_relays = MagicMock(spec_set=app.handle_relays)
-    app.ezsp_callback_handler(
-        "incomingRouteRecordHandler",
-        [sentinel.nwk, sentinel.ieee, sentinel.lqi, sentinel.rssi, sentinel.relays],
+    app._on_route_record(
+        RouteRecordEvent(
+            nwk=sentinel.nwk,
+            ieee=sentinel.ieee,
+            lqi=sentinel.lqi,
+            rssi=sentinel.rssi,
+            relays=sentinel.relays,
+        )
     )
-    app.handle_relays.assert_called_once_with(nwk=sentinel.nwk, relays=sentinel.relays)
-
-
-def test_handle_route_error(app):
-    """Test route error handler."""
-    app.handle_relays = MagicMock(spec_set=app.handle_relays)
-    app.ezsp_callback_handler(
-        "incomingRouteErrorHandler", [sentinel.status, sentinel.nwk]
-    )
-    app.handle_relays.assert_not_called()
+    assert app.handle_relays.mock_calls == [
+        call(nwk=sentinel.nwk, relays=sentinel.relays)
+    ]
 
 
 def test_handle_id_conflict(app, ieee):
@@ -1400,10 +1406,10 @@ def test_handle_id_conflict(app, ieee):
     app.add_device(ieee, nwk)
     app.handle_leave = MagicMock()
 
-    app.ezsp_callback_handler("idConflictHandler", [nwk + 1])
+    app._on_id_conflict(IdConflictEvent(nwk=nwk + 1))
     assert app.handle_leave.call_count == 0
 
-    app.ezsp_callback_handler("idConflictHandler", [nwk])
+    app._on_id_conflict(IdConflictEvent(nwk=nwk))
     assert app.handle_leave.call_count == 1
     assert app.handle_leave.call_args[0][0] == nwk
 
@@ -1452,26 +1458,24 @@ async def test_set_mfg_id(ieee, expected_mfg_id, app):
     app.handle_join = MagicMock()
     app.cleanup_tc_link_key = AsyncMock()
 
-    app.ezsp_callback_handler(
-        "trustCenterJoinHandler",
-        [
-            1,
-            t.EUI64.convert(ieee),
-            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
-            t.EmberJoinDecision.NO_ACTION,
-            sentinel.parent,
-        ],
+    app._on_trust_center_join(
+        TrustCenterJoinEvent(
+            nwk=1,
+            ieee=t.EUI64.convert(ieee),
+            device_update_status=t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            decision=t.EmberJoinDecision.NO_ACTION,
+            parent_nwk=sentinel.parent,
+        )
     )
     # preempt
-    app.ezsp_callback_handler(
-        "trustCenterJoinHandler",
-        [
-            1,
-            t.EUI64.convert(ieee),
-            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
-            t.EmberJoinDecision.NO_ACTION,
-            sentinel.parent,
-        ],
+    app._on_trust_center_join(
+        TrustCenterJoinEvent(
+            nwk=1,
+            ieee=t.EUI64.convert(ieee),
+            device_update_status=t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            decision=t.EmberJoinDecision.NO_ACTION,
+            parent_nwk=sentinel.parent,
+        )
     )
     await asyncio.sleep(0.20)
     if expected_mfg_id is not None:
@@ -2484,8 +2488,8 @@ async def test_reset_resubscribes_events(app: ControllerApplication) -> None:
     assert len(app._ezsp.startup_reset.mock_calls) == 1
     assert len(app._ezsp.write_config.mock_calls) == 1
 
-    # Verify we resubscribed (callbacks list should have 2 entries now)
-    assert len(app._protocol_on_remove_callbacks) == 2
+    # Verify we resubscribed (callbacks list should have 5 entries now)
+    assert len(app._protocol_on_remove_callbacks) == 5
 
 
 def test_on_packet_received_unicast(app: ControllerApplication) -> None:

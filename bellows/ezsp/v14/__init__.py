@@ -14,6 +14,7 @@ import bellows.config
 import bellows.types as t
 
 from . import commands, config
+from ..protocol import IdConflictEvent, RouteRecordEvent, TrustCenterJoinEvent
 from ..v13 import EZSPv13
 
 LOGGER = logging.getLogger(__name__)
@@ -195,4 +196,34 @@ class EZSPv14(EZSPv13):
                 message_tag=message_tag,
                 status=status,
                 message_contents=message,
+            )
+        elif frame_name == "trustCenterJoinHandler":
+            nwk, ieee, device_update_status, decision, parent_nwk = args
+            self.emit(
+                TrustCenterJoinEvent.event_type,
+                TrustCenterJoinEvent(
+                    nwk=nwk,
+                    ieee=ieee,
+                    device_update_status=device_update_status,
+                    decision=decision,
+                    parent_nwk=parent_nwk,
+                ),
+            )
+        elif frame_name == "incomingRouteRecordHandler":
+            nwk, ieee, lqi, rssi, relays = args
+            self.emit(
+                RouteRecordEvent.event_type,
+                RouteRecordEvent(
+                    nwk=nwk,
+                    ieee=ieee,
+                    lqi=lqi,
+                    rssi=rssi,
+                    relays=relays,
+                ),
+            )
+        elif frame_name == "idConflictHandler":
+            (nwk,) = args
+            self.emit(
+                IdConflictEvent.event_type,
+                IdConflictEvent(nwk=nwk),
             )

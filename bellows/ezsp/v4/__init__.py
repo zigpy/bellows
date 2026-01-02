@@ -16,6 +16,7 @@ from bellows.zigbee.util import ezsp_key_to_zigpy_key
 
 from . import commands, config
 from .. import protocol
+from ..protocol import IdConflictEvent, RouteRecordEvent, TrustCenterJoinEvent
 
 LOGGER = logging.getLogger(__name__)
 
@@ -281,4 +282,34 @@ class EZSPv4(protocol.ProtocolHandler):
                 message_tag=message_tag,
                 status=t.sl_Status.from_ember_status(status),
                 message_contents=message,
+            )
+        elif frame_name == "trustCenterJoinHandler":
+            nwk, ieee, device_update_status, decision, parent_nwk = args
+            self.emit(
+                TrustCenterJoinEvent.event_type,
+                TrustCenterJoinEvent(
+                    nwk=nwk,
+                    ieee=ieee,
+                    device_update_status=device_update_status,
+                    decision=decision,
+                    parent_nwk=parent_nwk,
+                ),
+            )
+        elif frame_name == "incomingRouteRecordHandler":
+            nwk, ieee, lqi, rssi, relays = args
+            self.emit(
+                RouteRecordEvent.event_type,
+                RouteRecordEvent(
+                    nwk=nwk,
+                    ieee=ieee,
+                    lqi=lqi,
+                    rssi=rssi,
+                    relays=relays,
+                ),
+            )
+        elif frame_name == "idConflictHandler":
+            (nwk,) = args
+            self.emit(
+                IdConflictEvent.event_type,
+                IdConflictEvent(nwk=nwk),
             )
