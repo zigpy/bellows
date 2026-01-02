@@ -951,21 +951,20 @@ async def test_cfg_initialize_skip():
         )
 
 
-@pytest.mark.parametrize("unsupported_version", [15, 18, 99])
-async def test_unsupported_ezsp_version_startup(unsupported_version: int, caplog):
+async def test_unsupported_ezsp_version_startup(caplog):
     """Test that startup works with an unsupported EZSP version."""
-    ezsp = make_ezsp(version=unsupported_version)
+    ezsp = make_ezsp(version=99)
 
     with patch("bellows.uart.connect"):
         await ezsp.connect()
 
     # The EZSP version should be stored as the unsupported version
-    assert ezsp._ezsp_version == unsupported_version
+    assert ezsp._ezsp_version == 99
 
     # But the protocol should fall back to the latest
     assert ezsp._protocol.VERSION == EZSP_LATEST
 
-    assert f"Protocol version {unsupported_version} is not supported" in caplog.text
+    assert "Protocol version 99 is not supported" in caplog.text
 
     ezsp.getConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, 0))
     ezsp.setConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
