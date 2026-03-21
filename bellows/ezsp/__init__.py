@@ -854,3 +854,15 @@ class EZSP:
         """Get maximum and recommended TX power for a country (ISO 3166-1 alpha-2)."""
         code = country_code.upper().encode("ascii")
         return await self.send_xncp_frame(xncp.GetTxPowerInfoReq(country_code=code))
+
+    async def xncp_set_led_state(
+        self, red: t.uint8_t, green: t.uint8_t, blue: t.uint8_t
+    ) -> None:
+        """Set the adapter LED color."""
+        await self.send_xncp_frame(
+            xncp.SetLedStateReq(
+                red=red,
+                green=green,
+                blue=blue,
+            )
+        )

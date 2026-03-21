@@ -43,6 +43,7 @@ class XncpCommandId(t.enum16):
     SET_ROUTE_TABLE_ENTRY_REQ = 0x0006
     GET_ROUTE_TABLE_ENTRY_REQ = 0x0007
     GET_TX_POWER_INFO_REQ = 0x0008
+    SET_LED_STATE_REQ = 0x0F00
 
     GET_SUPPORTED_FEATURES_RSP = GET_SUPPORTED_FEATURES_REQ | 0x8000
     SET_SOURCE_ROUTE_RSP = SET_SOURCE_ROUTE_REQ | 0x8000
@@ -53,6 +54,7 @@ class XncpCommandId(t.enum16):
     SET_ROUTE_TABLE_ENTRY_RSP = SET_ROUTE_TABLE_ENTRY_REQ | 0x8000
     GET_ROUTE_TABLE_ENTRY_RSP = GET_ROUTE_TABLE_ENTRY_REQ | 0x8000
     GET_TX_POWER_INFO_RSP = GET_TX_POWER_INFO_REQ | 0x8000
+    SET_LED_STATE_RSP = SET_LED_STATE_REQ | 0x8000
 
     UNKNOWN = 0xFFFF
 
@@ -122,6 +124,9 @@ class FirmwareFeatures(t.bitmap32):
 
     # Recommended and maximum TX power can be queried by country code
     TX_POWER_INFO = 1 << 7
+
+    # The firmware exposes adapter LED control
+    LED_CONTROL = 1 << 31
 
 
 class XncpCommandPayload(t.Struct):
@@ -231,6 +236,18 @@ class GetTxPowerInfoReq(XncpCommandPayload):
 class GetTxPowerInfoRsp(XncpCommandPayload):
     recommended_power_dbm: t.int8s
     max_power_dbm: t.int8s
+
+
+@register_command(XncpCommandId.SET_LED_STATE_REQ)
+class SetLedStateReq(XncpCommandPayload):
+    red: t.uint8_t
+    green: t.uint8_t
+    blue: t.uint8_t
+
+
+@register_command(XncpCommandId.SET_LED_STATE_RSP)
+class SetLedStateRsp(XncpCommandPayload):
+    pass
 
 
 @register_command(XncpCommandId.UNKNOWN)

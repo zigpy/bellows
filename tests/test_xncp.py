@@ -314,3 +314,23 @@ async def test_xncp_get_tx_power_info(ezsp_f: EZSP) -> None:
             ).serialize()
         )
     ]
+
+
+async def test_xncp_set_led_state(ezsp_f: EZSP) -> None:
+    """Test XNCP set_led_state."""
+    ezsp_f._mock_commands["customFrame"] = customFrame = AsyncMock(
+        return_value=[
+            t.EmberStatus.SUCCESS,
+            xncp.XncpCommand.from_payload(xncp.SetLedStateRsp()).serialize(),
+        ]
+    )
+
+    await ezsp_f.xncp_set_led_state(red=1, green=2, blue=3)
+
+    assert customFrame.mock_calls == [
+        call(
+            xncp.XncpCommand.from_payload(
+                xncp.SetLedStateReq(red=1, green=2, blue=3)
+            ).serialize()
+        )
+    ]
