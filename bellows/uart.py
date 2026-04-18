@@ -1,7 +1,6 @@
 import asyncio
 from asyncio import timeout as asyncio_timeout
 import logging
-import urllib.parse
 
 import zigpy.config
 import zigpy.serial
@@ -140,12 +139,6 @@ async def _connect(config, api):
 
 
 async def connect(config, api, use_thread=True):
-    # TCP socket connections use native asyncio I/O and don't need a secondary
-    # thread.  Threading is only required for pyserial's blocking serial I/O.
-    parsed_path = urllib.parse.urlparse(config[zigpy.config.CONF_DEVICE_PATH])
-    if parsed_path.scheme in ("socket", "tcp"):
-        use_thread = False
-
     if use_thread:
         api = ThreadsafeProxy(api, asyncio.get_running_loop())
         thread = EventLoopThread()

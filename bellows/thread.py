@@ -101,7 +101,16 @@ class ThreadsafeProxy:
                     "the connection may have been lost"
                 )
             if inspect.iscoroutinefunction(func):
-                future = asyncio.run_coroutine_threadsafe(call(), loop)
+                coro = call()
+                try:
+                    future = asyncio.run_coroutine_threadsafe(coro, loop)
+                except RuntimeError:
+                    # Loop closed between is_closed() check and dispatch
+                    coro.close()
+                    raise ConnectionError(
+                        "Attempted to use a closed event loop, "
+                        "the connection may have been lost"
+                    )
                 return asyncio.wrap_future(future, loop=curr_loop)
             else:
 
