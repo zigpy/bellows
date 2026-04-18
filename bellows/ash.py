@@ -379,6 +379,10 @@ class AshProtocol(asyncio.Protocol):
 
     def eof_received(self):
         self._ezsp_protocol.eof_received()
+        # Return True to prevent the transport from auto-closing.
+        # For serial-over-TCP connections (e.g. ser2net), the remote end may
+        # signal EOF during initialization without intending to close.
+        return True
 
     def _cancel_pending_data_frames(
         self, exc: BaseException = RuntimeError("Connection has been closed")
