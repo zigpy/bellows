@@ -33,7 +33,12 @@ class Gateway(zigpy.serial.SerialProtocol):
 
     def reset_received(self, code: t.NcpResetCode) -> None:
         """Reset acknowledgement frame receive handler"""
-        LOGGER.debug("Received reset: %r", code)
+        LOGGER.warning(
+            "Received reset: %r (reset_future=%s, startup_reset_future=%s)",
+            code,
+            self._reset_future,
+            self._startup_reset_future,
+        )
 
         if self._reset_future and not self._reset_future.done():
             self._reset_future.set_result(True)
@@ -46,8 +51,9 @@ class Gateway(zigpy.serial.SerialProtocol):
     def error_received(self, code: t.NcpResetCode) -> None:
         """Error frame receive handler."""
         if self._reset_future is not None or self._startup_reset_future is not None:
-            LOGGER.debug("Ignoring spurious error during reset: %r", code)
+            LOGGER.warning("Ignoring spurious error during reset: %r", code)
         else:
+            LOGGER.warning("Error received, entering failed state: %r", code)
             self._api.enter_failed_state(code)
 
     async def wait_for_startup_reset(self) -> None:
@@ -68,7 +74,7 @@ class Gateway(zigpy.serial.SerialProtocol):
         """Port was closed unexpectedly."""
         super().connection_lost(exc)
 
-        LOGGER.debug("Connection lost: %r", exc)
+        LOGGER.warning("Gateway connection lost: %r", exc)
         reason = exc or ConnectionResetError("Remote server closed connection")
 
         # XXX: The startup reset future must be resolved with an error *before* the
