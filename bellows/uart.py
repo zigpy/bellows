@@ -113,6 +113,11 @@ async def _connect(config, api):
     gateway = Gateway(api, connection_done_future)
     protocol = AshProtocol(gateway)
 
+    # Pre-create the startup reset future before opening the connection so that
+    # reset frames arriving immediately after connect are captured by
+    # reset_received() instead of triggering enter_failed_state().
+    gateway._startup_reset_future = loop.create_future()
+
     if config[zigpy.config.CONF_DEVICE_FLOW_CONTROL] is None:
         xon_xoff, rtscts = True, False
     else:
@@ -128,12 +133,6 @@ async def _connect(config, api):
     )
 
     await gateway.wait_until_connected()
-
-    # Pre-create the startup reset future so that reset frames arriving before
-    # wait_for_startup_reset() is called don't trigger enter_failed_state().
-    # This closes a race window between _connect() returning to the main thread
-    # and wait_for_startup_reset() being dispatched back to this thread.
-    gateway._startup_reset_future = loop.create_future()
 
     thread_safe_protocol = ThreadsafeProxy(gateway, loop)
     return thread_safe_protocol, connection_done_future
