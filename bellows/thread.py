@@ -1,6 +1,7 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import functools
+import inspect
 import logging
 
 LOGGER = logging.getLogger(__name__)
@@ -95,10 +96,11 @@ class ThreadsafeProxy:
             if loop == curr_loop:
                 return call()
             if loop.is_closed():
-                # Disconnected
-                LOGGER.warning("Attempted to use a closed event loop")
-                return
-            if asyncio.iscoroutinefunction(func):
+                raise ConnectionError(
+                    "Attempted to use a closed event loop, "
+                    "the connection may have been lost"
+                )
+            if inspect.iscoroutinefunction(func):
                 future = asyncio.run_coroutine_threadsafe(call(), loop)
                 return asyncio.wrap_future(future, loop=curr_loop)
             else:
