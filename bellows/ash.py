@@ -378,6 +378,7 @@ class AshProtocol(asyncio.Protocol):
         self._ezsp_protocol.connection_lost(exc)
 
     def eof_received(self):
+        _LOGGER.warning("EOF received from remote end")
         self._ezsp_protocol.eof_received()
         # Return True to prevent the transport from auto-closing.
         # For serial-over-TCP connections (e.g. ser2net), the remote end may
@@ -449,7 +450,7 @@ class AshProtocol(asyncio.Protocol):
         return out
 
     def data_received(self, data: bytes) -> None:
-        _LOGGER.debug("Received data %s", data.hex())
+        _LOGGER.warning("ASH received %d bytes: %s", len(data), data[:32].hex())
         self._buffer.extend(data)
 
         if len(self._buffer) > MAX_BUFFER_SIZE:
@@ -746,5 +747,6 @@ class AshProtocol(asyncio.Protocol):
         )
 
     def send_reset(self) -> None:
+        _LOGGER.warning("Sending ASH reset frame")
         # Some adapters seem to send a NAK immediately but still process the reset frame
         self._write_frame(RstFrame(), prefix=32 * (Reserved.CANCEL,))
