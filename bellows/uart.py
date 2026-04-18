@@ -52,8 +52,8 @@ class Gateway(zigpy.serial.SerialProtocol):
 
     async def wait_for_startup_reset(self) -> None:
         """Wait for the first reset frame on startup."""
-        assert self._startup_reset_future is None
-        self._startup_reset_future = asyncio.get_running_loop().create_future()
+        if self._startup_reset_future is None:
+            self._startup_reset_future = asyncio.get_running_loop().create_future()
 
         try:
             await self._startup_reset_future
@@ -128,6 +128,12 @@ async def _connect(config, api):
     )
 
     await gateway.wait_until_connected()
+
+    # Pre-create the startup reset future so that reset frames arriving before
+    # wait_for_startup_reset() is called don't trigger enter_failed_state().
+    # This closes a race window between _connect() returning to the main thread
+    # and wait_for_startup_reset() being dispatched back to this thread.
+    gateway._startup_reset_future = loop.create_future()
 
     thread_safe_protocol = ThreadsafeProxy(gateway, loop)
     return thread_safe_protocol, connection_done_future
