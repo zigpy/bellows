@@ -117,6 +117,9 @@ class EZSP:
 
     async def _startup_reset(self) -> None:
         """Start EZSP and reset the stack."""
+        if self._gw is None:
+            raise EzspError("Gateway is not connected")
+
         # `zigbeed` resets on startup
         if self.is_tcp_serial_port:
             try:

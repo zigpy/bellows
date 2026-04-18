@@ -789,6 +789,30 @@ async def test_ezsp_init_zigbeed_timeout(reset_mock, xncp_mock, version_mock):
     assert version_mock.await_count == 1
 
 
+async def test_startup_reset_gw_none():
+    """Test _startup_reset raises EzspError when gateway is None."""
+    ezsp = make_ezsp(
+        config={
+            **DEVICE_CONFIG,
+            zigpy.config.CONF_DEVICE_PATH: "socket://localhost:1234",
+        }
+    )
+    ezsp._gw = None
+
+    with pytest.raises(EzspError, match="Gateway is not connected"):
+        await ezsp._startup_reset()
+
+
+async def test_disconnect_gw_none():
+    """Test disconnect doesn't raise when gateway is already None."""
+    ezsp = make_ezsp()
+    ezsp._gw = None
+
+    await ezsp.disconnect()  # Should not raise
+
+    assert ezsp._gw is None
+
+
 async def test_wait_for_stack_status(ezsp_f):
     assert not ezsp_f._stack_status_listeners[t.sl_Status.NETWORK_DOWN]
 
