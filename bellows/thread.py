@@ -15,7 +15,7 @@ class EventLoopThread:
         self.thread_complete = None
 
     def run_coroutine_threadsafe(self, coroutine):
-        current_loop = asyncio.get_event_loop()
+        current_loop = asyncio.get_running_loop()
         future = asyncio.run_coroutine_threadsafe(coroutine, self.loop)
         return asyncio.wrap_future(future, loop=current_loop)
 
@@ -31,7 +31,7 @@ class EventLoopThread:
             self.loop = None
 
     async def start(self):
-        current_loop = asyncio.get_event_loop()
+        current_loop = asyncio.get_running_loop()
         if self.loop is not None and not self.loop.is_closed():
             return
 

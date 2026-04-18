@@ -98,7 +98,7 @@ class Gateway(zigpy.serial.SerialProtocol):
             return await self._reset_future
 
         self._transport.send_reset()
-        self._reset_future = asyncio.get_event_loop().create_future()
+        self._reset_future = asyncio.get_running_loop().create_future()
         self._reset_future.add_done_callback(self._reset_cleanup)
 
         async with asyncio_timeout(RESET_TIMEOUT):
@@ -106,7 +106,7 @@ class Gateway(zigpy.serial.SerialProtocol):
 
 
 async def _connect(config, api):
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     connection_done_future = loop.create_future()
 
@@ -135,7 +135,7 @@ async def _connect(config, api):
 
 async def connect(config, api, use_thread=True):
     if use_thread:
-        api = ThreadsafeProxy(api, asyncio.get_event_loop())
+        api = ThreadsafeProxy(api, asyncio.get_running_loop())
         thread = EventLoopThread()
         await thread.start()
         try:

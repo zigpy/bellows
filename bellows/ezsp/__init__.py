@@ -223,8 +223,11 @@ class EZSP:
 
     async def disconnect(self):
         self.stop_ezsp()
-        if self._gw:
-            await self._gw.disconnect()
+        if self._gw is not None:
+            try:
+                await self._gw.disconnect()
+            except ConnectionError:
+                pass
             self._gw = None
 
     async def _command(self, name: str, *args: Any, **kwargs: Any) -> Any:
