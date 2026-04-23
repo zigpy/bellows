@@ -21,7 +21,9 @@ from zigpy.exceptions import (
 import zigpy.state
 import zigpy.types
 import zigpy.util
+from zigpy.zcl.clusters.greenpower import NotificationOptions, NotificationSchema
 import zigpy.zdo.types as zdo_t
+import zigpy.zgp.types as zgp_t
 
 import bellows
 from bellows.config import (
@@ -56,6 +58,7 @@ COUNTER_RESET_SUCCESS = "reset_success"
 COUNTER_RX_BCAST = "broadcast_rx"
 COUNTER_RX_MCAST = "multicast_rx"
 COUNTER_RX_UNICAST = "unicast_rx"
+COUNTER_RX_GP = "green_power_rx"
 COUNTER_UNKNOWN_DEVICE = "unknown_device_rx"
 COUNTER_WATCHDOG = "watchdog_reset_requests"
 COUNTERS_EZSP = "ezsp_counters"
@@ -696,6 +699,119 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self.handle_route_error(status, nwk)
         elif frame_name == "idConflictHandler":
             self._handle_id_conflict(*args)
+        elif frame_name == "gpepIncomingMessageHandler":
+            self._handle_gp_frame(args)
+
+    def _handle_gp_frame(self, args: tuple) -> None:
+        """Forward a decoded gpepIncomingMessageHandler callback to zigpy.
+
+        The NCP has already done the GP stub processing (proxy-table lookup,
+        duplicate suppression, etc.) and hands us a flattened GPDF. zigpy's
+        GP manager on the other side expects a ZigbeePacket on endpoint 242,
+        cluster 0x0021, carrying a ZCL GP Notification (server command 0x00)
+        so it can route commissioning, data, and decommissioning frames
+        through the same entry point.
+
+        We therefore rebuild that envelope here, mirroring what zigbee-
+        herdsman's ember adapter does. Any GPDF that cannot be converted
+        (for example an IEEE-addressed frame, which the current zigpy GP
+        stack explicitly does not support) is logged and dropped.
+        """
+        if len(args) < 13:
+            LOGGER.debug("gpepIncomingMessageHandler: short args %r, dropping", args)
+            return
+
+        (
+            _status,
+            gpd_link,
+            sequence_number,
+            addr,
+            gpdf_security_level,
+            gpdf_security_key_type,
+            _auto_commissioning,
+            _bidirectional_info,
+            gpd_security_frame_counter,
+            gpd_command_id,
+            _mic,
+            _proxy_table_index,
+            gpd_command_payload,
+            *rest,
+        ) = args
+
+        # v16+ appends an SlRxPacketInfo after the payload. Pull the
+        # proxy NWK out of it if it is there, otherwise fall back to the
+        # coordinator short address (the coordinator acts as the proxy).
+        packet_info = rest[0] if rest else None
+
+        if addr.applicationId == zgp_t.ApplicationID.SrcID:
+            source_id = addr.source_id
+        else:
+            LOGGER.debug(
+                "GP frame with unsupported applicationId %s (only SrcID is "
+                "handled), dropping",
+                addr.applicationId,
+            )
+            return
+
+        options = NotificationOptions(
+            application_id=zgp_t.ApplicationID(addr.applicationId),
+            also_unicast=0,
+            also_derived_group=0,
+            also_commissioned_group=0,
+            security_level=zgp_t.SecurityLevel(gpdf_security_level),
+            security_key_type=zgp_t.SecurityKeyType(gpdf_security_key_type),
+            appoint_temp_master=0,
+            tx_queue_full=0,
+            _reserved=0,
+        )
+
+        notification = NotificationSchema(
+            options=options,
+            gpd_id=zgp_t.DeviceID(source_id),
+            frame_counter=zigpy.types.uint32_t(gpd_security_frame_counter),
+            command_id=zigpy.types.uint8_t(gpd_command_id),
+            payload=zigpy.types.LVBytes(bytes(gpd_command_payload)),
+        )
+
+        # ZCL header: frame_control=0x01 (cluster-specific, client→server,
+        # not manufacturer-specific, no default response disabled), TSN is
+        # the GPD MAC sequence number so duplicates can be tracked, and the
+        # command is GP Notification (0x00).
+        zcl_bytes = (
+            bytes([0x01, int(sequence_number) & 0xFF, 0x00]) + notification.serialize()
+        )
+
+        if packet_info is not None:
+            proxy_nwk = int(packet_info.sender_short_id)
+            lqi = int(packet_info.last_hop_lqi)
+            rssi = int(packet_info.last_hop_rssi)
+        else:
+            proxy_nwk = int(self.state.node_info.nwk)
+            lqi = int(gpd_link)
+            rssi = 0
+
+        self.state.counters[COUNTERS_CTRL][COUNTER_RX_GP].increment()
+
+        self.packet_received(
+            zigpy.types.ZigbeePacket(
+                src=zigpy.types.AddrModeAddress(
+                    addr_mode=zigpy.types.AddrMode.NWK,
+                    address=zigpy.types.NWK(proxy_nwk),
+                ),
+                src_ep=zigpy.types.uint8_t(zgp_t.GP_ENDPOINT),
+                dst=zigpy.types.AddrModeAddress(
+                    addr_mode=zigpy.types.AddrMode.NWK,
+                    address=self.state.node_info.nwk,
+                ),
+                dst_ep=zigpy.types.uint8_t(zgp_t.GP_ENDPOINT),
+                tsn=zigpy.types.uint8_t(int(sequence_number) & 0xFF),
+                profile_id=zigpy.types.uint16_t(0xA1E0),
+                cluster_id=zigpy.types.uint16_t(zgp_t.GP_CLUSTER_ID),
+                data=zigpy.types.SerializableBytes(zcl_bytes),
+                lqi=zigpy.types.uint8_t(lqi),
+                rssi=zigpy.types.int8s(rssi),
+            )
+        )
 
     def _handle_frame(
         self,
