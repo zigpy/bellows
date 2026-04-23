@@ -226,3 +226,29 @@ async def test_send_broadcast(ezsp_f) -> None:
             message=b"hello",
         )
     ]
+
+
+def test_gpep_incoming_inherits_v13_schema(ezsp_f):
+    """v14 must pick up the v13 override of ``gpepIncomingMessageHandler``.
+
+    The fix is declared in v13; v14 re-exports commands through the
+    ``_REPLACEMENTS`` loop, and the plain ``uint8_t`` status passes
+    through unchanged because the loop only rewrites ``EmberStatus`` and
+    ``EzspStatus``. Feeding the real Busch-Jaeger 6716 U capture must
+    dispatch the callback without warnings.
+    """
+    from tests.test_ezsp_v13 import BJ6716U_GPEP_PAYLOAD
+
+    envelope = (
+        bytes([0x42, 0x00, 0x01])
+        + t.uint16_t(0x00C5).serialize()
+        + BJ6716U_GPEP_PAYLOAD
+    )
+
+    ezsp_f(envelope)
+
+    assert ezsp_f._handle_callback.call_count == 1
+    assert ezsp_f._handle_callback.call_args[0][0] == "gpepIncomingMessageHandler"
+    parsed = ezsp_f._handle_callback.call_args[0][1]
+    assert parsed[3].source_id == 0x0171F886
+    assert parsed[9] == 0xE0  # gpdCommandId

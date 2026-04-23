@@ -227,3 +227,103 @@ async def test_factory_reset(ezsp_f) -> None:
     assert ezsp_f.tokenFactoryReset.mock_calls == [
         call(excludeOutgoingFC=False, excludeBootCounter=False)
     ]
+
+
+# ---------------------------------------------------------------------------
+# gpepIncomingMessageHandler (0x00C5)
+#
+# Real payload captured on 2026-04-22 from a Busch-Jaeger 6716 U
+# "Friends of Hue" switch paired through a Silabs ZBT-1 stick running
+# EZSP v13/v14. The raw bytes come straight from the bellows warning log
+# reported in zigpy/zigpy#1814 before this fix landed.
+# ---------------------------------------------------------------------------
+
+
+# Payload without the EZSP frame envelope, as passed to ``deserialize_dict``.
+BJ6716U_GPEP_PAYLOAD: bytes = bytes.fromhex(
+    "7ccdec"                              # status, gpdLink, sequenceNumber
+    "00"                                  # EmberGpAddress.applicationId = 0 (SrcID)
+    "86f8710186f87101"                    # EmberGpAddress.id (8-byte union,
+                                          #   sourceId = 0x0171F886 in first 4 LE)
+    "00"                                  # EmberGpAddress.endpoint
+    "00"                                  # gpdfSecurityLevel
+    "00"                                  # gpdfSecurityKeyType
+    "00"                                  # autoCommissioning
+    "00"                                  # bidirectionalInfo
+    "ffffffff"                            # gpdSecurityFrameCounter (commissioning)
+    "e0"                                  # gpdCommandId = 0xE0 (Commissioning)
+    "ffffffff"                            # mic
+    "ff"                                  # proxyTableIndex
+    "2e"                                  # LVBytes length = 46
+    "02c5f2"                              # commissioning: deviceId, options, extOptions
+    "1ce9ae2f9e4f85f15de37c1ccbd94387"    # encrypted GPD key (16 bytes)
+    "0013911a"                            # KeyMIC
+    "ec1d0000"                            # OutgoingCounter = 0x00001DEC
+    "04"                                  # AppInfo
+    "11"                                  # NumGPDCommands = 17
+    "1011121314151617"                    # RecallScene 0-7
+    "22"                                  # Toggle
+    "6062636465666768"                    # Press/Release variants
+)
+
+
+def test_gpep_incoming_real_frame_bj6716u():
+    """Parse the commissioning frame captured by a community tester.
+
+    Before this schema override the v4 layout inherited up to v16 treated
+    the address as five scattered fields and ran off the end of the
+    buffer. The symptom was ``ValueError: Data is too short`` exactly as
+    reported in zigpy/zigpy#1814.
+    """
+    _, _, rx_schema = bellows.ezsp.v13.commands.COMMANDS[
+        "gpepIncomingMessageHandler"
+    ]
+    result, rest = t.deserialize_dict(BJ6716U_GPEP_PAYLOAD, rx_schema)
+
+    assert rest == b""
+    # ``status`` comes through as a plain byte — the strict ``sl_GpStatus``
+    # enum only covers 0x00..0x07 and would have dropped the whole frame.
+    assert result["status"] == 0x7C
+    assert result["gpdLink"] == 0xCD
+    assert result["sequenceNumber"] == 0xEC
+
+    addr = result["addr"]
+    assert addr.applicationId == 0
+    assert addr.source_id == 0x0171F886
+    assert addr.endpoint == 0
+
+    assert result["gpdfSecurityLevel"] == 0
+    assert result["gpdfSecurityKeyType"] == 0
+    assert result["gpdSecurityFrameCounter"] == 0xFFFFFFFF
+    assert result["gpdCommandId"] == 0xE0  # GPD Commissioning
+    # Commissioning payload: deviceId=0x02, then options, then the 17
+    # advertised GPD commands at the tail.
+    payload = result["gpdCommandPayload"]
+    assert len(payload) == 46
+    assert payload[:3] == b"\x02\xc5\xf2"
+    assert payload[-8:] == bytes.fromhex("6062636465666768")
+
+
+def test_gpep_incoming_via_frame_rx(ezsp_f):
+    """The same frame wrapped in the EZSP v13 envelope reaches the callback.
+
+    Builds a synthetic EZSP frame (``seq`` + padding + ``frame_id`` LE +
+    payload) and feeds it to the protocol handler. The callback must be
+    dispatched with the parsed result — no ``Failed to parse frame``
+    warning.
+    """
+    envelope = (
+        bytes([0x42, 0x00, 0x01])        # seq + control bytes
+        + t.uint16_t(0x00C5).serialize()  # frame_id LE
+        + BJ6716U_GPEP_PAYLOAD
+    )
+
+    ezsp_f(envelope)
+
+    assert ezsp_f._handle_callback.call_count == 1
+    assert ezsp_f._handle_callback.call_args[0][0] == "gpepIncomingMessageHandler"
+    parsed = ezsp_f._handle_callback.call_args[0][1]
+    # ``parsed`` is the list of values in schema order.
+    assert parsed[0] == 0x7C                # status
+    assert parsed[3].source_id == 0x0171F886  # addr.source_id
+    assert parsed[9] == 0xE0                # gpdCommandId
