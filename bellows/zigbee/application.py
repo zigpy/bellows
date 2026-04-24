@@ -78,6 +78,13 @@ IEEE_PREFIX_MFG_ID = {
 
 DEFAULT_TX_POWER = 8  # dBm
 
+# Zigbee Green Power spec constants — hardcoded rather than imported from
+# ``zigpy.zgp`` so bellows does not depend on the upstream zigpy release
+# shipping these symbols. These values are fixed by the ZGP 1.1b profile.
+GP_ENDPOINT = 242
+GP_CLUSTER_ID = 0x0021
+GP_PROFILE_ID = 0xA1E0
+
 LIB_VERSION = importlib.metadata.version("bellows")
 LOGGER = logging.getLogger(__name__)
 
@@ -798,15 +805,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     addr_mode=zigpy.types.AddrMode.NWK,
                     address=zigpy.types.NWK(proxy_nwk),
                 ),
-                src_ep=zigpy.types.uint8_t(zgp_t.GP_ENDPOINT),
+                src_ep=zigpy.types.uint8_t(GP_ENDPOINT),
                 dst=zigpy.types.AddrModeAddress(
                     addr_mode=zigpy.types.AddrMode.NWK,
                     address=self.state.node_info.nwk,
                 ),
-                dst_ep=zigpy.types.uint8_t(zgp_t.GP_ENDPOINT),
+                dst_ep=zigpy.types.uint8_t(GP_ENDPOINT),
                 tsn=zigpy.types.uint8_t(int(sequence_number) & 0xFF),
-                profile_id=zigpy.types.uint16_t(0xA1E0),
-                cluster_id=zigpy.types.uint16_t(zgp_t.GP_CLUSTER_ID),
+                profile_id=zigpy.types.uint16_t(GP_PROFILE_ID),
+                cluster_id=zigpy.types.uint16_t(GP_CLUSTER_ID),
                 data=zigpy.types.SerializableBytes(zcl_bytes),
                 lqi=zigpy.types.uint8_t(lqi),
                 rssi=zigpy.types.int8s(rssi),

@@ -241,29 +241,29 @@ async def test_factory_reset(ezsp_f) -> None:
 
 # Payload without the EZSP frame envelope, as passed to ``deserialize_dict``.
 BJ6716U_GPEP_PAYLOAD: bytes = bytes.fromhex(
-    "7ccdec"                              # status, gpdLink, sequenceNumber
-    "00"                                  # EmberGpAddress.applicationId = 0 (SrcID)
-    "86f8710186f87101"                    # EmberGpAddress.id (8-byte union,
-                                          #   sourceId = 0x0171F886 in first 4 LE)
-    "00"                                  # EmberGpAddress.endpoint
-    "00"                                  # gpdfSecurityLevel
-    "00"                                  # gpdfSecurityKeyType
-    "00"                                  # autoCommissioning
-    "00"                                  # bidirectionalInfo
-    "ffffffff"                            # gpdSecurityFrameCounter (commissioning)
-    "e0"                                  # gpdCommandId = 0xE0 (Commissioning)
-    "ffffffff"                            # mic
-    "ff"                                  # proxyTableIndex
-    "2e"                                  # LVBytes length = 46
-    "02c5f2"                              # commissioning: deviceId, options, extOptions
-    "1ce9ae2f9e4f85f15de37c1ccbd94387"    # encrypted GPD key (16 bytes)
-    "0013911a"                            # KeyMIC
-    "ec1d0000"                            # OutgoingCounter = 0x00001DEC
-    "04"                                  # AppInfo
-    "11"                                  # NumGPDCommands = 17
-    "1011121314151617"                    # RecallScene 0-7
-    "22"                                  # Toggle
-    "6062636465666768"                    # Press/Release variants
+    "7ccdec"  # status, gpdLink, sequenceNumber
+    "00"  # EmberGpAddress.applicationId = 0 (SrcID)
+    "86f8710186f87101"  # EmberGpAddress.id (8-byte union,
+    #   sourceId = 0x0171F886 in first 4 LE)
+    "00"  # EmberGpAddress.endpoint
+    "00"  # gpdfSecurityLevel
+    "00"  # gpdfSecurityKeyType
+    "00"  # autoCommissioning
+    "00"  # bidirectionalInfo
+    "ffffffff"  # gpdSecurityFrameCounter (commissioning)
+    "e0"  # gpdCommandId = 0xE0 (Commissioning)
+    "ffffffff"  # mic
+    "ff"  # proxyTableIndex
+    "2e"  # LVBytes length = 46
+    "02c5f2"  # commissioning: deviceId, options, extOptions
+    "1ce9ae2f9e4f85f15de37c1ccbd94387"  # encrypted GPD key (16 bytes)
+    "0013911a"  # KeyMIC
+    "ec1d0000"  # OutgoingCounter = 0x00001DEC
+    "04"  # AppInfo
+    "11"  # NumGPDCommands = 17
+    "1011121314151617"  # RecallScene 0-7
+    "22"  # Toggle
+    "6062636465666768"  # Press/Release variants
 )
 
 
@@ -275,9 +275,7 @@ def test_gpep_incoming_real_frame_bj6716u():
     buffer. The symptom was ``ValueError: Data is too short`` exactly as
     reported in zigpy/zigpy#1814.
     """
-    _, _, rx_schema = bellows.ezsp.v13.commands.COMMANDS[
-        "gpepIncomingMessageHandler"
-    ]
+    _, _, rx_schema = bellows.ezsp.v13.commands.COMMANDS["gpepIncomingMessageHandler"]
     result, rest = t.deserialize_dict(BJ6716U_GPEP_PAYLOAD, rx_schema)
 
     assert rest == b""
@@ -313,7 +311,7 @@ def test_gpep_incoming_via_frame_rx(ezsp_f):
     warning.
     """
     envelope = (
-        bytes([0x42, 0x00, 0x01])        # seq + control bytes
+        bytes([0x42, 0x00, 0x01])  # seq + control bytes
         + t.uint16_t(0x00C5).serialize()  # frame_id LE
         + BJ6716U_GPEP_PAYLOAD
     )
@@ -324,6 +322,6 @@ def test_gpep_incoming_via_frame_rx(ezsp_f):
     assert ezsp_f._handle_callback.call_args[0][0] == "gpepIncomingMessageHandler"
     parsed = ezsp_f._handle_callback.call_args[0][1]
     # ``parsed`` is the list of values in schema order.
-    assert parsed[0] == 0x7C                # status
+    assert parsed[0] == 0x7C  # status
     assert parsed[3].source_id == 0x0171F886  # addr.source_id
-    assert parsed[9] == 0xE0                # gpdCommandId
+    assert parsed[9] == 0xE0  # gpdCommandId

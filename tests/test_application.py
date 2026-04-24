@@ -552,7 +552,6 @@ def test_frame_handler_ignored(app, aps_frame):
 # tests cover both the v13/v14 wire format (no trailing SlRxPacketInfo)
 # and the v16+ wire format (with trailer).
 from zigpy.zcl.clusters.greenpower import NotificationSchema  # noqa: E402
-import zigpy.zgp.types as zgp_t  # noqa: E402
 
 
 def _gp_addr_srcid(source_id: int, endpoint: int = 0x00) -> t.EmberGpAddress:
@@ -602,9 +601,9 @@ def test_gp_frame_handler_forwards_notification(app):
     assert app.packet_received.call_count == 1
 
     packet = app.packet_received.mock_calls[0].args[0]
-    assert packet.dst_ep == zgp_t.GP_ENDPOINT
-    assert packet.src_ep == zgp_t.GP_ENDPOINT
-    assert packet.cluster_id == zgp_t.GP_CLUSTER_ID
+    assert packet.dst_ep == 242  # ZGP endpoint
+    assert packet.src_ep == 242
+    assert packet.cluster_id == 0x0021  # Green Power cluster
     assert packet.profile_id == 0xA1E0
     assert packet.dst.address == app.state.node_info.nwk
     # On v13/v14 there is no packetInfo, so bellows uses the coordinator
