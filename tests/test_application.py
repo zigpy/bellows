@@ -690,6 +690,16 @@ def test_gp_frame_handler_short_args_dropped(app):
     assert app.packet_received.call_count == 0
 
 
+def test_gp_frame_handler_legacy_address_layout_dropped(app):
+    """EZSP < v13 delivers a uint8_t addrType, not an EmberGpAddress."""
+    args = _gp_args_v13()
+    args[3] = t.uint8_t(0)  # legacy addrType in place of EmberGpAddress
+
+    app.ezsp_callback_handler("gpepIncomingMessageHandler", args)
+
+    assert app.packet_received.call_count == 0
+
+
 @pytest.mark.parametrize(
     "msg_type",
     (
