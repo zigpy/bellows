@@ -287,7 +287,7 @@ def test_gpep_incoming_real_frame_bj6716u():
 
     addr = result["addr"]
     assert addr.applicationId == 0
-    assert addr.source_id == 0x0171F886
+    assert int.from_bytes(bytes(addr.id[:4]), "little") == 0x0171F886
     assert addr.endpoint == 0
 
     assert result["gpdfSecurityLevel"] == 0
@@ -323,5 +323,5 @@ def test_gpep_incoming_via_frame_rx(ezsp_f):
     parsed = ezsp_f._handle_callback.call_args[0][1]
     # ``parsed`` is the list of values in schema order.
     assert parsed[0] == 0x7C  # status
-    assert parsed[3].source_id == 0x0171F886  # addr.source_id
+    assert int.from_bytes(bytes(parsed[3].id[:4]), "little") == 0x0171F886
     assert parsed[9] == 0xE0  # gpdCommandId

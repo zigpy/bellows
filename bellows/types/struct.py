@@ -357,42 +357,20 @@ class EmberTokTypeStackZllSecurity(EzspStruct):
 
 
 class EmberGpAddress(EzspStruct):
-    """A GP address structure.
+    """sl_zigbee_gp_address_t: GPD address used by the GP callbacks.
 
-    On the wire this is a 10-byte layout:
-
-    - ``applicationId`` (1 byte) — 0 means ``SrcID`` mode, 2 means ``IEEE``
-      mode.
-    - ``id`` (8 bytes) — a raw union. When ``applicationId == 0`` the source
-      ID lives in the first 4 bytes (little-endian) and the remaining 4
-      bytes are padding. When ``applicationId == 2`` the full 8 bytes are
-      the GPD EUI64.
-    - ``endpoint`` (1 byte).
-
-    The historical declaration here treated the union as two separate
-    fields (``gpdIeeeAddress`` + ``sourceId``) for a total of 14 bytes,
-    which does not match what the NCP sends in
-    ``gpepIncomingMessageHandler``. See the ``source_id`` and
-    ``gpd_ieee_address`` helpers below to access the right view.
+    The C SDK declares the union ``id`` field first, but the EZSP wire
+    layout for ``gpepIncomingMessageHandler`` serializes ``applicationId``
+    first. The order below matches what the NCP actually sends; see the
+    real-frame test in ``tests/test_ezsp_v13.py``.
     """
 
-    # The GPD Application ID: 0 = source ID mode, 2 = IEEE mode.
     applicationId: basic.uint8_t
-    # Raw 8-byte union. Use :attr:`source_id` or :attr:`gpd_ieee_address`
-    # to interpret it based on :attr:`applicationId`.
+    # 8-byte union. When applicationId == 0 (SrcID), the first 4 bytes
+    # hold the 32-bit source ID (little-endian) and the rest is padding;
+    # when applicationId == 2 (IEEE), the 8 bytes are the GPD EUI64.
     id: basic.FixedList[basic.uint8_t, 8]
-    # The GPD endpoint.
     endpoint: basic.uint8_t
-
-    @property
-    def source_id(self) -> int:
-        """Return the 32-bit source ID (only valid when applicationId == 0)."""
-        return int.from_bytes(bytes(self.id[:4]), "little")
-
-    @property
-    def gpd_ieee_address(self) -> named.EUI64:
-        """Return the EUI64 (only valid when applicationId == 2)."""
-        return named.EUI64(bytes(self.id))
 
 
 class NV3StackTrustCenterToken(EzspStruct):

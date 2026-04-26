@@ -750,15 +750,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         # coordinator short address (the coordinator acts as the proxy).
         packet_info = rest[0] if rest else None
 
-        if addr.applicationId == zgp_t.ApplicationID.SrcID:
-            source_id = addr.source_id
-        else:
+        if addr.applicationId != zgp_t.ApplicationID.SrcID:
             LOGGER.debug(
-                "GP frame with unsupported applicationId %s (only SrcID is "
-                "handled), dropping",
+                "GP frame with unsupported applicationId %s, dropping",
                 addr.applicationId,
             )
             return
+
+        source_id = int.from_bytes(bytes(addr.id[:4]), "little")
 
         options = NotificationOptions(
             application_id=zgp_t.ApplicationID(addr.applicationId),

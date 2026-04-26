@@ -250,5 +250,5 @@ def test_gpep_incoming_inherits_v13_schema(ezsp_f):
     assert ezsp_f._handle_callback.call_count == 1
     assert ezsp_f._handle_callback.call_args[0][0] == "gpepIncomingMessageHandler"
     parsed = ezsp_f._handle_callback.call_args[0][1]
-    assert parsed[3].source_id == 0x0171F886
+    assert int.from_bytes(bytes(parsed[3].id[:4]), "little") == 0x0171F886
     assert parsed[9] == 0xE0  # gpdCommandId
