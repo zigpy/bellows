@@ -4,12 +4,7 @@ from ..v14.commands import COMMANDS as COMMANDS_v14
 
 COMMANDS = {
     **COMMANDS_v14,
-    # EZSP v16 appends an ``EmberRxPacketInfo`` struct after the LVBytes
-    # payload in ``gpepIncomingMessageHandler``. zigbee-herdsman gates the
-    # read on ``version >= 0x10`` (see
-    # ``src/adapter/ember/ezsp/ezsp.ts`` in the ``ember`` adapter), so v13
-    # and v14 do not carry this trailer but v16 does. v17 and v18 override
-    # the whole command again, so this entry only matters for v16.
+    # v16 appends an SlRxPacketInfo trailer to the v13/v14 layout.
     "gpepIncomingMessageHandler": (
         0x00C5,
         {},

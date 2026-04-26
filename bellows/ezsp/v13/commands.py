@@ -90,23 +90,9 @@ COMMANDS = {
             "status": t.sl_Status,
         },
     ),
-    # Redefine the Green Power incoming callback so real GPDFs from a
-    # Friends of Hue class switch actually parse. The v4 schema used
-    # scattered address fields (``addrType`` + ``addr:uint32`` +
-    # ``applicationId`` + ``address:EUI64`` + ``endpoint``) that do not
-    # match the 10-byte ``EmberGpAddress`` the NCP actually sends.
-    #
-    # ``status`` is kept as a plain ``uint8_t`` on purpose. The strict
-    # ``sl_GpStatus`` enum only accepts 0x00..0x07, but firmware versions
-    # shipped with current ZBT-1 / SkyConnect sticks return higher status
-    # bytes (e.g. 0x7C observed from a Busch-Jaeger 6716 U switch) when
-    # the frame was not matched against a proxy/sink table entry. Using a
-    # plain ``uint8_t`` lets the frame reach the host so zigpy can decide
-    # what to do with it.
-    #
-    # v14 and v16 inherit this override through the ``_REPLACEMENTS``
-    # mechanism in ``bellows/ezsp/v14/commands.py``; v17 and later keep
-    # their own schema which already uses ``EmberGpAddress``.
+    # status is kept as uint8_t (not sl_GpStatus) to accept values
+    # outside the strict 0x00..0x07 range that NCPs return for frames
+    # with no matching proxy/sink entry.
     "gpepIncomingMessageHandler": (
         0x00C5,
         {},
