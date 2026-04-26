@@ -541,21 +541,15 @@ def test_frame_handler_ignored(app, aps_frame):
     assert app.packet_received.call_count == 0
 
 
-# ---------------------------------------------------------------------------
-# gpepIncomingMessageHandler forwarding
-# ---------------------------------------------------------------------------
-#
-# Expected behaviour: the NCP delivers a flattened GPDF via
-# ``gpepIncomingMessageHandler``. bellows must reencapsulate it as a ZCL
-# GP Notification on endpoint 242, cluster 0x0021, so zigpy's GreenPower
-# manager (listening through ``packet_received``) can route it. These
-# tests cover both the v13/v14 wire format (no trailing SlRxPacketInfo)
-# and the v16+ wire format (with trailer).
-from zigpy.zcl.clusters.greenpower import NotificationSchema  # noqa: E402
+from zigpy.zcl import foundation  # noqa: E402
+from zigpy.zcl.clusters.greenpower import (  # noqa: E402
+    NotificationOptions,
+    NotificationSchema,
+)
+import zigpy.zgp.types as zgp_t  # noqa: E402
 
 
 def _gp_addr_srcid(source_id: int, endpoint: int = 0x00) -> t.EmberGpAddress:
-    """Build a 10-byte EmberGpAddress for a SrcID-mode GPD."""
     id_bytes = source_id.to_bytes(4, "little") + bytes(4)
     return t.EmberGpAddress(
         applicationId=t.uint8_t(0),
@@ -594,33 +588,78 @@ def _gp_args_v13(
     ]
 
 
+def _expected_gp_packet(
+    *,
+    src_nwk,
+    dst_nwk,
+    source_id: int,
+    sequence_number: int,
+    command_id: int,
+    payload: bytes,
+    frame_counter: int,
+    lqi: int,
+    rssi: int,
+    security_level: int = 0,
+    security_key_type: int = 0,
+) -> zigpy.types.ZigbeePacket:
+    options = NotificationOptions(
+        application_id=zgp_t.ApplicationID.SrcID,
+        also_unicast=0,
+        also_derived_group=0,
+        also_commissioned_group=0,
+        security_level=zgp_t.SecurityLevel(security_level),
+        security_key_type=zgp_t.SecurityKeyType(security_key_type),
+        appoint_temp_master=0,
+        tx_queue_full=0,
+        _reserved=0,
+    )
+    notification = NotificationSchema(
+        options=options,
+        gpd_id=zgp_t.DeviceID(source_id),
+        frame_counter=zigpy.types.uint32_t(frame_counter),
+        command_id=zigpy.types.uint8_t(command_id),
+        payload=zigpy.types.LVBytes(payload),
+    )
+    tsn = zigpy.types.uint8_t(sequence_number & 0xFF)
+    zcl_bytes = (
+        foundation.ZCLHeader.cluster(tsn=tsn, command_id=0x00).serialize()
+        + notification.serialize()
+    )
+    return zigpy.types.ZigbeePacket(
+        src=zigpy.types.AddrModeAddress(
+            addr_mode=zigpy.types.AddrMode.NWK,
+            address=zigpy.types.NWK(src_nwk),
+        ),
+        src_ep=zigpy.types.uint8_t(242),
+        dst=zigpy.types.AddrModeAddress(
+            addr_mode=zigpy.types.AddrMode.NWK, address=dst_nwk
+        ),
+        dst_ep=zigpy.types.uint8_t(242),
+        tsn=tsn,
+        profile_id=zigpy.types.uint16_t(0xA1E0),
+        cluster_id=zigpy.types.uint16_t(0x0021),
+        data=zigpy.types.SerializableBytes(zcl_bytes),
+        lqi=zigpy.types.uint8_t(lqi),
+        rssi=zigpy.types.int8s(rssi),
+    )
+
+
 def test_gp_frame_handler_forwards_notification(app):
-    """A GPDF is forwarded to zigpy as a ZCL GP Notification."""
+    """A GPDF is forwarded as the exact ZCL GP Notification packet."""
     app.ezsp_callback_handler("gpepIncomingMessageHandler", _gp_args_v13())
 
-    assert app.packet_received.call_count == 1
-
-    packet = app.packet_received.mock_calls[0].args[0]
-    assert packet.dst_ep == 242  # ZGP endpoint
-    assert packet.src_ep == 242
-    assert packet.cluster_id == 0x0021  # Green Power cluster
-    assert packet.profile_id == 0xA1E0
-    assert packet.dst.address == app.state.node_info.nwk
-    # On v13/v14 there is no packetInfo, so bellows uses the coordinator
-    # short address as a stand-in for the proxy NWK.
-    assert packet.src.address == app.state.node_info.nwk
-
-    # ZCL header: 0x01 (cluster-specific, client→server) + TSN + cmd 0x00
-    raw = packet.data.serialize()
-    assert raw[0] == 0x01
-    assert raw[2] == 0x00  # GP Notification
-    notification = NotificationSchema.deserialize(raw[3:])[0]
-    assert int(notification.gpd_id) == 0x0171F886
-    assert int(notification.frame_counter) == 0xFFFFFFFF
-    assert int(notification.command_id) == 0xE0
-    # Commissioning payload is carried verbatim so zigpy can parse it
-    assert bytes(notification.payload) == b"\x02\xc5\xf2" + bytes(43)
-
+    expected = _expected_gp_packet(
+        src_nwk=int(app.state.node_info.nwk),
+        dst_nwk=app.state.node_info.nwk,
+        source_id=0x0171F886,
+        sequence_number=0xEC,
+        command_id=0xE0,
+        payload=b"\x02\xc5\xf2" + bytes(43),
+        frame_counter=0xFFFFFFFF,
+        lqi=0xCD,
+        rssi=0,
+    )
+    assert app.packet_received.mock_calls == [call(expected)]
     assert (
         app.state.counters[bellows.zigbee.application.COUNTERS_CTRL][
             bellows.zigbee.application.COUNTER_RX_GP
@@ -644,34 +683,43 @@ def test_gp_frame_handler_v16_uses_packet_info(app):
 
     app.ezsp_callback_handler("gpepIncomingMessageHandler", args)
 
-    assert app.packet_received.call_count == 1
-    packet = app.packet_received.mock_calls[0].args[0]
-    assert packet.src.address == 0x1234
-    assert packet.lqi == 210
-    assert packet.rssi == -40
+    expected = _expected_gp_packet(
+        src_nwk=0x1234,
+        dst_nwk=app.state.node_info.nwk,
+        source_id=0x0171F886,
+        sequence_number=0xEC,
+        command_id=0xE0,
+        payload=b"\x02\xc5\xf2" + bytes(43),
+        frame_counter=0xFFFFFFFF,
+        lqi=210,
+        rssi=-40,
+    )
+    assert app.packet_received.mock_calls == [call(expected)]
 
 
 def test_gp_frame_handler_data_command_toggle(app):
-    """An operational data command (e.g. Toggle) is forwarded the same way."""
+    """A non-commissioning command (Toggle) is forwarded the same way."""
     app.ezsp_callback_handler(
         "gpepIncomingMessageHandler",
         _gp_args_v13(command_id=0x22, payload=b"", frame_counter=42),
     )
 
-    assert app.packet_received.call_count == 1
-    packet = app.packet_received.mock_calls[0].args[0]
-    notification = NotificationSchema.deserialize(packet.data.serialize()[3:])[0]
-    assert int(notification.command_id) == 0x22
-    assert int(notification.frame_counter) == 42
-    assert bytes(notification.payload) == b""
+    expected = _expected_gp_packet(
+        src_nwk=int(app.state.node_info.nwk),
+        dst_nwk=app.state.node_info.nwk,
+        source_id=0x0171F886,
+        sequence_number=0xEC,
+        command_id=0x22,
+        payload=b"",
+        frame_counter=42,
+        lqi=0xCD,
+        rssi=0,
+    )
+    assert app.packet_received.mock_calls == [call(expected)]
 
 
 def test_gp_frame_handler_ieee_application_id_dropped(app):
-    """IEEE-addressed GPDs are not supported by the zigpy GP stack yet.
-
-    Rather than fabricate a best-effort SrcID, drop the frame with a
-    debug log so interoperability issues surface cleanly.
-    """
+    """IEEE-addressed GPDs are dropped: the zigpy GP stack only handles SrcID."""
     args = _gp_args_v13()
     args[3] = t.EmberGpAddress(
         applicationId=t.uint8_t(2),
