@@ -991,8 +991,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             aps_frame.groupId = t.uint16_t(0x0000)
 
         if self.config[zigpy.config.CONF_SOURCE_ROUTING]:
-            # Source routing uses address discovery to discover routes
-            aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
+            # Concentrator/source-routing uses address discovery; also keep AODV
+            # route discovery as a fallback for destinations that aren't yet in
+            # the NCP's source-route table (e.g. immediately after startup,
+            # before the first MTORR has propagated). Mirrors what
+            # zigbee-herdsman's ember adapter does for the same reason.
+            aps_frame.options |= (
+                t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
+                | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+            )
         elif zigpy.types.TransmitOptions.FORCE_ROUTE_DISCOVERY in packet.tx_options:
             # Forcing route discovery requires retrying
             aps_frame.options |= t.EmberApsOption.APS_OPTION_FORCE_ROUTE_DISCOVERY
