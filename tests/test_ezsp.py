@@ -431,7 +431,7 @@ async def test_set_enable_source_routing(ezsp_f):
     assert len(ezsp_f.setSourceRouteDiscoveryMode.mock_calls) == 1
     assert (
         ezsp_f.setSourceRouteDiscoveryMode.mock_calls[0].kwargs["mode"]
-        == t.SourceRouteDiscoveryMode.ON
+        == t.SourceRouteDiscoveryMode.RESCHEDULE
     )
 
 
