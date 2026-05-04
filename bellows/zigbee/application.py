@@ -1042,8 +1042,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                                 ]
                             ):
                                 await self._ezsp.xncp_set_manual_source_route(
-                                    nwk=packet.dst.address,
-                                    relays=packet.source_route,
+                                    destination=packet.dst.address,
+                                    route=packet.source_route,
                                 )
                             else:
                                 await self._ezsp.set_source_route(
