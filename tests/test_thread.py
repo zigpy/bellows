@@ -157,7 +157,8 @@ async def test_proxy_loop_closed():
     obj = mock.MagicMock()
     proxy = ThreadsafeProxy(obj, loop)
     loop.close()
-    proxy.test()
+    with pytest.raises(ConnectionError, match="closed event loop"):
+        proxy.test()
     assert obj.test.call_count == 0
 
 

@@ -117,6 +117,9 @@ class EZSP:
 
     async def _startup_reset(self) -> None:
         """Start EZSP and reset the stack."""
+        if self._gw is None:
+            raise EzspError("Gateway is not connected")
+
         # `zigbeed` resets on startup
         if self.is_tcp_serial_port:
             try:
@@ -220,8 +223,21 @@ class EZSP:
 
     async def disconnect(self):
         self.stop_ezsp()
-        if self._gw:
-            await self._gw.disconnect()
+        if self._gw is not None:
+            try:
+                await self._gw.disconnect()
+            except ConnectionError:
+                # The secondary event loop is dead. Force-close the
+                # underlying TCP socket so ser2net (or similar) releases
+                # the serial port for subsequent connection attempts.
+                try:
+                    ash = self._gw._obj._transport
+                    if ash is not None and ash._transport is not None:
+                        sock = ash._transport.get_extra_info("socket")
+                        if sock is not None:
+                            sock.close()
+                except Exception:
+                    pass
             self._gw = None
 
     async def _command(self, name: str, *args: Any, **kwargs: Any) -> Any:

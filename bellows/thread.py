@@ -1,6 +1,7 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import functools
+import inspect
 import logging
 
 LOGGER = logging.getLogger(__name__)
@@ -14,7 +15,7 @@ class EventLoopThread:
         self.thread_complete = None
 
     def run_coroutine_threadsafe(self, coroutine):
-        current_loop = asyncio.get_event_loop()
+        current_loop = asyncio.get_running_loop()
         future = asyncio.run_coroutine_threadsafe(coroutine, self.loop)
         return asyncio.wrap_future(future, loop=current_loop)
 
@@ -30,7 +31,7 @@ class EventLoopThread:
             self.loop = None
 
     async def start(self):
-        current_loop = asyncio.get_event_loop()
+        current_loop = asyncio.get_running_loop()
         if self.loop is not None and not self.loop.is_closed():
             return
 
@@ -95,11 +96,21 @@ class ThreadsafeProxy:
             if loop == curr_loop:
                 return call()
             if loop.is_closed():
-                # Disconnected
-                LOGGER.warning("Attempted to use a closed event loop")
-                return
-            if asyncio.iscoroutinefunction(func):
-                future = asyncio.run_coroutine_threadsafe(call(), loop)
+                raise ConnectionError(
+                    "Attempted to use a closed event loop, "
+                    "the connection may have been lost"
+                )
+            if inspect.iscoroutinefunction(func):
+                coro = call()
+                try:
+                    future = asyncio.run_coroutine_threadsafe(coro, loop)
+                except RuntimeError:
+                    # Loop closed between is_closed() check and dispatch
+                    coro.close()
+                    raise ConnectionError(
+                        "Attempted to use a closed event loop, "
+                        "the connection may have been lost"
+                    )
                 return asyncio.wrap_future(future, loop=curr_loop)
             else:
 

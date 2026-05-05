@@ -35,8 +35,7 @@ class ZigbeeNodeParamType(click.ParamType):
 def background(f):
     @functools.wraps(f)
     def inner(*args, **kwargs):
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(f(*args, **kwargs))
+        asyncio.run(f(*args, **kwargs))
 
     return inner
 
