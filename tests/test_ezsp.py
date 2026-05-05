@@ -813,6 +813,54 @@ async def test_disconnect_gw_none():
     assert ezsp._gw is None
 
 
+async def test_disconnect_force_closes_socket_on_connection_error():
+    """If the gateway's `disconnect()` raises ConnectionError (the secondary
+    event loop is dead), force-close the underlying TCP socket so ser2net
+    or similar serial-over-TCP bridges release the port for subsequent
+    connection attempts."""
+    ezsp = make_ezsp()
+
+    mock_socket = MagicMock()
+
+    mock_asyncio_transport = MagicMock()
+    mock_asyncio_transport.get_extra_info.return_value = mock_socket
+
+    mock_ash_transport = MagicMock()
+    mock_ash_transport._transport = mock_asyncio_transport
+
+    mock_obj = MagicMock()
+    mock_obj._transport = mock_ash_transport
+
+    mock_gw = MagicMock()
+    mock_gw._obj = mock_obj
+    mock_gw.disconnect = AsyncMock(side_effect=ConnectionError("loop closed"))
+    ezsp._gw = mock_gw
+
+    await ezsp.disconnect()
+
+    mock_asyncio_transport.get_extra_info.assert_called_once_with("socket")
+    mock_socket.close.assert_called_once()
+    assert ezsp._gw is None
+
+
+async def test_disconnect_socket_force_close_swallows_exceptions():
+    """When force-closing the underlying TCP socket after a ConnectionError
+    from `_gw.disconnect()`, any AttributeError or other exception walking
+    the proxy/transport chain must be swallowed so the integration can
+    still mark the gateway as None and proceed to retry."""
+    ezsp = make_ezsp()
+
+    # _obj has no `_transport` attribute, so the inner access raises.
+    mock_gw = MagicMock()
+    mock_gw._obj = object()
+    mock_gw.disconnect = AsyncMock(side_effect=ConnectionError("loop closed"))
+    ezsp._gw = mock_gw
+
+    await ezsp.disconnect()  # Should not raise
+
+    assert ezsp._gw is None
+
+
 async def test_wait_for_stack_status(ezsp_f):
     assert not ezsp_f._stack_status_listeners[t.sl_Status.NETWORK_DOWN]
 

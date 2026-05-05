@@ -162,6 +162,30 @@ async def test_proxy_loop_closed():
     assert obj.test.call_count == 0
 
 
+async def test_proxy_coroutine_loop_closed_mid_dispatch():
+    """If the loop closes between the `is_closed()` check and
+    `run_coroutine_threadsafe()`, the proxy must close the orphaned
+    coroutine and surface the failure as ConnectionError instead of
+    leaking an un-awaited coroutine warning."""
+    loop = asyncio.new_event_loop()
+
+    async def fake_coro():  # pragma: no cover - never awaited
+        return None
+
+    obj = mock.MagicMock()
+    obj.test = fake_coro
+    proxy = ThreadsafeProxy(obj, loop)
+
+    with mock.patch(
+        "asyncio.run_coroutine_threadsafe",
+        side_effect=RuntimeError("loop closed"),
+    ):
+        with pytest.raises(ConnectionError, match="closed event loop"):
+            proxy.test()
+
+    loop.close()
+
+
 async def test_thread_task_cancellation_after_stop(thread):
     loop = asyncio.get_event_loop()
     obj = mock.MagicMock()
