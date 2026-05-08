@@ -14,12 +14,16 @@ RESET_TIMEOUT = 2.5
 
 
 class Gateway(zigpy.serial.SerialProtocol):
-    def __init__(self, api, connection_done_future=None):
+    def __init__(self, api, connection_done_future=None, loop=None):
         super().__init__()
         self._api = api
 
         self._reset_future = None
-        self._startup_reset_future = None
+        # Pre-create so reset frames arriving immediately after connect are
+        # captured by reset_received() instead of triggering enter_failed_state().
+        # Tests construct Gateway without a loop and expect None here; in that
+        # case wait_for_startup_reset() will lazily create the future.
+        self._startup_reset_future = loop.create_future() if loop is not None else None
         self._connection_done_future = connection_done_future
 
     async def send_data(self, data: bytes) -> None:
@@ -110,13 +114,8 @@ async def _connect(config, api):
 
     connection_done_future = loop.create_future()
 
-    gateway = Gateway(api, connection_done_future)
+    gateway = Gateway(api, connection_done_future, loop=loop)
     protocol = AshProtocol(gateway)
-
-    # Pre-create the startup reset future before opening the connection so that
-    # reset frames arriving immediately after connect are captured by
-    # reset_received() instead of triggering enter_failed_state().
-    gateway._startup_reset_future = loop.create_future()
 
     if config[zigpy.config.CONF_DEVICE_FLOW_CONTROL] is None:
         xon_xoff, rtscts = True, False
