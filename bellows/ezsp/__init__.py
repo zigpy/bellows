@@ -224,12 +224,10 @@ class EZSP:
     async def disconnect(self):
         self.stop_ezsp()
         if self._gw is not None:
-            try:
+            # Secondary loop closed; the proxy can't reach the gateway.
+            # Drop the reference so the caller can rebuild from scratch.
+            with contextlib.suppress(ConnectionError):
                 await self._gw.disconnect()
-            except ConnectionError:
-                # Secondary loop closed; the proxy can't reach the gateway.
-                # Drop the reference so the caller can rebuild from scratch.
-                pass
             self._gw = None
 
     async def _command(self, name: str, *args: Any, **kwargs: Any) -> Any:
