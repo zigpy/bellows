@@ -227,17 +227,9 @@ class EZSP:
             try:
                 await self._gw.disconnect()
             except ConnectionError:
-                # The secondary event loop is dead. Force-close the
-                # underlying TCP socket so ser2net (or similar) releases
-                # the serial port for subsequent connection attempts.
-                try:
-                    ash = self._gw._obj._transport
-                    if ash is not None and ash._transport is not None:
-                        sock = ash._transport.get_extra_info("socket")
-                        if sock is not None:
-                            sock.close()
-                except Exception:
-                    pass
+                # Secondary loop closed; the proxy can't reach the gateway.
+                # Drop the reference so the caller can rebuild from scratch.
+                pass
             self._gw = None
 
     async def _command(self, name: str, *args: Any, **kwargs: Any) -> Any:
