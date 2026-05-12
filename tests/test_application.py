@@ -668,35 +668,6 @@ def test_gp_frame_handler_forwards_notification(app):
     )
 
 
-def test_gp_frame_handler_v16_uses_packet_info(app):
-    """On v16+, the trailing SlRxPacketInfo provides the proxy NWK + LQI/RSSI."""
-    packet_info = t.SlRxPacketInfo(
-        sender_short_id=t.NWK(0x1234),
-        sender_long_id=t.EUI64.convert("00:11:22:33:44:55:66:77"),
-        binding_index=t.uint8_t(0xFF),
-        address_index=t.uint8_t(0xFF),
-        last_hop_lqi=t.uint8_t(210),
-        last_hop_rssi=t.int8s(-40),
-        last_hop_timestamp=t.uint32_t(0xDEADBEEF),
-    )
-    args = _gp_args_v13() + [packet_info]
-
-    app.ezsp_callback_handler("gpepIncomingMessageHandler", args)
-
-    expected = _expected_gp_packet(
-        src_nwk=0x1234,
-        dst_nwk=app.state.node_info.nwk,
-        source_id=0x0171F886,
-        sequence_number=0xEC,
-        command_id=0xE0,
-        payload=b"\x02\xc5\xf2" + bytes(43),
-        frame_counter=0xFFFFFFFF,
-        lqi=210,
-        rssi=-40,
-    )
-    assert app.packet_received.mock_calls == [call(expected)]
-
-
 def test_gp_frame_handler_data_command_toggle(app):
     """A non-commissioning command (Toggle) is forwarded the same way."""
     app.ezsp_callback_handler(

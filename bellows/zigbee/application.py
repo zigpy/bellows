@@ -545,9 +545,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         if use_hashed_tclk and not stack_specific.get("hashed_tclk"):
             # Generate a random default
-            network_info.stack_specific.setdefault("ezsp", {})[
-                "hashed_tclk"
-            ] = os.urandom(16).hex()
+            network_info.stack_specific.setdefault("ezsp", {})["hashed_tclk"] = (
+                os.urandom(16).hex()
+            )
 
         initial_security_state = util.zha_security(
             network_info=network_info,
@@ -729,7 +729,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             _mic,
             _proxy_table_index,
             gpd_command_payload,
-            *rest,
         ) = args
 
         # On EZSP < v13 the 4th argument is a uint8_t addrType, not an
@@ -751,8 +750,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             return
 
         source_id = int.from_bytes(bytes(addr.id[:4]), "little")
-        # v16+ appends an SlRxPacketInfo after the payload.
-        packet_info = rest[0] if rest else None
 
         options = NotificationOptions(
             application_id=zgp_t.ApplicationID(addr.applicationId),
@@ -776,16 +773,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         zcl_header = foundation.ZCLHeader.cluster(tsn=tsn, command_id=0x00)
         zcl_bytes = zcl_header.serialize() + notification.serialize()
 
-        if packet_info is not None:
-            proxy_nwk = int(packet_info.sender_short_id)
-            lqi = int(packet_info.last_hop_lqi)
-            rssi = int(packet_info.last_hop_rssi)
-        else:
-            # No SlRxPacketInfo on v13/v14: the coordinator stands in as
-            # the proxy and gpdLink is the only signal-quality byte.
-            proxy_nwk = int(self.state.node_info.nwk)
-            lqi = int(gpd_link)
-            rssi = 0
+        # The coordinator stands in as the proxy; gpdLink carries the
+        # signal quality the NCP saw for this GPDF.
+        proxy_nwk = int(self.state.node_info.nwk)
+        lqi = int(gpd_link)
+        rssi = 0
 
         self.state.counters[COUNTERS_CTRL][COUNTER_RX_GP].increment()
 
