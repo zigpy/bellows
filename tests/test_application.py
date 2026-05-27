@@ -899,7 +899,7 @@ async def test_send_packet_unicast_manual_source_route(make_app, packet):
     app._ezsp._xncp_features |= FirmwareFeatures.MANUAL_SOURCE_ROUTE
 
     app._ezsp.xncp_set_manual_source_route = AsyncMock(
-        return_value=None, spec=app._ezsp._protocol.set_source_route
+        return_value=None, spec=app._ezsp.xncp_set_manual_source_route
     )
 
     packet.source_route = [0x0001, 0x0002]
@@ -913,8 +913,8 @@ async def test_send_packet_unicast_manual_source_route(make_app, packet):
     )
 
     app._ezsp.xncp_set_manual_source_route.assert_called_once_with(
-        nwk=packet.dst.address,
-        relays=[0x0001, 0x0002],
+        destination=packet.dst.address,
+        route=[0x0001, 0x0002],
     )
 
 
