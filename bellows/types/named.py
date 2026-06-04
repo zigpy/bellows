@@ -2884,3 +2884,10 @@ class RouteRecordConcentratortype(basic.enum8):
     NOT_A_CONCENTRATOR = 0
     LOW_RAM = 1
     HIGH_RAM = 2
+
+
+class SlZigbeeDhcPaAlgorithm(basic.enum8):
+    """Dynamic Hardware Configuration PA descriptor algorithm."""
+
+    CURVE = 0
+    TABLE = 1

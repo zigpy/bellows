@@ -18,6 +18,13 @@ _REPLACEMENTS = {
 }
 
 COMMANDS = {
+    "radioSetSchedulerPriorities": (
+        0x012B,
+        {
+            "priorities": t.SlZigbeeMultiprotocolPriorities,
+        },
+        {},
+    ),
     "setExtendedTimeout": (
         0x007E,
         {
