@@ -540,3 +540,73 @@ async def test_send_concurrency(ezsp_f, caplog) -> None:
     # All but the first queue up
     assert caplog.text.count("Send semaphore is locked, delaying before sending") == 3
     assert caplog.text.count("s delay") == 3
+
+
+# ---------------------------------------------------------------------------
+# gpepIncomingMessageHandler (0x00C5)
+#
+# v4 is the base schema inherited by EZSP v4..v12 (v13+ override it with a
+# plain ``uint8_t`` status). The fix replaces the five scattered address
+# fields with the ``EmberGpAddress`` struct and corrects ``bidirectionalInfo``
+# from ``Bool`` to ``uint8_t``. Reuse the real Busch-Jaeger 6716 U capture
+# from the v13 tests so every protocol version is exercised against the same
+# bytes.
+# ---------------------------------------------------------------------------
+
+
+def test_gpep_incoming_real_frame_bj6716u():
+    """Parse the real GP commissioning frame against the v4 base schema.
+
+    Before this fix the v4 layout treated the address as five scattered
+    fields and ``bidirectionalInfo`` as a ``Bool``, running off the end of
+    the buffer (``ValueError: Data is too short``) exactly as reported in
+    zigpy/zigpy#1814. Unlike v13, v4 keeps ``status`` typed as
+    ``EmberStatus``; the captured ``0x7C`` is the defined
+    ``EmberStatus.NO_SECURITY`` value, so it survives the strict enum.
+    """
+    from tests.test_ezsp_v13 import BJ6716U_GPEP_PAYLOAD
+
+    _, _, rx_schema = bellows.ezsp.v4.commands.COMMANDS["gpepIncomingMessageHandler"]
+    result, rest = t.deserialize_dict(BJ6716U_GPEP_PAYLOAD, rx_schema)
+
+    assert rest == b""
+    assert result["status"] == t.EmberStatus.NO_SECURITY  # 0x7C
+    assert result["gpdLink"] == 0xCD
+    assert result["sequenceNumber"] == 0xEC
+
+    addr = result["addr"]
+    assert addr.applicationId == 0
+    assert int.from_bytes(bytes(addr.id[:4]), "little") == 0x0171F886
+    assert addr.endpoint == 0
+
+    assert result["gpdfSecurityLevel"] == 0
+    assert result["gpdfSecurityKeyType"] == 0
+    assert result["gpdSecurityFrameCounter"] == 0xFFFFFFFF
+    assert result["gpdCommandId"] == 0xE0  # GPD Commissioning
+    payload = result["gpdCommandPayload"]
+    assert len(payload) == 46
+    assert payload[:3] == b"\x02\xc5\xf2"
+    assert payload[-8:] == bytes.fromhex("6062636465666768")
+
+
+def test_gpep_incoming_via_frame_rx(ezsp_f):
+    """The same frame wrapped in the EZSP v4 envelope reaches the callback.
+
+    v4 frames carry a single-byte frame id (``data[2]``); builds the
+    envelope by hand and feeds it to the protocol handler. The callback
+    must be dispatched with the parsed result - no ``Failed to parse
+    frame`` warning.
+    """
+    from tests.test_ezsp_v13 import BJ6716U_GPEP_PAYLOAD
+
+    envelope = bytes([0x42, 0x00, 0xC5]) + BJ6716U_GPEP_PAYLOAD
+
+    ezsp_f(envelope)
+
+    assert ezsp_f._handle_callback.call_count == 1
+    assert ezsp_f._handle_callback.call_args[0][0] == "gpepIncomingMessageHandler"
+    parsed = ezsp_f._handle_callback.call_args[0][1]
+    # ``parsed`` is the list of values in schema order.
+    assert parsed[0] == t.EmberStatus.NO_SECURITY  # status
+    assert int.from_bytes(bytes(parsed[3].id[:4]), "little") == 0x0171F886
+    assert parsed[9] == 0xE0  # gpdCommandId
