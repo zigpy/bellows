@@ -719,6 +719,91 @@ def test_gp_frame_handler_legacy_address_layout_dropped(app):
     assert app.packet_received.call_count == 0
 
 
+async def test_gp_frame_handler_operational_toggle(app):
+    """A Toggle from a commissioned GPD reaches zigpy's GreenPowerManager."""
+    pytest.importorskip("zigpy.zgp.manager")
+    from zigpy.zgp.device import GPDevice
+    from zigpy.zgp.events import CommandReceived
+    from zigpy.zgp.types import GPDCommandID
+
+    # The make_app fixture stubs packet_received; restore the real dispatch so
+    # the frame actually reaches the GP manager.
+    app.packet_received = ControllerApplication.packet_received.__get__(app)
+
+    source_id = 0x0171F886
+    dev = GPDevice(source_id=source_id, device_id=0x02, frame_counter=0)
+    app.green_power.add_device(dev)
+
+    received = []
+    app.green_power.on_event(CommandReceived.event_type, received.append)
+
+    app.ezsp_callback_handler(
+        "gpepIncomingMessageHandler",
+        _gp_args_v13(
+            source_id=source_id,
+            command_id=int(GPDCommandID.Toggle),
+            payload=b"",
+            frame_counter=42,
+        ),
+    )
+
+    # handle_packet dispatches processing as a background task.
+    await asyncio.sleep(0.01)
+
+    assert len(received) == 1
+    event = received[0]
+    assert event.device is dev
+    assert event.command_id == GPDCommandID.Toggle
+    assert event.payload == b""
+    assert dev.frame_counter == 42
+
+
+async def test_gp_frame_handler_commissioning_joins_device(app):
+    """A commissioning GPDF joins the device and triggers a GP Pairing."""
+    pytest.importorskip("zigpy.zgp.manager")
+    from zigpy.zgp.events import DeviceJoined
+    from zigpy.zgp.types import GP_CLUSTER_ID, GP_ENDPOINT
+
+    app.packet_received = ControllerApplication.packet_received.__get__(app)
+    app.send_packet = AsyncMock()
+
+    await app.green_power.permit_join(time_s=60)
+    assert app.green_power.is_commissioning
+
+    joined = []
+    app.green_power.on_event(DeviceJoined.event_type, joined.append)
+
+    source_id = 0x0171F886
+    app.ezsp_callback_handler(
+        "gpepIncomingMessageHandler",
+        _gp_args_v13(
+            source_id=source_id,
+            command_id=0xE0,
+            payload=bytes([0x02, 0x00]),  # device_id 0x02, options 0x00
+            frame_counter=1,
+        ),
+    )
+
+    await asyncio.sleep(0.01)
+
+    assert len(joined) == 1
+    assert joined[0].device.device_id == 0x02
+
+    dev = app.green_power.get_device(source_id)
+    assert dev is not None
+    assert dev.device_id == 0x02
+
+    # The manager transmits GP Pairing via send_packet on the GP cluster.
+    gp_packets = [
+        c.args[0]
+        for c in app.send_packet.mock_calls
+        if c.args
+        and c.args[0].cluster_id == GP_CLUSTER_ID
+        and c.args[0].dst_ep == GP_ENDPOINT
+    ]
+    assert gp_packets
+
+
 @pytest.mark.parametrize(
     "msg_type",
     (
