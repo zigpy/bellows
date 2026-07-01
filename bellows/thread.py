@@ -52,21 +52,24 @@ class EventLoopThread:
         return thread_complete
 
     def force_stop(self):
-        if self.loop is None:
+        loop = self.loop
+        if loop is None or loop.is_closed():
             return
 
         def cancel_tasks_and_stop_loop():
-            tasks = asyncio.all_tasks(loop=self.loop)
+            tasks = asyncio.all_tasks(loop=loop)
 
             for task in tasks:
-                self.loop.call_soon_threadsafe(task.cancel)
+                loop.call_soon_threadsafe(task.cancel)
 
             gather = asyncio.gather(*tasks, return_exceptions=True)
-            gather.add_done_callback(
-                lambda _: self.loop.call_soon_threadsafe(self.loop.stop)
-            )
+            gather.add_done_callback(lambda _: loop.call_soon_threadsafe(loop.stop))
 
-        self.loop.call_soon_threadsafe(cancel_tasks_and_stop_loop)
+        try:
+            loop.call_soon_threadsafe(cancel_tasks_and_stop_loop)
+        except RuntimeError:  # pragma: no cover
+            # loop closed by the worker thread after our is_closed() check
+            pass
 
 
 class ThreadsafeProxy:
