@@ -1,5 +1,6 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+import contextlib
 import functools
 import logging
 
@@ -65,11 +66,9 @@ class EventLoopThread:
             gather = asyncio.gather(*tasks, return_exceptions=True)
             gather.add_done_callback(lambda _: loop.call_soon_threadsafe(loop.stop))
 
-        try:
+        # The worker thread may close the loop after our is_closed() check.
+        with contextlib.suppress(RuntimeError):
             loop.call_soon_threadsafe(cancel_tasks_and_stop_loop)
-        except RuntimeError:  # pragma: no cover
-            # loop closed by the worker thread after our is_closed() check
-            pass
 
 
 class ThreadsafeProxy:
