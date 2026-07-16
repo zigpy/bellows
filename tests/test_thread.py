@@ -161,6 +161,20 @@ async def test_proxy_loop_closed():
     assert obj.test.call_count == 0
 
 
+async def test_proxy_async_loop_closed():
+    loop = asyncio.new_event_loop()
+    obj = mock.MagicMock()
+
+    async def test():
+        return mock.sentinel.result
+
+    obj.test = test
+    proxy = ThreadsafeProxy(obj, loop)
+    loop.close()
+
+    assert await proxy.test() is None
+
+
 async def test_thread_task_cancellation_after_stop(thread):
     loop = asyncio.get_event_loop()
     obj = mock.MagicMock()
