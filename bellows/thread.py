@@ -1,6 +1,7 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import functools
+import inspect
 import logging
 
 LOGGER = logging.getLogger(__name__)
@@ -88,18 +89,18 @@ class ThreadsafeProxy:
                 )
             )
 
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
 
             async def async_func_wrapper(*args, **kwargs):
+                """Run async proxy calls when this returned coroutine is awaited."""
                 loop = self._obj_loop
                 curr_loop = asyncio.get_running_loop()
                 call = functools.partial(func, *args, **kwargs)
                 if loop == curr_loop:
                     return await call()
                 if loop.is_closed():
-                    # Disconnected
                     LOGGER.warning("Attempted to use a closed event loop")
-                    return None
+                    raise ConnectionResetError("Attempted to use a closed event loop")
                 future = asyncio.run_coroutine_threadsafe(call(), loop)
                 return await asyncio.wrap_future(future, loop=curr_loop)
 

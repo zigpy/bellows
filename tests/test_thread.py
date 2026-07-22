@@ -119,7 +119,9 @@ async def test_proxy_async(thread):
         return mock.sentinel.result
 
     obj.test = magic
-    result = await proxy.test()
+    call = proxy.test()
+    assert call_count == 0
+    result = await call
 
     assert call_count == 1
     assert result == mock.sentinel.result
@@ -165,14 +167,14 @@ async def test_proxy_async_loop_closed():
     loop = asyncio.new_event_loop()
     obj = mock.MagicMock()
 
-    async def test():
-        return mock.sentinel.result
-
-    obj.test = test
+    obj.test = mock.AsyncMock()
     proxy = ThreadsafeProxy(obj, loop)
     loop.close()
 
-    assert await proxy.test() is None
+    with pytest.raises(ConnectionResetError, match="closed event loop"):
+        await proxy.test()
+
+    obj.test.assert_not_awaited()
 
 
 async def test_thread_task_cancellation_after_stop(thread):
