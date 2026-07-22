@@ -49,6 +49,11 @@ import bellows.zigbee.util as util
 MESSAGE_SEND_TIMEOUT_MAINS = 3
 MESSAGE_SEND_TIMEOUT_BATTERY = 8
 
+# Largest unicast payload that fits in a single combined XNCP send command. The
+# `customFrame` payload is bounded (EZSP_MAX_FRAME_LENGTH), so oversized packets
+# fall back to the multi-command send path.
+MAX_COMBINED_SEND_DATA_LENGTH = 128
+
 COUNTER_EZSP_BUFFERS = "EZSP_FREE_BUFFERS"
 COUNTER_NWK_CONFLICTS = "nwk_conflicts"
 COUNTER_RESET_REQ = "reset_requests"
@@ -1029,37 +1034,69 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             try:
                 async with self._req_lock:
                     if packet.dst.addr_mode == zigpy.types.AddrMode.NWK:
-                        if device is not None:
-                            await self._ezsp.set_extended_timeout(
-                                nwk=device.nwk,
-                                ieee=device.ieee,
-                                extended_timeout=extended_timeout,
-                            )
-
-                        if packet.source_route is not None:
-                            if (
+                        # Manual source routes are installed through XNCP; native
+                        # source routes cannot be folded into the combined command
+                        use_manual_source_route = (
+                            packet.source_route is not None
+                            and (
                                 FirmwareFeatures.MANUAL_SOURCE_ROUTE
                                 in self._ezsp._xncp_features
-                                and self.config[CONF_BELLOWS_CONFIG][
-                                    CONF_MANUAL_SOURCE_ROUTING
-                                ]
-                            ):
-                                await self._ezsp.xncp_set_manual_source_route(
-                                    destination=packet.dst.address,
-                                    route=packet.source_route,
-                                )
-                            else:
-                                await self._ezsp.set_source_route(
-                                    nwk=packet.dst.address,
-                                    relays=packet.source_route,
+                            )
+                            and self.config[CONF_BELLOWS_CONFIG][
+                                CONF_MANUAL_SOURCE_ROUTING
+                            ]
+                        )
+
+                        if (
+                            FirmwareFeatures.COMBINED_SEND in self._ezsp._xncp_features
+                            and (packet.source_route is None or use_manual_source_route)
+                            and (
+                                len(packet.data.serialize())
+                                <= MAX_COMBINED_SEND_DATA_LENGTH
+                            )
+                        ):
+                            status, _ = await self._ezsp.xncp_send_unicast(
+                                destination=packet.dst.address,
+                                aps_frame=aps_frame,
+                                message_tag=message_tag,
+                                data=packet.data.serialize(),
+                                source_route=(
+                                    packet.source_route
+                                    if use_manual_source_route
+                                    else None
+                                ),
+                                extended_timeout=(
+                                    (device.ieee, extended_timeout)
+                                    if device is not None
+                                    else None
+                                ),
+                            )
+                        else:
+                            if device is not None:
+                                await self._ezsp.set_extended_timeout(
+                                    nwk=device.nwk,
+                                    ieee=device.ieee,
+                                    extended_timeout=extended_timeout,
                                 )
 
-                        status, _ = await self._ezsp.send_unicast(
-                            nwk=packet.dst.address,
-                            aps_frame=aps_frame,
-                            message_tag=message_tag,
-                            data=packet.data.serialize(),
-                        )
+                            if packet.source_route is not None:
+                                if use_manual_source_route:
+                                    await self._ezsp.xncp_set_manual_source_route(
+                                        destination=packet.dst.address,
+                                        route=packet.source_route,
+                                    )
+                                else:
+                                    await self._ezsp.set_source_route(
+                                        nwk=packet.dst.address,
+                                        relays=packet.source_route,
+                                    )
+
+                            status, _ = await self._ezsp.send_unicast(
+                                nwk=packet.dst.address,
+                                aps_frame=aps_frame,
+                                message_tag=message_tag,
+                                data=packet.data.serialize(),
+                            )
                     elif packet.dst.addr_mode == zigpy.types.AddrMode.Group:
                         status, _ = await self._ezsp.send_multicast(
                             aps_frame=aps_frame,

@@ -785,6 +785,37 @@ class EZSP:
             )
         )
 
+    async def xncp_send_unicast(
+        self,
+        destination: t.NWK,
+        aps_frame: t.EmberApsFrame,
+        message_tag: t.uint8_t,
+        data: bytes,
+        *,
+        source_route: list[t.NWK] | None = None,
+        extended_timeout: tuple[t.EUI64, bool] | None = None,
+    ) -> tuple[t.sl_Status, t.uint8_t]:
+        """Send a combined unicast command."""
+        flags = xncp.SendUnicastFlags.NONE
+        req = xncp.SendUnicastReq(
+            flags=flags,
+            destination=destination,
+            aps_frame=aps_frame,
+            message_tag=message_tag,
+            data=xncp.Bytes(data),
+        )
+
+        if extended_timeout is not None:
+            req.flags |= xncp.SendUnicastFlags.EXTENDED_TIMEOUT
+            req.ieee, req.extended_timeout = extended_timeout
+
+        if source_route is not None:
+            req.flags |= xncp.SendUnicastFlags.SOURCE_ROUTE
+            req.source_route = source_route
+
+        rsp = await self.send_xncp_frame(req)
+        return rsp.status, rsp.sequence
+
     async def xncp_get_mfg_token_override(self, token: t.EzspMfgTokenId) -> bytes:
         """Get manufacturing token override."""
         rsp = await self.send_xncp_frame(xncp.GetMfgTokenOverrideReq(token=token))
