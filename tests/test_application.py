@@ -2723,3 +2723,6 @@ async def test_multicast_group_subscription_xncp(app: ControllerApplication) -> 
 
     # Unsubscribe from a group (no-op)
     await app.unsubscribe_from_multicast_group(0x1234)
+
+    # The multicast table was never touched
+    assert len(app._ezsp._protocol.setMulticastTableEntry.mock_calls) == 0
