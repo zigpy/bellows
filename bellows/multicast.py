@@ -80,7 +80,7 @@ class Multicast:
         try:
             entry, idx = self._multicast[group_id]
         except KeyError:
-            LOGGER.error(
+            LOGGER.debug(
                 "Couldn't find MulticastTableEntry for %s multicast_id", group_id
             )
             return t.sl_Status.INVALID_INDEX

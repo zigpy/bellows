@@ -1131,6 +1131,20 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         return await super().permit(time_s)
 
+    async def _subscribe_to_multicast_group(self, group_id: t.Group) -> None:
+        """Ask the coordinator firmware to subscribe to a group, if needed."""
+        if self._multicast is None:
+            return None
+
+        await self._multicast.subscribe(group_id)
+
+    async def _unsubscribe_from_multicast_group(self, group_id: t.Group) -> None:
+        """Ask the coordinator firmware to unsubscribe from a group, if needed."""
+        if self._multicast is None:
+            return None
+
+        await self._multicast.unsubscribe(group_id)
+
     def _handle_id_conflict(self, nwk: t.EmberNodeId) -> None:
         LOGGER.warning("NWK conflict is reported for 0x%04x", nwk)
         self.state.counters[COUNTERS_CTRL][COUNTER_NWK_CONFLICTS].increment()
