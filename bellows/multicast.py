@@ -49,9 +49,11 @@ class Multicast:
         entry.endpoint = t.uint8_t(endpoint_id)
         entry.multicastId = t.EmberMulticastId(group_id)
         entry.networkIndex = t.uint8_t(0)
-        status = await self._ezsp.setMulticastTableEntry(idx, entry)
 
-        if t.sl_Status.from_ember_status(status[0]) != t.sl_Status.OK:
+        (status,) = await self._ezsp.setMulticastTableEntry(idx, entry)
+        status = t.sl_Status.from_ember_status(status)
+
+        if status != t.sl_Status.OK:
             LOGGER.warning(
                 "Set MulticastTableEntry #%s for %s multicast id: %s",
                 idx,
@@ -67,7 +69,7 @@ class Multicast:
                 status,
             )
 
-        return status[0], entry
+        return status, entry
 
     async def subscribe(self, group_id: int, endpoint_id: int = 1) -> t.sl_Status:
         if (group_id, endpoint_id) in self._multicast:
@@ -84,7 +86,10 @@ class Multicast:
             idx=idx, group_id=group_id, endpoint_id=endpoint_id
         )
 
-        self._multicast[entry.multicastId, entry.endpoint] = (entry, idx)
+        if status is t.sl_Status.OK:
+            self._multicast[entry.multicastId, entry.endpoint] = (entry, idx)
+        else:
+            self._available.add(idx)
 
         return status
 
@@ -103,7 +108,8 @@ class Multicast:
             endpoint_id=0,
         )
 
-        self._multicast.pop((group_id, endpoint_id))
-        self._available.add(idx)
+        if status is t.sl_Status.OK:
+            self._multicast.pop((group_id, endpoint_id))
+            self._available.add(idx)
 
         return status
