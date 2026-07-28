@@ -1033,6 +1033,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
             try:
                 async with self._req_lock:
+                    data = packet.data.serialize()
+
                     if packet.dst.addr_mode == zigpy.types.AddrMode.NWK:
                         # Manual source routes are installed through XNCP; native
                         # source routes cannot be folded into the combined command
@@ -1050,16 +1052,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                         if (
                             FirmwareFeatures.COMBINED_SEND in self._ezsp._xncp_features
                             and (packet.source_route is None or use_manual_source_route)
-                            and (
-                                len(packet.data.serialize())
-                                <= MAX_COMBINED_SEND_DATA_LENGTH
-                            )
+                            and (len(data) <= MAX_COMBINED_SEND_DATA_LENGTH)
                         ):
                             status, _ = await self._ezsp.xncp_send_unicast(
                                 destination=packet.dst.address,
                                 aps_frame=aps_frame,
                                 message_tag=message_tag,
-                                data=packet.data.serialize(),
+                                data=data,
                                 source_route=(
                                     packet.source_route
                                     if use_manual_source_route
@@ -1095,7 +1094,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                                 nwk=packet.dst.address,
                                 aps_frame=aps_frame,
                                 message_tag=message_tag,
-                                data=packet.data.serialize(),
+                                data=data,
                             )
                     elif packet.dst.addr_mode == zigpy.types.AddrMode.Group:
                         status, _ = await self._ezsp.send_multicast(
@@ -1103,7 +1102,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             radius=packet.radius,
                             non_member_radius=packet.non_member_radius,
                             message_tag=message_tag,
-                            data=packet.data.serialize(),
+                            data=data,
                         )
                     elif packet.dst.addr_mode == zigpy.types.AddrMode.Broadcast:
                         status, _ = await self._ezsp.send_broadcast(
@@ -1112,7 +1111,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             radius=packet.radius,
                             message_tag=message_tag,
                             aps_sequence=packet.tsn,
-                            data=packet.data.serialize(),
+                            data=data,
                         )
 
                 if status != t.sl_Status.OK:
