@@ -50,6 +50,26 @@ APP_CONFIG = {
 
 MSG_TAG = t.uint8_t(0x42)
 
+# Every `SendUnicastReq` field but `data` is fixed-size, so the largest unicast payload
+# that still fits in a single combined send command is a simple subtraction
+MAX_COMBINED_SEND_DATA_LENGTH = MAX_XNCP_PAYLOAD_LENGTH - len(
+    SendUnicastReq(
+        flags=SendUnicastFlags.NONE,
+        destination=t.EmberNodeId(0x0000),
+        aps_frame=t.EmberApsFrame(
+            profileId=0x0000,
+            clusterId=0x0000,
+            sourceEndpoint=0x00,
+            destinationEndpoint=0x00,
+            options=t.EmberApsOption(0),
+            groupId=0x0000,
+            sequence=0x00,
+        ),
+        message_tag=MSG_TAG,
+        data=b"",
+    ).serialize()
+)
+
 
 @pytest.fixture
 def ieee(init=0):
@@ -1062,13 +1082,23 @@ async def test_send_packet_unicast_combined_native_source_route_fallback(
     ]
 
 
+async def test_send_packet_unicast_combined_max_size(app, packet):
+    # The largest payload that fits in a custom frame still uses the combined command
+    app._ezsp._xncp_features |= FirmwareFeatures.COMBINED_SEND
+
+    packet = packet.replace(
+        data=zigpy_t.SerializableBytes(b"a" * MAX_COMBINED_SEND_DATA_LENGTH)
+    )
+    await _test_send_packet_unicast_combined(app, packet)
+
+
 async def test_send_packet_unicast_combined_oversized_fallback(app, packet):
-    # Payloads that do not fit in a custom frame fall back to the multi-command path
+    # One byte more does not fit and falls back to the multi-command path
     app._ezsp._xncp_features |= FirmwareFeatures.COMBINED_SEND
     app._ezsp.xncp_send_unicast = AsyncMock(spec=app._ezsp.xncp_send_unicast)
 
     packet = packet.replace(
-        data=zigpy_t.SerializableBytes(b"a" * (MAX_XNCP_PAYLOAD_LENGTH + 1))
+        data=zigpy_t.SerializableBytes(b"a" * (MAX_COMBINED_SEND_DATA_LENGTH + 1))
     )
     await _test_send_packet_unicast(app, packet)
 
