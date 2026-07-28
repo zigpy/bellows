@@ -17,6 +17,9 @@ from bellows.types import (
 
 _LOGGER = logging.getLogger(__name__)
 
+MAX_XNCP_FRAME_LENGTH = 119
+MAX_XNCP_PAYLOAD_LENGTH = MAX_XNCP_FRAME_LENGTH - 3  # u16 + u8
+
 COMMANDS: dict[XncpCommandId, type[XncpCommandPayload]] = {}
 REV_COMMANDS: dict[type[XncpCommandPayload], XncpCommandId] = {}
 

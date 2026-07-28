@@ -17,10 +17,16 @@ import zigpy.config
 
 from bellows.ash import NcpFailure
 import bellows.config as conf
-from bellows.exception import EzspError, InvalidCommandError, InvalidCommandPayload
+from bellows.exception import (
+    EzspError,
+    InvalidCommandError,
+    InvalidCommandPayload,
+    PayloadTooLongError,
+)
 from bellows.ezsp import xncp
 from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig, ValueConfig
 from bellows.ezsp.xncp import (
+    MAX_XNCP_PAYLOAD_LENGTH,
     FirmwareFeatures,
     FlowControlType,
     GetRouteTableEntryRsp,
@@ -785,7 +791,7 @@ class EZSP:
             )
         )
 
-    async def xncp_send_unicast(
+    def xncp_prepare_unicast(
         self,
         destination: t.NWK,
         aps_frame: t.EmberApsFrame,
@@ -794,8 +800,8 @@ class EZSP:
         *,
         source_route: list[t.NWK] | None = None,
         extended_timeout: tuple[t.EUI64, bool] | None = None,
-    ) -> tuple[t.sl_Status, t.uint8_t]:
-        """Send a combined unicast command."""
+    ) -> xncp.SendUnicastReq:
+        """Prepare a combined unicast command."""
         flags = xncp.SendUnicastFlags.NONE
         req = xncp.SendUnicastReq(
             flags=flags,
@@ -813,7 +819,16 @@ class EZSP:
             req.flags |= xncp.SendUnicastFlags.SOURCE_ROUTE
             req.source_route = source_route
 
-        rsp = await self.send_xncp_frame(req)
+        if len(req.serialize()) > MAX_XNCP_PAYLOAD_LENGTH:
+            raise PayloadTooLongError()
+
+        return req
+
+    async def xncp_send_unicast(
+        self, request: xncp.SendUnicastReq
+    ) -> tuple[t.sl_Status, t.uint8_t]:
+        """Send a combined unicast command."""
+        rsp = await self.send_xncp_frame(request)
         return rsp.status, rsp.sequence
 
     async def xncp_get_mfg_token_override(self, token: t.EzspMfgTokenId) -> bytes:

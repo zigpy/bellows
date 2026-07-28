@@ -1059,12 +1059,14 @@ async def test_xncp_send_unicast(
         ),
     ) as mock_send:
         status, sequence = await ezsp_f.xncp_send_unicast(
-            destination=t.NWK(0x1234),
-            aps_frame=aps_frame,
-            message_tag=0x07,
-            data=b"some data",
-            source_route=source_route,
-            extended_timeout=extended_timeout,
+            ezsp_f.xncp_prepare_unicast(
+                destination=t.NWK(0x1234),
+                aps_frame=aps_frame,
+                message_tag=0x07,
+                data=b"some data",
+                source_route=source_route,
+                extended_timeout=extended_timeout,
+            )
         )
 
     assert status == t.sl_Status.OK

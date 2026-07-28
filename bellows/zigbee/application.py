@@ -36,6 +36,7 @@ from bellows.exception import (
     ControllerError,
     EzspError,
     InvalidCommandError,
+    PayloadTooLongError,
     StackAlreadyRunning,
 )
 import bellows.ezsp
@@ -48,11 +49,6 @@ import bellows.zigbee.util as util
 
 MESSAGE_SEND_TIMEOUT_MAINS = 3
 MESSAGE_SEND_TIMEOUT_BATTERY = 8
-
-# Largest unicast payload that fits in a single combined XNCP send command. The
-# `customFrame` payload is bounded (EZSP_MAX_FRAME_LENGTH), so oversized packets
-# fall back to the multi-command send path.
-MAX_COMBINED_SEND_DATA_LENGTH = 128
 
 COUNTER_EZSP_BUFFERS = "EZSP_FREE_BUFFERS"
 COUNTER_NWK_CONFLICTS = "nwk_conflicts"
@@ -1049,27 +1045,36 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             ]
                         )
 
+                        # XNCP combined unicasts can fail in a few ways so it's simpler
+                        # to prepare the request in advance
+                        xncp_unicast = None
+
                         if (
                             FirmwareFeatures.COMBINED_SEND in self._ezsp._xncp_features
                             and (packet.source_route is None or use_manual_source_route)
-                            and (len(data) <= MAX_COMBINED_SEND_DATA_LENGTH)
                         ):
-                            status, _ = await self._ezsp.xncp_send_unicast(
-                                destination=packet.dst.address,
-                                aps_frame=aps_frame,
-                                message_tag=message_tag,
-                                data=data,
-                                source_route=(
-                                    packet.source_route
-                                    if use_manual_source_route
-                                    else None
-                                ),
-                                extended_timeout=(
-                                    (device.ieee, extended_timeout)
-                                    if device is not None
-                                    else None
-                                ),
-                            )
+                            try:
+                                xncp_unicast = self._ezsp.xncp_prepare_unicast(
+                                    destination=packet.dst.address,
+                                    aps_frame=aps_frame,
+                                    message_tag=message_tag,
+                                    data=data,
+                                    source_route=(
+                                        packet.source_route
+                                        if use_manual_source_route
+                                        else None
+                                    ),
+                                    extended_timeout=(
+                                        (device.ieee, extended_timeout)
+                                        if device is not None
+                                        else None
+                                    ),
+                                )
+                            except PayloadTooLongError:
+                                xncp_unicast = None
+
+                        if xncp_unicast is not None:
+                            status, _ = await self._ezsp.xncp_send_unicast(xncp_unicast)
                         else:
                             if device is not None:
                                 await self._ezsp.set_extended_timeout(
