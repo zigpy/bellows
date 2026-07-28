@@ -3,7 +3,9 @@ from unittest.mock import MagicMock, call
 import pytest
 import zigpy.exceptions
 import zigpy.state
+import zigpy.types
 
+from bellows.ezsp.protocol import MessageSentEvent, PacketReceivedEvent
 import bellows.ezsp.v14
 import bellows.types as t
 
@@ -224,5 +226,113 @@ async def test_send_broadcast(ezsp_f) -> None:
             radius=12,
             message_tag=0x42,
             message=b"hello",
+        )
+    ]
+
+
+def test_handle_parsed_callback_incoming_message(ezsp_f) -> None:
+    """Test handle_parsed_callback for incomingMessageHandler."""
+    handler = MagicMock()
+    ezsp_f.on_event(PacketReceivedEvent.event_type, handler)
+
+    ezsp_f.handle_parsed_callback(
+        "incomingMessageHandler",
+        {
+            "message_type": t.EmberIncomingMessageType.INCOMING_UNICAST,
+            "aps_frame": t.EmberApsFrame(
+                profileId=260,
+                clusterId=8,
+                sourceEndpoint=1,
+                destinationEndpoint=1,
+                options=(
+                    t.EmberApsOption.APS_OPTION_RETRY
+                    | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                ),
+                groupId=0,
+                sequence=168,
+            ),
+            "nwk": 0x1174,
+            "eui64": t.EUI64.convert("00:00:00:00:00:00:00:00"),
+            "binding_index": 255,
+            "address_index": 13,
+            "lqi": 192,
+            "rssi": -63,
+            "timestamp": 1333671578,
+            "message": b"\x18,\x0b\x04\x00",
+        }.values(),
+    )
+
+    assert handler.mock_calls == [
+        call(
+            PacketReceivedEvent(
+                packet=zigpy.types.ZigbeePacket(
+                    src=zigpy.types.AddrModeAddress(
+                        addr_mode=zigpy.types.AddrMode.NWK,
+                        address=zigpy.types.NWK(0x1174),
+                    ),
+                    src_ep=1,
+                    dst=None,
+                    dst_ep=1,
+                    tsn=168,
+                    profile_id=0x0104,
+                    cluster_id=0x0008,
+                    data=zigpy.types.SerializableBytes(b"\x18,\x0b\x04\x00"),
+                    lqi=192,
+                    rssi=-63,
+                )
+            )
+        )
+    ]
+
+
+def test_handle_parsed_callback_message_sent(ezsp_f) -> None:
+    """Test handle_parsed_callback for messageSentHandler."""
+    handler = MagicMock()
+    ezsp_f.on_event(MessageSentEvent.event_type, handler)
+
+    ezsp_f.handle_parsed_callback(
+        "messageSentHandler",
+        {
+            "status": t.sl_Status.OK,
+            "message_type": t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+            "nwk": 0x0E0D,
+            "aps_frame": t.EmberApsFrame(
+                profileId=260,
+                clusterId=513,
+                sourceEndpoint=1,
+                destinationEndpoint=1,
+                options=(
+                    t.EmberApsOption.APS_OPTION_RETRY
+                    | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                ),
+                groupId=0,
+                sequence=236,
+            ),
+            "message_tag": 103,
+            "message": b"",
+        }.values(),
+    )
+
+    assert handler.mock_calls == [
+        call(
+            MessageSentEvent(
+                status=t.sl_Status.OK,
+                message_type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+                destination=t.EmberNodeId(0x0E0D),
+                aps_frame=t.EmberApsFrame(
+                    profileId=260,
+                    clusterId=513,
+                    sourceEndpoint=1,
+                    destinationEndpoint=1,
+                    options=(
+                        t.EmberApsOption.APS_OPTION_RETRY
+                        | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+                    ),
+                    groupId=0,
+                    sequence=236,
+                ),
+                message_tag=103,
+                message_contents=b"",
+            )
         )
     ]

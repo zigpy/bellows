@@ -7,6 +7,7 @@ import random
 
 import voluptuous as vol
 import zigpy.state
+import zigpy.types
 
 import bellows.config
 import bellows.types as t
@@ -14,6 +15,7 @@ from bellows.zigbee.util import ezsp_key_to_zigpy_key
 
 from . import commands, config
 from .. import protocol
+from ..protocol import MessageSentEvent
 
 LOGGER = logging.getLogger(__name__)
 
@@ -234,4 +236,49 @@ class EZSPv4(protocol.ProtocolHandler):
             newEui64=ieee,
             newId=nwk,
             newExtendedTimeout=extended_timeout,
+        )
+
+    def _handle_incomingMessageHandler(
+        self,
+        message_type: t.EmberIncomingMessageType,
+        aps_frame: t.EmberApsFrame,
+        lqi: t.uint8_t,
+        rssi: t.int8s,
+        sender: t.EmberNodeId,
+        binding_index: t.uint8_t,
+        address_index: t.uint8_t,
+        message: t.LVBytes,
+    ) -> None:
+        self._handle_incoming_message(
+            message_type=message_type,
+            aps_frame=aps_frame,
+            sender=sender,
+            eui64=None,
+            binding_index=binding_index,
+            address_index=address_index,
+            lqi=lqi,
+            rssi=rssi,
+            timestamp=None,
+            message=message,
+        )
+
+    def _handle_messageSentHandler(
+        self,
+        message_type: t.EmberOutgoingMessageType,
+        destination: t.EmberNodeId,
+        aps_frame: t.EmberApsFrame,
+        message_tag: t.uint8_t,
+        status: t.EmberStatus,
+        message: t.LVBytes,
+    ) -> None:
+        self.emit(
+            MessageSentEvent.event_type,
+            MessageSentEvent(
+                status=t.sl_Status.from_ember_status(status),
+                message_type=message_type,
+                destination=destination,
+                aps_frame=aps_frame,
+                message_tag=message_tag,
+                message_contents=message,
+            ),
         )

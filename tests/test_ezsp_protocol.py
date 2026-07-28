@@ -3,8 +3,15 @@ import logging
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
+import zigpy.types
 
 from bellows.ezsp import EZSP
+from bellows.ezsp.protocol import (
+    IdConflictEvent,
+    PacketReceivedEvent,
+    RouteRecordEvent,
+    TrustCenterJoinEvent,
+)
 import bellows.ezsp.v4
 import bellows.ezsp.v9
 from bellows.ezsp.v9.commands import GetTokenDataRsp
@@ -206,9 +213,9 @@ async def test_incoming_fragmented_message_incomplete(prot_hndl, caplog):
             len(prot_hndl._fragment_ack_tasks) == 0
         ), "Done callback should have removed task"
 
-        prot_hndl._handle_callback.assert_not_called()
-        assert "Fragment reassembly not complete. waiting for more data." in caplog.text
-        mock_ack.assert_called_once_with(sender, aps_frame, 2, 0)
+        assert len(prot_hndl._handle_callback.mock_calls) == 1
+        assert "Fragment reassembly not complete, waiting for more data" in caplog.text
+        assert mock_ack.mock_calls == [call(sender, aps_frame, 2, 0)]
 
 
 async def test_incoming_fragmented_message_complete(prot_hndl, caplog):
@@ -221,27 +228,34 @@ async def test_incoming_fragmented_message_complete(prot_hndl, caplog):
         b"\x90\x01\x45\x00\x04\x01\x01\xff\x02\x02\x40\x81\x01\x02\xee\xff\xf8\x6f\x1d\xff\xff\x07"
         + b"message"
     )  # fragment index 1
-    sender = 0x1D6F
 
     aps_frame_1 = t.EmberApsFrame(
         profileId=260,
-        clusterId=65281,
+        clusterId=0xFF01,
         sourceEndpoint=2,
         destinationEndpoint=2,
-        options=33088,  # Includes APS_OPTION_FRAGMENT
-        groupId=512,  # fragment_count=2, fragment_index=0
+        options=(
+            t.EmberApsOption.APS_OPTION_RETRY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+            | t.EmberApsOption.APS_OPTION_FRAGMENT
+        ),
+        groupId=0x0200,  # fragment_count=2, fragment_index=0
         sequence=238,
     )
+
     aps_frame_2 = t.EmberApsFrame(
         profileId=260,
-        clusterId=65281,
+        clusterId=0xFF01,
         sourceEndpoint=2,
         destinationEndpoint=2,
-        options=33088,
-        groupId=513,  # fragment_count=2, fragment_index=1
+        options=(
+            t.EmberApsOption.APS_OPTION_RETRY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+            | t.EmberApsOption.APS_OPTION_FRAGMENT
+        ),
+        groupId=0x0201,  # fragment_count=2, fragment_index=1
         sequence=238,
     )
-    reassembled = b"complete message"
 
     with patch.object(prot_hndl, "_send_fragment_ack", new=AsyncMock()) as mock_ack:
         mock_ack.return_value = None
@@ -250,43 +264,240 @@ async def test_incoming_fragmented_message_complete(prot_hndl, caplog):
         # Packet 1
         prot_hndl(packet1)
         assert len(prot_hndl._fragment_ack_tasks) == 1
-        ack_task = next(iter(prot_hndl._fragment_ack_tasks))
-        await asyncio.gather(ack_task)  # Ensure task completes and triggers callback
-        assert (
-            len(prot_hndl._fragment_ack_tasks) == 0
-        ), "Done callback should have removed task"
-
-        prot_hndl._handle_callback.assert_not_called()
-        assert (
-            "Reassembled fragmented message. Proceeding with normal handling."
-            not in caplog.text
-        )
-        mock_ack.assert_called_with(sender, aps_frame_1, 2, 0)
+        await asyncio.gather(
+            *prot_hndl._fragment_ack_tasks
+        )  # Ensure task completes and triggers callback
+        assert len(prot_hndl._fragment_ack_tasks) == 0
 
         # Packet 2
         prot_hndl(packet2)
         assert len(prot_hndl._fragment_ack_tasks) == 1
-        ack_task = next(iter(prot_hndl._fragment_ack_tasks))
-        await asyncio.gather(ack_task)  # Ensure task completes and triggers callback
-        assert (
-            len(prot_hndl._fragment_ack_tasks) == 0
-        ), "Done callback should have removed task"
+        await asyncio.gather(
+            *prot_hndl._fragment_ack_tasks
+        )  # Ensure task completes and triggers callback
+        assert len(prot_hndl._fragment_ack_tasks) == 0
 
-        prot_hndl._handle_callback.assert_called_once_with(
-            "incomingMessageHandler",
-            [
-                t.EmberIncomingMessageType.INCOMING_UNICAST,  # 0x00
-                aps_frame_2,  # Parsed APS frame
-                255,  # lastHopLqi: 0xFF
-                -8,  # lastHopRssi: 0xF8
-                sender,  # 0x1D6F
-                255,  # bindingIndex: 0xFF
-                255,  # addressIndex: 0xFF
-                reassembled,  # Reassembled payload
-            ],
+        assert "Reassembled fragmented message, proceeding with handling" in caplog.text
+        assert mock_ack.mock_calls == [
+            call(0x1D6F, aps_frame_1, 2, 0),
+            call(0x1D6F, aps_frame_2, 2, 1),
+        ]
+
+
+def test_incoming_message_broadcast(prot_hndl) -> None:
+    """Test handling of incoming broadcast message."""
+    handler = MagicMock()
+    prot_hndl.on_event(PacketReceivedEvent.event_type, handler)
+
+    aps_frame = t.EmberApsFrame(
+        profileId=0x0104,
+        clusterId=0x0006,
+        sourceEndpoint=1,
+        destinationEndpoint=2,
+        options=t.EmberApsOption.APS_OPTION_NONE,
+        groupId=0x0000,
+        sequence=0x42,
+    )
+
+    # v4 field order: type, apsFrame, lqi, rssi, sender, bindingIndex, addressIndex, message
+    prot_hndl.handle_parsed_callback(
+        "incomingMessageHandler",
+        [
+            t.EmberIncomingMessageType.INCOMING_BROADCAST,
+            aps_frame,
+            200,  # lqi
+            -40,  # rssi
+            t.EmberNodeId(0x1234),  # sender
+            0,  # binding_index
+            0,  # address_index
+            b"broadcast message",
+        ],
+    )
+
+    assert handler.mock_calls == [
+        call(
+            PacketReceivedEvent(
+                packet=zigpy.types.ZigbeePacket(
+                    src=zigpy.types.AddrModeAddress(
+                        addr_mode=zigpy.types.AddrMode.NWK,
+                        address=zigpy.types.NWK(0x1234),
+                    ),
+                    src_ep=1,
+                    dst=zigpy.types.AddrModeAddress(
+                        addr_mode=zigpy.types.AddrMode.Broadcast,
+                        address=zigpy.types.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
+                    ),
+                    dst_ep=2,
+                    tsn=0x42,
+                    profile_id=0x0104,
+                    cluster_id=0x0006,
+                    data=zigpy.types.SerializableBytes(b"broadcast message"),
+                    lqi=200,
+                    rssi=-40,
+                )
+            )
         )
-        assert (
-            "Reassembled fragmented message. Proceeding with normal handling."
-            in caplog.text
+    ]
+
+
+def test_incoming_message_multicast(prot_hndl) -> None:
+    """Test handling of incoming multicast message."""
+    handler = MagicMock()
+    prot_hndl.on_event(PacketReceivedEvent.event_type, handler)
+
+    aps_frame = t.EmberApsFrame(
+        profileId=0x0104,
+        clusterId=0x0006,
+        sourceEndpoint=1,
+        destinationEndpoint=2,
+        options=t.EmberApsOption.APS_OPTION_NONE,
+        groupId=0x5678,
+        sequence=0x42,
+    )
+
+    prot_hndl.handle_parsed_callback(
+        "incomingMessageHandler",
+        [
+            t.EmberIncomingMessageType.INCOMING_MULTICAST,
+            aps_frame,
+            200,
+            -40,
+            t.EmberNodeId(0x1234),
+            0,
+            0,
+            b"multicast message",
+        ],
+    )
+
+    assert handler.mock_calls == [
+        call(
+            PacketReceivedEvent(
+                packet=zigpy.types.ZigbeePacket(
+                    src=zigpy.types.AddrModeAddress(
+                        addr_mode=zigpy.types.AddrMode.NWK,
+                        address=zigpy.types.NWK(0x1234),
+                    ),
+                    src_ep=1,
+                    dst=zigpy.types.AddrModeAddress(
+                        addr_mode=zigpy.types.AddrMode.Group,
+                        address=0x5678,
+                    ),
+                    dst_ep=2,
+                    tsn=0x42,
+                    profile_id=0x0104,
+                    cluster_id=0x0006,
+                    data=zigpy.types.SerializableBytes(b"multicast message"),
+                    lqi=200,
+                    rssi=-40,
+                )
+            )
         )
-        mock_ack.assert_called_with(sender, aps_frame_2, 2, 1)
+    ]
+
+
+def test_incoming_message_ignored_type(prot_hndl, caplog) -> None:
+    """Test that unknown message types are ignored."""
+    handler = MagicMock()
+    prot_hndl.on_event(PacketReceivedEvent.event_type, handler)
+
+    aps_frame = t.EmberApsFrame(
+        profileId=0x0104,
+        clusterId=0x0006,
+        sourceEndpoint=1,
+        destinationEndpoint=2,
+        options=t.EmberApsOption.APS_OPTION_NONE,
+        groupId=0x0000,
+        sequence=0x42,
+    )
+
+    caplog.set_level(logging.DEBUG)
+    prot_hndl.handle_parsed_callback(
+        "incomingMessageHandler",
+        [
+            t.EmberIncomingMessageType.INCOMING_MANY_TO_ONE_ROUTE_REQUEST,
+            aps_frame,
+            200,
+            -40,
+            t.EmberNodeId(0x1234),
+            0,
+            0,
+            b"ignored message",
+        ],
+    )
+
+    # No event should be emitted for ignored message types
+    assert len(handler.mock_calls) == 0
+    assert "Ignoring message type" in caplog.text
+
+
+def test_trust_center_join_handler(prot_hndl) -> None:
+    """Test trustCenterJoinHandler callback."""
+    handler = MagicMock()
+    prot_hndl.on_event(TrustCenterJoinEvent.event_type, handler)
+
+    ieee = t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11")
+    prot_hndl.handle_parsed_callback(
+        "trustCenterJoinHandler",
+        {
+            "newNodeId": t.EmberNodeId(0x1234),
+            "newNodeEui64": ieee,
+            "status": t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            "policyDecision": t.EmberJoinDecision.NO_ACTION,
+            "parentOfNewNodeId": t.EmberNodeId(0x0000),
+        }.values(),
+    )
+
+    assert handler.mock_calls == [
+        call(
+            TrustCenterJoinEvent(
+                nwk=t.EmberNodeId(0x1234),
+                ieee=ieee,
+                device_update_status=t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+                decision=t.EmberJoinDecision.NO_ACTION,
+                parent_nwk=t.EmberNodeId(0x0000),
+            )
+        )
+    ]
+
+
+def test_incoming_route_record_handler(prot_hndl) -> None:
+    """Test incomingRouteRecordHandler callback."""
+    handler = MagicMock()
+    prot_hndl.on_event(RouteRecordEvent.event_type, handler)
+
+    ieee = t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11")
+    prot_hndl.handle_parsed_callback(
+        "incomingRouteRecordHandler",
+        {
+            "source": t.EmberNodeId(0x1234),
+            "sourceEui": ieee,
+            "lastHopLqi": t.uint8_t(200),
+            "lastHopRssi": t.int8s(-40),
+            "relayList": [t.EmberNodeId(0x0001), t.EmberNodeId(0x0002)],
+        }.values(),
+    )
+
+    assert handler.mock_calls == [
+        call(
+            RouteRecordEvent(
+                nwk=t.EmberNodeId(0x1234),
+                ieee=ieee,
+                lqi=t.uint8_t(200),
+                rssi=t.int8s(-40),
+                relays=[t.EmberNodeId(0x0001), t.EmberNodeId(0x0002)],
+            )
+        )
+    ]
+
+
+def test_id_conflict_handler(prot_hndl) -> None:
+    """Test idConflictHandler callback."""
+    handler = MagicMock()
+    prot_hndl.on_event(IdConflictEvent.event_type, handler)
+
+    prot_hndl.handle_parsed_callback(
+        "idConflictHandler",
+        {"conflictingId": t.EmberNodeId(0x1234)}.values(),
+    )
+
+    assert handler.mock_calls == [call(IdConflictEvent(nwk=t.EmberNodeId(0x1234)))]
