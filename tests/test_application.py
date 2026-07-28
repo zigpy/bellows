@@ -24,6 +24,7 @@ from bellows.ezsp.xncp import (
     GetRouteTableEntryRsp,
     GetTxPowerInfoRsp,
 )
+from bellows.multicast import Multicast
 import bellows.types
 import bellows.types as t
 import bellows.types.struct
@@ -2700,3 +2701,46 @@ async def test_set_tx_power(app: ControllerApplication) -> None:
     assert result == 12.0
     assert app._ezsp.setRadioPower.mock_calls == [call(power=12)]
     assert mock_update.mock_calls == [call(app._ezsp, tx_power=12)]
+
+
+async def test_multicast_group_subscription(app: ControllerApplication) -> None:
+    """Test multicast group subscription APIs when there are no XNCP extensions."""
+    app._ezsp._xncp_features = FirmwareFeatures.NONE
+
+    app._multicast = Multicast(app._ezsp)
+    await app._multicast._initialize()
+
+    # Subscribe to a group
+    await app.subscribe_to_multicast_group(0x1234)
+    assert app._ezsp._protocol.setMulticastTableEntry.mock_calls == [
+        call(
+            0,
+            t.EmberMulticastTableEntry(multicastId=0x1234, endpoint=1, networkIndex=0),
+        )
+    ]
+
+    app._ezsp._protocol.setMulticastTableEntry.reset_mock()
+
+    # Unsubscribe from a group
+    await app.unsubscribe_from_multicast_group(0x1234)
+    assert app._ezsp._protocol.setMulticastTableEntry.mock_calls == [
+        call(
+            0,
+            t.EmberMulticastTableEntry(multicastId=0x1234, endpoint=0, networkIndex=0),
+        )
+    ]
+
+
+async def test_multicast_group_subscription_xncp(app: ControllerApplication) -> None:
+    """Test multicast group subscription APIs when XNCP extensions are available."""
+    app._ezsp._xncp_features |= FirmwareFeatures.MEMBER_OF_ALL_GROUPS
+    assert app._multicast is None
+
+    # Subscribe to a group (no-op)
+    await app.subscribe_to_multicast_group(0x1234)
+
+    # Unsubscribe from a group (no-op)
+    await app.unsubscribe_from_multicast_group(0x1234)
+
+    # The multicast table was never touched
+    assert len(app._ezsp._protocol.setMulticastTableEntry.mock_calls) == 0

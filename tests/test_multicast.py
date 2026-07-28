@@ -115,14 +115,14 @@ async def test_subscribe(multicast):
     set_entry = multicast._ezsp.setMulticastTableEntry
     assert set_entry.call_count == 1
     assert set_entry.call_args[0][1].multicastId == grp_id
-    assert grp_id in multicast._multicast
+    assert (grp_id, 1) in multicast._multicast
 
     set_entry.reset_mock()
     ret = await _subscribe(multicast, grp_id, success=True)
     assert ret == t.EmberStatus.SUCCESS
     set_entry = multicast._ezsp.setMulticastTableEntry
     assert set_entry.call_count == 0
-    assert grp_id in multicast._multicast
+    assert (grp_id, 1) in multicast._multicast
 
 
 async def test_subscribe_fail(multicast):
@@ -134,7 +134,7 @@ async def test_subscribe_fail(multicast):
     set_entry = multicast._ezsp.setMulticastTableEntry
     assert set_entry.call_count == 1
     assert set_entry.call_args[0][1].multicastId == grp_id
-    assert grp_id not in multicast._multicast
+    assert (grp_id, 1) not in multicast._multicast
     assert len(multicast._available) == 1
 
 
@@ -167,7 +167,7 @@ async def test_unsubscribe(multicast):
     assert ret == t.EmberStatus.SUCCESS
     set_entry = multicast._ezsp.setMulticastTableEntry
     assert set_entry.call_count == 1
-    assert grp_id not in multicast._multicast
+    assert (grp_id, 1) not in multicast._multicast
     assert len(multicast._available) == 1
 
     multicast._ezsp.setMulticastTableEntry.reset_mock()
@@ -175,7 +175,7 @@ async def test_unsubscribe(multicast):
     assert ret != t.EmberStatus.SUCCESS
     set_entry = multicast._ezsp.setMulticastTableEntry
     assert set_entry.call_count == 0
-    assert grp_id not in multicast._multicast
+    assert (grp_id, 1) not in multicast._multicast
     assert len(multicast._available) == 1
 
 
@@ -190,5 +190,5 @@ async def test_unsubscribe_fail(multicast):
     assert ret != t.EmberStatus.SUCCESS
     set_entry = multicast._ezsp.setMulticastTableEntry
     assert set_entry.call_count == 1
-    assert grp_id in multicast._multicast
+    assert (grp_id, 1) in multicast._multicast
     assert len(multicast._available) == 0
