@@ -1001,7 +1001,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
 
         if zigpy.types.TransmitOptions.APS_Encryption in packet.tx_options:
-            # APS encryption uses the link key shared with the destination node
             aps_frame.options |= t.EmberApsOption.APS_OPTION_ENCRYPTION
 
         extended_timeout = packet.extended_timeout
