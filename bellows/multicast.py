@@ -53,17 +53,20 @@ class Multicast:
         (status,) = await self._ezsp.setMulticastTableEntry(idx, entry)
         status = t.sl_Status.from_ember_status(status)
 
-        if status != t.sl_Status.OK:
-            LOGGER.warning(
-                "Set MulticastTableEntry #%s for %s multicast id: %s",
-                idx,
-                entry.multicastId,
-                status,
-            )
-        else:
+        if status is t.sl_Status.OK:
             LOGGER.debug(
                 "Set MulticastTableEntry #%s for %s multicast id %s for endpoint %d: %s",
                 idx,
+                group_id,
+                entry.multicastId,
+                entry.endpoint,
+                status,
+            )
+        else:
+            LOGGER.warning(
+                "Failed to set MulticastTableEntry #%s for %s multicast id %s for endpoint %d: %s",
+                idx,
+                group_id,
                 entry.multicastId,
                 entry.endpoint,
                 status,
