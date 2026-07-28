@@ -9,6 +9,10 @@ class InvalidCommandError(EzspError):
     pass
 
 
+class PayloadTooLongError(InvalidCommandError):
+    pass
+
+
 class InvalidCommandPayload(InvalidCommandError):
     def __init__(self, msg: str, raw_bytes: bytes) -> None:
         super().__init__(msg)

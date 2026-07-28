@@ -18,11 +18,14 @@ from bellows.exception import ControllerError, EzspError, InvalidCommandError
 import bellows.ezsp as ezsp
 from bellows.ezsp.v9.commands import GetTokenDataRsp
 from bellows.ezsp.xncp import (
+    MAX_XNCP_PAYLOAD_LENGTH,
     FirmwareFeatures,
     FlowControlType,
     GetChipInfoRsp,
     GetRouteTableEntryRsp,
     GetTxPowerInfoRsp,
+    SendUnicastFlags,
+    SendUnicastReq,
 )
 from bellows.multicast import Multicast
 import bellows.types
@@ -45,6 +48,28 @@ APP_CONFIG = {
     zigpy.config.CONF_DATABASE: None,
     zigpy.config.CONF_STARTUP_ENERGY_SCAN: False,
 }
+
+MSG_TAG = t.uint8_t(0x42)
+
+# Every `SendUnicastReq` field but `data` is fixed-size, so the largest unicast payload
+# that still fits in a single combined send command is a simple subtraction
+MAX_COMBINED_SEND_DATA_LENGTH = MAX_XNCP_PAYLOAD_LENGTH - len(
+    SendUnicastReq(
+        flags=SendUnicastFlags.NONE,
+        destination=t.EmberNodeId(0x0000),
+        aps_frame=t.EmberApsFrame(
+            profileId=0x0000,
+            clusterId=0x0000,
+            sourceEndpoint=0x00,
+            destinationEndpoint=0x00,
+            options=t.EmberApsOption(0),
+            groupId=0x0000,
+            sequence=0x00,
+        ),
+        message_tag=MSG_TAG,
+        data=b"",
+    ).serialize()
+)
 
 
 @pytest.fixture
@@ -799,7 +824,7 @@ async def _test_send_packet_unicast(
                     type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
                     indexOrDestination=0x1234,
                     apsFrame=sentinel.aps,
-                    messageTag=sentinel.msg_tag,
+                    messageTag=MSG_TAG,
                     status=sent_handler_status,
                     message=b"",
                 ).values()
@@ -811,7 +836,7 @@ async def _test_send_packet_unicast(
     app._ezsp.send_unicast = AsyncMock(
         side_effect=send_unicast, spec=app._ezsp.send_unicast
     )
-    app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
+    app.get_sequence = MagicMock(return_value=MSG_TAG)
 
     await app.send_packet(packet)
 
@@ -827,8 +852,8 @@ async def _test_send_packet_unicast(
                 groupId=0x0000,
                 sequence=packet.tsn,
             ),
-            message_tag=sentinel.msg_tag,
-            data=b"some data",
+            message_tag=MSG_TAG,
+            data=packet.data.serialize(),
         )
     ]
 
@@ -917,6 +942,168 @@ async def test_send_packet_unicast_manual_source_route(make_app, packet):
         destination=packet.dst.address,
         route=[0x0001, 0x0002],
     )
+
+
+async def _test_send_packet_unicast_combined(
+    app,
+    packet,
+    *,
+    status=bellows.types.sl_Status.OK,
+    source_route=None,
+    extended_timeout=None,
+    options=(
+        t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+        | t.EmberApsOption.APS_OPTION_RETRY
+    ),
+):
+    def xncp_send_unicast(*args, **kwargs):
+        asyncio.get_running_loop().call_later(
+            0.01,
+            app.ezsp_callback_handler,
+            "messageSentHandler",
+            list(
+                dict(
+                    type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+                    indexOrDestination=0x1234,
+                    apsFrame=sentinel.aps,
+                    messageTag=MSG_TAG,
+                    status=bellows.types.sl_Status.OK,
+                    message=b"",
+                ).values()
+            ),
+        )
+
+        return [status, 0x12]
+
+    app._ezsp.xncp_send_unicast = AsyncMock(
+        side_effect=xncp_send_unicast, spec=app._ezsp.xncp_send_unicast
+    )
+    app.get_sequence = MagicMock(return_value=MSG_TAG)
+
+    await app.send_packet(packet)
+
+    flags = SendUnicastFlags.NONE
+
+    if extended_timeout is not None:
+        flags |= SendUnicastFlags.EXTENDED_TIMEOUT
+
+    if source_route is not None:
+        flags |= SendUnicastFlags.SOURCE_ROUTE
+
+    assert app._ezsp.xncp_send_unicast.mock_calls == [
+        call(
+            SendUnicastReq(
+                flags=flags,
+                destination=t.EmberNodeId(0x1234),
+                aps_frame=t.EmberApsFrame(
+                    profileId=packet.profile_id,
+                    clusterId=packet.cluster_id,
+                    sourceEndpoint=packet.src_ep,
+                    destinationEndpoint=packet.dst_ep,
+                    options=options,
+                    groupId=0x0000,
+                    sequence=packet.tsn,
+                ),
+                message_tag=MSG_TAG,
+                ieee=extended_timeout[0] if extended_timeout is not None else None,
+                extended_timeout=(
+                    extended_timeout[1] if extended_timeout is not None else None
+                ),
+                source_route=source_route,
+                data=packet.data.serialize(),
+            )
+        )
+    ]
+
+    assert len(app._pending_requests) == 0
+
+
+async def test_send_packet_unicast_combined(app, packet):
+    app._ezsp._xncp_features |= FirmwareFeatures.COMBINED_SEND
+    await _test_send_packet_unicast_combined(app, packet)
+
+
+async def test_send_packet_unicast_combined_extended_timeout(app, ieee, packet):
+    app._ezsp._xncp_features |= FirmwareFeatures.COMBINED_SEND
+    app.add_device(nwk=packet.dst.address, ieee=ieee)
+
+    # The APS ACK in the packet's tx_options disables the extended timeout
+    await _test_send_packet_unicast_combined(
+        app, packet, extended_timeout=(ieee, False)
+    )
+
+
+async def test_send_packet_unicast_combined_manual_source_route(make_app, packet):
+    app = make_app(
+        {
+            zigpy.config.CONF_SOURCE_ROUTING: True,
+            config.CONF_BELLOWS_CONFIG: {config.CONF_MANUAL_SOURCE_ROUTING: True},
+        }
+    )
+    app._ezsp._xncp_features |= (
+        FirmwareFeatures.COMBINED_SEND | FirmwareFeatures.MANUAL_SOURCE_ROUTE
+    )
+
+    packet.source_route = [0x0001, 0x0002]
+    await _test_send_packet_unicast_combined(
+        app,
+        packet,
+        source_route=[0x0001, 0x0002],
+        options=(
+            t.EmberApsOption.APS_OPTION_RETRY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
+        ),
+    )
+
+
+async def test_send_packet_unicast_combined_native_source_route_fallback(
+    make_app, packet
+):
+    # A native (non-manual) source route cannot be folded into the combined command
+    app = make_app({zigpy.config.CONF_SOURCE_ROUTING: True})
+    app._ezsp._xncp_features |= FirmwareFeatures.COMBINED_SEND
+    app._ezsp._protocol.set_source_route = AsyncMock(
+        return_value=t.sl_Status.OK, spec=app._ezsp._protocol.set_source_route
+    )
+    app._ezsp.xncp_send_unicast = AsyncMock(spec=app._ezsp.xncp_send_unicast)
+
+    packet.source_route = [0x0001, 0x0002]
+    await _test_send_packet_unicast(
+        app,
+        packet,
+        options=(
+            t.EmberApsOption.APS_OPTION_RETRY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
+        ),
+    )
+
+    assert len(app._ezsp.xncp_send_unicast.mock_calls) == 0
+    assert app._ezsp._protocol.set_source_route.mock_calls == [
+        call(nwk=packet.dst.address, relays=[0x0001, 0x0002])
+    ]
+
+
+async def test_send_packet_unicast_combined_max_size(app, packet):
+    # The largest payload that fits in a custom frame still uses the combined command
+    app._ezsp._xncp_features |= FirmwareFeatures.COMBINED_SEND
+
+    packet = packet.replace(
+        data=zigpy_t.SerializableBytes(b"a" * MAX_COMBINED_SEND_DATA_LENGTH)
+    )
+    await _test_send_packet_unicast_combined(app, packet)
+
+
+async def test_send_packet_unicast_combined_oversized_fallback(app, packet):
+    # One byte more does not fit and falls back to the multi-command path
+    app._ezsp._xncp_features |= FirmwareFeatures.COMBINED_SEND
+    app._ezsp.xncp_send_unicast = AsyncMock(spec=app._ezsp.xncp_send_unicast)
+
+    packet = packet.replace(
+        data=zigpy_t.SerializableBytes(b"a" * (MAX_COMBINED_SEND_DATA_LENGTH + 1))
+    )
+    await _test_send_packet_unicast(app, packet)
+
+    assert len(app._ezsp.xncp_send_unicast.mock_calls) == 0
 
 
 async def test_send_packet_unicast_extended_timeout_with_acks(app, ieee, packet):
@@ -1117,7 +1304,7 @@ async def test_send_packet_broadcast(app, packet):
     app._ezsp.send_broadcast = AsyncMock(
         return_value=(bellows.types.named.sl_Status.OK, 0x12)
     )
-    app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
+    app.get_sequence = MagicMock(return_value=MSG_TAG)
 
     asyncio.get_running_loop().call_soon(
         app.ezsp_callback_handler,
@@ -1127,7 +1314,7 @@ async def test_send_packet_broadcast(app, packet):
                 type=t.EmberOutgoingMessageType.OUTGOING_BROADCAST,
                 indexOrDestination=0xFFFE,
                 apsFrame=sentinel.aps,
-                messageTag=sentinel.msg_tag,
+                messageTag=MSG_TAG,
                 status=t.EmberStatus.SUCCESS,
                 message=b"",
             ).values()
@@ -1148,7 +1335,7 @@ async def test_send_packet_broadcast(app, packet):
                 sequence=packet.tsn,
             ),
             radius=packet.radius,
-            message_tag=sentinel.msg_tag,
+            message_tag=MSG_TAG,
             aps_sequence=packet.tsn,
             data=b"some data",
         )
@@ -1163,7 +1350,7 @@ async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
     )
     packet.radius = 30
 
-    app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
+    app.get_sequence = MagicMock(return_value=MSG_TAG)
 
     asyncio.get_running_loop().call_soon(
         app.ezsp_callback_handler,
@@ -1173,7 +1360,7 @@ async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
                 type=t.EmberOutgoingMessageType.OUTGOING_BROADCAST,
                 indexOrDestination=0xFFFE,
                 apsFrame=sentinel.aps,
-                messageTag=sentinel.msg_tag,
+                messageTag=MSG_TAG,
                 status=t.EmberStatus.DELIVERY_FAILED,
                 message=b"",
             ).values()
@@ -1196,7 +1383,7 @@ async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
                 sequence=packet.tsn,
             ),
             radius=packet.radius,
-            message_tag=sentinel.msg_tag,
+            message_tag=MSG_TAG,
             aps_sequence=packet.tsn,
             data=b"some data",
         )
@@ -1216,7 +1403,7 @@ async def test_send_packet_multicast(app, packet):
         return_value=(bellows.types.sl_Status.OK, 0x12),
         spec=app._ezsp._protocol.send_multicast,
     )
-    app.get_sequence = MagicMock(return_value=sentinel.msg_tag)
+    app.get_sequence = MagicMock(return_value=MSG_TAG)
 
     asyncio.get_running_loop().call_soon(
         app.ezsp_callback_handler,
@@ -1226,7 +1413,7 @@ async def test_send_packet_multicast(app, packet):
                 type=t.EmberOutgoingMessageType.OUTGOING_MULTICAST,
                 indexOrDestination=0x1234,
                 apsFrame=sentinel.aps,
-                messageTag=sentinel.msg_tag,
+                messageTag=MSG_TAG,
                 status=t.EmberStatus.SUCCESS,
                 message=b"",
             ).values()
@@ -1247,7 +1434,7 @@ async def test_send_packet_multicast(app, packet):
             ),
             radius=packet.radius,
             non_member_radius=packet.non_member_radius,
-            message_tag=sentinel.msg_tag,
+            message_tag=MSG_TAG,
             data=b"some data",
         )
     ]

@@ -7,9 +7,18 @@ import logging
 
 import zigpy.types as t
 
-from bellows.types import EmberStatus, EzspMfgTokenId, RouteRecordStatus
+from bellows.types import (
+    EmberApsFrame,
+    EmberStatus,
+    EzspMfgTokenId,
+    RouteRecordStatus,
+    sl_Status,
+)
 
 _LOGGER = logging.getLogger(__name__)
+
+MAX_XNCP_FRAME_LENGTH = 119
+MAX_XNCP_PAYLOAD_LENGTH = MAX_XNCP_FRAME_LENGTH - 3  # u16 + u8
 
 COMMANDS: dict[XncpCommandId, type[XncpCommandPayload]] = {}
 REV_COMMANDS: dict[type[XncpCommandPayload], XncpCommandId] = {}
@@ -43,6 +52,7 @@ class XncpCommandId(t.enum16):
     SET_ROUTE_TABLE_ENTRY_REQ = 0x0006
     GET_ROUTE_TABLE_ENTRY_REQ = 0x0007
     GET_TX_POWER_INFO_REQ = 0x0008
+    SEND_UNICAST_REQ = 0x0009
 
     GET_SUPPORTED_FEATURES_RSP = GET_SUPPORTED_FEATURES_REQ | 0x8000
     SET_SOURCE_ROUTE_RSP = SET_SOURCE_ROUTE_REQ | 0x8000
@@ -53,6 +63,7 @@ class XncpCommandId(t.enum16):
     SET_ROUTE_TABLE_ENTRY_RSP = SET_ROUTE_TABLE_ENTRY_REQ | 0x8000
     GET_ROUTE_TABLE_ENTRY_RSP = GET_ROUTE_TABLE_ENTRY_REQ | 0x8000
     GET_TX_POWER_INFO_RSP = GET_TX_POWER_INFO_REQ | 0x8000
+    SEND_UNICAST_RSP = SEND_UNICAST_REQ | 0x8000
 
     UNKNOWN = 0xFFFF
 
@@ -122,6 +133,10 @@ class FirmwareFeatures(t.bitmap32):
 
     # Recommended and maximum TX power can be queried by country code
     TX_POWER_INFO = 1 << 7
+
+    # A unicast can be sent, its source route and extended timeout applied, in a
+    # single command
+    COMBINED_SEND = 1 << 8
 
 
 class XncpCommandPayload(t.Struct):
@@ -231,6 +246,43 @@ class GetTxPowerInfoReq(XncpCommandPayload):
 class GetTxPowerInfoRsp(XncpCommandPayload):
     recommended_power_dbm: t.int8s
     max_power_dbm: t.int8s
+
+
+class SendUnicastFlags(t.bitmap8):
+    NONE = 0
+
+    # The extended timeout for the destination should be set before sending
+    EXTENDED_TIMEOUT = 1 << 0
+
+    # A manual source route should be installed before sending
+    SOURCE_ROUTE = 1 << 1
+
+
+@register_command(XncpCommandId.SEND_UNICAST_REQ)
+class SendUnicastReq(XncpCommandPayload):
+    flags: SendUnicastFlags
+    destination: t.NWK
+    aps_frame: EmberApsFrame
+    message_tag: t.uint8_t
+
+    ieee: t.EUI64 = t.StructField(
+        requires=lambda s: SendUnicastFlags.EXTENDED_TIMEOUT in s.flags
+    )
+    extended_timeout: t.Bool = t.StructField(
+        requires=lambda s: SendUnicastFlags.EXTENDED_TIMEOUT in s.flags
+    )
+
+    source_route: t.LVList[t.NWK, t.uint8_t] = t.StructField(
+        requires=lambda s: SendUnicastFlags.SOURCE_ROUTE in s.flags
+    )
+
+    data: Bytes
+
+
+@register_command(XncpCommandId.SEND_UNICAST_RSP)
+class SendUnicastRsp(XncpCommandPayload):
+    status: sl_Status
+    sequence: t.uint8_t
 
 
 @register_command(XncpCommandId.UNKNOWN)
