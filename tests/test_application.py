@@ -990,6 +990,23 @@ async def test_send_packet_unicast_force_route_discovery(app, packet):
     )
 
 
+async def test_send_packet_unicast_aps_encryption(app, packet):
+    await _test_send_packet_unicast(
+        app,
+        packet.replace(
+            tx_options=(
+                zigpy.types.TransmitOptions.ACK
+                | zigpy.types.TransmitOptions.APS_Encryption
+            )
+        ),
+        options=(
+            t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+            | t.EmberApsOption.APS_OPTION_ENCRYPTION
+            | t.EmberApsOption.APS_OPTION_RETRY
+        ),
+    )
+
+
 async def test_send_packet_unicast_unexpected_failure(app, packet):
     with pytest.raises(zigpy.exceptions.DeliveryError):
         await _test_send_packet_unicast(app, packet, status=t.EmberStatus.ERR_FATAL)
