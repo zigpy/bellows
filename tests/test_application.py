@@ -2717,6 +2717,7 @@ async def test_multicast_group_subscription(app: ControllerApplication) -> None:
 async def test_multicast_group_subscription_xncp(app: ControllerApplication) -> None:
     """Test multicast group subscription APIs when XNCP extensions are available."""
     app._ezsp._xncp_features |= FirmwareFeatures.MEMBER_OF_ALL_GROUPS
+    assert app._multicast is None
 
     # Subscribe to a group (no-op)
     await app.subscribe_to_multicast_group(0x1234)

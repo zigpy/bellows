@@ -1132,7 +1132,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         return await super().permit(time_s)
 
     async def _subscribe_to_multicast_group(
-        self, group_id: t.Group, endpoint_id: int
+        self, group_id: zigpy.types.Group, endpoint_id: int
     ) -> None:
         """Ask the coordinator firmware to subscribe to a group, if needed."""
         if self._multicast is None:
@@ -1141,7 +1141,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._multicast.subscribe(group_id=group_id, endpoint_id=endpoint_id)
 
     async def _unsubscribe_from_multicast_group(
-        self, group_id: t.Group, endpoint_id: int
+        self, group_id: zigpy.types.Group, endpoint_id: int
     ) -> None:
         """Ask the coordinator firmware to unsubscribe from a group, if needed."""
         if self._multicast is None:

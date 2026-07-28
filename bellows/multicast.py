@@ -10,7 +10,9 @@ class Multicast:
 
     def __init__(self, ezsp):
         self._ezsp = ezsp
-        self._multicast: dict[int, int] = {}
+        self._multicast: dict[
+            tuple[int, int], tuple[t.EmberMulticastTableEntry, int]
+        ] = {}
         self._available = set()
 
     async def _initialize(self) -> None:
