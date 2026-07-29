@@ -27,8 +27,11 @@ class EventLoopThread:
             self.loop.run_until_complete(init_task)
             self.loop.run_forever()
         finally:
-            self.loop.close()
-            self.loop = None
+            # Publish `None` before closing: `self.loop` then never names a closed loop, and
+            # this thread no longer writes `self.loop` after a concurrent `start()` may have
+            # replaced it.
+            loop, self.loop = self.loop, None
+            loop.close()
 
     async def start(self):
         current_loop = asyncio.get_event_loop()
