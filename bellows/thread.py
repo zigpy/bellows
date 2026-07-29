@@ -2,6 +2,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import contextlib
 import functools
+import inspect
 import logging
 
 LOGGER = logging.getLogger(__name__)
@@ -108,7 +109,7 @@ class ThreadsafeProxy:
             def disconnected_result():
                 # Disconnected: sync calls are dropped, async calls resolve to None
                 LOGGER.warning("Attempted to use a closed event loop")
-                if not asyncio.iscoroutinefunction(func):
+                if not inspect.iscoroutinefunction(func):
                     return None
                 future = curr_loop.create_future()
                 future.set_result(None)
@@ -116,7 +117,7 @@ class ThreadsafeProxy:
 
             if loop.is_closed():
                 return disconnected_result()
-            if asyncio.iscoroutinefunction(func):
+            if inspect.iscoroutinefunction(func):
                 coro = call()
                 try:
                     future = asyncio.run_coroutine_threadsafe(coro, loop)
