@@ -16,7 +16,12 @@ class EventLoopThread:
 
     def run_coroutine_threadsafe(self, coroutine):
         current_loop = asyncio.get_event_loop()
-        future = asyncio.run_coroutine_threadsafe(coroutine, self.loop)
+        # Snapshot: the worker thread publishes `None` when it exits
+        loop = self.loop
+        if loop is None:
+            coroutine.close()
+            raise RuntimeError("Event loop is not running")
+        future = asyncio.run_coroutine_threadsafe(coroutine, loop)
         return asyncio.wrap_future(future, loop=current_loop)
 
     def _thread_main(self, init_task):
@@ -99,12 +104,26 @@ class ThreadsafeProxy:
             call = functools.partial(func, *args, **kwargs)
             if loop == curr_loop:
                 return call()
-            if loop.is_closed():
-                # Disconnected
+
+            def disconnected_result():
+                # Disconnected: sync calls are dropped, async calls resolve to None
                 LOGGER.warning("Attempted to use a closed event loop")
-                return
+                if not asyncio.iscoroutinefunction(func):
+                    return None
+                future = curr_loop.create_future()
+                future.set_result(None)
+                return future
+
+            if loop.is_closed():
+                return disconnected_result()
             if asyncio.iscoroutinefunction(func):
-                future = asyncio.run_coroutine_threadsafe(call(), loop)
+                coro = call()
+                try:
+                    future = asyncio.run_coroutine_threadsafe(coro, loop)
+                except RuntimeError:
+                    # The worker thread may close the loop after our is_closed() check
+                    coro.close()
+                    return disconnected_result()
                 return asyncio.wrap_future(future, loop=curr_loop)
             else:
 
@@ -118,6 +137,10 @@ class ThreadsafeProxy:
                             ).format(self._obj.__class__.__name__, name)
                         )
 
-                loop.call_soon_threadsafe(check_result_wrapper)
+                try:
+                    loop.call_soon_threadsafe(check_result_wrapper)
+                except RuntimeError:
+                    # The worker thread may close the loop after our is_closed() check
+                    return disconnected_result()
 
         return func_wrapper

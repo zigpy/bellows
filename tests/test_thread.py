@@ -192,6 +192,80 @@ async def test_proxy_loop_closed():
     assert obj.test.call_count == 0
 
 
+async def test_proxy_loop_closed_async():
+    """An async call through a proxy to a closed loop is awaitable and resolves to None."""
+    loop = asyncio.new_event_loop()
+    obj = mock.MagicMock()
+    call_count = 0
+
+    async def magic():
+        nonlocal call_count
+        call_count += 1
+
+    obj.test = magic
+    proxy = ThreadsafeProxy(obj, loop)
+    loop.close()
+
+    assert await proxy.test() is None
+    assert call_count == 0
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+async def test_proxy_loop_closed_during_async_dispatch(caplog):
+    """The loop closing between the `is_closed()` check and dispatch is handled."""
+    loop = asyncio.new_event_loop()
+    try:
+        obj = mock.MagicMock()
+        call_count = 0
+
+        async def magic():
+            nonlocal call_count
+            call_count += 1
+
+        obj.test = magic
+        proxy = ThreadsafeProxy(obj, loop)
+        loop.call_soon_threadsafe = mock.Mock(
+            side_effect=RuntimeError("Event loop is closed")
+        )
+
+        assert await proxy.test() is None
+
+        assert call_count == 0
+        assert "Attempted to use a closed event loop" in caplog.text
+    finally:
+        loop.close()
+
+
+async def test_proxy_loop_closed_during_sync_dispatch(caplog):
+    """The loop closing between the `is_closed()` check and dispatch is handled."""
+    loop = asyncio.new_event_loop()
+    try:
+        obj = mock.MagicMock()
+        obj.test.return_value = None
+        proxy = ThreadsafeProxy(obj, loop)
+        loop.call_soon_threadsafe = mock.Mock(
+            side_effect=RuntimeError("Event loop is closed")
+        )
+
+        proxy.test()
+
+        assert obj.test.call_count == 0
+        assert "Attempted to use a closed event loop" in caplog.text
+    finally:
+        loop.close()
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+async def test_thread_run_coroutine_threadsafe_loop_not_running():
+    """A `RuntimeError` (not `AttributeError`) is raised when the loop is gone."""
+    thread = EventLoopThread()
+    assert thread.loop is None
+
+    with pytest.raises(RuntimeError):
+        # The coroutine is closed internally: no "never awaited" RuntimeWarning
+        thread.run_coroutine_threadsafe(asyncio.sleep(0))
+
+
 async def test_thread_task_cancellation_after_stop(thread):
     loop = asyncio.get_event_loop()
     obj = mock.MagicMock()
