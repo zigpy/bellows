@@ -1,5 +1,6 @@
 import asyncio
 from asyncio import timeout as asyncio_timeout
+import inspect
 import threading
 from unittest import mock
 
@@ -264,6 +265,20 @@ async def test_thread_run_coroutine_threadsafe_loop_not_running():
     with pytest.raises(RuntimeError):
         # The coroutine is closed internally: no "never awaited" RuntimeWarning
         thread.run_coroutine_threadsafe(asyncio.sleep(0))
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+async def test_thread_run_coroutine_threadsafe_loop_closed_mid_dispatch():
+    """The coroutine is closed when the loop closes between snapshot and dispatch."""
+    thread = EventLoopThread()
+    thread.loop = asyncio.new_event_loop()
+    thread.loop.close()
+
+    coro = asyncio.sleep(0)
+    with pytest.raises(RuntimeError):
+        thread.run_coroutine_threadsafe(coro)
+
+    assert inspect.getcoroutinestate(coro) == inspect.CORO_CLOSED
 
 
 async def test_thread_task_cancellation_after_stop(thread):

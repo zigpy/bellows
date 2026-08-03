@@ -22,7 +22,12 @@ class EventLoopThread:
         if loop is None:
             coroutine.close()
             raise RuntimeError("Event loop is not running")
-        future = asyncio.run_coroutine_threadsafe(coroutine, loop)
+        try:
+            future = asyncio.run_coroutine_threadsafe(coroutine, loop)
+        except RuntimeError:
+            # The worker thread may close the loop after our None check
+            coroutine.close()
+            raise
         return asyncio.wrap_future(future, loop=current_loop)
 
     def _thread_main(self, init_task):
