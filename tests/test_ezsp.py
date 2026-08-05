@@ -1014,6 +1014,78 @@ def test_frame_parsing_error_doesnt_disconnect(ezsp_f, caplog):
     assert "Failed to parse frame" in caplog.text
 
 
+@pytest.mark.parametrize(
+    "source_route, extended_timeout, expected_flags, expected_extra",
+    [
+        (None, None, xncp.SendUnicastFlags.NONE, {}),
+        (
+            [t.NWK(0x0001), t.NWK(0x0002)],
+            None,
+            xncp.SendUnicastFlags.SOURCE_ROUTE,
+            {"source_route": [t.NWK(0x0001), t.NWK(0x0002)]},
+        ),
+        (
+            None,
+            (t.EUI64.convert("00:11:22:33:44:55:66:77"), True),
+            xncp.SendUnicastFlags.EXTENDED_TIMEOUT,
+            {
+                "ieee": t.EUI64.convert("00:11:22:33:44:55:66:77"),
+                "extended_timeout": t.Bool.true,
+            },
+        ),
+    ],
+)
+async def test_xncp_send_unicast(
+    ezsp_f, source_route, extended_timeout, expected_flags, expected_extra
+):
+    """Test sending a unicast via the combined XNCP command."""
+    ezsp_f._xncp_features = xncp.FirmwareFeatures.COMBINED_SEND
+
+    aps_frame = t.EmberApsFrame(
+        profileId=0x0104,
+        clusterId=0x0006,
+        sourceEndpoint=1,
+        destinationEndpoint=1,
+        options=t.EmberApsOption.APS_OPTION_RETRY,
+        groupId=0x0000,
+        sequence=0x42,
+    )
+
+    with patch.object(
+        ezsp_f,
+        "send_xncp_frame",
+        new=AsyncMock(
+            return_value=xncp.SendUnicastRsp(status=t.sl_Status.OK, sequence=0x12)
+        ),
+    ) as mock_send:
+        status, sequence = await ezsp_f.xncp_send_unicast(
+            ezsp_f.xncp_prepare_unicast(
+                destination=t.NWK(0x1234),
+                aps_frame=aps_frame,
+                message_tag=0x07,
+                data=b"some data",
+                source_route=source_route,
+                extended_timeout=extended_timeout,
+            )
+        )
+
+    assert status == t.sl_Status.OK
+    assert sequence == 0x12
+
+    assert mock_send.mock_calls == [
+        call(
+            xncp.SendUnicastReq(
+                flags=expected_flags,
+                destination=t.NWK(0x1234),
+                aps_frame=aps_frame,
+                message_tag=0x07,
+                data=xncp.Bytes(b"some data"),
+                **expected_extra,
+            )
+        )
+    ]
+
+
 async def test_xncp_get_chip_info(ezsp_f):
     """Test getting chip info via XNCP."""
     ezsp_f._xncp_features = xncp.FirmwareFeatures.CHIP_INFO

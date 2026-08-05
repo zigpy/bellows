@@ -118,6 +118,7 @@ class EzspMfgTokenId(basic.enum8):
     # Custom version (2 bytes).
     MFG_CUSTOM_VERSION = 0x00
     # Manufacturing string (16 bytes).
+    # Deprecated in EZSPv19 (SSDK 2026.6.0): removed on Series 3 platforms.
     MFG_STRING = 0x01
     # Board name (16 bytes).
     MFG_BOARD_NAME = 0x02
@@ -126,10 +127,12 @@ class EzspMfgTokenId(basic.enum8):
     # Radio configuration (2 bytes).
     MFG_PHY_CONFIG = 0x04
     # Bootload AES key (16 bytes).
+    # Deprecated in EZSPv19 (SSDK 2026.6.0): removed on Series 3 platforms.
     MFG_BOOTLOAD_AES_KEY = 0x05
     # ASH configuration (40 bytes).
     MFG_ASH_CONFIG = 0x06
     # EZSP storage (8 bytes).
+    # Deprecated in EZSPv19 (SSDK 2026.6.0): removed on Series 3 platforms.
     MFG_STORAGE = 0x07
     # Radio calibration data (64 bytes). 4 bytes are stored for each of the 16
     # channels. This token is not stored in the Flash Information Area. It is
