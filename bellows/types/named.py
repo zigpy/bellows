@@ -1713,7 +1713,7 @@ SL_STATUS_MAP: dict[EzspStatus | EmberStatus, sl_Status] = {
         (EmberStatus.SOURCE_ROUTE_FAILURE, sl_Status.ZIGBEE_SOURCE_ROUTE_FAILURE),
         (EmberStatus.MANY_TO_ONE_ROUTE_FAILURE, sl_Status.ZIGBEE_MANY_TO_ONE_ROUTE_FAILURE),
         (EmberStatus.MAX_MESSAGE_LIMIT_REACHED, sl_Status.ZIGBEE_MAX_MESSAGE_LIMIT_REACHED),
-        (EmberStatus.NETWORK_BUSY, sl_Status.ZIGBEE_MAX_MESSAGE_LIMIT_REACHED),
+        (EmberStatus.NETWORK_BUSY, sl_Status.BUSY),
         (EmberStatus.DELIVERY_FAILED, sl_Status.ZIGBEE_DELIVERY_FAILED),
         (EmberStatus.APS_ENCRYPTION_ERROR, sl_Status.ZIGBEE_APS_ENCRYPTION_ERROR),
         (EmberStatus.RECEIVED_KEY_IN_THE_CLEAR, sl_Status.ZIGBEE_RECEIVED_KEY_IN_THE_CLEAR),
