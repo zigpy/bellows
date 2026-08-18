@@ -1,3 +1,5 @@
+import zigpy.zgp.types as zgp_t
+
 import bellows.types as t
 
 COMMANDS = {
@@ -1992,7 +1994,7 @@ COMMANDS = {
         {},
         {
             "status": t.EmberStatus,
-            "gpdLink": t.uint8_t,
+            "gpdLink": zgp_t.GPPGPDLink,
             "sequenceNumber": t.uint8_t,
             "addrType": t.uint8_t,
             "addr": t.uint32_t,
@@ -2002,7 +2004,7 @@ COMMANDS = {
             "gpdfSecurityLevel": t.EmberGpSecurityLevel,
             "gpdfSecurityKeyType": t.EmberGpKeyType,
             "autoCommissioning": t.Bool,
-            "bidirectionalInfo": t.Bool,
+            "bidirectionalInfo": t.EmberGpBidirectionalInfo,
             "gpdSecurityFrameCounter": t.uint32_t,
             "gpdCommandId": t.uint8_t,
             "mic": t.uint32_t,

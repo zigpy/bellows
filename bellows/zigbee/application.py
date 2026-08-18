@@ -22,6 +22,7 @@ import zigpy.state
 import zigpy.types
 import zigpy.util
 import zigpy.zdo.types as zdo_t
+import zigpy.zgp.types as zgp_t
 
 import bellows
 from bellows.config import (
@@ -675,6 +676,38 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 address_index=address_index,
                 message=message,
             )
+        elif frame_name == "gpepIncomingMessageHandler":
+            (
+                status,
+                gpdLink,
+                sequenceNumber,
+                addr,
+                gpdfSecurityLevel,
+                gpdfSecurityKeyType,
+                autoCommissioning,
+                bidirectionalInfo,
+                gpdSecurityFrameCounter,
+                gpdCommandId,
+                mic,
+                proxyTableIndex,
+                gpdCommandPayload,
+            ) = args
+
+            self._handle_gp_frame(
+                status,
+                gpdLink,
+                sequenceNumber,
+                addr,
+                gpdfSecurityLevel,
+                gpdfSecurityKeyType,
+                autoCommissioning,
+                bidirectionalInfo,
+                gpdSecurityFrameCounter,
+                gpdCommandId,
+                mic,
+                proxyTableIndex,
+                gpdCommandPayload,
+            )
         elif frame_name == "messageSentHandler":
             if self._ezsp.ezsp_version >= 14:
                 (
@@ -767,6 +800,49 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 tx_options=tx_options,
                 lqi=lqi,
                 rssi=rssi,
+            )
+        )
+
+    def _handle_gp_frame(
+        self,
+        status: t.sl_GpStatus,
+        gpd_link: zgp_t.GPPGPDLink,
+        sequence_number: t.uint8_t,
+        addr: t.EmberGpAddress,
+        gpdf_security_level: t.EmberGpSecurityLevel,
+        gpdf_security_key_type: t.EmberGpKeyType,
+        auto_commissioning: t.Bool,
+        bidirectional_info: t.EmberGpBidirectionalInfo,
+        gpd_security_frame_counter: t.uint32_t,
+        gpd_command_id: t.uint8_t,
+        mic: t.uint32_t,
+        proxy_table_index: t.uint8_t,
+        gpd_command_payload: t.LVBytes,
+    ) -> None:
+        self.gp_packet_received(
+            zigpy.types.ZigbeeGpPacket(
+                application_id=addr.applicationId,
+                src_id=(
+                    addr.source_id
+                    if addr.applicationId == zgp_t.ApplicationID.SrcID
+                    else None
+                ),
+                ieee=(
+                    addr.applicationId == zgp_t.ApplicationID.IEEE
+                    if addr.applicationId == zgp_t.ApplicationID.IEEE
+                    else None
+                ),
+                endpoint=addr.endpoint,
+                command_id=gpd_command_id,
+                payload=zigpy.types.SerializableBytes(zcl_bytes),
+                frame_counter=gpd_security_frame_counter,
+                security_level=gpdf_security_level,
+                security_key_type=gpdf_security_key_type,
+                # The NCP quantizes the LQI into the two-bit link quality of the GPP-GPD
+                # link field with the link cost thresholds of the stack (<48, <64, <80,
+                # and above), so only the band is known. Report its upper bound.
+                lqi=[47, 63, 79, 255][gpd_link.link_quality],
+                rssi=gpd_link.rssi_dbm,
             )
         )
 
