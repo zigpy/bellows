@@ -11,6 +11,7 @@ import zigpy.device
 import zigpy.exceptions
 import zigpy.types as zigpy_t
 import zigpy.zdo.types as zdo_t
+import zigpy.zgp.types as zgp_t
 
 from bellows.ash import NcpFailure
 import bellows.config as config
@@ -22,6 +23,7 @@ from bellows.exception import (
 )
 import bellows.ezsp as ezsp
 from bellows.ezsp.v9.commands import GetTokenDataRsp
+from bellows.ezsp.v19.commands import COMMANDS as COMMANDS_v19
 from bellows.ezsp.xncp import (
     MAX_XNCP_PAYLOAD_LENGTH,
     FirmwareFeatures,
@@ -3021,3 +3023,34 @@ async def test_multicast_group_subscription_xncp(app: ControllerApplication) -> 
 
     # The multicast table was never touched
     assert len(app._ezsp._protocol.setMulticastTableEntry.mock_calls) == 0
+
+
+def test_frame_handler_gp(app: ControllerApplication) -> None:
+    """Test that an incoming GP frame is parsed into a `ZigbeeGpPacket`."""
+    # EnOcean PTM-216Z button press
+    frame = bytes.fromhex("03da1b0043f4550143f45501d3020100001b000000696fd093d0ff0101")
+    args, rest = t.deserialize_dict(
+        frame, COMMANDS_v19["gpepIncomingMessageHandler"][2]
+    )
+    assert not rest
+
+    with patch.object(app, "gp_packet_received") as gp_packet_received:
+        app.ezsp_callback_handler("gpepIncomingMessageHandler", list(args.values()))
+
+    assert gp_packet_received.mock_calls == [
+        call(
+            zigpy_t.ZigbeeGpPacket(
+                application_id=zgp_t.ApplicationID.SrcID,
+                src_id=zgp_t.SrcID(0x0155F443),
+                ieee=None,
+                endpoint=None,
+                command_id=zgp_t.GPDCommandID.Press8BitVector,
+                payload=zigpy_t.SerializableBytes(b"\x01"),
+                frame_counter=27,
+                security_level=zgp_t.SecurityLevel.FullFrameCounterAndMIC,
+                security_key_type=zgp_t.SecurityKeyType.NWKKey,
+                lqi=255,
+                rssi=-58,
+            )
+        )
+    ]

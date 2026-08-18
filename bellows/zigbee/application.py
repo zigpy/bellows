@@ -828,13 +828,18 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     else None
                 ),
                 ieee=(
-                    addr.applicationId == zgp_t.ApplicationID.IEEE
+                    addr.gpd_eui64
                     if addr.applicationId == zgp_t.ApplicationID.IEEE
                     else None
                 ),
-                endpoint=addr.endpoint,
+                # The endpoint is only sent by the NCP for IEEE-addressed GPDs
+                endpoint=(
+                    addr.endpoint
+                    if addr.applicationId == zgp_t.ApplicationID.IEEE
+                    else None
+                ),
                 command_id=gpd_command_id,
-                payload=zigpy.types.SerializableBytes(zcl_bytes),
+                payload=zigpy.types.SerializableBytes(gpd_command_payload),
                 frame_counter=gpd_security_frame_counter,
                 security_level=zgp_t.SecurityLevel(gpdf_security_level),
                 security_key_type=zgp_t.SecurityKeyType(gpdf_security_key_type),

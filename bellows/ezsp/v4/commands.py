@@ -2006,7 +2006,7 @@ COMMANDS = {
             "autoCommissioning": t.Bool,
             "bidirectionalInfo": t.EmberGpBidirectionalInfo,
             "gpdSecurityFrameCounter": t.uint32_t,
-            "gpdCommandId": t.uint8_t,
+            "gpdCommandId": zgp_t.GPDCommandID,
             "mic": t.uint32_t,
             "proxyTableIndex": t.uint8_t,
             "gpdCommandPayload": t.LVBytes,
