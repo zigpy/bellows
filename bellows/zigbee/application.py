@@ -836,8 +836,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 command_id=gpd_command_id,
                 payload=zigpy.types.SerializableBytes(zcl_bytes),
                 frame_counter=gpd_security_frame_counter,
-                security_level=gpdf_security_level,
-                security_key_type=gpdf_security_key_type,
+                security_level=zgp_t.SecurityLevel(gpdf_security_level),
+                security_key_type=zgp_t.SecurityKeyType(gpdf_security_key_type),
                 # The NCP quantizes the LQI into the two-bit link quality of the GPP-GPD
                 # link field with the link cost thresholds of the stack (<48, <64, <80,
                 # and above), so only the band is known. Report its upper bound.

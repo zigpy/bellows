@@ -48,3 +48,25 @@ def test_get_token_info(version: int) -> None:
     assert result["token_info"].isIdx == t.Bool.true
     assert result["token_info"].size == 300
     assert result["token_info"].arraySize == 5
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        # Moes 3-gang switch
+        "06da700091e30d6d91e30d6dd300000000ffffffffe0ffffffffff2b0289f3b9acc88b1df3fe4e503c0be422f6f3530a9c4ed0700600007165726837706f78404750303030318d",
+        "03dd790091e30d6d91e30d6dd3030100007906000052e6f26ed3ff00",
+        # EnOcean PTM-216Z (DB)
+        "03da1b0043f4550143f45501d3020100001b000000696fd093d0ff0101",
+    ],
+)
+def test_gpep_incoming_frame(payload: str, ezsp_f) -> None:
+    """Parse incoming GP frames."""
+
+    ezsp_frame = (
+        bytes([0x42, 0x00, 0x01])  # seq + control bytes
+        + t.uint16_t(0x00C5).serialize()  # frame_id LE
+        + bytes.fromhex(payload)
+    )
+
+    ezsp_f(ezsp_frame)

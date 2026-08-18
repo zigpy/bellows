@@ -43,7 +43,10 @@ COMMANDS = {
             "mic": t.uint32_t,
             "proxyTableIndex": t.uint8_t,
             "gpdCommandPayload": t.LVBytes,
-            "packetInfo": t.SlRxPacketInfo,
+            # XXX: `packetInfo` is the final field according to the protocol YAML
+            # definitions and all SDK code but it is never actually appended by the
+            # firmware.
+            # "packetInfo": t.SlRxPacketInfo,
         },
     ),
 }
