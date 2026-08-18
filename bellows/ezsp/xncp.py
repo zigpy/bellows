@@ -7,13 +7,7 @@ import logging
 
 import zigpy.types as t
 
-from bellows.types import (
-    EmberApsFrame,
-    EmberStatus,
-    EzspMfgTokenId,
-    RouteRecordStatus,
-    sl_Status,
-)
+from bellows.types import EmberApsFrame, EzspMfgTokenId, RouteRecordStatus, sl_Status
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -68,24 +62,45 @@ class XncpCommandId(t.enum16):
     UNKNOWN = 0xFFFF
 
 
+class XncpStatus(t.enum8):
+    """Status byte of an XNCP frame.
+
+    The firmware types this byte as the SDK's native status type: an `EmberStatus` in
+    Gecko SDK 4.x builds, the low octet of an `sl_status_t` in Simplicity SDK builds.
+    The values current firmware emits happen not to overlap, so both encodings fit
+    into one enum, but only `OK` (zero under either) is relied upon: every other value
+    is treated as an opaque failure.
+    """
+
+    OK = 0x00
+
+    # Gecko SDK 4.x: `EmberStatus`
+    EMBER_BAD_ARGUMENT = 0x02
+    EMBER_NOT_FOUND = 0x03
+
+    # Simplicity SDK: low octet of an `sl_status_t`
+    SL_STATUS_INVALID_PARAMETER = 0x21
+    SL_STATUS_NOT_FOUND = 0x2D
+
+
 @dataclasses.dataclass
 class XncpCommand:
     command_id: XncpCommandId
-    status: EmberStatus
+    status: XncpStatus
     payload: XncpCommandPayload
 
     @classmethod
     def from_payload(cls, payload: XncpCommandPayload) -> XncpCommand:
         return cls(
             command_id=REV_COMMANDS[type(payload)],
-            status=EmberStatus.SUCCESS,
+            status=XncpStatus.OK,
             payload=payload,
         )
 
     @classmethod
     def from_bytes(cls, data: bytes) -> XncpCommand:
         command_id, data = XncpCommandId.deserialize(data)
-        status, data = EmberStatus.deserialize(data)
+        status, data = XncpStatus.deserialize(data)
 
         if command_id not in COMMANDS:
             raise ValueError(
