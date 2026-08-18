@@ -105,7 +105,8 @@ COMMANDS = {
         0x00C5,
         {},
         {
-            "status": t.sl_GpStatus,
+            # The NCP sends the legacy GP status codes, `EmberStatus` 0x78-0x7F
+            "status": t.EmberStatus,
             "gpdLink": zgp_t.GPPGPDLink,
             "sequenceNumber": t.uint8_t,
             "addr": t.EmberGpAddress,
