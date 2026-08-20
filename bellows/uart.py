@@ -1,6 +1,7 @@
 import asyncio
 from asyncio import timeout as asyncio_timeout
 import logging
+import urllib.parse
 
 import zigpy.config
 import zigpy.serial
@@ -11,6 +12,15 @@ import bellows.types as t
 
 LOGGER = logging.getLogger(__name__)
 RESET_TIMEOUT = 2.5
+
+# An ESPHome port in this mode ACKs ASH frames on our behalf
+ACKLESS_URL_MODE = "ezsp_ash"
+
+
+def url_suppresses_acks(path: str) -> bool:
+    """Whether something upstream ACKs our ASH frames, making our own ACKs overhead."""
+    query = urllib.parse.parse_qs(urllib.parse.urlparse(path).query)
+    return "mode" in query and ACKLESS_URL_MODE in query["mode"]
 
 
 class Gateway(zigpy.serial.SerialProtocol):
@@ -110,15 +120,17 @@ async def _connect(config, api):
 
     connection_done_future = loop.create_future()
 
+    path = config[zigpy.config.CONF_DEVICE_PATH]
+
     gateway = Gateway(api, connection_done_future)
-    protocol = AshProtocol(gateway)
+    protocol = AshProtocol(gateway, suppress_acks=url_suppresses_acks(path))
 
     flow_control = config[zigpy.config.CONF_DEVICE_FLOW_CONTROL]
 
     transport, _ = await zigpy.serial.create_serial_connection(
         loop,
         lambda: protocol,
-        url=config[zigpy.config.CONF_DEVICE_PATH],
+        url=path,
         baudrate=config[zigpy.config.CONF_DEVICE_BAUDRATE],
         xonxoff=flow_control in (None, "software"),
         rtscts=flow_control == "hardware",

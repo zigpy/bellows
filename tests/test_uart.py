@@ -150,6 +150,63 @@ async def test_connect_threaded_failure_cancellation_propagation(monkeypatch):
     assert len(threads) == 0
 
 
+@pytest.mark.parametrize(
+    ("path", "suppressed"),
+    [
+        (
+            "esphome://example.com:6053/?noise_psk=KEY&port_name=Zigbee&mode=ezsp_ash",
+            True,
+        ),
+        ("esphome://example.com:6053/?mode=ezsp_ash", True),
+        ("esphome://example.com:6053/?noise_psk=KEY&port_name=Zigbee", False),
+        ("esphome://example.com:6053/", False),
+        ("socket://example.com:1234", False),
+        ("/dev/serial", False),
+        # The literal text in the wrong position does not count
+        ("esphome://example.com:6053/?port_name=mode=ezsp_ash", False),
+        ("esphome://example.com:6053/?port_name=mode%3Dezsp_ash", False),
+        ("esphome://example.com:6053/?noise_psk=mode=ezsp_ash", False),
+        ("/dev/serial/by-id/mode=ezsp_ash", False),
+    ],
+)
+def test_url_suppresses_acks(path: str, suppressed: bool) -> None:
+    assert uart.url_suppresses_acks(path) is suppressed
+
+
+@pytest.mark.parametrize(
+    ("path", "suppressed"),
+    [
+        ("esphome://example.com:6053/?port_name=Zigbee&mode=ezsp_ash", True),
+        ("esphome://example.com:6053/?port_name=Zigbee", False),
+        ("/dev/serial", False),
+    ],
+)
+async def test_connect_suppress_acks(path, suppressed, monkeypatch):
+    appmock = MagicMock()
+    transport = MagicMock()
+
+    async def mockconnect(loop, protocol_factory, **kwargs):
+        protocol = protocol_factory()
+        loop.call_soon(protocol.connection_made, transport)
+        return None, protocol
+
+    monkeypatch.setattr(zigpy.serial, "create_serial_connection", mockconnect)
+
+    with patch("bellows.uart.AshProtocol", wraps=uart.AshProtocol) as ash_mock:
+        gw = await uart.connect(
+            conf.SCHEMA_DEVICE(
+                {conf.CONF_DEVICE_PATH: path, conf.CONF_DEVICE_BAUDRATE: 115200}
+            ),
+            appmock,
+            use_thread=False,
+        )
+
+    assert len(ash_mock.mock_calls) == 1
+    assert ash_mock.mock_calls[0].kwargs == {"suppress_acks": suppressed}
+
+    gw.close()
+
+
 @pytest.fixture
 async def gw():
     gw = uart.Gateway(MagicMock())

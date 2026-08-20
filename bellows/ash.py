@@ -353,7 +353,7 @@ def parse_frame(
 
 
 class AshProtocol(asyncio.Protocol):
-    def __init__(self, ezsp_protocol) -> None:
+    def __init__(self, ezsp_protocol, *, suppress_acks: bool = False) -> None:
         self._ezsp_protocol = ezsp_protocol
         self._transport = None
         self._buffer = bytearray()
@@ -363,6 +363,7 @@ class AshProtocol(asyncio.Protocol):
         self._tx_seq: int = 0
         self._rx_seq: int = 0
         self._t_rx_ack = T_RX_ACK_INIT
+        self._suppress_acks = suppress_acks
 
         self._ncp_reset_code: t.NcpResetCode | None = None
         self._ncp_state: NcpState = NcpState.CONNECTED
@@ -555,12 +556,20 @@ class AshProtocol(asyncio.Protocol):
         else:
             raise TypeError(f"Unknown frame received: {frame}")  # pragma: no cover
 
+    def _send_ack(self) -> None:
+        # Something upstream may be ACKing on our behalf, in which case our own ACKs are
+        # pure overhead. NAKs are still sent: see `_reject_frame`.
+        if self._suppress_acks:
+            return
+
+        self._write_frame(AckFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
+
     def data_frame_received(self, frame: DataFrame) -> None:
         # The Host may not piggyback acknowledgments and should promptly send an ACK
         # frame when it receives a DATA frame.
         if frame.frm_num == self._rx_seq:
             self._rx_seq = (frame.frm_num + 1) % 8
-            self._write_frame(AckFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
+            self._send_ack()
 
             # Clear reject condition on valid in-sequence DATA frame
             self._clear_reject_condition()
@@ -569,7 +578,7 @@ class AshProtocol(asyncio.Protocol):
         elif frame.re_tx:
             # Retransmitted frames must be immediately ACKed even if they are out of
             # sequence
-            self._write_frame(AckFrame(res=0, ncp_ready=0, ack_num=self._rx_seq))
+            self._send_ack()
         else:
             # Out-of-sequence non-retransmitted frame: reject it
             _LOGGER.debug("Received out-of-sequence frame: %r", frame)

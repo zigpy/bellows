@@ -834,6 +834,54 @@ async def test_reject_condition_firmware_amplification_bug() -> None:
     assert len(transport.write.mock_calls) == 0
 
 
+@pytest.mark.parametrize("suppress_acks", [False, True])
+async def test_suppress_acks_still_naks(suppress_acks: bool) -> None:
+    """ACKs can be suppressed but NAKs must always be sent."""
+    ezsp = MagicMock()
+    protocol = ash.AshProtocol(ezsp, suppress_acks=suppress_acks)
+    transport = MagicMock()
+    transport.is_closing.return_value = False
+    protocol.connection_made(transport)
+    protocol._write_frame = MagicMock(wraps=protocol._write_frame)
+
+    # An in-sequence DATA frame is passed up but only ACKed if ACKs are not suppressed
+    good_frame = ash.DataFrame(frm_num=0, re_tx=0, ack_num=0, ezsp_frame=b"good")
+    protocol.data_received(good_frame.to_bytes() + bytes([ash.Reserved.FLAG]))
+
+    assert ezsp.data_received.mock_calls == [call(b"good")]
+
+    if suppress_acks:
+        assert protocol._write_frame.mock_calls == []
+    else:
+        assert protocol._write_frame.mock_calls == [
+            call(ash.AckFrame(res=0, ncp_ready=0, ack_num=1))
+        ]
+
+    protocol._write_frame.reset_mock()
+
+    # A retransmitted out-of-sequence frame is ACKed under the same rules
+    retx_frame = ash.DataFrame(frm_num=4, re_tx=1, ack_num=0, ezsp_frame=b"retx")
+    protocol.data_received(retx_frame.to_bytes() + bytes([ash.Reserved.FLAG]))
+
+    if suppress_acks:
+        assert protocol._write_frame.mock_calls == []
+    else:
+        assert protocol._write_frame.mock_calls == [
+            call(ash.AckFrame(res=0, ncp_ready=0, ack_num=1))
+        ]
+
+    protocol._write_frame.reset_mock()
+
+    # But a NAK is sent for an out-of-sequence frame, even with ACKs suppressed
+    bad_frame = ash.DataFrame(frm_num=4, re_tx=0, ack_num=0, ezsp_frame=b"bad")
+    protocol.data_received(bad_frame.to_bytes() + bytes([ash.Reserved.FLAG]))
+
+    assert protocol._in_reject_condition is True
+    assert protocol._write_frame.mock_calls == [
+        call(ash.NakFrame(res=0, ncp_ready=0, ack_num=1))
+    ]
+
+
 def test_ncp_failure_comparison() -> None:
     exc1 = ash.NcpFailure(code=t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT)
     exc2 = ash.NcpFailure(code=t.NcpResetCode.RESET_POWER_ON)
