@@ -121,8 +121,10 @@ class EZSP:
     @property
     def resets_on_connect(self) -> bool:
         """Whether the NCP may reset by itself as we connect, before we ask it to."""
-        parsed_path = urllib.parse.urlparse(self._config[conf.CONF_DEVICE_PATH])
-        return parsed_path.scheme in ("socket", "esphome")
+        path = self._config[conf.CONF_DEVICE_PATH]
+        if bellows.uart.is_esphome_url(path):
+            return True
+        return urllib.parse.urlparse(path).scheme == "socket"
 
     async def _startup_reset(self) -> None:
         """Start EZSP and reset the stack."""

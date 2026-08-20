@@ -369,6 +369,17 @@ class AshProtocol(asyncio.Protocol):
         self._ncp_state: NcpState = NcpState.CONNECTED
         self._in_reject_condition: bool = False
 
+    @property
+    def suppress_acks(self) -> bool:
+        """Whether something upstream acknowledges the NCP's frames on our behalf."""
+        return self._suppress_acks
+
+    @suppress_acks.setter
+    def suppress_acks(self, value: bool) -> None:
+        # Settable after construction because only the open transport can say whether the
+        # port will do it: the answer comes from the device, not from the path.
+        self._suppress_acks = value
+
     def connection_made(self, transport):
         self._transport = transport
         self._ezsp_protocol.connection_made(self)

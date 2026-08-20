@@ -14,13 +14,28 @@ LOGGER = logging.getLogger(__name__)
 RESET_TIMEOUT = 2.5
 
 # An ESPHome port in this mode ACKs ASH frames on our behalf
-ACKLESS_URL_MODE = "ezsp_ash"
+ACKLESS_MODE = "ezsp_ash"
+
+# URL schemes served by an ESPHome serial proxy, which is the only transport that can take
+# the acknowledging off our hands
+ESPHOME_SCHEMES = frozenset({"esphome", "esphome-hass"})
 
 
-def url_suppresses_acks(path: str) -> bool:
-    """Whether something upstream ACKs our ASH frames, making our own ACKs overhead."""
-    query = urllib.parse.parse_qs(urllib.parse.urlparse(path).query)
-    return "mode" in query and ACKLESS_URL_MODE in query["mode"]
+def is_esphome_url(path: str) -> bool:
+    """Whether the path is served by an ESPHome serial proxy."""
+    return urllib.parse.urlparse(path).scheme in ESPHOME_SCHEMES
+
+
+def offloads_acks(transport) -> bool:
+    """Whether the port will acknowledge the NCP's frames on our behalf.
+
+    Asked of the port rather than assumed from the URL: if we stop acknowledging and nothing
+    else does, the NCP retransmits until it drops the link, whereas both of us acknowledging
+    is merely redundant. So this has to be something the device stated, and it is per port --
+    a tap belongs to one port, and a device-wide answer would be wrong for every other.
+    """
+    serial = getattr(transport, "serial", None)
+    return getattr(serial, "tap_mode", None) == ACKLESS_MODE
 
 
 class Gateway(zigpy.serial.SerialProtocol):
@@ -123,9 +138,18 @@ async def _connect(config, api):
     path = config[zigpy.config.CONF_DEVICE_PATH]
 
     gateway = Gateway(api, connection_done_future)
-    protocol = AshProtocol(gateway, suppress_acks=url_suppresses_acks(path))
+    protocol = AshProtocol(gateway)
 
     flow_control = config[zigpy.config.CONF_DEVICE_FLOW_CONTROL]
+
+    extra_kwargs = {}
+
+    if is_esphome_url(path):
+        # We are the ASH endpoint, so we are the one who knows the framing: ask the proxy for
+        # it rather than expecting whoever stored the path to have said so. Leaving it out of
+        # the path also keeps the mode from following that path into other tools -- a firmware
+        # flasher opening the same port needs a plain byte pipe.
+        extra_kwargs["mode"] = ACKLESS_MODE
 
     transport, _ = await zigpy.serial.create_serial_connection(
         loop,
@@ -134,7 +158,12 @@ async def _connect(config, api):
         baudrate=config[zigpy.config.CONF_DEVICE_BAUDRATE],
         xonxoff=flow_control in (None, "software"),
         rtscts=flow_control == "hardware",
+        **extra_kwargs,
     )
+
+    if offloads_acks(transport):
+        LOGGER.debug("Port acknowledges NCP frames on our behalf, suppressing our own ACKs")
+        protocol.suppress_acks = True
 
     await gateway.wait_until_connected()
 
