@@ -3048,9 +3048,28 @@ def test_frame_handler_gp(app: ControllerApplication) -> None:
                 payload=zigpy_t.SerializableBytes(b"\x01"),
                 frame_counter=27,
                 security_level=zgp_t.SecurityLevel.FullFrameCounterAndMIC,
-                security_key_type=zgp_t.SecurityKeyType.NWKKey,
+                # The NCP did no security processing so it has no key type to report:
+                # the `1` it sends is the on-air `SecurityKey` bit, not `NWKKey`
+                security_key_type=None,
+                security_status=zgp_t.SecurityStatus.Unprocessed,
                 lqi=255,
                 rssi=-58,
             )
         )
     ]
+
+
+def test_frame_handler_gp_security_failure(app: ControllerApplication) -> None:
+    """A frame the NCP could not authenticate is dropped."""
+    # The same EnOcean PTM-216Z frame, reported as an authentication failure
+    frame = bytes.fromhex("07da1b0043f4550143f45501d3020100001b000000696fd093d0ff0101")
+    args, rest = t.deserialize_dict(
+        frame, COMMANDS_v19["gpepIncomingMessageHandler"][2]
+    )
+    assert not rest
+    assert args["status"] == t.sl_GpStatus.AUTH_FAILURE
+
+    with patch.object(app, "gp_packet_received") as gp_packet_received:
+        app.ezsp_callback_handler("gpepIncomingMessageHandler", list(args.values()))
+
+    assert len(gp_packet_received.mock_calls) == 0

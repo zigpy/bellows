@@ -81,6 +81,21 @@ DEFAULT_TX_POWER = 8  # dBm
 LIB_VERSION = importlib.metadata.version("bellows")
 LOGGER = logging.getLogger(__name__)
 
+GP_SECURITY_STATUSES = {
+    (t.EmberStatus, t.EmberStatus.MATCH): zgp_t.SecurityStatus.SecuritySuccess,
+    (t.EmberStatus, t.EmberStatus.PASS_UNPROCESSED): zgp_t.SecurityStatus.Unprocessed,
+    (t.EmberStatus, t.EmberStatus.NO_SECURITY): zgp_t.SecurityStatus.NoSecurity,
+    (t.EmberStatus, t.EmberStatus.COUNTER_FAILURE): zgp_t.SecurityStatus.CounterFailure,
+    (t.EmberStatus, t.EmberStatus.AUTH_FAILURE): zgp_t.SecurityStatus.AuthFailure,
+    (t.EmberStatus, t.EmberStatus.UNPROCESSED): zgp_t.SecurityStatus.Unprocessed,
+    (t.sl_GpStatus, t.sl_GpStatus.OK): zgp_t.SecurityStatus.SecuritySuccess,
+    (t.sl_GpStatus, t.sl_GpStatus.MATCH): zgp_t.SecurityStatus.SecuritySuccess,
+    (t.sl_GpStatus, t.sl_GpStatus.UNPROCESSED): zgp_t.SecurityStatus.Unprocessed,
+    (t.sl_GpStatus, t.sl_GpStatus.PASS_UNPROCESSED): zgp_t.SecurityStatus.Unprocessed,
+    (t.sl_GpStatus, t.sl_GpStatus.NO_SECURITY): zgp_t.SecurityStatus.NoSecurity,
+    (t.sl_GpStatus, t.sl_GpStatus.AUTH_FAILURE): zgp_t.SecurityStatus.AuthFailure,
+}
+
 
 class ControllerApplication(zigpy.application.ControllerApplication):
     SCHEMA = CONFIG_SCHEMA
@@ -819,6 +834,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         proxy_table_index: t.uint8_t,
         gpd_command_payload: t.LVBytes,
     ) -> None:
+        security_status = GP_SECURITY_STATUSES[type(status), status]
+
+        if security_status in (
+            zgp_t.SecurityStatus.AuthFailure,
+            zgp_t.SecurityStatus.CounterFailure,
+        ):
+            LOGGER.debug(
+                "Dropping GP frame that failed security processing: %s", status
+            )
+            return
+
         self.gp_packet_received(
             zigpy.types.ZigbeeGpPacket(
                 application_id=addr.applicationId,
@@ -838,11 +864,20 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     if addr.applicationId == zgp_t.ApplicationID.IEEE
                     else None
                 ),
-                command_id=gpd_command_id,
+                command_id=zgp_t.GPDCommandID(gpd_command_id),
                 payload=zigpy.types.SerializableBytes(gpd_command_payload),
                 frame_counter=gpd_security_frame_counter,
                 security_level=zgp_t.SecurityLevel(gpdf_security_level),
-                security_key_type=zgp_t.SecurityKeyType(gpdf_security_key_type),
+                # The NCP only knows the key type if it performed the security
+                # processing itself (spec Table 5). Otherwise this field carries the
+                # 1-bit `SecurityKey` sub-field off the air, which is not a key type:
+                # an `IndividualKey` GPD shows up here as `NWKKey`
+                security_key_type=(
+                    zgp_t.SecurityKeyType(gpdf_security_key_type)
+                    if security_status is zgp_t.SecurityStatus.SecuritySuccess
+                    else None
+                ),
+                security_status=security_status,
                 # The NCP quantizes the LQI into the two-bit link quality of the GPP-GPD
                 # link field with the link cost thresholds of the stack (<48, <64, <80,
                 # and above), so only the band is known. Report its upper bound.
