@@ -2,6 +2,7 @@ import asyncio
 from asyncio import timeout as asyncio_timeout
 import inspect
 import threading
+import time
 from unittest import mock
 
 import pytest
@@ -300,3 +301,114 @@ async def test_thread_task_cancellation_after_stop(thread):
         # This will stall forever without the patch
         async with asyncio_timeout(1):
             await proxy.wait_forever()
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+async def test_proxy_loop_stopping_async(thread, caplog):
+    """An async call dispatched after `force_stop()` resolves instead of hanging."""
+    obj = mock.MagicMock()
+    call_count = 0
+    worker_loop = thread.loop
+
+    async def magic():
+        nonlocal call_count
+        call_count += 1
+        # Like a real `Gateway.disconnect()`, this cannot finish within the window: the
+        # loop stops with the task still pending, and closing drops it
+        await worker_loop.create_future()
+
+    obj.test = magic
+    proxy = ThreadsafeProxy(obj, worker_loop, thread)
+
+    # Wedge the worker thread so the stop cannot complete while we dispatch: the loop is
+    # then reliably in the window this pins, stopping but not yet closed
+    worker_loop.call_soon_threadsafe(lambda: time.sleep(0.5))
+    thread.force_stop()
+
+    async with asyncio_timeout(1):
+        # `run_coroutine_threadsafe()` accepts work for a stopping loop without raising,
+        # so without the patch this awaits a future that is never resolved
+        assert await proxy.test() is None
+
+    assert call_count == 0
+    assert "Attempted to use an event loop that is shutting down" in caplog.text
+
+
+async def test_proxy_loop_stopping_sync(caplog):
+    """A sync call dispatched to a stopping loop is dropped, not silently queued."""
+    loop = asyncio.new_event_loop()
+    try:
+        thread = EventLoopThread()
+        thread.loop = loop
+        thread.stopping = True
+
+        obj = mock.MagicMock()
+        obj.test.return_value = None
+        proxy = ThreadsafeProxy(obj, loop, thread)
+
+        proxy.test()
+
+        assert obj.test.call_count == 0
+        assert "Attempted to use an event loop that is shutting down" in caplog.text
+    finally:
+        loop.close()
+
+
+async def test_proxy_stopping_ignored_without_thread(thread):
+    """A proxy with no `EventLoopThread` behaves exactly as before."""
+    obj = mock.MagicMock()
+    obj.test.return_value = None
+    proxy = ThreadsafeProxy(obj, thread.loop)
+
+    # A proxy that was not given the thread has no way to see this, and must not guess
+    thread.stopping = True
+    proxy.test()
+    thread.stopping = False
+
+    await yield_other_thread(thread)
+
+    assert obj.test.call_count == 1
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+async def test_thread_run_coroutine_threadsafe_stopping():
+    """Handing a coroutine to a stopping loop raises instead of hanging."""
+    thread = EventLoopThread()
+    thread.loop = asyncio.new_event_loop()
+    try:
+        thread.force_stop()
+        assert thread.stopping
+        assert not thread.loop.is_closed()
+
+        coro = asyncio.sleep(0)
+        with pytest.raises(RuntimeError):
+            thread.run_coroutine_threadsafe(coro)
+
+        # The coroutine is closed internally: no "never awaited" RuntimeWarning
+        assert inspect.getcoroutinestate(coro) == inspect.CORO_CLOSED
+    finally:
+        thread.loop.close()
+
+
+async def test_thread_start_clears_stopping():
+    """A restarted thread is usable again: `start()` clears the stopping flag."""
+    thread = EventLoopThread()
+    thread_complete = await thread.start()
+    thread.force_stop()
+    assert thread.stopping
+
+    async with asyncio_timeout(1):
+        await thread_complete
+
+    await thread.start()
+    assert not thread.stopping
+    result = await thread.run_coroutine_threadsafe(
+        asyncio.sleep(0, mock.sentinel.result)
+    )
+    assert result is mock.sentinel.result
+
+    thread.force_stop()
+    async with asyncio_timeout(1):
+        await thread.thread_complete
+    [t.join(1) for t in threading.enumerate() if "bellows" in t.name]
+    assert [t for t in threading.enumerate() if "bellows" in t.name] == []

@@ -14,12 +14,17 @@ class EventLoopThread:
     def __init__(self):
         self.loop = None
         self.thread_complete = None
+        # Published by `force_stop()` before it schedules anything. `loop.is_closed()`
+        # only becomes `True` once the loop has actually been closed, so it cannot answer
+        # "will this loop still run what I hand it?" during the shutdown window: between
+        # `force_stop()` and `loop.close()` the loop accepts work it will never run.
+        self.stopping = False
 
     def run_coroutine_threadsafe(self, coroutine):
         current_loop = asyncio.get_event_loop()
         # Snapshot: the worker thread publishes `None` when it exits
         loop = self.loop
-        if loop is None:
+        if loop is None or self.stopping:
             coroutine.close()
             raise RuntimeError("Event loop is not running")
         try:
@@ -47,6 +52,9 @@ class EventLoopThread:
     async def start(self):
         current_loop = asyncio.get_event_loop()
         if self.loop is not None and not self.loop.is_closed():
+            # Note this returns a thread that is still stopping, if one is: reusing a loop
+            # that is winding down is not safe, and spawning a second thread while the
+            # first is in its `finally` would have it close the new loop out from under us
             return
 
         executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=__name__)
@@ -55,6 +63,8 @@ class EventLoopThread:
 
         async def init_task():
             current_loop.call_soon_threadsafe(thread_started_future.set_result, None)
+
+        self.stopping = False
 
         # Use current loop so current loop has a reference to the long-running thread
         # as one of its tasks
@@ -67,6 +77,10 @@ class EventLoopThread:
         return thread_complete
 
     def force_stop(self):
+        # Published before anything is scheduled below: from here on the loop may stop at
+        # any moment, so work handed to it may never run.
+        self.stopping = True
+
         loop = self.loop
         if loop is None or loop.is_closed():
             return
@@ -91,9 +105,12 @@ class ThreadsafeProxy:
     using that object's methods are done on a particular event loop
     """
 
-    def __init__(self, obj, obj_loop):
+    def __init__(self, obj, obj_loop, loop_thread=None):
         self._obj = obj
         self._obj_loop = obj_loop
+        # The `EventLoopThread` running `obj_loop`, when there is one. Only it knows that a
+        # stop has been requested; the loop object itself still looks perfectly usable.
+        self._loop_thread = loop_thread
 
     def __getattr__(self, name):
         func = getattr(self._obj, name)
@@ -111,9 +128,9 @@ class ThreadsafeProxy:
             if loop == curr_loop:
                 return call()
 
-            def disconnected_result():
+            def disconnected_result(message="Attempted to use a closed event loop"):
                 # Disconnected: sync calls are dropped, async calls resolve to None
-                LOGGER.warning("Attempted to use a closed event loop")
+                LOGGER.warning(message)
                 if not inspect.iscoroutinefunction(func):
                     return None
                 future = curr_loop.create_future()
@@ -122,6 +139,14 @@ class ThreadsafeProxy:
 
             if loop.is_closed():
                 return disconnected_result()
+            if self._loop_thread is not None and self._loop_thread.stopping:
+                # The loop is still open, but it has been asked to stop: anything handed
+                # to it from here on may never run, and `run_coroutine_threadsafe()` will
+                # not complain. Without this branch the caller waits on a future that is
+                # never resolved -- a silent, unbounded hang.
+                return disconnected_result(
+                    "Attempted to use an event loop that is shutting down"
+                )
             if inspect.iscoroutinefunction(func):
                 coro = call()
                 try:
