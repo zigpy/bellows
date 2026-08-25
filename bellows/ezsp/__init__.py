@@ -770,7 +770,7 @@ class EZSP:
 
         LOGGER.debug("Received XNCP frame: %s", rsp_frame)
 
-        if t.sl_Status.from_ember_status(rsp_frame.status) != t.sl_Status.OK:
+        if rsp_frame.status != xncp.XncpStatus.OK:
             raise InvalidCommandError(f"XNCP response error: {rsp_frame.status}")
 
         return rsp_frame.payload
