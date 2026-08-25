@@ -81,6 +81,14 @@ async def test_disconnect(ezsp_f):
     assert len(gw_disconnect.mock_calls) == 1
 
 
+async def test_disconnect_closed_gateway_loop(ezsp_f):
+    ezsp_f._gw.disconnect = AsyncMock(side_effect=ConnectionResetError)
+
+    await ezsp_f.disconnect()
+
+    assert ezsp_f._gw is None
+
+
 def test_attr(ezsp_f):
     m = ezsp_f.getValue
     assert isinstance(m, functools.partial)
