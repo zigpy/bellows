@@ -28,3 +28,14 @@ def test_ember_node_type_to_zdo_logical_type(node_type, logical_type):
 
     node_type = t.EmberNodeType(node_type)
     assert node_type.zdo_logical_type == zdo_t.LogicalType(logical_type)
+
+
+def test_ember_gp_address_roundtrip():
+    """Wire layout: applicationId(1) + id(8) + endpoint(1)."""
+    raw = b"\x00" + b"\x86\xf8\x71\x01" + bytes(4) + b"\x00"
+    addr, rest = t.EmberGpAddress.deserialize(raw)
+    assert rest == b""
+    assert addr.applicationId == 0
+    assert addr.endpoint == 0
+    assert bytes(addr.id) == b"\x86\xf8\x71\x01" + bytes(4)
+    assert addr.serialize() == raw

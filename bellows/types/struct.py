@@ -357,14 +357,19 @@ class EmberTokTypeStackZllSecurity(EzspStruct):
 
 
 class EmberGpAddress(EzspStruct):
-    # A GP address structure.
-    # The GPD's EUI64.
-    gpdIeeeAddress: named.EUI64
-    # The GPD's source ID.
-    sourceId: basic.uint32_t
-    # The GPD Application ID.
+    """sl_zigbee_gp_address_t: GPD address used by the GP callbacks.
+
+    The C SDK declares the union ``id`` field first, but the EZSP wire
+    layout for ``gpepIncomingMessageHandler`` serializes ``applicationId``
+    first. The order below matches what the NCP actually sends; see the
+    real-frame test in ``tests/test_ezsp_v13.py``.
+    """
+
     applicationId: basic.uint8_t
-    # The GPD endpoint.
+    # 8-byte union. When applicationId == 0 (SrcID), the first 4 bytes
+    # hold the 32-bit source ID (little-endian) and the rest is padding;
+    # when applicationId == 2 (IEEE), the 8 bytes are the GPD EUI64.
+    id: basic.FixedList[basic.uint8_t, 8]
     endpoint: basic.uint8_t
 
 

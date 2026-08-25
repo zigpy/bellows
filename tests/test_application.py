@@ -567,6 +567,269 @@ def test_frame_handler_ignored(app, aps_frame):
     assert app.packet_received.call_count == 0
 
 
+from zigpy.zcl import foundation  # noqa: E402
+from zigpy.zcl.clusters.greenpower import (  # noqa: E402
+    NotificationOptions,
+    NotificationSchema,
+)
+import zigpy.zgp.types as zgp_t  # noqa: E402
+
+
+def _gp_addr_srcid(source_id: int, endpoint: int = 0x00) -> t.EmberGpAddress:
+    id_bytes = source_id.to_bytes(4, "little") + bytes(4)
+    return t.EmberGpAddress(
+        applicationId=t.uint8_t(0),
+        id=t.FixedList[t.uint8_t, 8](id_bytes),
+        endpoint=t.uint8_t(endpoint),
+    )
+
+
+def _gp_args_v13(
+    *,
+    source_id: int = 0x0171F886,
+    status: int = 0x7C,
+    gpd_link: int = 0xCD,
+    sequence_number: int = 0xEC,
+    security_level: int = 0,
+    security_key_type: int = 0,
+    frame_counter: int = 0xFFFFFFFF,
+    command_id: int = 0xE0,
+    payload: bytes = b"\x02\xc5\xf2" + bytes(43),
+) -> list:
+    """Build the args list as delivered on EZSP v13/v14 (no trailer)."""
+    return [
+        t.uint8_t(status),
+        t.uint8_t(gpd_link),
+        t.uint8_t(sequence_number),
+        _gp_addr_srcid(source_id),
+        t.EmberGpSecurityLevel(security_level),
+        t.EmberGpKeyType(security_key_type),
+        t.Bool(False),  # autoCommissioning
+        t.uint8_t(0),  # bidirectionalInfo
+        t.uint32_t(frame_counter),
+        t.uint8_t(command_id),
+        t.uint32_t(0xFFFFFFFF),  # mic
+        t.uint8_t(0xFF),  # proxyTableIndex
+        t.LVBytes(payload),
+    ]
+
+
+def _expected_gp_packet(
+    *,
+    src_nwk,
+    dst_nwk,
+    source_id: int,
+    sequence_number: int,
+    command_id: int,
+    payload: bytes,
+    frame_counter: int,
+    lqi: int,
+    rssi: int,
+    security_level: int = 0,
+    security_key_type: int = 0,
+) -> zigpy.types.ZigbeePacket:
+    options = NotificationOptions(
+        application_id=zgp_t.ApplicationID.SrcID,
+        also_unicast=0,
+        also_derived_group=0,
+        also_commissioned_group=0,
+        security_level=zgp_t.SecurityLevel(security_level),
+        security_key_type=zgp_t.SecurityKeyType(security_key_type),
+        appoint_temp_master=0,
+        tx_queue_full=0,
+        _reserved=0,
+    )
+    notification = NotificationSchema(
+        options=options,
+        gpd_id=zgp_t.DeviceID(source_id),
+        frame_counter=zigpy.types.uint32_t(frame_counter),
+        command_id=zigpy.types.uint8_t(command_id),
+        payload=zigpy.types.LVBytes(payload),
+    )
+    tsn = zigpy.types.uint8_t(sequence_number & 0xFF)
+    zcl_bytes = (
+        foundation.ZCLHeader.cluster(tsn=tsn, command_id=0x00).serialize()
+        + notification.serialize()
+    )
+    return zigpy.types.ZigbeePacket(
+        src=zigpy.types.AddrModeAddress(
+            addr_mode=zigpy.types.AddrMode.NWK,
+            address=zigpy.types.NWK(src_nwk),
+        ),
+        src_ep=zigpy.types.uint8_t(242),
+        dst=zigpy.types.AddrModeAddress(
+            addr_mode=zigpy.types.AddrMode.NWK, address=dst_nwk
+        ),
+        dst_ep=zigpy.types.uint8_t(242),
+        tsn=tsn,
+        profile_id=zigpy.types.uint16_t(0xA1E0),
+        cluster_id=zigpy.types.uint16_t(0x0021),
+        data=zigpy.types.SerializableBytes(zcl_bytes),
+        lqi=zigpy.types.uint8_t(lqi),
+        rssi=zigpy.types.int8s(rssi),
+    )
+
+
+def test_gp_frame_handler_forwards_notification(app):
+    """A GPDF is forwarded as the exact ZCL GP Notification packet."""
+    app.ezsp_callback_handler("gpepIncomingMessageHandler", _gp_args_v13())
+
+    expected = _expected_gp_packet(
+        src_nwk=int(app.state.node_info.nwk),
+        dst_nwk=app.state.node_info.nwk,
+        source_id=0x0171F886,
+        sequence_number=0xEC,
+        command_id=0xE0,
+        payload=b"\x02\xc5\xf2" + bytes(43),
+        frame_counter=0xFFFFFFFF,
+        lqi=0xCD,
+        rssi=0,
+    )
+    assert app.packet_received.mock_calls == [call(expected)]
+    assert (
+        app.state.counters[bellows.zigbee.application.COUNTERS_CTRL][
+            bellows.zigbee.application.COUNTER_RX_GP
+        ]
+        == 1
+    )
+
+
+def test_gp_frame_handler_data_command_toggle(app):
+    """A non-commissioning command (Toggle) is forwarded the same way."""
+    app.ezsp_callback_handler(
+        "gpepIncomingMessageHandler",
+        _gp_args_v13(command_id=0x22, payload=b"", frame_counter=42),
+    )
+
+    expected = _expected_gp_packet(
+        src_nwk=int(app.state.node_info.nwk),
+        dst_nwk=app.state.node_info.nwk,
+        source_id=0x0171F886,
+        sequence_number=0xEC,
+        command_id=0x22,
+        payload=b"",
+        frame_counter=42,
+        lqi=0xCD,
+        rssi=0,
+    )
+    assert app.packet_received.mock_calls == [call(expected)]
+
+
+def test_gp_frame_handler_ieee_application_id_dropped(app):
+    """IEEE-addressed GPDs are dropped: the zigpy GP stack only handles SrcID."""
+    args = _gp_args_v13()
+    args[3] = t.EmberGpAddress(
+        applicationId=t.uint8_t(2),
+        id=t.FixedList[t.uint8_t, 8](bytes(8)),
+        endpoint=t.uint8_t(1),
+    )
+
+    app.ezsp_callback_handler("gpepIncomingMessageHandler", args)
+
+    assert app.packet_received.call_count == 0
+
+
+def test_gp_frame_handler_short_args_dropped(app):
+    """Malformed callbacks never crash the dispatcher."""
+    app.ezsp_callback_handler("gpepIncomingMessageHandler", [0x00, 0x00])
+    assert app.packet_received.call_count == 0
+
+
+def test_gp_frame_handler_legacy_address_layout_dropped(app):
+    """EZSP < v13 delivers a uint8_t addrType, not an EmberGpAddress."""
+    args = _gp_args_v13()
+    args[3] = t.uint8_t(0)  # legacy addrType in place of EmberGpAddress
+
+    app.ezsp_callback_handler("gpepIncomingMessageHandler", args)
+
+    assert app.packet_received.call_count == 0
+
+
+async def test_gp_frame_handler_operational_toggle(app):
+    """A Toggle from a commissioned GPD reaches zigpy's GreenPowerManager."""
+    pytest.importorskip("zigpy.zgp.manager")
+    from zigpy.zgp.device import GPDevice
+    from zigpy.zgp.events import CommandReceived
+    from zigpy.zgp.types import GPDCommandID
+
+    # The make_app fixture stubs packet_received; restore the real dispatch so
+    # the frame actually reaches the GP manager.
+    app.packet_received = ControllerApplication.packet_received.__get__(app)
+
+    source_id = 0x0171F886
+    dev = GPDevice(source_id=source_id, device_id=0x02, frame_counter=0)
+    app.green_power.add_device(dev)
+
+    received = []
+    app.green_power.on_event(CommandReceived.event_type, received.append)
+
+    app.ezsp_callback_handler(
+        "gpepIncomingMessageHandler",
+        _gp_args_v13(
+            source_id=source_id,
+            command_id=int(GPDCommandID.Toggle),
+            payload=b"",
+            frame_counter=42,
+        ),
+    )
+
+    # handle_packet dispatches processing as a background task.
+    await asyncio.sleep(0.01)
+
+    assert len(received) == 1
+    event = received[0]
+    assert event.device is dev
+    assert event.command_id == GPDCommandID.Toggle
+    assert event.payload == b""
+    assert dev.frame_counter == 42
+
+
+async def test_gp_frame_handler_commissioning_joins_device(app):
+    """A commissioning GPDF joins the device and triggers a GP Pairing."""
+    pytest.importorskip("zigpy.zgp.manager")
+    from zigpy.zgp.events import DeviceJoined
+    from zigpy.zgp.types import GP_CLUSTER_ID, GP_ENDPOINT
+
+    app.packet_received = ControllerApplication.packet_received.__get__(app)
+    app.send_packet = AsyncMock()
+
+    await app.green_power.permit_join(time_s=60)
+    assert app.green_power.is_commissioning
+
+    joined = []
+    app.green_power.on_event(DeviceJoined.event_type, joined.append)
+
+    source_id = 0x0171F886
+    app.ezsp_callback_handler(
+        "gpepIncomingMessageHandler",
+        _gp_args_v13(
+            source_id=source_id,
+            command_id=0xE0,
+            payload=bytes([0x02, 0x00]),  # device_id 0x02, options 0x00
+            frame_counter=1,
+        ),
+    )
+
+    await asyncio.sleep(0.01)
+
+    assert len(joined) == 1
+    assert joined[0].device.device_id == 0x02
+
+    dev = app.green_power.get_device(source_id)
+    assert dev is not None
+    assert dev.device_id == 0x02
+
+    # The manager transmits GP Pairing via send_packet on the GP cluster.
+    gp_packets = [
+        c.args[0]
+        for c in app.send_packet.mock_calls
+        if c.args
+        and c.args[0].cluster_id == GP_CLUSTER_ID
+        and c.args[0].dst_ep == GP_ENDPOINT
+    ]
+    assert gp_packets
+
+
 @pytest.mark.parametrize(
     "msg_type",
     (
