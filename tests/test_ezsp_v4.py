@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 import zigpy.state
+import zigpy.zdo
 
 import bellows.ezsp.v4
 import bellows.types as t
@@ -275,6 +276,28 @@ async def test_factory_reset(ezsp_f) -> None:
     await ezsp_f.factory_reset()
 
     assert ezsp_f.clearKeyTable.mock_calls == [call()]
+
+
+async def test_leave_network(ezsp_f) -> None:
+    ezsp_f.leaveNetwork.return_value = (t.EmberStatus.SUCCESS,)
+    assert await ezsp_f.leave_network() == t.sl_Status.OK
+    assert ezsp_f.leaveNetwork.mock_calls == [call()]
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        zigpy.zdo.ZDO.LeaveOptions.Rejoin,
+        zigpy.zdo.ZDO.LeaveOptions.RemoveChildren,
+    ],
+)
+async def test_leave_network_options_unsupported(
+    ezsp_f, options: zigpy.zdo.ZDO.LeaveOptions
+) -> None:
+    with pytest.raises(ValueError):
+        await ezsp_f.leave_network(options=options)
+
+    assert ezsp_f.leaveNetwork.mock_calls == []
 
 
 async def test_send_unicast(ezsp_f) -> None:

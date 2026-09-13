@@ -8,6 +8,7 @@ from unittest.mock import ANY, AsyncMock, MagicMock, call, patch
 
 import pytest
 import zigpy.config
+import zigpy.zdo
 
 from bellows import config, uart
 from bellows.ash import NcpFailure
@@ -451,8 +452,8 @@ async def test_set_disable_source_routing(ezsp_f):
 async def test_leave_network_error(ezsp_f):
     """Test EZSP leaveNetwork command failure."""
 
-    with patch.object(ezsp_f, "_command", new_callable=AsyncMock) as cmd_mock:
-        cmd_mock.return_value = [t.EmberStatus.ERR_FATAL]
+    with patch.object(ezsp_f._protocol, "leave_network", new_callable=AsyncMock) as m:
+        m.return_value = t.sl_Status.FAIL
         with pytest.raises(EzspError):
             await ezsp_f.leaveNetwork(timeout=0.01)
 
@@ -460,43 +461,38 @@ async def test_leave_network_error(ezsp_f):
 async def test_leave_network_no_stack_status(ezsp_f):
     """Test EZSP leaveNetwork command, no stackStatusHandler callback."""
 
-    with patch.object(ezsp_f, "_command", new_callable=AsyncMock) as cmd_mock:
-        cmd_mock.return_value = [t.EmberStatus.SUCCESS]
+    with patch.object(ezsp_f._protocol, "leave_network", new_callable=AsyncMock) as m:
+        m.return_value = t.sl_Status.OK
         with pytest.raises(TimeoutError):
             await ezsp_f.leaveNetwork(timeout=0.01)
 
 
-async def test_leave_network(ezsp_f):
+@pytest.mark.parametrize(
+    ("kwargs", "options"),
+    [
+        ({}, zigpy.zdo.ZDO.LeaveOptions.NONE),
+        (
+            {"options": zigpy.zdo.ZDO.LeaveOptions.Rejoin},
+            zigpy.zdo.ZDO.LeaveOptions.Rejoin,
+        ),
+    ],
+)
+async def test_leave_network(
+    ezsp_f, kwargs: dict, options: zigpy.zdo.ZDO.LeaveOptions
+) -> None:
     """Test EZSP leaveNetwork command."""
 
-    async def _mock_cmd(*args, **kwargs):
+    async def _mock_leave(*args, **kwargs):
         ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_UP])
         ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_UP])
         ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_DOWN])
-        return [t.EmberStatus.SUCCESS]
+        return t.sl_Status.OK
 
-    with patch.object(ezsp_f, "_command", new_callable=AsyncMock) as cmd_mock:
-        cmd_mock.side_effect = _mock_cmd
-        await ezsp_f.leaveNetwork(timeout=0.01)
+    with patch.object(ezsp_f._protocol, "leave_network", new_callable=AsyncMock) as m:
+        m.side_effect = _mock_leave
+        await ezsp_f.leaveNetwork(timeout=0.01, **kwargs)
 
-    assert cmd_mock.mock_calls == [call("leaveNetwork")]
-
-
-async def test_leave_network_v14(ezsp_f):
-    """Test EZSP leaveNetwork command sends the `options` argument on EZSPv14+."""
-    ezsp_f._ezsp_version = 14
-
-    async def _mock_cmd(*args, **kwargs):
-        ezsp_f.handle_callback("stackStatusHandler", [t.sl_Status.NETWORK_DOWN])
-        return [t.sl_Status.OK]
-
-    with patch.object(ezsp_f, "_command", new_callable=AsyncMock) as cmd_mock:
-        cmd_mock.side_effect = _mock_cmd
-        await ezsp_f.leaveNetwork(timeout=0.01)
-
-    assert cmd_mock.mock_calls == [
-        call("leaveNetwork", options=t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION)
-    ]
+    assert m.mock_calls == [call(options=options)]
 
 
 async def test_xncp_token_override(ezsp_f):

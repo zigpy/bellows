@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from zigpy.datastructures import PriorityDynamicBoundedSemaphore
 import zigpy.state
+import zigpy.zdo
 
 from bellows.config import CONF_EZSP_POLICIES
 from bellows.exception import InvalidCommandError
@@ -334,6 +335,13 @@ class ProtocolHandler(abc.ABC):
 
     @abc.abstractmethod
     async def factory_reset(self) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def leave_network(
+        self,
+        options: zigpy.zdo.ZDO.LeaveOptions = zigpy.zdo.ZDO.LeaveOptions.NONE,
+    ) -> t.sl_Status:
         raise NotImplementedError
 
     @abc.abstractmethod

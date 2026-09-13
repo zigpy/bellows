@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, call
 import pytest
 import zigpy.exceptions
 import zigpy.state
+import zigpy.zdo
 
 import bellows.ezsp
 import bellows.ezsp.v14
@@ -69,6 +70,45 @@ def test_status_rx_schemas(
 
     assert list(result.values()) == expected
     assert rest == b""
+
+
+@pytest.mark.parametrize(
+    ("options", "ezsp_options"),
+    [
+        (
+            zigpy.zdo.ZDO.LeaveOptions.NONE,
+            t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION,
+        ),
+        (
+            zigpy.zdo.ZDO.LeaveOptions.Rejoin,
+            t.SlZigbeeLeaveNetworkOption.WITH_OPTION_REJOIN,
+        ),
+    ],
+)
+async def test_leave_network(
+    ezsp_f,
+    options: zigpy.zdo.ZDO.LeaveOptions,
+    ezsp_options: t.SlZigbeeLeaveNetworkOption,
+) -> None:
+    ezsp_f.leaveNetwork.return_value = (t.sl_Status.OK,)
+    assert await ezsp_f.leave_network(options=options) == t.sl_Status.OK
+    assert ezsp_f.leaveNetwork.mock_calls == [call(options=ezsp_options)]
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        zigpy.zdo.ZDO.LeaveOptions.RemoveChildren,
+        zigpy.zdo.ZDO.LeaveOptions.RemoveChildren | zigpy.zdo.ZDO.LeaveOptions.Rejoin,
+    ],
+)
+async def test_leave_network_options_unsupported(
+    ezsp_f, options: zigpy.zdo.ZDO.LeaveOptions
+) -> None:
+    with pytest.raises(ValueError):
+        await ezsp_f.leave_network(options=options)
+
+    assert ezsp_f.leaveNetwork.mock_calls == []
 
 
 async def test_read_address_table(ezsp_f):
