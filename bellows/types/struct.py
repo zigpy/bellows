@@ -326,6 +326,20 @@ class EmberTokenInfo(EzspStruct):
     arraySize: basic.uint8_t
 
 
+class SlZigbeeTokenInfo(EzspStruct):
+    # Information of a token in the token table
+    # NVM3 key of the token
+    nvm3Key: named.NV3KeyId
+    # Token is a counter type
+    isCnt: named.Bool
+    # Token is an indexed token
+    isIdx: named.Bool
+    # Size of the token, widened from `uint8_t` in Simplicity SDK 2025.12
+    size: basic.uint32_t
+    # Array size of the token
+    arraySize: basic.uint8_t
+
+
 class EmberTokTypeStackZllData(EzspStruct):
     # Public API for ZLL stack data token.
     # Token bitmask.
