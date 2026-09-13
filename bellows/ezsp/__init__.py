@@ -14,7 +14,6 @@ from typing import Any
 import urllib.parse
 
 import zigpy.config
-import zigpy.zdo
 
 from bellows.ash import NcpFailure
 import bellows.config as conf
@@ -320,7 +319,9 @@ class EZSP:
     async def leaveNetwork(
         self,
         timeout: float | int = NETWORK_OPS_TIMEOUT,
-        options: zigpy.zdo.ZDO.LeaveOptions = zigpy.zdo.ZDO.LeaveOptions.NONE,
+        options: t.SlZigbeeLeaveNetworkOption = (
+            t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION
+        ),
     ) -> None:
         """Send leaveNetwork command and wait for stackStatusHandler frame."""
         stack_status = asyncio.Future()

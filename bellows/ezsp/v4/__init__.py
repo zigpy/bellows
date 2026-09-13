@@ -7,7 +7,6 @@ import random
 
 import voluptuous as vol
 import zigpy.state
-import zigpy.zdo
 
 import bellows.config
 import bellows.types as t
@@ -130,9 +129,11 @@ class EZSPv4(protocol.ProtocolHandler):
 
     async def leave_network(
         self,
-        options: zigpy.zdo.ZDO.LeaveOptions = zigpy.zdo.ZDO.LeaveOptions.NONE,
+        options: t.SlZigbeeLeaveNetworkOption = (
+            t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION
+        ),
     ) -> t.sl_Status:
-        if options != zigpy.zdo.ZDO.LeaveOptions.NONE:
+        if options != t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION:
             raise ValueError(f"Leave options are not supported: {options!r}")
 
         (status,) = await self.leaveNetwork()

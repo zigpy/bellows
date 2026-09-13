@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 import zigpy.state
-import zigpy.zdo
 
 import bellows.ezsp.v4
 import bellows.types as t
@@ -287,12 +286,12 @@ async def test_leave_network(ezsp_f) -> None:
 @pytest.mark.parametrize(
     "options",
     [
-        zigpy.zdo.ZDO.LeaveOptions.Rejoin,
-        zigpy.zdo.ZDO.LeaveOptions.RemoveChildren,
+        t.SlZigbeeLeaveNetworkOption.WITH_OPTION_REJOIN,
+        t.SlZigbeeLeaveNetworkOption.IS_REQUESTED,
     ],
 )
 async def test_leave_network_options_unsupported(
-    ezsp_f, options: zigpy.zdo.ZDO.LeaveOptions
+    ezsp_f, options: t.SlZigbeeLeaveNetworkOption
 ) -> None:
     with pytest.raises(ValueError):
         await ezsp_f.leave_network(options=options)

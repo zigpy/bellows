@@ -8,7 +8,6 @@ from unittest.mock import ANY, AsyncMock, MagicMock, call, patch
 
 import pytest
 import zigpy.config
-import zigpy.zdo
 
 from bellows import config, uart
 from bellows.ash import NcpFailure
@@ -470,15 +469,15 @@ async def test_leave_network_no_stack_status(ezsp_f):
 @pytest.mark.parametrize(
     ("kwargs", "options"),
     [
-        ({}, zigpy.zdo.ZDO.LeaveOptions.NONE),
+        ({}, t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION),
         (
-            {"options": zigpy.zdo.ZDO.LeaveOptions.Rejoin},
-            zigpy.zdo.ZDO.LeaveOptions.Rejoin,
+            {"options": t.SlZigbeeLeaveNetworkOption.WITH_OPTION_REJOIN},
+            t.SlZigbeeLeaveNetworkOption.WITH_OPTION_REJOIN,
         ),
     ],
 )
 async def test_leave_network(
-    ezsp_f, kwargs: dict, options: zigpy.zdo.ZDO.LeaveOptions
+    ezsp_f, kwargs: dict, options: t.SlZigbeeLeaveNetworkOption
 ) -> None:
     """Test EZSP leaveNetwork command."""
 

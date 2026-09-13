@@ -6,7 +6,6 @@ from collections.abc import AsyncGenerator
 import voluptuous as vol
 from zigpy.exceptions import NetworkNotFormed
 import zigpy.state
-import zigpy.zdo
 
 import bellows.config
 import bellows.types as t
@@ -90,17 +89,11 @@ class EZSPv14(EZSPv13):
 
     async def leave_network(
         self,
-        options: zigpy.zdo.ZDO.LeaveOptions = zigpy.zdo.ZDO.LeaveOptions.NONE,
+        options: t.SlZigbeeLeaveNetworkOption = (
+            t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION
+        ),
     ) -> t.sl_Status:
-        # EZSP uses the NWK leave command's bit layout, which differs from ZDO's
-        if options == zigpy.zdo.ZDO.LeaveOptions.NONE:
-            ezsp_options = t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION
-        elif options == zigpy.zdo.ZDO.LeaveOptions.Rejoin:
-            ezsp_options = t.SlZigbeeLeaveNetworkOption.WITH_OPTION_REJOIN
-        else:
-            raise ValueError(f"Leave options are not supported: {options!r}")
-
-        (status,) = await self.leaveNetwork(options=ezsp_options)
+        (status,) = await self.leaveNetwork(options=options)
         return status
 
     async def send_unicast(
