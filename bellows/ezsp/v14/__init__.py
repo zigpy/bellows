@@ -144,3 +144,17 @@ class EZSPv14(EZSPv13):
         )
 
         return status, sequence
+
+    async def _get_extended_timeout(self, ieee: t.EUI64) -> bool:
+        (status,) = await self.getExtendedTimeout(remoteEui64=ieee)
+
+        # `FAIL` means that the normal retry interval is used
+        return status == t.sl_Status.OK
+
+    async def _lookup_node_id_by_eui64(self, ieee: t.EUI64) -> t.NWK | None:
+        (status, node_id) = await self.lookupNodeIdByEui64(eui64=ieee)
+
+        if status != t.sl_Status.OK or node_id == 0xFFFF:
+            return None
+
+        return node_id

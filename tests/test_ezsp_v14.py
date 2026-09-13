@@ -1,9 +1,10 @@
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 import zigpy.exceptions
 import zigpy.state
 
+import bellows.ezsp
 import bellows.ezsp.v14
 import bellows.types as t
 
@@ -224,5 +225,122 @@ async def test_send_broadcast(ezsp_f) -> None:
             radius=12,
             message_tag=0x42,
             message=b"hello",
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    "version",
+    [v for v in bellows.ezsp.EZSP._BY_VERSION if v >= 14],
+)
+@pytest.mark.parametrize(
+    ("command", "data", "expected"),
+    [
+        # Captured from EmberZNet 8.0.2.0
+        ("getExtendedTimeout", b"\x01\x00\x00\x00", [t.sl_Status.FAIL]),
+        (
+            "lookupNodeIdByEui64",
+            b"\x00\x00\x00\x00\xf5\xac",
+            [t.sl_Status.OK, 0xACF5],
+        ),
+        (
+            "lookupNodeIdByEui64",
+            b"\x2d\x00\x00\x00\xff\xff",
+            [t.sl_Status.NOT_FOUND, 0xFFFF],
+        ),
+    ],
+)
+def test_extended_timeout_rx_schemas(
+    version: int, command: str, data: bytes, expected: list
+) -> None:
+    """The status-prefixed responses are parsed by v14 and newer."""
+    _, _, rx_schema = bellows.ezsp.EZSP._BY_VERSION[version].COMMANDS[command]
+    result, rest = t.deserialize_dict(data, rx_schema)
+
+    assert list(result.values()) == expected
+    assert rest == b""
+
+
+@pytest.mark.parametrize(
+    ("curr_status", "extended_timeout"),
+    [(t.sl_Status.OK, True), (t.sl_Status.FAIL, False)],
+)
+async def test_set_extended_timeout_already_set(
+    ezsp_f, curr_status: t.sl_Status, extended_timeout: bool
+) -> None:
+    ezsp_f.getExtendedTimeout.return_value = (curr_status,)
+
+    await ezsp_f.set_extended_timeout(
+        nwk=0x1234,
+        ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+        extended_timeout=extended_timeout,
+    )
+
+    assert ezsp_f.getExtendedTimeout.mock_calls == [
+        call(remoteEui64=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"))
+    ]
+    assert ezsp_f.lookupNodeIdByEui64.mock_calls == []
+    assert ezsp_f.setExtendedTimeout.mock_calls == []
+
+
+@pytest.mark.parametrize(
+    ("curr_status", "extended_timeout"),
+    [(t.sl_Status.FAIL, True), (t.sl_Status.OK, False)],
+)
+async def test_set_extended_timeout_already_have_entry(
+    ezsp_f, curr_status: t.sl_Status, extended_timeout: bool
+) -> None:
+    ezsp_f.getExtendedTimeout.return_value = (curr_status,)
+    ezsp_f.lookupNodeIdByEui64.return_value = (t.sl_Status.OK, 0x1234)
+    ezsp_f.setExtendedTimeout.return_value = (t.sl_Status.OK,)
+
+    await ezsp_f.set_extended_timeout(
+        nwk=0x1234,
+        ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+        extended_timeout=extended_timeout,
+    )
+
+    assert ezsp_f.lookupNodeIdByEui64.mock_calls == [
+        call(eui64=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"))
+    ]
+    assert ezsp_f.setExtendedTimeout.mock_calls == [
+        call(
+            remoteEui64=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+            extendedTimeout=extended_timeout,
+        )
+    ]
+    assert ezsp_f.replaceAddressTableEntry.mock_calls == []
+
+
+async def test_set_extended_timeout_no_entry(ezsp_f) -> None:
+    ezsp_f.getExtendedTimeout.return_value = (t.sl_Status.FAIL,)
+    ezsp_f.lookupNodeIdByEui64.return_value = (t.sl_Status.NOT_FOUND, 0xFFFF)
+    ezsp_f.getConfigurationValue.return_value = (t.sl_Status.OK, 8)
+    ezsp_f.replaceAddressTableEntry.return_value = (
+        t.sl_Status.OK,
+        t.EUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),
+        0xFFFF,
+        t.Bool.false,
+    )
+
+    with patch("bellows.ezsp.v4.random.randint") as mock_random:
+        mock_random.return_value = 3
+        await ezsp_f.set_extended_timeout(
+            nwk=0x1234,
+            ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+            extended_timeout=True,
+        )
+
+    assert ezsp_f.setExtendedTimeout.mock_calls == []
+    assert ezsp_f.getConfigurationValue.mock_calls == [
+        call(t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE)
+    ]
+    assert mock_random.mock_calls == [call(0, 8 - 1)]
+    assert ezsp_f.replaceAddressTableEntry.mock_calls == [
+        call(
+            addressTableIndex=3,
+            newEui64=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+            newId=0x1234,
+            newExtendedTimeout=True,
         )
     ]
