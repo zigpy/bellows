@@ -87,6 +87,15 @@ class EZSPv14(EZSPv13):
 
         return zigpy.state.Key(key=tc_link_key_data)
 
+    async def leave_network(
+        self,
+        options: t.SlZigbeeLeaveNetworkOption = (
+            t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION
+        ),
+    ) -> t.sl_Status:
+        (status,) = await self.leaveNetwork(options=options)
+        return status
+
     async def send_unicast(
         self,
         nwk: t.NWK,

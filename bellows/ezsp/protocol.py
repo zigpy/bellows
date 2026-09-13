@@ -337,6 +337,15 @@ class ProtocolHandler(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    async def leave_network(
+        self,
+        options: t.SlZigbeeLeaveNetworkOption = (
+            t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION
+        ),
+    ) -> t.sl_Status:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def send_unicast(
         self,
         nwk: t.NWK,

@@ -127,6 +127,18 @@ class EZSPv4(protocol.ProtocolHandler):
     async def factory_reset(self) -> None:
         await self.clearKeyTable()
 
+    async def leave_network(
+        self,
+        options: t.SlZigbeeLeaveNetworkOption = (
+            t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION
+        ),
+    ) -> t.sl_Status:
+        if options != t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION:
+            raise ValueError(f"Leave options are not supported: {options!r}")
+
+        (status,) = await self.leaveNetwork()
+        return t.sl_Status.from_ember_status(status)
+
     async def send_unicast(
         self,
         nwk: t.NWK,
