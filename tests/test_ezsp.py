@@ -479,6 +479,25 @@ async def test_leave_network(ezsp_f):
         cmd_mock.side_effect = _mock_cmd
         await ezsp_f.leaveNetwork(timeout=0.01)
 
+    assert cmd_mock.mock_calls == [call("leaveNetwork")]
+
+
+async def test_leave_network_v14(ezsp_f):
+    """Test EZSP leaveNetwork command sends the `options` argument on EZSPv14+."""
+    ezsp_f._ezsp_version = 14
+
+    async def _mock_cmd(*args, **kwargs):
+        ezsp_f.handle_callback("stackStatusHandler", [t.sl_Status.NETWORK_DOWN])
+        return [t.sl_Status.OK]
+
+    with patch.object(ezsp_f, "_command", new_callable=AsyncMock) as cmd_mock:
+        cmd_mock.side_effect = _mock_cmd
+        await ezsp_f.leaveNetwork(timeout=0.01)
+
+    assert cmd_mock.mock_calls == [
+        call("leaveNetwork", options=t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION)
+    ]
+
 
 async def test_xncp_token_override(ezsp_f):
     ezsp_f.getMfgToken = AsyncMock(return_value=[b"firmware value"])

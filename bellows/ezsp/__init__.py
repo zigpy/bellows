@@ -321,7 +321,12 @@ class EZSP:
         stack_status = asyncio.Future()
 
         with self.wait_for_stack_status(t.sl_Status.NETWORK_DOWN) as stack_status:
-            (status,) = await self._command("leaveNetwork")
+            if self._ezsp_version >= 14:
+                (status,) = await self._command(
+                    "leaveNetwork", options=t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION
+                )
+            else:
+                (status,) = await self._command("leaveNetwork")
             if status != t.sl_Status.OK:
                 raise EzspError(f"failed to leave network: {status.name}")
 
