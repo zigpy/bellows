@@ -312,9 +312,13 @@ async def test_set_extended_timeout_already_have_entry(
     assert ezsp_f.replaceAddressTableEntry.mock_calls == []
 
 
-async def test_set_extended_timeout_no_entry(ezsp_f) -> None:
+@pytest.mark.parametrize(
+    "lookup_rsp",
+    [(t.sl_Status.NOT_FOUND, 0xFFFF), (t.sl_Status.OK, 0xFFFF)],
+)
+async def test_set_extended_timeout_no_entry(ezsp_f, lookup_rsp: tuple) -> None:
     ezsp_f.getExtendedTimeout.return_value = (t.sl_Status.FAIL,)
-    ezsp_f.lookupNodeIdByEui64.return_value = (t.sl_Status.NOT_FOUND, 0xFFFF)
+    ezsp_f.lookupNodeIdByEui64.return_value = lookup_rsp
     ezsp_f.getConfigurationValue.return_value = (t.sl_Status.OK, 8)
     ezsp_f.replaceAddressTableEntry.return_value = (
         t.sl_Status.OK,
@@ -344,3 +348,34 @@ async def test_set_extended_timeout_no_entry(ezsp_f) -> None:
             newExtendedTimeout=True,
         )
     ]
+
+
+@pytest.mark.parametrize(
+    ("config_rsp", "config_calls"),
+    [
+        ((t.sl_Status.FAIL, 0xFF), 2),  # Not cached, queried again
+        ((t.sl_Status.OK, 0), 1),  # No address table
+    ],
+)
+async def test_set_extended_timeout_no_address_table(
+    ezsp_f, config_rsp: tuple, config_calls: int
+) -> None:
+    ezsp_f.getExtendedTimeout.return_value = (t.sl_Status.FAIL,)
+    ezsp_f.lookupNodeIdByEui64.return_value = (t.sl_Status.NOT_FOUND, 0xFFFF)
+    ezsp_f.getConfigurationValue.return_value = config_rsp
+    ezsp_f.setExtendedTimeout.return_value = (t.sl_Status.OK,)
+
+    for _ in range(2):
+        await ezsp_f.set_extended_timeout(
+            nwk=0x1234,
+            ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+            extended_timeout=True,
+        )
+
+    assert len(ezsp_f.getConfigurationValue.mock_calls) == config_calls
+    assert ezsp_f.setExtendedTimeout.mock_calls == 2 * [
+        call(
+            remoteEui64=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"), extendedTimeout=True
+        )
+    ]
+    assert ezsp_f.replaceAddressTableEntry.mock_calls == []

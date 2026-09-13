@@ -229,14 +229,15 @@ class EZSPv4(protocol.ProtocolHandler):
                 t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
             )
 
-            if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
-                # Last-ditch effort
-                await self.setExtendedTimeout(
-                    remoteEui64=ieee, extendedTimeout=extended_timeout
-                )
-                return
+            if t.sl_Status.from_ember_status(status) == t.sl_Status.OK:
+                self._address_table_size = addr_table_size
 
-            self._address_table_size = addr_table_size
+        if not self._address_table_size:
+            # Last-ditch effort, there is no address table to use
+            await self.setExtendedTimeout(
+                remoteEui64=ieee, extendedTimeout=extended_timeout
+            )
+            return
 
         # Replace a random entry in the address table
         index = random.randint(0, self._address_table_size - 1)
