@@ -399,6 +399,56 @@ async def test_ezsp_connect_no_retry_after_transport_closed():
     assert ezsp._gw is None
 
 
+async def test_ezsp_connect_no_retry_with_queued_connection_lost():
+    """The transport-closed notification may still be queued when the attempt fails.
+
+    A threaded gateway queues `connection_lost()` onto this loop; a proxy call that
+    fails synchronously reaches `startup_reset()` before it is delivered.
+    """
+    loop = asyncio.get_running_loop()
+    exc = ConnectionResetError("Remote server closed connection")
+
+    with patch("bellows.uart.connect") as conn_mock:
+        ezsp = make_ezsp(version=4)
+
+        async def startup_reset_mock():
+            # Queued, not yet delivered
+            loop.call_soon(ezsp.connection_lost, exc)
+            raise TypeError("'NoneType' object can't be awaited")
+
+        with patch.object(
+            ezsp, "_startup_reset", side_effect=startup_reset_mock
+        ) as startup_reset:
+            with pytest.raises(TypeError):
+                await ezsp.connect()
+
+    assert startup_reset.await_count == 1
+    assert conn_mock.return_value.disconnect.mock_calls == []
+    assert ezsp._gw is None
+
+
+async def test_ezsp_connect_transport_closed_before_startup_reset():
+    """A transport that closed before the first attempt is not dispatched to at all."""
+    with patch("bellows.uart.connect") as conn_mock:
+        ezsp = make_ezsp(version=4)
+
+        async def connect_mock(*args, **kwargs):
+            ezsp.connection_lost(
+                ConnectionResetError("Remote server closed connection")
+            )
+            return conn_mock.return_value
+
+        conn_mock.side_effect = connect_mock
+
+        with patch.object(ezsp, "_startup_reset") as startup_reset:
+            with pytest.raises(ConnectionResetError, match="lost during startup"):
+                await ezsp.connect()
+
+    assert startup_reset.await_count == 0
+    assert conn_mock.return_value.disconnect.mock_calls == []
+    assert ezsp._gw is None
+
+
 async def test_ezsp_connect_cancelled_by_transport_closed():
     """A threaded gateway cancels dispatched work when its transport closes.
 
@@ -466,10 +516,10 @@ async def test_ezsp_connect_transport_closed_during_startup_reset():
     """
     loop = asyncio.get_running_loop()
     waiting_for_reset = loop.create_future()
-    clients = []
+    client_connected = loop.create_future()
 
     async def handle_client(reader, writer):
-        clients.append(writer)
+        client_connected.set_result(writer)
 
     server = await asyncio.start_server(handle_client, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]
@@ -496,18 +546,21 @@ async def test_ezsp_connect_transport_closed_during_startup_reset():
         ):
             connect_task = asyncio.ensure_future(ezsp.connect(use_thread=True))
 
-            async with asyncio_timeout(5):
-                await waiting_for_reset
+            try:
+                async with asyncio_timeout(5):
+                    client = await client_connected
+                    await waiting_for_reset
 
-            # The bridge drops the connection
-            clients[0].close()
+                # The bridge drops the connection
+                client.close()
 
-            with pytest.raises(ConnectionResetError):
-                async with asyncio_timeout(1):
-                    await connect_task
+                with pytest.raises(ConnectionResetError):
+                    async with asyncio_timeout(1):
+                        await connect_task
+            finally:
+                connect_task.cancel()
     finally:
         server.close()
-        await server.wait_closed()
 
     assert ezsp._gw is None
     assert ezsp._application.connection_lost.mock_calls == [call(ANY)]

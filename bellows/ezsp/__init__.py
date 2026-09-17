@@ -148,12 +148,19 @@ class EZSP:
 
     async def startup_reset(self) -> None:
         for attempt in range(RESET_ATTEMPTS):
+            if self._transport_closed:
+                await self.disconnect()
+                raise ConnectionResetError("Connection was lost during startup")
+
             self._protocol = v4.EZSPv4(self.handle_callback, self._gw)
 
             try:
                 await self._startup_reset()
                 break
             except asyncio.CancelledError:
+                # See below
+                await asyncio.sleep(0)
+
                 task = asyncio.current_task()
                 if not self._transport_closed or (
                     task is not None and task.cancelling()
@@ -167,6 +174,12 @@ class EZSP:
                     "Connection was lost during startup"
                 ) from None
             except Exception as exc:
+                # A gateway in its own thread reports a closed transport by queueing
+                # `connection_lost()` onto this loop. The failure it caused may reach us
+                # first, without a chance to run anything else: yield once so the
+                # notification is delivered before deciding what to do.
+                await asyncio.sleep(0)
+
                 # Retrying is for an NCP that did not answer. Once the transport itself
                 # is gone, every further attempt would go to a dead gateway.
                 if attempt + 1 < RESET_ATTEMPTS and not self._transport_closed:

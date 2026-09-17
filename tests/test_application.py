@@ -2194,19 +2194,22 @@ async def test_connect_failure(app: ControllerApplication) -> None:
     assert len(ezsp.disconnect.mock_calls) == 1
 
 
-async def test_connect_failure_disconnect_failure(app: ControllerApplication) -> None:
-    """Test that EZSP is dropped even when disconnecting after a failure fails."""
+async def test_connect_failure_disconnect_failure(
+    app: ControllerApplication, caplog
+) -> None:
+    """Test that a failing disconnect after a connection failure doesn't mask it."""
     ezsp = app._ezsp
-    app._ezsp.write_config = AsyncMock(side_effect=OSError())
+    app._ezsp.write_config = AsyncMock(side_effect=OSError("Connection failed"))
     app._ezsp.connect = AsyncMock()
     app._ezsp.disconnect = AsyncMock(side_effect=RuntimeError("Uh oh"))
     app._ezsp = None
 
     with patch("bellows.ezsp.EZSP", return_value=ezsp):
-        with pytest.raises(RuntimeError):
+        with pytest.raises(OSError, match="Connection failed"):
             await app.connect()
 
     assert app._ezsp is None
+    assert "Failed to disconnect after a connection failure" in caplog.text
 
 
 async def test_disconnect_failure(app: ControllerApplication) -> None:

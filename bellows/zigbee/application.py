@@ -197,6 +197,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             if self._ezsp is not None:
                 try:
                     await self._ezsp.disconnect()
+                except Exception:
+                    # Don't let cleanup failures mask why connecting failed
+                    LOGGER.warning(
+                        "Failed to disconnect after a connection failure", exc_info=True
+                    )
                 finally:
                     self._ezsp = None
             raise
