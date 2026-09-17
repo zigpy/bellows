@@ -1,4 +1,5 @@
 import asyncio
+from asyncio import timeout as asyncio_timeout
 import threading
 from unittest.mock import AsyncMock, MagicMock, call, patch, sentinel
 
@@ -131,6 +132,67 @@ async def test_connect_threaded_failure_cancellation_propagation(monkeypatch):
     # Cancellation should propagate to the outer loop
     with pytest.raises(RuntimeError):
         await wait_for_reset
+
+    # Ensure all threads are cleaned up
+    [t.join(1) for t in threading.enumerate() if "bellows" in t.name]
+    threads = [t for t in threading.enumerate() if "bellows" in t.name]
+    assert len(threads) == 0
+
+
+async def test_connect_threaded_connection_lost_before_connect_returns():
+    """The connection is lost before `connect()` resumes: the worker must still stop.
+
+    The callback that stops the worker thread used to be attached once `connect()`
+    resumed. A future that had already completed by then queued it onto the worker
+    loop from the wrong thread, without waking it: the thread slept forever.
+    """
+    loop = asyncio.get_running_loop()
+    lost = loop.create_future()
+
+    async def handle_client(reader, writer):
+        writer.close()
+
+    server = await asyncio.start_server(handle_client, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+
+    appmock = MagicMock()
+    appmock.connection_lost.side_effect = lambda exc: lost.set_result(exc)
+
+    run_coroutine_threadsafe = uart.EventLoopThread.run_coroutine_threadsafe
+
+    def resume_after_loss(self, coroutine):
+        future = run_coroutine_threadsafe(self, coroutine)
+
+        async def inner():
+            result = await future
+            # The application has been told the connection is lost, so the worker
+            # loop has already resolved the connection-done future. Give it time to
+            # go idle in `select()` as well: nothing else will be dispatched to it.
+            async with asyncio_timeout(1):
+                await lost
+            await asyncio.sleep(0.05)
+            return result
+
+        return inner()
+
+    try:
+        with patch.object(
+            uart.EventLoopThread, "run_coroutine_threadsafe", resume_after_loss
+        ):
+            gw = await uart.connect(
+                conf.SCHEMA_DEVICE(
+                    {
+                        conf.CONF_DEVICE_PATH: f"socket://127.0.0.1:{port}",
+                        conf.CONF_DEVICE_BAUDRATE: 115200,
+                    }
+                ),
+                appmock,
+                use_thread=True,
+            )
+    finally:
+        server.close()
+
+    assert gw is not None
 
     # Ensure all threads are cleaned up
     [t.join(1) for t in threading.enumerate() if "bellows" in t.name]

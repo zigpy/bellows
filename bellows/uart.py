@@ -105,10 +105,17 @@ class Gateway(zigpy.serial.SerialProtocol):
             return await self._reset_future
 
 
-async def _connect(config, api):
+async def _connect(config, api, thread=None):
     loop = asyncio.get_event_loop()
 
     connection_done_future = loop.create_future()
+
+    if thread is not None:
+        # Attach the callback here, on the loop that resolves the future. Attaching
+        # from the caller's thread once the connection is already lost would queue it
+        # with a plain `call_soon` that never wakes this loop: the thread would then
+        # sleep in `select()` until something else happens to be dispatched to it.
+        connection_done_future.add_done_callback(lambda _: thread.force_stop())
 
     gateway = Gateway(api, connection_done_future)
     protocol = AshProtocol(gateway)
@@ -139,13 +146,12 @@ async def connect(config, api, use_thread=True):
         thread = EventLoopThread()
         await thread.start()
         try:
-            protocol, connection_done = await thread.run_coroutine_threadsafe(
-                _connect(config, api)
+            protocol, _ = await thread.run_coroutine_threadsafe(
+                _connect(config, api, thread)
             )
         except Exception:
             thread.force_stop()
             raise
-        connection_done.add_done_callback(lambda _: thread.force_stop())
     else:
         protocol, _ = await _connect(config, api)
     return protocol
