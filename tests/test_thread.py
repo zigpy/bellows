@@ -139,3 +139,50 @@ async def test_thread_stop_cancels_stuck_tasks(thread, monkeypatch, caplog):
         await thread.thread_complete
 
     assert "did not finish during shutdown" in caplog.text
+
+
+async def test_thread_on_shutdown():
+    """The hook runs on the worker loop after it is stopped, before the thread exits."""
+    hook_loop = None
+    hook_done = threading.Event()
+
+    async def on_shutdown():
+        nonlocal hook_loop
+        hook_loop = asyncio.get_running_loop()
+        await asyncio.sleep(0.05)
+        hook_done.set()
+
+    thread = EventLoopThread(on_shutdown=on_shutdown)
+    await thread.start()
+    worker_loop = thread.loop
+
+    await asyncio.sleep(0.05)
+    assert not hook_done.is_set()
+
+    thread.stop()
+    async with asyncio_timeout(1):
+        await thread.thread_complete
+
+    assert hook_done.is_set()
+    assert hook_loop is worker_loop
+    [t.join(1) for t in bellows_threads()]
+    assert bellows_threads() == []
+
+
+async def test_thread_on_shutdown_failure():
+    """A hook failure surfaces to whoever waits for the thread, and the loop still closes."""
+
+    async def on_shutdown():
+        raise RuntimeError("shutdown failed")
+
+    thread = EventLoopThread(on_shutdown=on_shutdown)
+    await thread.start()
+    thread.stop()
+
+    with pytest.raises(RuntimeError, match="shutdown failed"):
+        async with asyncio_timeout(1):
+            await thread.thread_complete
+
+    assert thread.loop is None
+    [t.join(1) for t in bellows_threads()]
+    assert bellows_threads() == []

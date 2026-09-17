@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Awaitable, Callable
 from concurrent.futures import ThreadPoolExecutor
 import logging
 
@@ -26,9 +27,12 @@ async def _finish_tasks() -> None:
 class EventLoopThread:
     """Run a parallel event loop in a separate thread."""
 
-    def __init__(self):
+    def __init__(
+        self, on_shutdown: Callable[[], Awaitable[None]] | None = None
+    ) -> None:
         self.loop = None
         self.thread_complete = None
+        self._on_shutdown = on_shutdown
 
     def run_coroutine_threadsafe(self, coroutine):
         current_loop = asyncio.get_running_loop()
@@ -44,10 +48,16 @@ class EventLoopThread:
             # `start()` returns is seen by the same run of the loop
             self.loop.call_soon(on_started)
             self.loop.run_forever()
-            self.loop.run_until_complete(_finish_tasks())
+            self.loop.run_until_complete(self._shutdown())
         finally:
             loop, self.loop = self.loop, None
             loop.close()
+
+    async def _shutdown(self) -> None:
+        if self._on_shutdown is not None:
+            await self._on_shutdown()
+
+        await _finish_tasks()
 
     async def start(self):
         current_loop = asyncio.get_running_loop()

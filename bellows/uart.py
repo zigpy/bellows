@@ -1,6 +1,7 @@
 import asyncio
 from asyncio import timeout as asyncio_timeout
 import logging
+from typing import NoReturn
 
 import zigpy.config
 import zigpy.serial
@@ -11,7 +12,7 @@ import bellows.types as t
 
 LOGGER = logging.getLogger(__name__)
 RESET_TIMEOUT = 2.5
-DISCONNECT_TIMEOUT = 5
+DISCONNECT_TIMEOUT = 6
 
 
 class Gateway(zigpy.serial.SerialProtocol):
@@ -107,29 +108,48 @@ class Gateway(zigpy.serial.SerialProtocol):
 class ThreadedGateway:
     """Runs a `Gateway` on an `EventLoopThread` and bridges calls in both directions.
 
-    The worker loop is stopped only from the application loop, either from `disconnect()`
-    or when the connection is lost, so `_closed` is read and written on one loop and every
-    call that passed the check was queued on the worker before the stop was.
+    The worker loop is stopped only from the application loop, either from `disconnect`
+    or when the connection is lost, so `_closed` is read and written on one loop and
+    every call that passed the check was queued on the worker before the stop was.
+
+    The gateway is owned by the worker: it is created there and closed there as part of
+    the worker's shutdown, so a connection that finished on the worker just as the
+    caller was cancelled is still closed before the thread exits.
     """
 
-    def __init__(self, api, thread: EventLoopThread):
+    def __init__(self, api):
         self._api = api
-        self._thread = thread
+        self._thread = EventLoopThread(on_shutdown=self._shutdown)
         self._loop = asyncio.get_running_loop()
         self._gateway = None
         self._closed = False
+        self._lost_exc = None
 
     async def connect(self, config) -> None:
+        await self._thread.start()
+
         try:
-            self._gateway = await self._thread.run_coroutine_threadsafe(
-                _connect(config, self)
-            )
+            await self._thread.run_coroutine_threadsafe(self._connect(config))
         except BaseException:
             # Wait for the worker to exit so the port is released before the caller sees
             # the failure and tries to reconnect
             self._close()
             await self._thread.thread_complete
             raise
+
+    # Called on the worker loop
+    async def _connect(self, config) -> None:
+        self._gateway = await _connect(config, self)
+
+    async def _shutdown(self) -> None:
+        if self._gateway is None:
+            return
+
+        try:
+            async with asyncio_timeout(DISCONNECT_TIMEOUT):
+                await self._gateway.disconnect()
+        except TimeoutError:
+            LOGGER.warning("Timed out waiting for the connection to close")
 
     # Called by the `Gateway` on the worker loop
     def frame_received(self, data: bytes) -> None:
@@ -144,6 +164,7 @@ class ThreadedGateway:
     # Called on the application loop
     def _connection_lost(self, exc: Exception | None) -> None:
         # The transport has already closed its file descriptor by the time it reports this
+        self._lost_exc = exc
         self._close()
         self._api.connection_lost(exc)
 
@@ -154,17 +175,21 @@ class ThreadedGateway:
         self._closed = True
         self._thread.stop()
 
+    def _raise_disconnected(self) -> NoReturn:
+        # Chain the transport's own error, since every call made after the loss fails here
+        raise ConnectionResetError("Gateway has been disconnected") from self._lost_exc
+
     async def _run(self, coro):
         if self._closed:
             coro.close()
-            raise ConnectionResetError("Gateway has been disconnected")
+            self._raise_disconnected()
 
         try:
             return await self._thread.run_coroutine_threadsafe(coro)
         except asyncio.CancelledError:
             # The worker cancelled the task while shutting down, not our caller
             if self._closed and not asyncio.current_task().cancelling():
-                raise ConnectionResetError("Gateway has been disconnected") from None
+                self._raise_disconnected()
 
             raise
 
@@ -178,15 +203,7 @@ class ThreadedGateway:
         await self._run(self._gateway.wait_for_startup_reset())
 
     async def disconnect(self) -> None:
-        if not self._closed:
-            try:
-                async with asyncio_timeout(DISCONNECT_TIMEOUT):
-                    await self._run(self._gateway.disconnect())
-            except TimeoutError:
-                LOGGER.warning("Timed out waiting for the connection to close")
-            finally:
-                self._close()
-
+        self._close()
         await self._thread.thread_complete
 
 
@@ -226,10 +243,7 @@ async def connect(config, api, use_thread=True):
     if not use_thread:
         return await _connect(config, api)
 
-    thread = EventLoopThread()
-    await thread.start()
-
-    gateway = ThreadedGateway(api, thread)
+    gateway = ThreadedGateway(api)
     await gateway.connect(config)
 
     return gateway

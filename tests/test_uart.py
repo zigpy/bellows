@@ -166,6 +166,35 @@ async def test_connect_threaded_cancelled_after_port_opened(monkeypatch):
     assert_no_threads()
 
 
+async def test_connect_threaded_cancelled_after_connected(serial, app, monkeypatch):
+    """Cancelled once `_connect` has returned on the worker, before the result got here."""
+    connected = threading.Event()
+    real_connect = uart._connect
+
+    async def _connect(config, api):
+        gateway = await real_connect(config, api)
+        connected.set()
+        return gateway
+
+    monkeypatch.setattr(uart, "_connect", _connect)
+
+    task = asyncio.create_task(uart.connect(DEVICE_CONFIG, app, use_thread=True))
+
+    # Block this loop from the moment the worker starts connecting until it has finished,
+    # so the result is still queued here, not delivered, when the task is cancelled
+    while serial.loop is None:
+        await asyncio.sleep(0)
+
+    connected.wait()
+    task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert serial.transport.close.call_count == 1
+    assert_no_threads()
+
+
 async def test_threaded_calls_run_on_worker(threaded_gw, serial, app):
     gateway = threaded_gw._gateway
     worker_loop = None
@@ -221,16 +250,21 @@ async def test_threaded_connection_lost(threaded_gw, serial, app):
     assert app.connection_lost.mock_calls == [call(exc)]
     assert_no_threads()
 
-    with pytest.raises(ConnectionResetError):
+    # Later calls fail with the transport's error as their cause
+    with pytest.raises(ConnectionResetError) as exc_info:
         await threaded_gw.send_data(b"data")
+
+    assert exc_info.value.__cause__ is exc
 
 
 async def test_threaded_call_after_disconnect(threaded_gw):
     async with asyncio_timeout(1):
         await threaded_gw.disconnect()
 
-    with pytest.raises(ConnectionResetError):
+    with pytest.raises(ConnectionResetError) as exc_info:
         await threaded_gw.reset()
+
+    assert exc_info.value.__cause__ is None
 
 
 async def test_threaded_call_after_connection_lost_on_worker(threaded_gw, serial, app):
@@ -261,12 +295,15 @@ async def test_threaded_stuck_task_on_shutdown(threaded_gw, serial, monkeypatch)
 
     send = asyncio.ensure_future(threaded_gw.send_data(b"data"))
     await asyncio.sleep(0.1)
-    serial.lose_connection(None)
+    exc = RuntimeError()
+    serial.lose_connection(exc)
 
     # Cancelled by the worker during shutdown, so the caller sees a connection error
-    with pytest.raises(ConnectionResetError):
+    with pytest.raises(ConnectionResetError) as exc_info:
         async with asyncio_timeout(1):
             await send
+
+    assert exc_info.value.__cause__ is exc
 
 
 async def test_threaded_caller_cancellation(threaded_gw, serial):
