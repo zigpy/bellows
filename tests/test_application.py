@@ -2194,6 +2194,31 @@ async def test_connect_failure(app: ControllerApplication) -> None:
     assert len(ezsp.disconnect.mock_calls) == 1
 
 
+async def test_connect_failure_disconnect_failure(app: ControllerApplication) -> None:
+    """Test that EZSP is dropped even when disconnecting after a failure fails."""
+    ezsp = app._ezsp
+    app._ezsp.write_config = AsyncMock(side_effect=OSError())
+    app._ezsp.connect = AsyncMock()
+    app._ezsp.disconnect = AsyncMock(side_effect=RuntimeError("Uh oh"))
+    app._ezsp = None
+
+    with patch("bellows.ezsp.EZSP", return_value=ezsp):
+        with pytest.raises(RuntimeError):
+            await app.connect()
+
+    assert app._ezsp is None
+
+
+async def test_disconnect_failure(app: ControllerApplication) -> None:
+    """Test that EZSP is dropped even when disconnecting fails."""
+    app._ezsp.disconnect = AsyncMock(side_effect=RuntimeError("Uh oh"))
+
+    with pytest.raises(RuntimeError):
+        await app.disconnect()
+
+    assert app._ezsp is None
+
+
 async def test_repair_tclk_partner_ieee(
     app: ControllerApplication, ieee: zigpy_t.EUI64
 ) -> None:

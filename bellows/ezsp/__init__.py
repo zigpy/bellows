@@ -78,6 +78,11 @@ class EZSP:
         self._ezsp_version = v4.EZSPv4.VERSION
         self._xncp_features = FirmwareFeatures.NONE
         self._gw = None
+        # Set once the gateway reports that its transport closed. The gateway then has
+        # nothing left to close and, when it runs in its own thread, its event loop is
+        # being torn down: nothing may be sent through it and nothing needs to be
+        # awaited on it.
+        self._transport_closed = False
         self._protocol = None
         self._application = application
 
@@ -148,8 +153,23 @@ class EZSP:
             try:
                 await self._startup_reset()
                 break
+            except asyncio.CancelledError:
+                task = asyncio.current_task()
+                if not self._transport_closed or (
+                    task is not None and task.cancelling()
+                ):
+                    raise
+
+                # A gateway in its own thread cancels the work dispatched to it when its
+                # transport closes: a lost connection, not our caller cancelling us
+                await self.disconnect()
+                raise ConnectionResetError(
+                    "Connection was lost during startup"
+                ) from None
             except Exception as exc:
-                if attempt + 1 < RESET_ATTEMPTS:
+                # Retrying is for an NCP that did not answer. Once the transport itself
+                # is gone, every further attempt would go to a dead gateway.
+                if attempt + 1 < RESET_ATTEMPTS and not self._transport_closed:
                     LOGGER.debug(
                         "EZSP startup/reset failed, retrying (%d/%d): %r",
                         attempt + 1,
@@ -163,6 +183,7 @@ class EZSP:
 
     async def connect(self, *, use_thread: bool = True) -> None:
         assert self._gw is None
+        self._transport_closed = False
         self._gw = await bellows.uart.connect(self._config, self, use_thread=use_thread)
         await self.startup_reset()
 
@@ -227,12 +248,28 @@ class EZSP:
 
     async def disconnect(self):
         self.stop_ezsp()
-        if self._gw:
-            await self._gw.disconnect()
+        if self._gw is None:
+            return
+
+        try:
+            # A gateway whose transport already closed has nothing left to close, and
+            # its worker loop may be gone: don't call into it
+            if not self._transport_closed:
+                await self._gw.disconnect()
+        finally:
             self._gw = None
 
     async def _command(self, name: str, *args: Any, **kwargs: Any) -> Any:
         command = getattr(self._protocol, name)
+
+        if self._transport_closed:
+            LOGGER.debug(
+                "Couldn't send command %s(%s, %s). Connection was lost",
+                name,
+                args,
+                kwargs,
+            )
+            raise EzspError("Connection was lost")
 
         if not self.is_ezsp_running:
             LOGGER.debug(
@@ -330,12 +367,18 @@ class EZSP:
 
     def connection_lost(self, exc):
         """Lost serial connection."""
-        if self._application is not None:
-            self._application.connection_lost(exc)
+        self._transport_closed = True
+        self._notify_connection_lost(exc)
 
     def enter_failed_state(self, code: t.NcpResetCode) -> None:
         """UART received reset code."""
-        self.connection_lost(NcpFailure(code=code))
+        # The transport is still open here: a reset can recover the NCP, and
+        # `disconnect()` still has a transport to close
+        self._notify_connection_lost(NcpFailure(code=code))
+
+    def _notify_connection_lost(self, exc: Exception) -> None:
+        if self._application is not None:
+            self._application.connection_lost(exc)
 
     def __getattr__(self, name: str) -> Callable:
         if name not in self._protocol.COMMANDS:
