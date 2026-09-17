@@ -729,6 +729,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             LOGGER.debug("Ignoring message type: %r", message_type)
             return
 
+        tx_options = zigpy.types.TransmitOptions.NONE
+
+        if t.EmberApsOption.APS_OPTION_ENCRYPTION in aps_frame.options:
+            tx_options |= zigpy.types.TransmitOptions.APS_Encryption
+
         self.packet_received(
             zigpy.types.ZigbeePacket(
                 src=zigpy.types.AddrModeAddress(
@@ -742,6 +747,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 profile_id=aps_frame.profileId,
                 cluster_id=aps_frame.clusterId,
                 data=zigpy.types.SerializableBytes(message),
+                tx_options=tx_options,
                 lqi=lqi,
                 rssi=rssi,
             )
