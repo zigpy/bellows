@@ -141,6 +141,31 @@ async def test_connect_threaded_cancelled(monkeypatch):
     assert_no_threads()
 
 
+async def test_connect_threaded_cancelled_after_port_opened(monkeypatch):
+    transport = MagicMock()
+    transport.wait_closed = AsyncMock()
+
+    async def mockconnect(loop, protocol_factory, **kwargs):
+        protocol = protocol_factory()
+        loop.call_later(1, protocol.connection_made, transport)
+        return transport, protocol
+
+    monkeypatch.setattr(zigpy.serial, "create_serial_connection", mockconnect)
+
+    task = asyncio.create_task(
+        uart.connect(DEVICE_CONFIG, MagicMock(), use_thread=True)
+    )
+    await asyncio.sleep(0.1)
+    task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert transport.close.call_count == 1
+    assert transport.wait_closed.mock_calls == [call()]
+    assert_no_threads()
+
+
 async def test_threaded_calls_run_on_worker(threaded_gw, serial, app):
     gateway = threaded_gw._gateway
     worker_loop = None
@@ -305,6 +330,18 @@ async def test_disconnected(gw):
 
     with pytest.raises(ConnectionResetError):
         await gw.wait_for_startup_reset()
+
+
+async def test_connection_lost_cancelled_startup_reset(gw):
+    task = asyncio.create_task(gw.wait_for_startup_reset())
+    await asyncio.sleep(0)
+
+    # The future is cancelled synchronously, the task only resumes on a later step
+    task.cancel()
+    gw.connection_lost(RuntimeError())
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
 
 
 def test_connection_lost_exc(gw):

@@ -77,12 +77,12 @@ class Gateway(zigpy.serial.SerialProtocol):
         LOGGER.debug("Connection lost: %r", exc)
         reason = exc or ConnectionResetError("Remote server closed connection")
 
-        if self._startup_reset_future:
-            self._startup_reset_future.set_exception(reason)
+        # A future may already be cancelled by a caller whose task has not yet resumed
+        for future in (self._startup_reset_future, self._reset_future):
+            if future is not None and not future.done():
+                future.set_exception(reason)
 
-        if self._reset_future:
-            self._reset_future.set_exception(reason)
-            self._reset_future = None
+        self._reset_future = None
 
         self._api.connection_lost(exc)
 
@@ -201,7 +201,7 @@ async def _connect(config, api):
     else:
         xon_xoff, rtscts = False, True
 
-    await zigpy.serial.create_serial_connection(
+    transport, _ = await zigpy.serial.create_serial_connection(
         loop,
         lambda: protocol,
         url=config[zigpy.config.CONF_DEVICE_PATH],
@@ -210,7 +210,14 @@ async def _connect(config, api):
         rtscts=rtscts,
     )
 
-    await gateway.wait_until_connected()
+    # `connection_made` arrives on a later loop iteration, so the port is open before we
+    # are connected and must be closed if we are cancelled in between
+    try:
+        await gateway.wait_until_connected()
+    except BaseException:
+        transport.close()
+        await transport.wait_closed()
+        raise
 
     return gateway
 

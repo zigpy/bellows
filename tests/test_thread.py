@@ -18,8 +18,7 @@ async def thread():
     thread = EventLoopThread()
     await thread.start()
     yield thread
-    if thread.loop is not None:
-        thread.stop()
+    thread.stop()
     async with asyncio_timeout(1):
         await thread.thread_complete
     [t.join(1) for t in bellows_threads()]
@@ -35,6 +34,20 @@ async def test_thread_start_stop():
     assert thread.stop() is thread_complete
     async with asyncio_timeout(1):
         await thread_complete
+
+    assert thread.loop is None
+    [t.join(1) for t in bellows_threads()]
+    assert bellows_threads() == []
+
+
+async def test_thread_start_cancelled():
+    thread = EventLoopThread()
+    task = asyncio.create_task(thread.start())
+    await asyncio.sleep(0)
+    task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
 
     assert thread.loop is None
     [t.join(1) for t in bellows_threads()]

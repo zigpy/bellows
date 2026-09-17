@@ -65,9 +65,21 @@ class EventLoopThread:
         )
         self.thread_complete = thread_complete
         current_loop.call_soon(executor.shutdown, False)
-        await thread_started_future
+
+        try:
+            await asyncio.shield(thread_started_future)
+        except BaseException:
+            # The worker may not be running yet, stop it once it is
+            thread_started_future.add_done_callback(lambda _: self.stop())
+            await thread_complete
+            raise
+
         return thread_complete
 
     def stop(self):
-        self.loop.call_soon_threadsafe(self.loop.stop)
+        loop = self.loop
+
+        if loop is not None:
+            loop.call_soon_threadsafe(loop.stop)
+
         return self.thread_complete
