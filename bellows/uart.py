@@ -4,6 +4,7 @@ import logging
 import urllib.parse
 
 import zigpy.config
+import zigpy.exceptions
 import zigpy.serial
 
 from bellows.ash import AshProtocol
@@ -13,8 +14,9 @@ import bellows.types as t
 LOGGER = logging.getLogger(__name__)
 RESET_TIMEOUT = 2.5
 
-# An ESPHome port in this mode ACKs ASH frames on our behalf
-ACKLESS_MODE = "ezsp_ash"
+# An ESPHome port in this mode engages its tap, which ACKs frames on our behalf. The
+# mode does not name a protocol: which one the tap speaks is the device's configuration.
+ACKLESS_MODE = "protocol"
 
 # URL schemes served by an ESPHome serial proxy, which is the only transport that can take
 # the acknowledging off our hands
@@ -161,8 +163,19 @@ async def _connect(config, api):
         **extra_kwargs,
     )
 
-    if offloads_acks(transport):
-        LOGGER.debug("Port acknowledges NCP frames on our behalf, suppressing our own ACKs")
+    if is_esphome_url(path):
+        # The proxy answers our mode request, so a port with no tap is known here rather
+        # than discovered later as a link that keeps dropping
+        if not offloads_acks(transport):
+            transport.close()
+            raise zigpy.exceptions.ControllerException(
+                f"Serial proxy port {path!r} has no tap to acknowledge NCP frames."
+                f" Configure zigbee_proxy_tap on that port."
+            )
+
+        LOGGER.debug(
+            "Port acknowledges NCP frames on our behalf, suppressing our own ACKs"
+        )
         protocol.suppress_acks = True
 
     await gateway.wait_until_connected()

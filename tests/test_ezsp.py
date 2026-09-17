@@ -773,7 +773,7 @@ async def test_write_nwk_update_id_failure(ezsp_f):
     [
         ("socket://localhost:1234", True),
         (
-            "esphome://example.com:6053/?noise_psk=KEY&port_name=Zigbee&mode=ezsp_ash",
+            "esphome://example.com:6053/?noise_psk=KEY&port_name=Zigbee&mode=protocol",
             True,
         ),
         ("esphome://example.com:6053/", True),
