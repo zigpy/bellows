@@ -2,6 +2,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import contextlib
 import functools
+import inspect
 import logging
 
 LOGGER = logging.getLogger(__name__)
@@ -93,6 +94,23 @@ class ThreadsafeProxy:
                 )
             )
 
+        if inspect.iscoroutinefunction(func):
+
+            async def async_func_wrapper(*args, **kwargs):
+                """Run async proxy calls when this returned coroutine is awaited."""
+                loop = self._obj_loop
+                curr_loop = asyncio.get_running_loop()
+                call = functools.partial(func, *args, **kwargs)
+                if loop == curr_loop:
+                    return await call()
+                if loop.is_closed():
+                    LOGGER.warning("Attempted to use a closed event loop")
+                    raise ConnectionResetError("Attempted to use a closed event loop")
+                future = asyncio.run_coroutine_threadsafe(call(), loop)
+                return await asyncio.wrap_future(future, loop=curr_loop)
+
+            return async_func_wrapper
+
         def func_wrapper(*args, **kwargs):
             loop = self._obj_loop
             curr_loop = asyncio.get_running_loop()
@@ -103,21 +121,17 @@ class ThreadsafeProxy:
                 # Disconnected
                 LOGGER.warning("Attempted to use a closed event loop")
                 return
-            if asyncio.iscoroutinefunction(func):
-                future = asyncio.run_coroutine_threadsafe(call(), loop)
-                return asyncio.wrap_future(future, loop=curr_loop)
-            else:
 
-                def check_result_wrapper():
-                    result = call()
-                    if result is not None:
-                        raise TypeError(
-                            (
-                                "ThreadsafeProxy can only wrap functions with no return"
-                                "value \nUse an async method to return values: {}.{}"
-                            ).format(self._obj.__class__.__name__, name)
-                        )
+            def check_result_wrapper():
+                result = call()
+                if result is not None:
+                    raise TypeError(
+                        (
+                            "ThreadsafeProxy can only wrap functions with no return"
+                            "value \nUse an async method to return values: {}.{}"
+                        ).format(self._obj.__class__.__name__, name)
+                    )
 
-                loop.call_soon_threadsafe(check_result_wrapper)
+            loop.call_soon_threadsafe(check_result_wrapper)
 
         return func_wrapper
