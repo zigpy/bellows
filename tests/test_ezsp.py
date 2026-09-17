@@ -419,7 +419,32 @@ async def test_ezsp_connect_no_retry_with_queued_connection_lost():
         with patch.object(
             ezsp, "_startup_reset", side_effect=startup_reset_mock
         ) as startup_reset:
-            with pytest.raises(TypeError):
+            with pytest.raises(ConnectionResetError, match="lost during startup") as e:
+                await ezsp.connect()
+
+    assert isinstance(e.value.__cause__, TypeError)
+    assert startup_reset.await_count == 1
+    assert conn_mock.return_value.disconnect.mock_calls == []
+    assert ezsp._gw is None
+
+
+async def test_ezsp_connect_cancelled_with_queued_connection_lost():
+    """Same as above, for a teardown cancellation reaching us before the notification."""
+    loop = asyncio.get_running_loop()
+    exc = ConnectionResetError("Remote server closed connection")
+
+    with patch("bellows.uart.connect") as conn_mock:
+        ezsp = make_ezsp(version=4)
+
+        async def startup_reset_mock():
+            # Queued, not yet delivered
+            loop.call_soon(ezsp.connection_lost, exc)
+            raise asyncio.CancelledError()
+
+        with patch.object(
+            ezsp, "_startup_reset", side_effect=startup_reset_mock
+        ) as startup_reset:
+            with pytest.raises(ConnectionResetError, match="lost during startup"):
                 await ezsp.connect()
 
     assert startup_reset.await_count == 1
@@ -559,6 +584,8 @@ async def test_ezsp_connect_transport_closed_during_startup_reset():
                         await connect_task
             finally:
                 connect_task.cancel()
+                # Tear down the gateway (and its thread) even if the test failed
+                await ezsp.disconnect()
     finally:
         server.close()
 

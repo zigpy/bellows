@@ -192,6 +192,13 @@ class EZSP:
                     continue
 
                 await self.disconnect()
+
+                if self._transport_closed and not isinstance(exc, ConnectionError):
+                    # What failed is incidental to the transport closing
+                    raise ConnectionResetError(
+                        "Connection was lost during startup"
+                    ) from exc
+
                 raise
 
     async def connect(self, *, use_thread: bool = True) -> None:
