@@ -195,8 +195,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             await self.register_endpoints()
         except Exception:
             if self._ezsp is not None:
-                await self._ezsp.disconnect()
-                self._ezsp = None
+                try:
+                    await self._ezsp.disconnect()
+                except Exception:
+                    # Don't let cleanup failures mask why connecting failed
+                    LOGGER.warning(
+                        "Failed to disconnect after a connection failure", exc_info=True
+                    )
+                finally:
+                    self._ezsp = None
             raise
 
     async def _ensure_network_running(self) -> bool:
@@ -612,8 +619,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         # TODO: how do you shut down the stack?
         self.controller_event.clear()
         if self._ezsp is not None:
-            await self._ezsp.disconnect()
-            self._ezsp = None
+            try:
+                await self._ezsp.disconnect()
+            finally:
+                self._ezsp = None
 
     async def force_remove(self, dev):
         # This should probably be delivered to the parent device instead

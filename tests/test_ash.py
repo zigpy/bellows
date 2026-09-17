@@ -543,11 +543,8 @@ async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
 
     # Let's let a request fail due to a connectivity issue
     with patch.object(ncp_transport, "paused", True):
-        send_task = asyncio.create_task(host.send_data(b"host failure"))
-        await asyncio.sleep(host._t_rx_ack * 15)
-
-    with pytest.raises(TimeoutError):
-        await send_task
+        with pytest.raises(TimeoutError):
+            await host.send_data(b"host failure")
 
     ncp_ezsp.data_received.reset_mock()
     host_ezsp.data_received.reset_mock()
@@ -569,11 +566,8 @@ async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
     assert ncp._ncp_reset_code is None
 
     with patch.object(host_transport, "paused", True):
-        send_task = asyncio.create_task(ncp.send_data(b"ncp failure"))
-        await asyncio.sleep(ncp._t_rx_ack * 15)
-
-    with pytest.raises(TimeoutError):
-        await send_task
+        with pytest.raises(TimeoutError):
+            await ncp.send_data(b"ncp failure")
 
     assert (
         host._ncp_reset_code is t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT
