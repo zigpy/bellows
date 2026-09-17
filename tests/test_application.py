@@ -474,7 +474,19 @@ def _handle_incoming_aps_frame(app, aps_frame, type):
     )
 
 
-def test_frame_handler_unicast(app, aps_frame):
+@pytest.mark.parametrize(
+    ("aps_options", "tx_options"),
+    [
+        (t.EmberApsOption.APS_OPTION_NONE, zigpy_t.TransmitOptions.NONE),
+        (
+            t.EmberApsOption.APS_OPTION_ENCRYPTION,
+            zigpy_t.TransmitOptions.APS_Encryption,
+        ),
+    ],
+)
+def test_frame_handler_unicast(app, aps_frame, aps_options, tx_options):
+    aps_frame.options = aps_options
+
     _handle_incoming_aps_frame(
         app, aps_frame, type=t.EmberIncomingMessageType.INCOMING_UNICAST
     )
@@ -491,6 +503,7 @@ def test_frame_handler_unicast(app, aps_frame):
     assert packet.dst.addr_mode == zigpy_t.AddrMode.NWK
     assert packet.dst.address == app.state.node_info.nwk
     assert packet.data.serialize() == b"test message"
+    assert packet.tx_options == tx_options
     assert packet.lqi == 123
     assert packet.rssi == -45
 
