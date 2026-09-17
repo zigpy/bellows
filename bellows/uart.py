@@ -149,6 +149,15 @@ async def connect(config, api, use_thread=True):
             protocol, _ = await thread.run_coroutine_threadsafe(
                 _connect(config, api, thread)
             )
+        except asyncio.CancelledError:
+            task = asyncio.current_task()
+            if task is not None and task.cancelling():
+                thread.force_stop()
+                raise
+
+            # Not our caller: the worker stopped itself, cancelling `_connect()`,
+            # because the connection was lost before it returned
+            raise ConnectionResetError("Connection was lost while connecting") from None
         except Exception:
             thread.force_stop()
             raise

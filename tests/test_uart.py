@@ -139,6 +139,66 @@ async def test_connect_threaded_failure_cancellation_propagation(monkeypatch):
     assert len(threads) == 0
 
 
+async def test_connect_threaded_cancelled_by_worker_teardown():
+    """The worker cancelling `_connect()` itself is reported as a lost connection."""
+
+    def cancelled(coroutine):
+        coroutine.close()
+        raise asyncio.CancelledError()
+
+    with patch.object(uart.EventLoopThread, "start", AsyncMock()), patch.object(
+        uart.EventLoopThread, "run_coroutine_threadsafe", side_effect=cancelled
+    ), patch.object(uart.EventLoopThread, "force_stop") as force_stop:
+        with pytest.raises(ConnectionResetError, match="lost while connecting"):
+            await uart.connect(
+                conf.SCHEMA_DEVICE(
+                    {
+                        conf.CONF_DEVICE_PATH: "/dev/serial",
+                        conf.CONF_DEVICE_BAUDRATE: 115200,
+                    }
+                ),
+                MagicMock(),
+                use_thread=True,
+            )
+
+    # The worker already stopped itself
+    assert force_stop.mock_calls == []
+
+
+async def test_connect_threaded_cancelled_by_caller_stops_thread():
+    """A caller cancelling `connect()` still stops the worker thread."""
+    loop = asyncio.get_running_loop()
+    started = loop.create_future()
+
+    async def blocked(coroutine):
+        coroutine.close()
+        started.set_result(None)
+        await loop.create_future()
+
+    with patch.object(uart.EventLoopThread, "start", AsyncMock()), patch.object(
+        uart.EventLoopThread, "run_coroutine_threadsafe", side_effect=blocked
+    ), patch.object(uart.EventLoopThread, "force_stop") as force_stop:
+        connect_task = asyncio.ensure_future(
+            uart.connect(
+                conf.SCHEMA_DEVICE(
+                    {
+                        conf.CONF_DEVICE_PATH: "/dev/serial",
+                        conf.CONF_DEVICE_BAUDRATE: 115200,
+                    }
+                ),
+                MagicMock(),
+                use_thread=True,
+            )
+        )
+        await started
+        connect_task.cancel()
+
+        with pytest.raises(asyncio.CancelledError):
+            await connect_task
+
+    assert len(force_stop.mock_calls) == 1
+
+
 async def test_connect_threaded_connection_lost_before_connect_returns():
     """The connection is lost before `connect()` resumes: the worker must still stop.
 
@@ -148,6 +208,13 @@ async def test_connect_threaded_connection_lost_before_connect_returns():
     """
     loop = asyncio.get_running_loop()
     lost = loop.create_future()
+    threads = []
+
+    thread_init = uart.EventLoopThread.__init__
+
+    def track_thread(self):
+        thread_init(self)
+        threads.append(self)
 
     async def handle_client(reader, writer):
         writer.close()
@@ -176,7 +243,7 @@ async def test_connect_threaded_connection_lost_before_connect_returns():
         return inner()
 
     try:
-        with patch.object(
+        with patch.object(uart.EventLoopThread, "__init__", track_thread), patch.object(
             uart.EventLoopThread, "run_coroutine_threadsafe", resume_after_loss
         ):
             gw = await uart.connect(
@@ -194,10 +261,17 @@ async def test_connect_threaded_connection_lost_before_connect_returns():
 
     assert gw is not None
 
-    # Ensure all threads are cleaned up
+    # The worker thread stops on its own
     [t.join(1) for t in threading.enumerate() if "bellows" in t.name]
-    threads = [t for t in threading.enumerate() if "bellows" in t.name]
-    assert len(threads) == 0
+    leaked = [t for t in threading.enumerate() if "bellows" in t.name]
+
+    # Never leave a stuck worker behind, even when this fails: it would hang the
+    # interpreter at exit
+    (thread,) = threads
+    thread.force_stop()
+    [t.join(1) for t in leaked]
+
+    assert leaked == []
 
 
 @pytest.fixture
