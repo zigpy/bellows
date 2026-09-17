@@ -2889,6 +2889,14 @@ class RouteRecordConcentratortype(basic.enum8):
     HIGH_RAM = 2
 
 
+class SlZigbeeLeaveNetworkOption(basic.bitmap8):
+    """Options for leaving the network (EZSP v14+)."""
+
+    WITH_NO_OPTION = 0x00
+    WITH_OPTION_REJOIN = 0x20
+    IS_REQUESTED = 0x40
+
+
 class SlZigbeeDhcPaAlgorithm(basic.enum8):
     """Dynamic Hardware Configuration PA descriptor algorithm."""
 

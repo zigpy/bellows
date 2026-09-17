@@ -161,6 +161,26 @@ COMMANDS = {
             "status": t.EmberStatus,
         },
     ),
+    # Gained an `options` argument, which the NCP reads even if we don't send it
+    "leaveNetwork": (
+        0x0020,
+        {
+            "options": t.SlZigbeeLeaveNetworkOption,
+        },
+        {
+            "status": t.sl_Status,
+        },
+    ),
+    # Gained an `sl_status_t` response that `_REPLACEMENTS` can't add for us
+    "setManufacturerCode": (
+        0x0015,
+        {
+            "code": t.uint16_t,
+        },
+        {
+            "status": t.sl_Status,
+        },
+    ),
 }
 
 

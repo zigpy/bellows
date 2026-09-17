@@ -4,6 +4,7 @@ import pytest
 import zigpy.exceptions
 import zigpy.state
 
+import bellows.ezsp
 import bellows.ezsp.v14
 import bellows.types as t
 
@@ -31,6 +32,64 @@ def test_ezsp_frame_rx(ezsp_f):
     assert ezsp_f._handle_callback.call_count == 1
     assert ezsp_f._handle_callback.call_args[0][0] == "version"
     assert ezsp_f._handle_callback.call_args[0][1] == [0x01, 0x02, 0x1234]
+
+
+@pytest.mark.parametrize(
+    "version",
+    [v for v in bellows.ezsp.EZSP._BY_VERSION if v >= 14],
+)
+def test_leave_network_tx_schema(version: int) -> None:
+    """`leaveNetwork` sends its one-byte `options` argument on v14 and newer."""
+    ezsp = bellows.ezsp.EZSP._BY_VERSION[version](MagicMock(), MagicMock())
+    ezsp._seq = 0x22
+
+    data = ezsp._ezsp_frame(
+        "leaveNetwork", options=t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION
+    )
+    assert data == b"\x22\x00\x01\x20\x00" + b"\x00"
+
+
+@pytest.mark.parametrize(
+    "version",
+    [v for v in bellows.ezsp.EZSP._BY_VERSION if v >= 14],
+)
+@pytest.mark.parametrize(
+    ("command", "data", "expected"),
+    [
+        ("leaveNetwork", b"\x00\x00\x00\x00", [t.sl_Status.OK]),
+        ("setManufacturerCode", b"\x00\x00\x00\x00", [t.sl_Status.OK]),
+    ],
+)
+def test_status_rx_schemas(
+    version: int, command: str, data: bytes, expected: list
+) -> None:
+    """The `sl_status_t` responses are fully parsed by v14 and newer."""
+    _, _, rx_schema = bellows.ezsp.EZSP._BY_VERSION[version].COMMANDS[command]
+    result, rest = t.deserialize_dict(data, rx_schema)
+
+    assert list(result.values()) == expected
+    assert rest == b""
+
+
+async def test_leave_network(ezsp_f) -> None:
+    ezsp_f.leaveNetwork.return_value = (t.sl_Status.OK,)
+    assert await ezsp_f.leave_network() == t.sl_Status.OK
+    assert ezsp_f.leaveNetwork.mock_calls == [
+        call(options=t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION)
+    ]
+
+
+async def test_leave_network_options(ezsp_f) -> None:
+    ezsp_f.leaveNetwork.return_value = (t.sl_Status.OK,)
+    assert (
+        await ezsp_f.leave_network(
+            options=t.SlZigbeeLeaveNetworkOption.WITH_OPTION_REJOIN
+        )
+        == t.sl_Status.OK
+    )
+    assert ezsp_f.leaveNetwork.mock_calls == [
+        call(options=t.SlZigbeeLeaveNetworkOption.WITH_OPTION_REJOIN)
+    ]
 
 
 async def test_read_address_table(ezsp_f):

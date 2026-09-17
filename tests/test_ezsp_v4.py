@@ -277,6 +277,28 @@ async def test_factory_reset(ezsp_f) -> None:
     assert ezsp_f.clearKeyTable.mock_calls == [call()]
 
 
+async def test_leave_network(ezsp_f) -> None:
+    ezsp_f.leaveNetwork.return_value = (t.EmberStatus.SUCCESS,)
+    assert await ezsp_f.leave_network() == t.sl_Status.OK
+    assert ezsp_f.leaveNetwork.mock_calls == [call()]
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        t.SlZigbeeLeaveNetworkOption.WITH_OPTION_REJOIN,
+        t.SlZigbeeLeaveNetworkOption.IS_REQUESTED,
+    ],
+)
+async def test_leave_network_options_unsupported(
+    ezsp_f, options: t.SlZigbeeLeaveNetworkOption
+) -> None:
+    with pytest.raises(ValueError):
+        await ezsp_f.leave_network(options=options)
+
+    assert ezsp_f.leaveNetwork.mock_calls == []
+
+
 async def test_send_unicast(ezsp_f) -> None:
     ezsp_f.sendUnicast.return_value = (t.EmberStatus.SUCCESS, 0x42)
     status, message_tag = await ezsp_f.send_unicast(
