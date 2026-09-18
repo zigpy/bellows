@@ -35,6 +35,15 @@ COMMANDS = {
         },
     ),
     # The following commands are redefined because `SecurityManagerContext` changed
+    "checkKeyContext": (
+        0x0110,
+        {
+            "context": t.SecurityManagerContextV13,
+        },
+        {
+            "status": t.sl_Status,
+        },
+    ),
     "exportKey": (
         0x0114,
         {
