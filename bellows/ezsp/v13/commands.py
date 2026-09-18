@@ -90,6 +90,28 @@ COMMANDS = {
             "status": t.sl_Status,
         },
     ),
+    # status is kept as uint8_t (not sl_GpStatus) to accept values
+    # outside the strict 0x00..0x07 range that NCPs return for frames
+    # with no matching proxy/sink entry.
+    "gpepIncomingMessageHandler": (
+        0x00C5,
+        {},
+        {
+            "status": t.uint8_t,
+            "gpdLink": t.uint8_t,
+            "sequenceNumber": t.uint8_t,
+            "addr": t.EmberGpAddress,
+            "gpdfSecurityLevel": t.EmberGpSecurityLevel,
+            "gpdfSecurityKeyType": t.EmberGpKeyType,
+            "autoCommissioning": t.Bool,
+            "bidirectionalInfo": t.uint8_t,
+            "gpdSecurityFrameCounter": t.uint32_t,
+            "gpdCommandId": t.uint8_t,
+            "mic": t.uint32_t,
+            "proxyTableIndex": t.uint8_t,
+            "gpdCommandPayload": t.LVBytes,
+        },
+    ),
 }
 
 del COMMANDS["becomeTrustCenter"]  # this one was likely removed earlier

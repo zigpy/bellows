@@ -21,7 +21,10 @@ from zigpy.exceptions import (
 import zigpy.state
 import zigpy.types
 import zigpy.util
+from zigpy.zcl import foundation
+from zigpy.zcl.clusters.greenpower import NotificationOptions, NotificationSchema
 import zigpy.zdo.types as zdo_t
+import zigpy.zgp.types as zgp_t
 
 import bellows
 from bellows.config import (
@@ -57,6 +60,7 @@ COUNTER_RESET_SUCCESS = "reset_success"
 COUNTER_RX_BCAST = "broadcast_rx"
 COUNTER_RX_MCAST = "multicast_rx"
 COUNTER_RX_UNICAST = "unicast_rx"
+COUNTER_RX_GP = "green_power_rx"
 COUNTER_UNKNOWN_DEVICE = "unknown_device_rx"
 COUNTER_WATCHDOG = "watchdog_reset_requests"
 COUNTERS_EZSP = "ezsp_counters"
@@ -75,6 +79,12 @@ IEEE_PREFIX_MFG_ID = {
 }
 
 DEFAULT_TX_POWER = 8  # dBm
+
+# TODO: replace with zigpy.zgp.GP_ENDPOINT / GP_CLUSTER_ID / GP_PROFILE_ID
+# once those are released upstream.
+GP_ENDPOINT = 242
+GP_CLUSTER_ID = 0x0021
+GP_PROFILE_ID = 0xA1E0
 
 LIB_VERSION = importlib.metadata.version("bellows")
 LOGGER = logging.getLogger(__name__)
@@ -697,6 +707,101 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self.handle_route_error(status, nwk)
         elif frame_name == "idConflictHandler":
             self._handle_id_conflict(*args)
+        elif frame_name == "gpepIncomingMessageHandler":
+            self._handle_gp_frame(args)
+
+    def _handle_gp_frame(self, args: tuple) -> None:
+        """Forward gpepIncomingMessageHandler as a ZCL GP Notification."""
+        if len(args) < 13:
+            LOGGER.debug("gpepIncomingMessageHandler: short args %r, dropping", args)
+            return
+
+        (
+            _status,
+            gpd_link,
+            sequence_number,
+            addr,
+            gpdf_security_level,
+            gpdf_security_key_type,
+            _auto_commissioning,
+            _bidirectional_info,
+            gpd_security_frame_counter,
+            gpd_command_id,
+            _mic,
+            _proxy_table_index,
+            gpd_command_payload,
+        ) = args
+
+        # On EZSP < v13 the 4th argument is a uint8_t addrType, not an
+        # EmberGpAddress. Drop those frames rather than crashing on
+        # attribute access; bellows does not currently parse the legacy
+        # layout.
+        if not isinstance(addr, t.EmberGpAddress):
+            LOGGER.debug(
+                "gpepIncomingMessageHandler: unsupported legacy address layout, "
+                "dropping"
+            )
+            return
+
+        if addr.applicationId != zgp_t.ApplicationID.SrcID:
+            LOGGER.debug(
+                "GP frame with unsupported applicationId %s, dropping",
+                addr.applicationId,
+            )
+            return
+
+        source_id = int.from_bytes(bytes(addr.id[:4]), "little")
+
+        options = NotificationOptions(
+            application_id=zgp_t.ApplicationID(addr.applicationId),
+            also_unicast=0,
+            also_derived_group=0,
+            also_commissioned_group=0,
+            security_level=zgp_t.SecurityLevel(gpdf_security_level),
+            security_key_type=zgp_t.SecurityKeyType(gpdf_security_key_type),
+            appoint_temp_master=0,
+            tx_queue_full=0,
+            _reserved=0,
+        )
+        notification = NotificationSchema(
+            options=options,
+            gpd_id=zgp_t.DeviceID(source_id),
+            frame_counter=zigpy.types.uint32_t(gpd_security_frame_counter),
+            command_id=zigpy.types.uint8_t(gpd_command_id),
+            payload=zigpy.types.LVBytes(bytes(gpd_command_payload)),
+        )
+        tsn = zigpy.types.uint8_t(int(sequence_number) & 0xFF)
+        zcl_header = foundation.ZCLHeader.cluster(tsn=tsn, command_id=0x00)
+        zcl_bytes = zcl_header.serialize() + notification.serialize()
+
+        # The coordinator stands in as the proxy; gpdLink carries the
+        # signal quality the NCP saw for this GPDF.
+        proxy_nwk = int(self.state.node_info.nwk)
+        lqi = int(gpd_link)
+        rssi = 0
+
+        self.state.counters[COUNTERS_CTRL][COUNTER_RX_GP].increment()
+
+        self.packet_received(
+            zigpy.types.ZigbeePacket(
+                src=zigpy.types.AddrModeAddress(
+                    addr_mode=zigpy.types.AddrMode.NWK,
+                    address=zigpy.types.NWK(proxy_nwk),
+                ),
+                src_ep=zigpy.types.uint8_t(GP_ENDPOINT),
+                dst=zigpy.types.AddrModeAddress(
+                    addr_mode=zigpy.types.AddrMode.NWK,
+                    address=self.state.node_info.nwk,
+                ),
+                dst_ep=zigpy.types.uint8_t(GP_ENDPOINT),
+                tsn=tsn,
+                profile_id=zigpy.types.uint16_t(GP_PROFILE_ID),
+                cluster_id=zigpy.types.uint16_t(GP_CLUSTER_ID),
+                data=zigpy.types.SerializableBytes(zcl_bytes),
+                lqi=zigpy.types.uint8_t(lqi),
+                rssi=zigpy.types.int8s(rssi),
+            )
+        )
 
     def _handle_frame(
         self,
