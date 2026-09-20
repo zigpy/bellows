@@ -1734,6 +1734,7 @@ SL_STATUS_MAP: dict[EzspStatus | EmberStatus, sl_Status] = {
         (EmberStatus.MAC_SCANNING, sl_Status.MAC_SCANNING),
         (EmberStatus.MAC_INVALID_CHANNEL_MASK, sl_Status.INVALID_CHANNEL_MASK),
         (EmberStatus.PHY_INVALID_CHANNEL, sl_Status.TRANSMIT_INVALID_CHANNEL),
+        (EmberStatus.PHY_INVALID_POWER, sl_Status.TRANSMIT_INVALID_POWER),
         (EmberStatus.SERIAL_INVALID_PORT, sl_Status.INVALID_PARAMETER),
         (EmberStatus.SERIAL_RX_EMPTY, sl_Status.EMPTY),
         (EmberStatus.INSUFFICIENT_RANDOM_DATA, sl_Status.ZIGBEE_INSUFFICIENT_RANDOM_DATA),

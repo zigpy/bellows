@@ -11,7 +11,12 @@ import zigpy.config
 
 from bellows import config, uart
 from bellows.ash import NcpFailure
-from bellows.exception import EzspError, InvalidCommandError, InvalidCommandPayload
+from bellows.exception import (
+    EzspError,
+    InvalidCommandError,
+    InvalidCommandPayload,
+    InvalidTxPower,
+)
 from bellows.ezsp import EZSP, EZSP_LATEST, xncp
 from bellows.ezsp.v9.commands import GetTokenDataRsp
 import bellows.types as t
@@ -194,6 +199,16 @@ async def test_form_network_fail():
 
     with pytest.raises(Exception):
         await _test_form_network(ezsp, [t.EmberStatus.FAILURE], b"\x90")
+
+
+@pytest.mark.parametrize(
+    "status", [t.EmberStatus.PHY_INVALID_POWER, t.sl_Status.TRANSMIT_INVALID_POWER]
+)
+async def test_form_network_fail_invalid_tx_power(status):
+    ezsp = await make_connected_ezsp(version=4)
+
+    with pytest.raises(InvalidTxPower):
+        await _test_form_network(ezsp, [status], b"\x90")
 
 
 @patch("bellows.ezsp.NETWORK_OPS_TIMEOUT", 0.1)
