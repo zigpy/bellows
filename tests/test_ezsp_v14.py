@@ -253,8 +253,8 @@ async def test_send_multicast(ezsp_f) -> None:
             aps_frame=t.EmberApsFrame(sequence=0x34),
             hops=12,
             broadcast_addr=t.BroadcastAddress.RX_ON_WHEN_IDLE,
-            alias=0x0000,
-            sequence=0x34,
+            alias=0xFFFF,
+            sequence=0x00,
             message_tag=0x0042,
             message=b"hello",
         )
@@ -276,9 +276,9 @@ async def test_send_broadcast(ezsp_f) -> None:
     assert message_tag == 0x42
     assert ezsp_f.sendBroadcast.mock_calls == [
         call(
-            alias=0x0000,
+            alias=0xFFFF,
             destination=t.BroadcastAddress.ALL_ROUTERS_AND_COORDINATOR,
-            sequence=34,
+            sequence=0x00,
             aps_frame=t.EmberApsFrame(),
             radius=12,
             message_tag=0x42,
