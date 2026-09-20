@@ -14,7 +14,12 @@ import zigpy.zdo.types as zdo_t
 
 from bellows.ash import NcpFailure
 import bellows.config as config
-from bellows.exception import ControllerError, EzspError, InvalidCommandError
+from bellows.exception import (
+    ControllerError,
+    EzspError,
+    InvalidCommandError,
+    InvalidTxPower,
+)
 import bellows.ezsp as ezsp
 from bellows.ezsp.v9.commands import GetTokenDataRsp
 from bellows.ezsp.xncp import (
@@ -2468,6 +2473,56 @@ async def test_write_network_info(
             )
         )
     ]
+
+
+async def test_write_network_info_unsupported_tx_power(
+    app: ControllerApplication,
+    ieee: zigpy_t.EUI64,
+    zigpy_backup: zigpy.backups.NetworkBackup,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that write_network_info falls back to DEFAULT_TX_POWER when rejected."""
+    network_info = zigpy_backup.network_info.replace(tx_power=10)
+
+    app._ezsp._protocol.formNetwork.side_effect = [
+        [t.EmberStatus.PHY_INVALID_POWER],
+        [t.EmberStatus.SUCCESS],
+    ]
+
+    with patch.object(app, "_reset"), caplog.at_level(logging.WARNING):
+        await app.write_network_info(
+            node_info=zigpy_backup.node_info,
+            network_info=network_info,
+        )
+
+    assert "does not support TX power 10 dBm" in caplog.text
+    assert "Unknown status" not in caplog.text
+
+    assert [
+        c.kwargs["parameters"].radioTxPower
+        for c in app._ezsp._protocol.formNetwork.mock_calls
+    ] == [10, DEFAULT_TX_POWER]
+
+
+@pytest.mark.parametrize("tx_power", [DEFAULT_TX_POWER, None])
+async def test_write_network_info_unsupported_default_tx_power(
+    app: ControllerApplication,
+    ieee: zigpy_t.EUI64,
+    zigpy_backup: zigpy.backups.NetworkBackup,
+    tx_power: int | None,
+) -> None:
+    """Test that write_network_info does not retry if the default is rejected."""
+    network_info = zigpy_backup.network_info.replace(tx_power=tx_power)
+
+    app._ezsp._protocol.formNetwork.return_value = [t.EmberStatus.PHY_INVALID_POWER]
+
+    with patch.object(app, "_reset"), pytest.raises(InvalidTxPower):
+        await app.write_network_info(
+            node_info=zigpy_backup.node_info,
+            network_info=network_info,
+        )
+
+    assert len(app._ezsp._protocol.formNetwork.mock_calls) == 1
 
 
 async def test_write_network_info_with_none_tx_power(

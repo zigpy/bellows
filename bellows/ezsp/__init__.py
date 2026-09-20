@@ -21,6 +21,7 @@ from bellows.exception import (
     EzspError,
     InvalidCommandError,
     InvalidCommandPayload,
+    InvalidTxPower,
     PayloadTooLongError,
 )
 from bellows.ezsp import xncp
@@ -353,7 +354,11 @@ class EZSP:
         with self.wait_for_stack_status(t.sl_Status.NETWORK_UP) as stack_status:
             v = await self._command("formNetwork", parameters=parameters)
 
-            if t.sl_Status.from_ember_status(v[0]) != t.sl_Status.OK:
+            status = t.sl_Status.from_ember_status(v[0])
+
+            if status == t.sl_Status.TRANSMIT_INVALID_POWER:
+                raise InvalidTxPower(f"Failure forming network: {v}")
+            elif status != t.sl_Status.OK:
                 raise zigpy.exceptions.FormationFailure(f"Failure forming network: {v}")
 
             async with asyncio_timeout(NETWORK_OPS_TIMEOUT):

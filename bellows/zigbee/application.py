@@ -36,6 +36,7 @@ from bellows.exception import (
     ControllerError,
     EzspError,
     InvalidCommandError,
+    InvalidTxPower,
     PayloadTooLongError,
     StackAlreadyRunning,
 )
@@ -564,7 +565,23 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         parameters.nwkUpdateId = t.uint8_t(network_info.nwk_update_id)
         parameters.channels = t.Channels(network_info.channel_mask)
 
-        await ezsp.formNetwork(parameters=parameters)
+        try:
+            await ezsp.formNetwork(parameters=parameters)
+        except InvalidTxPower:
+            if parameters.radioTxPower == DEFAULT_TX_POWER:
+                raise
+
+            # The TX power in a backup comes from the radio that created it and older
+            # radios reject values they do not support. The TX power is adjusted again
+            # on startup so it is safe to form the network with the default.
+            LOGGER.warning(
+                "Radio does not support TX power %d dBm, using default of %d dBm",
+                parameters.radioTxPower,
+                DEFAULT_TX_POWER,
+            )
+            await ezsp.formNetwork(
+                parameters=parameters.replace(radioTxPower=t.uint8_t(DEFAULT_TX_POWER))
+            )
 
         # Write NWK update ID to NVRAM after network formation. This is needed because
         # formNetwork() appears to ignore or reset the nwkUpdateId field
