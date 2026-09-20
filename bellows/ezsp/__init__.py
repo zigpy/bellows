@@ -358,7 +358,8 @@ class EZSP:
 
             if status == t.sl_Status.TRANSMIT_INVALID_POWER:
                 raise InvalidTxPower(f"Failure forming network: {v}")
-            elif status != t.sl_Status.OK:
+
+            if status != t.sl_Status.OK:
                 raise zigpy.exceptions.FormationFailure(f"Failure forming network: {v}")
 
             async with asyncio_timeout(NETWORK_OPS_TIMEOUT):

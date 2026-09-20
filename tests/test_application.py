@@ -2525,6 +2525,28 @@ async def test_write_network_info_unsupported_default_tx_power(
     assert len(app._ezsp._protocol.formNetwork.mock_calls) == 1
 
 
+async def test_write_network_info_formation_failure_no_retry(
+    app: ControllerApplication,
+    ieee: zigpy_t.EUI64,
+    zigpy_backup: zigpy.backups.NetworkBackup,
+) -> None:
+    """Test that write_network_info only retries when the TX power is rejected."""
+    network_info = zigpy_backup.network_info.replace(tx_power=10)
+
+    app._ezsp._protocol.formNetwork.return_value = [t.EmberStatus.ERR_FATAL]
+
+    with patch.object(app, "_reset"), pytest.raises(
+        zigpy.exceptions.FormationFailure
+    ) as exc_info:
+        await app.write_network_info(
+            node_info=zigpy_backup.node_info,
+            network_info=network_info,
+        )
+
+    assert not isinstance(exc_info.value, InvalidTxPower)
+    assert len(app._ezsp._protocol.formNetwork.mock_calls) == 1
+
+
 async def test_write_network_info_with_none_tx_power(
     app: ControllerApplication,
     ieee: zigpy_t.EUI64,
