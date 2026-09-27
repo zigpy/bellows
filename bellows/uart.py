@@ -113,18 +113,18 @@ async def _connect(config, api):
     gateway = Gateway(api, connection_done_future)
     protocol = AshProtocol(gateway)
 
-    if config[zigpy.config.CONF_DEVICE_FLOW_CONTROL] is None:
-        xon_xoff, rtscts = True, False
-    else:
-        xon_xoff, rtscts = False, True
+    flow_control = config[zigpy.config.CONF_DEVICE_FLOW_CONTROL]
 
+    # `None` keeps XON/XOFF enabled, as before: ASH escapes 0x11/0x13 on the wire, so
+    # host-side XON/XOFF cannot corrupt framing, and it is the only thing honoring XOFF
+    # from software-flow-control firmware (which many installs run with `None` stored).
     transport, _ = await zigpy.serial.create_serial_connection(
         loop,
         lambda: protocol,
         url=config[zigpy.config.CONF_DEVICE_PATH],
         baudrate=config[zigpy.config.CONF_DEVICE_BAUDRATE],
-        xonxoff=xon_xoff,
-        rtscts=rtscts,
+        xonxoff=flow_control in (None, "software"),
+        rtscts=flow_control == "hardware",
     )
 
     await gateway.wait_until_connected()
