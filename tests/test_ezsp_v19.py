@@ -38,7 +38,7 @@ def test_ezsp_frame_rx(ezsp_f):
 def test_get_token_info(version: int) -> None:
     _, _, rx_schema = bellows.ezsp.EZSP._BY_VERSION[version].COMMANDS["getTokenInfo"]
     result, rest = t.deserialize_dict(
-        bytes.fromhex("00000000" "01000000" "00" "01" "2c010000" "05"), rx_schema
+        bytes.fromhex("000000000100000000012c01000005"), rx_schema
     )
 
     assert rest == b""

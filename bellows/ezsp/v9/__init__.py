@@ -1,4 +1,5 @@
-""""EZSP Protocol version 9 protocol handler."""
+"""EZSP Protocol version 9 protocol handler."""
+
 from __future__ import annotations
 
 import logging
@@ -8,8 +9,8 @@ import voluptuous as vol
 import bellows.config
 import bellows.types as t
 
-from . import commands, config
 from ..v8 import EZSPv8
+from . import commands, config
 
 LOGGER = logging.getLogger(__name__)
 

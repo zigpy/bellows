@@ -1,12 +1,13 @@
-""""EZSP Protocol version 18 protocol handler."""
+"""EZSP Protocol version 18 protocol handler."""
+
 from __future__ import annotations
 
 import voluptuous as vol
 
 import bellows.config
 
-from . import commands, config
 from ..v17 import EZSPv17
+from . import commands, config
 
 
 class EZSPv18(EZSPv17):

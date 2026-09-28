@@ -172,7 +172,7 @@ async def test_proxy_not_function():
     proxy = ThreadsafeProxy(obj, loop)
     obj.test = mock.sentinel.value
     with pytest.raises(TypeError):
-        proxy.test
+        proxy.test  # noqa: B018
 
 
 async def test_proxy_no_thread():

@@ -1,4 +1,5 @@
-""""EZSP Protocol version 7 protocol handler."""
+"""EZSP Protocol version 7 protocol handler."""
+
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
@@ -9,8 +10,8 @@ import voluptuous
 import bellows.config
 import bellows.types as t
 
-from . import commands, config
 from ..v6 import EZSPv6
+from . import commands, config
 
 LOGGER = logging.getLogger(__name__)
 

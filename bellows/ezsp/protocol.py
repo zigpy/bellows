@@ -281,7 +281,7 @@ class ProtocolHandler(abc.ABC):
 
         return functools.partial(self.command, name)
 
-    async def pre_permit(self, time_s: int) -> None:
+    async def pre_permit(self, time_s: int) -> None:  # noqa: B027
         """Schedule task before allowing new joins."""
 
     @abc.abstractmethod

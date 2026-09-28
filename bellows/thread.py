@@ -88,9 +88,7 @@ class ThreadsafeProxy:
         func = getattr(self._obj, name)
         if not callable(func):
             raise TypeError(
-                "Can only use ThreadsafeProxy with callable attributes: {}.{}".format(
-                    self._obj.__class__.__name__, name
-                )
+                f"Can only use ThreadsafeProxy with callable attributes: {self._obj.__class__.__name__}.{name}"
             )
 
         def func_wrapper(*args, **kwargs):
@@ -112,10 +110,8 @@ class ThreadsafeProxy:
                     result = call()
                     if result is not None:
                         raise TypeError(
-                            (
-                                "ThreadsafeProxy can only wrap functions with no return"
-                                "value \nUse an async method to return values: {}.{}"
-                            ).format(self._obj.__class__.__name__, name)
+                            "ThreadsafeProxy can only wrap functions with no return"
+                            f"value \nUse an async method to return values: {self._obj.__class__.__name__}.{name}"
                         )
 
                 loop.call_soon_threadsafe(check_result_wrapper)
