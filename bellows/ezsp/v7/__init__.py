@@ -27,7 +27,7 @@ class EZSPv7(EZSPv6):
 
     async def read_child_data(
         self,
-    ) -> AsyncGenerator[tuple[t.NWK, t.EUI64, t.EmberNodeType], None]:
+    ) -> AsyncGenerator[tuple[t.NWK, t.EUI64, t.EmberNodeType]]:
         for idx in range(0, 255 + 1):
             (status, rsp) = await self.getChildData(index=idx)
             status = t.sl_Status.from_ember_status(status)

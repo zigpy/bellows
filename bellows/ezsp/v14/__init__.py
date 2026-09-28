@@ -24,7 +24,7 @@ class EZSPv14(EZSPv13):
         bellows.config.CONF_EZSP_POLICIES: vol.Schema(config.EZSP_POLICIES_SCH),
     }
 
-    async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64], None]:
+    async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64]]:
         (status, addr_table_size) = await self.getConfigurationValue(
             configId=t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
         )

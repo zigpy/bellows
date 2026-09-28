@@ -47,7 +47,7 @@ class EZSPv4(protocol.ProtocolHandler):
 
     async def read_child_data(
         self,
-    ) -> AsyncGenerator[tuple[t.NWK, t.EUI64, t.EmberNodeType], None]:
+    ) -> AsyncGenerator[tuple[t.NWK, t.EUI64, t.EmberNodeType]]:
         for idx in range(0, 255 + 1):
             (status, nwk, eui64, node_type) = await self.getChildData(index=idx)
             status = t.sl_Status.from_ember_status(status)
@@ -57,7 +57,7 @@ class EZSPv4(protocol.ProtocolHandler):
 
             yield nwk, eui64, node_type
 
-    async def read_link_keys(self) -> AsyncGenerator[zigpy.state.Key, None]:
+    async def read_link_keys(self) -> AsyncGenerator[zigpy.state.Key]:
         (status, key_table_size) = await self.getConfigurationValue(
             t.EzspConfigId.CONFIG_KEY_TABLE_SIZE
         )
@@ -74,7 +74,7 @@ class EZSPv4(protocol.ProtocolHandler):
             assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
             yield ezsp_key_to_zigpy_key(key)
 
-    async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64], None]:
+    async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64]]:
         # v4 can crash when getAddressTableRemoteNodeId(32) is received: undefined_0x8a
         # We need this function to be an async generator even if it does nothing
         if False:

@@ -293,15 +293,15 @@ class ProtocolHandler(abc.ABC):
     @abc.abstractmethod
     async def read_child_data(
         self,
-    ) -> AsyncGenerator[tuple[t.NWK, t.EUI64, t.EmberNodeType], None]:
+    ) -> AsyncGenerator[tuple[t.NWK, t.EUI64, t.EmberNodeType]]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def read_link_keys(self) -> AsyncGenerator[zigpy.state.Key, None]:
+    async def read_link_keys(self) -> AsyncGenerator[zigpy.state.Key]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64], None]:
+    async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64]]:
         raise NotImplementedError
 
     @abc.abstractmethod
