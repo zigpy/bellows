@@ -35,6 +35,27 @@ COMMANDS = {
             "status": t.sl_Status,
         },
     ),
+    # Both responses gained an `sl_status_t` that `_REPLACEMENTS` can't add for us
+    "getExtendedTimeout": (
+        0x007F,
+        {
+            "remoteEui64": t.EUI64,
+        },
+        {
+            # `OK` if the retry interval is extended, `FAIL` if it is not
+            "status": t.sl_Status,
+        },
+    ),
+    "lookupNodeIdByEui64": (
+        0x0060,
+        {
+            "eui64": t.EUI64,
+        },
+        {
+            "status": t.sl_Status,
+            "nodeId": t.EmberNodeId,
+        },
+    ),
     "getTokenData": (
         0x0102,
         {

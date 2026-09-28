@@ -207,18 +207,30 @@ class EZSPv4(protocol.ProtocolHandler):
         (res,) = await self.readAndClearCounters()
         return dict(zip(t.EmberCounterType, res, strict=False))
 
+    async def _get_extended_timeout(self, ieee: t.EUI64) -> bool:
+        (extended_timeout,) = await self.getExtendedTimeout(remoteEui64=ieee)
+        return extended_timeout
+
+    async def _lookup_node_id_by_eui64(self, ieee: t.EUI64) -> t.NWK | None:
+        (node_id,) = await self.lookupNodeIdByEui64(eui64=ieee)
+
+        if node_id == 0xFFFF:
+            return None
+
+        return node_id
+
     async def set_extended_timeout(
         self, nwk: t.NWK, ieee: t.EUI64, extended_timeout: bool = True
     ) -> None:
-        (curr_extended_timeout,) = await self.getExtendedTimeout(remoteEui64=ieee)
+        curr_extended_timeout = await self._get_extended_timeout(ieee)
 
         if curr_extended_timeout == extended_timeout:
             return
 
-        (node_id,) = await self.lookupNodeIdByEui64(eui64=ieee)
+        node_id = await self._lookup_node_id_by_eui64(ieee)
 
-        # Check to see if we have an address table entry
-        if node_id != 0xFFFF:
+        # The stack already knows the node ID (child, neighbor, or address table)
+        if node_id is not None:
             await self.setExtendedTimeout(
                 remoteEui64=ieee, extendedTimeout=extended_timeout
             )
@@ -229,14 +241,15 @@ class EZSPv4(protocol.ProtocolHandler):
                 t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
             )
 
-            if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
-                # Last-ditch effort
-                await self.setExtendedTimeout(
-                    remoteEui64=ieee, extendedTimeout=extended_timeout
-                )
-                return
+            if t.sl_Status.from_ember_status(status) == t.sl_Status.OK:
+                self._address_table_size = addr_table_size
 
-            self._address_table_size = addr_table_size
+        if not self._address_table_size:
+            # Last-ditch effort, there is no address table to use
+            await self.setExtendedTimeout(
+                remoteEui64=ieee, extendedTimeout=extended_timeout
+            )
+            return
 
         # Replace a random entry in the address table
         index = random.randint(0, self._address_table_size - 1)
