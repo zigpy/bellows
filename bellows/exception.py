@@ -1,4 +1,4 @@
-from zigpy.exceptions import APIException, ControllerException
+from zigpy.exceptions import APIException, ControllerException, FormationFailure
 
 
 class EzspError(APIException):
@@ -25,3 +25,7 @@ class ControllerError(ControllerException):
 
 class StackAlreadyRunning(EzspError):
     pass
+
+
+class InvalidTxPower(FormationFailure):
+    """The radio does not support the requested TX power."""
