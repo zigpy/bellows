@@ -34,6 +34,29 @@ COMMANDS = {
             "number_of_entries": t.uint8_t,
         },
     ),
+    # Redefined: EmberZNet 7.x serializes EmberGpAddress as applicationId,
+    # an 8-byte id union, then endpoint, which the inherited schema predates.
+    "gpepIncomingMessageHandler": (
+        0x00C5,
+        {},
+        {
+            "status": t.uint8_t,
+            "gpdLink": t.uint8_t,
+            "sequenceNumber": t.uint8_t,
+            "applicationId": t.uint8_t,
+            "gpdIdUnion": t.FixedList[t.uint8_t, 8],
+            "endpoint": t.uint8_t,
+            "gpdfSecurityLevel": t.uint8_t,
+            "gpdfSecurityKeyType": t.uint8_t,
+            "autoCommissioning": t.Bool,
+            "bidirectionalInfo": t.uint8_t,
+            "gpdSecurityFrameCounter": t.uint32_t,
+            "gpdCommandId": t.uint8_t,
+            "mic": t.uint32_t,
+            "proxyTableIndex": t.uint8_t,
+            "gpdCommandPayload": t.LVBytes,
+        },
+    ),
     # The following commands are redefined because `SecurityManagerContext` changed
     "exportKey": (
         0x0114,

@@ -227,3 +227,22 @@ async def test_factory_reset(ezsp_f) -> None:
     assert ezsp_f.tokenFactoryReset.mock_calls == [
         call(excludeOutgoingFC=False, excludeBootCounter=False)
     ]
+
+
+def test_gpep_incoming_message_handler_rx(ezsp_f):
+    """Test receiving a gpepIncomingMessageHandler frame from an EmberZNet 7.x NCP."""
+    ezsp_f(
+        b"\x03\x01\x80\xc5\x00"
+        + bytes.fromhex("7fdbc1009eea43009eea43000002010000c116000010153064adff00")
+    )
+    assert ezsp_f._handle_callback.call_count == 1
+    name, args = ezsp_f._handle_callback.call_args[0]
+    assert name == "gpepIncomingMessageHandler"
+    assert args[3] == 0x00  # applicationId: source ID addressing
+    assert bytes(args[4][:4]) == bytes.fromhex("9eea4300")  # sourceId 0x0043EA9E
+    assert args[6] == 0x02  # gpdfSecurityLevel: full frame counter + MIC
+    assert args[7] == 0x01  # gpdfSecurityKeyType
+    assert args[10] == 0x16C1  # gpdSecurityFrameCounter
+    assert args[11] == 0x10  # gpdCommandId
+    assert args[13] == 0xFF  # proxyTableIndex: not in proxy table
+    assert args[14] == b""  # gpdCommandPayload
