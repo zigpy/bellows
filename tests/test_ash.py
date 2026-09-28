@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from asyncio import timeout as asyncio_timeout
 import logging
 import random
 from unittest.mock import MagicMock, call, patch
@@ -104,8 +105,10 @@ class FakeTransportOneByteAtATime(FakeTransport):
 
 
 class FakeTransportRandomLoss(FakeTransport):
+    loss_rate: float = 0.20
+
     def write(self, data: bytes) -> None:
-        if random.random() < 0.20:
+        if random.random() < self.loss_rate:
             return
 
         super().write(data)
@@ -541,13 +544,11 @@ async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
     ncp_ezsp.data_received.reset_mock()
     host_ezsp.data_received.reset_mock()
 
-    # Let's let a request fail due to a connectivity issue
+    # Let's let a request fail due to a connectivity issue. The link stays down until
+    # every retry has timed out, however long that takes on a loaded machine.
     with patch.object(ncp_transport, "paused", True):
-        send_task = asyncio.create_task(host.send_data(b"host failure"))
-        await asyncio.sleep(host._t_rx_ack * 15)
-
-    with pytest.raises(TimeoutError):
-        await send_task
+        with pytest.raises(TimeoutError):
+            await host.send_data(b"host failure")
 
     ncp_ezsp.data_received.reset_mock()
     host_ezsp.data_received.reset_mock()
@@ -569,11 +570,8 @@ async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
     assert ncp._ncp_reset_code is None
 
     with patch.object(host_transport, "paused", True):
-        send_task = asyncio.create_task(ncp.send_data(b"ncp failure"))
-        await asyncio.sleep(ncp._t_rx_ack * 15)
-
-    with pytest.raises(TimeoutError):
-        await send_task
+        with pytest.raises(TimeoutError):
+            await ncp.send_data(b"ncp failure")
 
     assert (
         host._ncp_reset_code is t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT
@@ -590,14 +588,24 @@ async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
         await host.send_data(b"test")
 
     host.send_reset()
-    await asyncio.sleep(0.01)
+
+    async with asyncio_timeout(1):
+        while host._ncp_state is not ash.NcpState.CONNECTED:
+            await asyncio.sleep(0)
+
     await host.send_data(b"test")
 
-    # Trigger a failure caused by excessive NAKs
+    # Trigger a failure caused by excessive NAKs. The host's ACK timeout is kept far
+    # above the NCP's NAK delay and no frames are lost, so every attempt ends in a NAK
+    # and never in a timeout.
     ncp._t_rx_ack = ash.T_RX_ACK_INIT / 1000
-    host._t_rx_ack = ash.T_RX_ACK_INIT / 1000
+    host._t_rx_ack = 5.0
 
-    with patch.object(ncp, "nak_state", True):
+    with (
+        patch("bellows.ash.T_RX_ACK_MAX", host._t_rx_ack),
+        patch.object(FakeTransportRandomLoss, "loss_rate", 0.0),
+        patch.object(ncp, "nak_state", True),
+    ):
         with pytest.raises(ash.NotAcked):
             await host.send_data(b"ncp NAKing until failure")
 
