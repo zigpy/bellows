@@ -10,12 +10,21 @@ from bellows import uart
 import bellows.types as t
 
 
-@pytest.mark.parametrize("flow_control", ["software", "hardware"])
-async def test_connect(flow_control, monkeypatch):
+@pytest.mark.parametrize(
+    ("flow_control", "xonxoff", "rtscts"),
+    [
+        (None, True, False),
+        ("software", True, False),
+        ("hardware", False, True),
+    ],
+)
+async def test_connect(flow_control, xonxoff, rtscts, monkeypatch):
     appmock = MagicMock()
     transport = MagicMock()
+    connect_kwargs = {}
 
     async def mockconnect(loop, protocol_factory, **kwargs):
+        connect_kwargs.update(kwargs)
         protocol = protocol_factory()
         loop.call_soon(protocol.connection_made, transport)
         return None, protocol
@@ -32,6 +41,9 @@ async def test_connect(flow_control, monkeypatch):
         appmock,
         use_thread=False,
     )
+
+    assert connect_kwargs["xonxoff"] is xonxoff
+    assert connect_kwargs["rtscts"] is rtscts
 
     threads = [t for t in threading.enumerate() if "bellows" in t.name]
     assert len(threads) == 0

@@ -113,18 +113,15 @@ async def _connect(config, api):
     gateway = Gateway(api, connection_done_future)
     protocol = AshProtocol(gateway)
 
-    if config[zigpy.config.CONF_DEVICE_FLOW_CONTROL] is None:
-        xon_xoff, rtscts = True, False
-    else:
-        xon_xoff, rtscts = False, True
+    flow_control = config[zigpy.config.CONF_DEVICE_FLOW_CONTROL]
 
     transport, _ = await zigpy.serial.create_serial_connection(
         loop,
         lambda: protocol,
         url=config[zigpy.config.CONF_DEVICE_PATH],
         baudrate=config[zigpy.config.CONF_DEVICE_BAUDRATE],
-        xonxoff=xon_xoff,
-        rtscts=rtscts,
+        xonxoff=flow_control in (None, "software"),
+        rtscts=flow_control == "hardware",
     )
 
     await gateway.wait_until_connected()
