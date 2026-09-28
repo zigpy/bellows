@@ -227,3 +227,25 @@ async def test_factory_reset(ezsp_f) -> None:
     assert ezsp_f.tokenFactoryReset.mock_calls == [
         call(excludeOutgoingFC=False, excludeBootCounter=False)
     ]
+
+
+def test_check_key_context(ezsp_f) -> None:
+    """`checkKeyContext` takes a security manager context and returns an `sl_status_t`."""
+    context = t.SecurityManagerContextV13(
+        core_key_type=t.SecurityManagerKeyType.APP_LINK,
+        key_index=0,
+        derived_type=t.SecurityManagerDerivedKeyTypeV13.NONE,
+        eui64=t.EUI64.convert("01:02:03:04:05:06:07:08"),
+        multi_network_index=0,
+        flags=t.SecurityManagerContextFlags.EUI_IS_VALID,
+        psa_key_alg_permission=0,
+    )
+    _, tx_schema, rx_schema = ezsp_f.COMMANDS["checkKeyContext"]
+
+    assert t.serialize_dict((), {"context": context}, tx_schema) == bytes.fromhex(
+        "04" "00" "0000" "0807060504030201" "00" "02" "00000000"
+    )
+    assert t.deserialize_dict(b"\x00\x00\x00\x00", rx_schema) == (
+        {"status": t.sl_Status.OK},
+        b"",
+    )

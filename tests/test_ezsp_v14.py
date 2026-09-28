@@ -214,6 +214,316 @@ async def test_get_network_key_without_network(ezsp_f):
         await ezsp_f.get_network_key()
 
 
+V14_AND_LATER = [v for v in bellows.ezsp.EZSP._BY_VERSION if v >= 14]
+
+EUI64 = t.EUI64.convert("01:02:03:04:05:06:07:08")
+EUI64_BYTES = bytes.fromhex("0807060504030201")
+
+# `sl_zigbee_rx_packet_info_t`
+PACKET_INFO_BYTES = bytes.fromhex(
+    "3412" "0807060504030201" "ff" "03" "aa" "c4" "04030201"
+)
+PACKET_INFO = t.SlRxPacketInfo(
+    sender_short_id=0x1234,
+    sender_long_id=EUI64,
+    binding_index=0xFF,
+    address_index=0x03,
+    last_hop_lqi=0xAA,
+    last_hop_rssi=-60,
+    last_hop_timestamp=0x01020304,
+)
+
+# `sl_zigbee_sec_man_context_t`
+CONTEXT_BYTES = bytes.fromhex("04" "00" "0000" "0807060504030201" "00" "02" "00000000")
+CONTEXT = t.SecurityManagerContextV13(
+    core_key_type=t.SecurityManagerKeyType.APP_LINK,
+    key_index=0,
+    derived_type=t.SecurityManagerDerivedKeyTypeV13.NONE,
+    eui64=EUI64,
+    multi_network_index=0,
+    flags=t.SecurityManagerContextFlags.EUI_IS_VALID,
+    psa_key_alg_permission=0,
+)
+
+KEY_BYTES = bytes.fromhex("000102030405060708090a0b0c0d0e0f")
+KEY = t.KeyData.convert("000102030405060708090a0b0c0d0e0f")
+
+# `sl_zigbee_sec_man_aps_key_metadata_t`
+KEY_METADATA_BYTES = bytes.fromhex("1200" "01000000" "02000000" "b400")
+KEY_METADATA = t.SecurityManagerAPSKeyMetadata(
+    bitmask=(
+        t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
+        | t.EmberKeyStructBitmask.KEY_IS_AUTHORIZED
+    ),
+    outgoing_frame_counter=1,
+    incoming_frame_counter=2,
+    ttl_in_seconds=180,
+)
+
+STATUS_OK_BYTES = bytes.fromhex("00000000")
+
+
+def zll_network_found_handler_data() -> tuple[bytes, dict]:
+    data = (
+        # `sl_zigbee_zll_network_t`
+        bytes.fromhex("0b" "3412" "0807060504030201" "01" "02" "00")
+        + bytes.fromhex("78563412" "21436587" "0100")
+        + bytes.fromhex("0807060504030201" "cdab" "0000" "02" "01" "00" "00")
+        # `isDeviceInfoNull`
+        + bytes.fromhex("00")
+        # `sl_zigbee_zll_device_info_record_t`
+        + bytes.fromhex("0807060504030201" "01" "5ec0" "0001" "02" "00")
+        + PACKET_INFO_BYTES
+    )
+
+    expected = {
+        "networkInfo": t.EmberZllNetwork(
+            zigbeeNetwork=t.EmberZigbeeNetwork(
+                channel=11,
+                panId=0x1234,
+                extendedPanId=t.ExtendedPanId.convert("01:02:03:04:05:06:07:08"),
+                allowingJoin=t.Bool.true,
+                stackProfile=2,
+                nwkUpdateId=0,
+            ),
+            securityAlgorithm=t.EmberZllSecurityAlgorithmData(
+                transactionId=0x12345678,
+                responseId=0x87654321,
+                bitmask=0x0001,
+            ),
+            eui64=EUI64,
+            nodeId=0xABCD,
+            state=t.EmberZllState(0x0000),
+            nodeType=t.EmberNodeType.ROUTER,
+            numberSubDevices=1,
+            totalGroupIdentifiers=0,
+            rssiCorrection=0,
+        ),
+        "isDeviceInfoNull": t.Bool.false,
+        "deviceInfo": t.EmberZllDeviceInfoRecord(
+            ieeeAddress=EUI64,
+            endpointId=1,
+            profileId=0xC05E,
+            deviceId=0x0100,
+            version=2,
+            groupIdCount=0,
+        ),
+        "packetInfo": PACKET_INFO,
+    }
+
+    return data, expected
+
+
+RESPONSE_LAYOUTS = [
+    (
+        "exportLinkKeyByEui",
+        STATUS_OK_BYTES + CONTEXT_BYTES + KEY_BYTES + KEY_METADATA_BYTES,
+        {
+            "status": t.sl_Status.OK,
+            "context": CONTEXT,
+            "plaintext_key": KEY,
+            "key_data": KEY_METADATA,
+        },
+    ),
+    (
+        "exportTransientKeyByIndex",
+        STATUS_OK_BYTES + CONTEXT_BYTES + KEY_BYTES + KEY_METADATA_BYTES,
+        {
+            "status": t.sl_Status.OK,
+            "context": CONTEXT,
+            "plaintext_key": KEY,
+            "key_data": KEY_METADATA,
+        },
+    ),
+    (
+        "exportTransientKeyByEui",
+        STATUS_OK_BYTES + CONTEXT_BYTES + KEY_BYTES + KEY_METADATA_BYTES,
+        {
+            "status": t.sl_Status.OK,
+            "context": CONTEXT,
+            "plaintext_key": KEY,
+            "key_data": KEY_METADATA,
+        },
+    ),
+    (
+        "getApsKeyInfo",
+        STATUS_OK_BYTES + KEY_METADATA_BYTES + CONTEXT_BYTES,
+        {
+            "status": t.sl_Status.OK,
+            "key_data": KEY_METADATA,
+            "context": CONTEXT,
+        },
+    ),
+    (
+        "importKey",
+        STATUS_OK_BYTES + CONTEXT_BYTES,
+        {"status": t.sl_Status.OK, "context": CONTEXT},
+    ),
+    ("checkKeyContext", STATUS_OK_BYTES, {"status": t.sl_Status.OK}),
+    ("findAndRejoinNetwork", STATUS_OK_BYTES, {"status": t.sl_Status.OK}),
+    ("setAddressTableInfo", STATUS_OK_BYTES, {"status": t.sl_Status.OK}),
+    ("setPowerDescriptor", STATUS_OK_BYTES, {"status": t.sl_Status.OK}),
+    ("clearStoredBeacons", STATUS_OK_BYTES, {"status": t.sl_Status.OK}),
+    ("sendPanIdUpdate", b"\x01", {"status": t.Bool.true}),
+    (
+        "readAttribute",
+        b"\x00" + b"\x21" + b"\x02\x34\x12",
+        {"status": t.EmberStatus.SUCCESS, "dataType": 0x21, "data": b"\x34\x12"},
+    ),
+    ("writeAttribute", b"\x00", {"status": t.EmberStatus.SUCCESS}),
+    (
+        "macPassthroughMessageHandler",
+        b"\x01" + PACKET_INFO_BYTES + b"\x03abc",
+        {
+            "messageType": t.EmberMacPassthroughType.MAC_PASSTHROUGH_SE_INTERPAN,
+            "packetInfo": PACKET_INFO,
+            "messageContents": b"abc",
+        },
+    ),
+    (
+        "incomingBootloadMessageHandler",
+        EUI64_BYTES + PACKET_INFO_BYTES + b"\x03abc",
+        {"longId": EUI64, "packetInfo": PACKET_INFO, "messageContents": b"abc"},
+    ),
+    (
+        "zllNetworkFoundHandler",
+        *zll_network_found_handler_data(),
+    ),
+    (
+        "zllAddressAssignmentHandler",
+        bytes.fromhex("0100" "0200" "fff7" "0100" "ff00" "0001" "fffe")
+        + PACKET_INFO_BYTES,
+        {
+            "addressInfo": t.EmberZllAddressAssignment(
+                nodeId=0x0001,
+                freeNodeIdMin=0x0002,
+                freeNodeIdMax=0xF7FF,
+                groupIdMin=0x0001,
+                groupIdMax=0x00FF,
+                freeGroupIdMin=0x0100,
+                freeGroupIdMax=0xFEFF,
+            ),
+            "packetInfo": PACKET_INFO,
+        },
+    ),
+    (
+        "rawTransmitCompleteHandler",
+        b"\x03abc" + bytes.fromhex("01000000"),
+        {"messageContents": b"abc", "status": t.sl_Status.FAIL},
+    ),
+]
+
+
+@pytest.mark.parametrize("version", V14_AND_LATER)
+@pytest.mark.parametrize(
+    ("name", "data", "expected"),
+    RESPONSE_LAYOUTS,
+    ids=[name for name, _, _ in RESPONSE_LAYOUTS],
+)
+def test_v14_response_layouts(
+    version: int, name: str, data: bytes, expected: dict
+) -> None:
+    """Responses and callbacks whose layout changed in v14 parse SDK-layout bytes."""
+    _, _, rx_schema = bellows.ezsp.EZSP._BY_VERSION[version].COMMANDS[name]
+    result, rest = t.deserialize_dict(data, rx_schema)
+
+    assert rest == b""
+    assert result == expected
+
+
+@pytest.mark.parametrize("version", [v for v in V14_AND_LATER if v < 18])
+def test_v14_mac_filter_match_message_handler(version: int) -> None:
+    _, _, rx_schema = bellows.ezsp.EZSP._BY_VERSION[version].COMMANDS[
+        "macFilterMatchMessageHandler"
+    ]
+    result, rest = t.deserialize_dict(
+        b"\x02" + b"\x01" + PACKET_INFO_BYTES + b"\x03abc", rx_schema
+    )
+
+    assert rest == b""
+    assert result == {
+        "filterIndexMatch": 2,
+        "legacyPassthroughType": t.EmberMacPassthroughType.MAC_PASSTHROUGH_SE_INTERPAN,
+        "packetInfo": PACKET_INFO,
+        "messageContents": b"abc",
+    }
+
+
+REQUEST_LAYOUTS = [
+    (
+        "findAndRejoinNetwork",
+        {
+            "haveCurrentNetworkKey": True,
+            "channelMask": 0x07FFF800,
+            "reason": 0x03,
+            "nodeType": t.EmberNodeType.ROUTER,
+        },
+        bytes.fromhex("01" "00f8ff07" "03" "02"),
+    ),
+    (
+        "setAddressTableInfo",
+        {"index": 5, "eui64": EUI64, "nwk": 0xABCD},
+        b"\x05" + EUI64_BYTES + b"\xcd\xab",
+    ),
+    ("checkKeyContext", {"context": CONTEXT}, CONTEXT_BYTES),
+    ("getApsKeyInfo", {"context_in": CONTEXT}, CONTEXT_BYTES),
+    ("importKey", {"context": CONTEXT, "key": KEY}, CONTEXT_BYTES + KEY_BYTES),
+    ("setPowerDescriptor", {"descriptor": 0x0010}, b"\x10\x00"),
+]
+
+
+@pytest.mark.parametrize("version", V14_AND_LATER)
+@pytest.mark.parametrize(
+    ("name", "kwargs", "data"),
+    REQUEST_LAYOUTS,
+    ids=[name for name, _, _ in REQUEST_LAYOUTS],
+)
+def test_v14_request_layouts(
+    version: int, name: str, kwargs: dict, data: bytes
+) -> None:
+    """Requests whose layout changed in v14 serialize to the SDK layout."""
+    _, tx_schema, _ = bellows.ezsp.EZSP._BY_VERSION[version].COMMANDS[name]
+
+    assert t.serialize_dict((), kwargs, tx_schema) == data
+
+
+@pytest.mark.parametrize("version", V14_AND_LATER)
+@pytest.mark.parametrize(
+    "name",
+    [
+        "setAddressTableRemoteEui64",
+        "setAddressTableRemoteNodeId",
+        "getAddressTableRemoteNodeId",
+        "incomingSenderEui64Handler",
+        "getFirstBeacon",
+        "getNextBeacon",
+        "proxyBroadcast",
+        "sendMulticastWithAlias",
+        "sendRawMessage",
+        "setLongUpTime",
+        "setHubConnectivity",
+        "isUpTimeLong",
+        "isHubConnected",
+        "setParentClassificationEnabled",
+        "getParentClassificationEnabled",
+    ],
+)
+def test_v14_removed_commands(version: int, name: str) -> None:
+    """Commands removed from the SDK in v14 are not defined."""
+    assert name not in bellows.ezsp.EZSP._BY_VERSION[version].COMMANDS
+
+
+@pytest.mark.parametrize("version", V14_AND_LATER)
+def test_no_duplicate_frame_ids(version: int) -> None:
+    """Every frame ID maps to a single command."""
+    names_by_id: dict[int, list[str]] = {}
+
+    for name, (cmd_id, _, _) in bellows.ezsp.EZSP._BY_VERSION[version].COMMANDS.items():
+        names_by_id.setdefault(cmd_id, []).append(name)
+
+    assert {k: v for k, v in names_by_id.items() if len(v) > 1} == {}
+
+
 async def test_send_unicast(ezsp_f) -> None:
     ezsp_f.sendUnicast.return_value = (t.sl_Status.OK, 0x0042)
     status, message_tag = await ezsp_f.send_unicast(

@@ -10,11 +10,20 @@ COMMANDS = {
         {
             "filterValueMatch": t.uint16_t,  # Was `filterIndexMatch: uint8_t`
             "legacyPassthroughType": t.EmberMacPassthroughType,
-            "lastHopLqi": t.uint8_t,
-            "lastHopRssi": t.int8s,
+            "packetInfo": t.SlRxPacketInfo,
             "messageContents": t.LVBytes,
         },
     ),
+    "getTokenCount": (
+        0x0100,
+        {},
+        {
+            "count": t.uint32_t,  # Was `uint8_t`
+        },
+    ),
+    # NOTE: `getTokenInfo` (0x0101) is left as-is. Simplicity SDK 2025.12 widened the
+    # `size` field of its token info to `uint32_t` without an EZSP version bump, so
+    # firmware built from SiSDK 2025.6.x (also EZSP v18) still sends a single byte.
     # Added in Simplicity SDK 2025.12.0
     "setPendingNetworkUpdateChannel": (
         0x003D,
