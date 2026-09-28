@@ -115,9 +115,6 @@ async def _connect(config, api):
 
     flow_control = config[zigpy.config.CONF_DEVICE_FLOW_CONTROL]
 
-    # `None` keeps XON/XOFF enabled, as before: ASH escapes 0x11/0x13 on the wire, so
-    # host-side XON/XOFF cannot corrupt framing, and it is the only thing honoring XOFF
-    # from software-flow-control firmware (which many installs run with `None` stored).
     transport, _ = await zigpy.serial.create_serial_connection(
         loop,
         lambda: protocol,
