@@ -34,10 +34,7 @@ def test_ezsp_frame_rx(ezsp_f):
 
 async def test_read_child_data(ezsp_f):
     def get_child_data(index):
-        if index == 0:
-            status = t.EmberStatus.SUCCESS
-        else:
-            status = t.EmberStatus.NOT_JOINED
+        status = t.EmberStatus.SUCCESS if index == 0 else t.EmberStatus.NOT_JOINED
 
         return (
             status,

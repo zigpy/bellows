@@ -1,4 +1,5 @@
-""""EZSP Protocol version 4 command."""
+"""EZSP Protocol version 4 command."""
+
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Iterable
@@ -12,8 +13,8 @@ import bellows.config
 import bellows.types as t
 from bellows.zigbee.util import ezsp_key_to_zigpy_key
 
-from . import commands, config
 from .. import protocol
+from . import commands, config
 
 LOGGER = logging.getLogger(__name__)
 

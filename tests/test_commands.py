@@ -26,8 +26,8 @@ def commands(request):
 def test_names(commands):
     """Test that names of commands seem valid"""
     anum = string.ascii_letters + string.digits
-    for command in commands.keys():
-        assert all([c in anum for c in command]), command
+    for command in commands:
+        assert all(c in anum for c in command), command
 
 
 def test_ids(commands):

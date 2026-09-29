@@ -537,9 +537,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         if use_hashed_tclk and not stack_specific.get("hashed_tclk"):
             # Generate a random default
-            network_info.stack_specific.setdefault("ezsp", {})[
-                "hashed_tclk"
-            ] = os.urandom(16).hex()
+            network_info.stack_specific.setdefault("ezsp", {})["hashed_tclk"] = (
+                os.urandom(16).hex()
+            )
 
         initial_security_state = util.zha_security(
             network_info=network_info,
@@ -779,10 +779,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         status: t.sl_Status,
         message: bytes,
     ):
-        if status == t.sl_Status.OK:
-            msg = "success"
-        else:
-            msg = "failure"
+        msg = "success" if status == t.sl_Status.OK else "failure"
 
         if message_type in (
             t.EmberOutgoingMessageType.OUTGOING_BROADCAST,

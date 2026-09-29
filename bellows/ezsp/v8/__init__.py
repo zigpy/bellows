@@ -1,4 +1,5 @@
-""""EZSP Protocol version 8 protocol handler."""
+"""EZSP Protocol version 8 protocol handler."""
+
 import asyncio
 import logging
 
@@ -7,8 +8,8 @@ import voluptuous
 import bellows.config
 import bellows.types as t
 
-from . import commands, config
 from ..v7 import EZSPv7
+from . import commands, config
 
 LOGGER = logging.getLogger(__name__)
 

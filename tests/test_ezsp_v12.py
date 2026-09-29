@@ -45,7 +45,7 @@ def test_check_key_context(ezsp_f) -> None:
     _, tx_schema, rx_schema = ezsp_f.COMMANDS["checkKeyContext"]
 
     assert t.serialize_dict((), {"context": context}, tx_schema) == bytes.fromhex(
-        "04" "00" "00" "0807060504030201" "00" "02" "00000000"
+        "0400000807060504030201000200000000"
     )
     assert t.deserialize_dict(b"\x00\x00\x00\x00", rx_schema) == (
         {"status": t.sl_Status.OK},

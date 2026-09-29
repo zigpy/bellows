@@ -1,4 +1,5 @@
-""""EZSP Protocol version 13 protocol handler."""
+"""EZSP Protocol version 13 protocol handler."""
+
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Iterable
@@ -11,8 +12,8 @@ import zigpy.state
 import bellows.config
 import bellows.types as t
 
-from . import commands, config
 from ..v12 import EZSPv12
+from . import commands, config
 
 LOGGER = logging.getLogger(__name__)
 
