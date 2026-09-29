@@ -622,7 +622,7 @@ class EZSP:
         if self._ezsp_version >= 8:
             await self.setSourceRouteDiscoveryMode(
                 mode=(
-                    t.SourceRouteDiscoveryMode.ON
+                    t.SourceRouteDiscoveryMode.RESCHEDULE
                     if enabled
                     else t.SourceRouteDiscoveryMode.OFF
                 )
