@@ -177,7 +177,11 @@ class DataFrame(AshFrame):
 
     @staticmethod
     def _randomize(data: bytes) -> bytes:
-        assert len(data) <= len(PSEUDO_RANDOM_DATA_SEQUENCE)
+        if len(data) > len(PSEUDO_RANDOM_DATA_SEQUENCE):
+            raise ParsingError(
+                f"Frame payload is too long: {len(data)} >"
+                f" {len(PSEUDO_RANDOM_DATA_SEQUENCE)} bytes"
+            )
         return bytes([a ^ b for a, b in zip(data, PSEUDO_RANDOM_DATA_SEQUENCE)])
 
     @classmethod

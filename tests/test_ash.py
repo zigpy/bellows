@@ -197,6 +197,18 @@ def test_frame_parsing_errors():
         assert ash.RstFrame.from_bytes(b"\xC0\xAB\xCD")
 
 
+def test_data_frame_payload_too_long():
+    seq_len = len(ash.PSEUDO_RANDOM_DATA_SEQUENCE)
+
+    # A payload of exactly the sequence length still parses.
+    ash.DataFrame.from_bytes(ash.AshFrame.append_crc(bytes([0x00]) + bytes(seq_len)))
+
+    # One byte longer must raise ParsingError, not an uncaught AssertionError.
+    too_long = ash.AshFrame.append_crc(bytes([0x00]) + bytes(seq_len + 1))
+    with pytest.raises(ash.ParsingError, match=r"too long"):
+        ash.DataFrame.from_bytes(too_long)
+
+
 def test_rst_frame():
     assert ash.RstFrame() == ash.RstFrame()
     assert ash.RstFrame().to_bytes() == b"\xC0\x38\xBC"
