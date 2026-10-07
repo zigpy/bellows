@@ -318,14 +318,13 @@ async def test_threaded_caller_cancellation(threaded_gw, serial):
 
 
 async def test_threaded_disconnect_timeout(threaded_gw, serial, monkeypatch, caplog):
-    monkeypatch.setattr(uart, "DISCONNECT_TIMEOUT", 0.1)
     monkeypatch.setattr(bellows.thread, "SHUTDOWN_TIMEOUT", 0.1)
     serial.transport.close.side_effect = None
 
     async with asyncio_timeout(1):
         await threaded_gw.disconnect()
 
-    assert "Timed out waiting for the connection to close" in caplog.text
+    assert "did not finish during shutdown" in caplog.text
     assert_no_threads()
 
 

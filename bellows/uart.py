@@ -12,7 +12,6 @@ import bellows.types as t
 
 LOGGER = logging.getLogger(__name__)
 RESET_TIMEOUT = 2.5
-DISCONNECT_TIMEOUT = 6
 
 
 class Gateway(zigpy.serial.SerialProtocol):
@@ -108,28 +107,30 @@ class Gateway(zigpy.serial.SerialProtocol):
 class ThreadedGateway:
     """Runs a `Gateway` on an `EventLoopThread` and bridges calls in both directions.
 
-    The worker loop is stopped only from the application loop, either from `disconnect`
-    or when the connection is lost, so `_closed` is read and written on one loop and
-    every call that passed the check was queued on the worker before the stop was.
+    The worker's main coroutine, `_run_gateway`, owns the gateway: it opens it, hands it to
+    the application loop and closes it once the worker is stopped, whether or not the
+    application loop ever received it.
 
-    The gateway is owned by the worker: it is created there and closed there as part of
-    the worker's shutdown, so a connection that finished on the worker just as the
-    caller was cancelled is still closed before the thread exits.
+    The worker is stopped only from the application loop, either from `disconnect()` or
+    when the connection is lost, so `_closed` is read and written on one loop and every
+    call that passed the check was queued on the worker before the stop was.
     """
 
     def __init__(self, api):
         self._api = api
-        self._thread = EventLoopThread(on_shutdown=self._shutdown)
         self._loop = asyncio.get_running_loop()
+        self._thread = None
+        self._connected = self._loop.create_future()
         self._gateway = None
         self._closed = False
         self._lost_exc = None
 
     async def connect(self, config) -> None:
+        self._thread = EventLoopThread(self._run_gateway(config))
         await self._thread.start()
 
         try:
-            await self._thread.run_coroutine_threadsafe(self._connect(config))
+            self._gateway = await self._connected
         except BaseException:
             # Wait for the worker to exit so the port is released before the caller sees
             # the failure and tries to reconnect
@@ -137,19 +138,21 @@ class ThreadedGateway:
             await self._thread.thread_complete
             raise
 
-    # Called on the worker loop
-    async def _connect(self, config) -> None:
-        self._gateway = await _connect(config, self)
-
-    async def _shutdown(self) -> None:
-        if self._gateway is None:
+    # The worker's main coroutine: the gateway lives exactly as long as it does
+    async def _run_gateway(self, config) -> None:
+        try:
+            gateway = await _connect(config, self)
+        except Exception as exc:
+            self._loop.call_soon_threadsafe(self._connect_finished, None, exc)
             return
 
+        self._loop.call_soon_threadsafe(self._connect_finished, gateway, None)
+
         try:
-            async with asyncio_timeout(DISCONNECT_TIMEOUT):
-                await self._gateway.disconnect()
-        except TimeoutError:
-            LOGGER.warning("Timed out waiting for the connection to close")
+            # Until `stop()` cancels us
+            await asyncio.get_running_loop().create_future()
+        finally:
+            await gateway.disconnect()
 
     # Called by the `Gateway` on the worker loop
     def frame_received(self, data: bytes) -> None:
@@ -162,6 +165,16 @@ class ThreadedGateway:
         self._loop.call_soon_threadsafe(self._connection_lost, exc)
 
     # Called on the application loop
+    def _connect_finished(self, gateway: Gateway | None, exc: Exception | None) -> None:
+        if self._connected.done():
+            # The caller gave up and is already stopping the worker
+            return
+
+        if exc is not None:
+            self._connected.set_exception(exc)
+        else:
+            self._connected.set_result(gateway)
+
     def _connection_lost(self, exc: Exception | None) -> None:
         # The transport has already closed its file descriptor by the time it reports this
         self._lost_exc = exc

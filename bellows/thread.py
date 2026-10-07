@@ -1,13 +1,14 @@
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Coroutine
 from concurrent.futures import ThreadPoolExecutor
 import logging
 
 LOGGER = logging.getLogger(__name__)
 
-# How long to let tasks finish on their own once the loop has been stopped, before
-# cancelling them. A transport closing its file descriptor in an executor is one of them.
-SHUTDOWN_TIMEOUT = 5
+# How long to let `main` and any other tasks finish on their own once the thread has been
+# stopped, before cancelling them. A transport closing its file descriptor in an executor
+# is one of them.
+SHUTDOWN_TIMEOUT = 6
 
 
 async def _finish_tasks() -> None:
@@ -25,14 +26,13 @@ async def _finish_tasks() -> None:
 
 
 class EventLoopThread:
-    """Run a parallel event loop in a separate thread."""
+    """Run `main` on an event loop in a separate thread."""
 
-    def __init__(
-        self, on_shutdown: Callable[[], Awaitable[None]] | None = None
-    ) -> None:
+    def __init__(self, main: Coroutine):
         self.loop = None
         self.thread_complete = None
-        self._on_shutdown = on_shutdown
+        self._main = main
+        self._stopped = None
 
     def run_coroutine_threadsafe(self, coroutine):
         current_loop = asyncio.get_running_loop()
@@ -44,20 +44,26 @@ class EventLoopThread:
         asyncio.set_event_loop(self.loop)
 
         try:
-            # Signalled from inside `run_forever()`, so a `stop()` that arrives right after
-            # `start()` returns is seen by the same run of the loop
-            self.loop.call_soon(on_started)
-            self.loop.run_forever()
-            self.loop.run_until_complete(self._shutdown())
+            self.loop.run_until_complete(self._run(on_started))
         finally:
             loop, self.loop = self.loop, None
             loop.close()
 
-    async def _shutdown(self) -> None:
-        if self._on_shutdown is not None:
-            await self._on_shutdown()
+    async def _run(self, on_started) -> None:
+        main = asyncio.ensure_future(self._main)
+        self._stopped = asyncio.Event()
 
+        # Signalled from inside the loop, so a `stop()` that arrives right after `start`
+        # returns finds the loop running
+        on_started()
+        await self._stopped.wait()
+
+        main.cancel()
         await _finish_tasks()
+
+        # `main` failing on its own is the thread's failure, being stopped is not
+        if not main.cancelled():
+            main.result()
 
     async def start(self):
         current_loop = asyncio.get_running_loop()
@@ -90,6 +96,6 @@ class EventLoopThread:
         loop = self.loop
 
         if loop is not None:
-            loop.call_soon_threadsafe(loop.stop)
+            loop.call_soon_threadsafe(self._stopped.set)
 
         return self.thread_complete
