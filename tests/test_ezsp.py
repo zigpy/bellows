@@ -768,30 +768,6 @@ async def test_write_nwk_update_id_failure(ezsp_f):
     )
 
 
-@pytest.mark.parametrize(
-    ("path", "resets"),
-    [
-        ("socket://localhost:1234", True),
-        (
-            "esphome://example.com:6053/?noise_psk=KEY&port_name=Zigbee&mode=protocol",
-            True,
-        ),
-        ("esphome://example.com:6053/", True),
-        ("/dev/serial", False),
-        ("/dev/null", False),
-    ],
-)
-def test_resets_on_connect(path: str, resets: bool) -> None:
-    ezsp = make_ezsp(
-        config={
-            **DEVICE_CONFIG,
-            zigpy.config.CONF_DEVICE_PATH: path,
-        }
-    )
-
-    assert ezsp.resets_on_connect is resets
-
-
 @patch.object(EZSP, "version", new_callable=AsyncMock)
 @patch.object(EZSP, "reset", new_callable=AsyncMock)
 @patch.object(EZSP, "get_xncp_features", new_callable=AsyncMock)

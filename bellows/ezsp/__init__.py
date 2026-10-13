@@ -119,20 +119,14 @@ class EZSP:
                 listeners.remove(future)
 
     @property
-    def resets_on_connect(self) -> bool:
-        """Whether the NCP may reset by itself as we connect, before we ask it to."""
-        path = self._config[conf.CONF_DEVICE_PATH]
-        if bellows.uart.is_esphome_url(path):
-            return True
-        return urllib.parse.urlparse(path).scheme == "socket"
+    def is_tcp_serial_port(self) -> bool:
+        parsed_path = urllib.parse.urlparse(self._config[conf.CONF_DEVICE_PATH])
+        return parsed_path.scheme == "socket"
 
     async def _startup_reset(self) -> None:
         """Start EZSP and reset the stack."""
-        # `zigbeed` resets on startup. Absorbing that RSTACK here matters: outside this
-        # window an unsolicited reset reaches `Gateway.reset_received` with no future
-        # waiting for it, which fails the connection and cancels whatever command is in
-        # flight.
-        if self.resets_on_connect:
+        # `zigbeed` resets on startup
+        if self.is_tcp_serial_port:
             try:
                 async with asyncio_timeout(NETWORK_COORDINATOR_STARTUP_RESET_WAIT):
                     await self._gw.wait_for_startup_reset()

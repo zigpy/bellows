@@ -141,10 +141,6 @@ async def _connect(config, api):
     extra_kwargs = {}
 
     if is_esphome_url(path):
-        # We are the ASH endpoint, so we are the one who knows the framing: ask the proxy for
-        # it rather than expecting whoever stored the path to have said so. Leaving it out of
-        # the path also keeps the mode from following that path into other tools -- a firmware
-        # flasher opening the same port needs a plain byte pipe.
         extra_kwargs["mode"] = ACKLESS_MODE
 
     transport, _ = await zigpy.serial.create_serial_connection(
