@@ -29,13 +29,7 @@ def is_esphome_url(path: str) -> bool:
 
 
 def offloads_acks(transport) -> bool:
-    """Whether the port will acknowledge the NCP's frames on our behalf.
-
-    Asked of the port rather than assumed from the URL: if we stop acknowledging and nothing
-    else does, the NCP retransmits until it drops the link, whereas both of us acknowledging
-    is merely redundant. So this has to be something the device stated, and it is per port --
-    a tap belongs to one port, and a device-wide answer would be wrong for every other.
-    """
+    """Whether the port will acknowledge the NCP's frames on our behalf."""
     serial = getattr(transport, "serial", None)
     return getattr(serial, "tap_mode", None) == ACKLESS_MODE
 
