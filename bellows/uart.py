@@ -127,7 +127,9 @@ async def _connect(config, api):
     path = config[zigpy.config.CONF_DEVICE_PATH]
 
     gateway = Gateway(api, connection_done_future)
-    protocol = AshProtocol(gateway)
+    # serialx opens an ESPHome port in the mode we ask for or raises, so whether the tap
+    # acknowledges for us is known before the first frame arrives
+    protocol = AshProtocol(gateway, suppress_acks=is_esphome_url(path))
 
     flow_control = config[zigpy.config.CONF_DEVICE_FLOW_CONTROL]
 
@@ -147,12 +149,9 @@ async def _connect(config, api):
     )
 
     if is_esphome_url(path):
-        # serialx refuses to open a port that cannot deliver the mode, so reaching here
-        # means the tap is acknowledging for us
         LOGGER.debug(
             "Port acknowledges NCP frames on our behalf, suppressing our own ACKs"
         )
-        protocol.suppress_acks = True
 
     await gateway.wait_until_connected()
 

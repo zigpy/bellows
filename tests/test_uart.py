@@ -160,6 +160,7 @@ async def test_connect_threaded_failure_cancellation_propagation(monkeypatch):
     ],
 )
 async def test_connect_suppress_acks(path, suppressed, monkeypatch):
+    """Suppression is decided before connecting: a frame can arrive mid-handshake."""
     appmock = MagicMock()
     transport = MagicMock()
     protocols = []
@@ -167,6 +168,7 @@ async def test_connect_suppress_acks(path, suppressed, monkeypatch):
     async def mockconnect(loop, protocol_factory, **kwargs):
         protocol = protocol_factory()
         protocols.append(protocol)
+        assert protocol.suppress_acks is suppressed
         loop.call_soon(protocol.connection_made, transport)
         return transport, protocol
 
