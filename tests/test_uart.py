@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, MagicMock, call, patch, sentinel
 
 import pytest
 import zigpy.config as conf
-import zigpy.exceptions
 import zigpy.serial
 
 from bellows import uart
@@ -152,46 +151,17 @@ async def test_connect_threaded_failure_cancellation_propagation(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("tap_mode", "offloads"),
+    ("path", "suppressed"),
     [
-        (uart.ACKLESS_MODE, True),
-        ("raw", False),
-        (None, False),
-        # A port that has never been resolved has nothing to say yet
-        (MagicMock(), False),
-    ],
-)
-def test_offloads_acks(tap_mode, offloads: bool) -> None:
-    """Whether the port acknowledges for us is asked of the port, not of the URL."""
-    transport = MagicMock()
-    transport.serial.tap_mode = tap_mode
-    assert uart.offloads_acks(transport) is offloads
-
-
-def test_offloads_acks_without_a_serial_port() -> None:
-    """A transport with no underlying serial object never offloads."""
-    transport = MagicMock()
-    transport.serial = None
-    assert uart.offloads_acks(transport) is False
-
-
-@pytest.mark.parametrize(
-    ("path", "tap_mode", "suppressed"),
-    [
-        (
-            "esphome://example.com:6053/?port_name=Zigbee",
-            uart.ACKLESS_MODE,
-            True,
-        ),
-        ("/dev/serial", None, False),
+        ("esphome://example.com:6053/?port_name=Zigbee", True),
+        ("/dev/serial", False),
         # A non-proxy transport is never asked to acknowledge for us
-        ("socket://example.com:1234", None, False),
+        ("socket://example.com:1234", False),
     ],
 )
-async def test_connect_suppress_acks(path, tap_mode, suppressed, monkeypatch):
+async def test_connect_suppress_acks(path, suppressed, monkeypatch):
     appmock = MagicMock()
     transport = MagicMock()
-    transport.serial.tap_mode = tap_mode
     protocols = []
 
     async def mockconnect(loop, protocol_factory, **kwargs):
@@ -229,7 +199,6 @@ async def test_connect_requests_ackless_mode(path, requests_mode, monkeypatch):
     """The mode is asked for by us, not carried in the stored path."""
     kwargs_seen = {}
     transport = MagicMock()
-    transport.serial.tap_mode = uart.ACKLESS_MODE
 
     async def mockconnect(loop, protocol_factory, **kwargs):
         kwargs_seen.update(kwargs)
@@ -384,31 +353,3 @@ def test_unexpected_reset_triggers_failed_state(gw):
     assert gw._api.enter_failed_state.mock_calls == [
         call(t.NcpResetCode.RESET_SOFTWARE)
     ]
-
-
-@pytest.mark.parametrize("tap_mode", ["raw", None])
-async def test_connect_without_a_tap_is_refused(tap_mode, monkeypatch):
-    """A proxy port that will not acknowledge for us is an error, not a fallback."""
-    transport = MagicMock()
-    transport.serial.tap_mode = tap_mode
-
-    async def mockconnect(loop, protocol_factory, **kwargs):
-        protocol = protocol_factory()
-        loop.call_soon(protocol.connection_made, transport)
-        return transport, protocol
-
-    monkeypatch.setattr(zigpy.serial, "create_serial_connection", mockconnect)
-
-    with pytest.raises(zigpy.exceptions.ControllerException, match="no tap"):
-        await uart.connect(
-            conf.SCHEMA_DEVICE(
-                {
-                    conf.CONF_DEVICE_PATH: "esphome://example.com:6053/?port_name=Zigbee",
-                    conf.CONF_DEVICE_BAUDRATE: 115200,
-                }
-            ),
-            MagicMock(),
-            use_thread=False,
-        )
-
-    assert len(transport.close.mock_calls) == 1

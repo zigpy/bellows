@@ -4,7 +4,6 @@ import logging
 import urllib.parse
 
 import zigpy.config
-import zigpy.exceptions
 import zigpy.serial
 
 from bellows.ash import AshProtocol
@@ -26,12 +25,6 @@ ESPHOME_SCHEMES = frozenset({"esphome", "esphome-hass"})
 def is_esphome_url(path: str) -> bool:
     """Whether the path is served by an ESPHome serial proxy."""
     return urllib.parse.urlparse(path).scheme in ESPHOME_SCHEMES
-
-
-def offloads_acks(transport) -> bool:
-    """Whether the port will acknowledge the NCP's frames on our behalf."""
-    serial = getattr(transport, "serial", None)
-    return getattr(serial, "tap_mode", None) == ACKLESS_MODE
 
 
 class Gateway(zigpy.serial.SerialProtocol):
@@ -154,15 +147,8 @@ async def _connect(config, api):
     )
 
     if is_esphome_url(path):
-        # The proxy answers our mode request, so a port with no tap is known here rather
-        # than discovered later as a link that keeps dropping
-        if not offloads_acks(transport):
-            transport.close()
-            raise zigpy.exceptions.ControllerException(
-                f"Serial proxy port {path!r} has no tap to acknowledge NCP frames."
-                f" Configure `ezsp_proxy_tap` on that port."
-            )
-
+        # serialx refuses to open a port that cannot deliver the mode, so reaching here
+        # means the tap is acknowledging for us
         LOGGER.debug(
             "Port acknowledges NCP frames on our behalf, suppressing our own ACKs"
         )
