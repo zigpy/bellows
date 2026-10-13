@@ -128,10 +128,10 @@ class EZSP:
 
     async def _startup_reset(self) -> None:
         """Start EZSP and reset the stack."""
-        # `zigbeed` resets on startup, and an ESPHome proxy resets the NCP when it takes
-        # over the shared UART. Absorbing that RSTACK here matters: outside this window an
-        # unsolicited reset reaches `Gateway.reset_received` with no future waiting for it,
-        # which fails the connection and cancels whatever command is in flight.
+        # `zigbeed` resets on startup. Absorbing that RSTACK here matters: outside this
+        # window an unsolicited reset reaches `Gateway.reset_received` with no future
+        # waiting for it, which fails the connection and cancels whatever command is in
+        # flight.
         if self.resets_on_connect:
             try:
                 async with asyncio_timeout(NETWORK_COORDINATOR_STARTUP_RESET_WAIT):

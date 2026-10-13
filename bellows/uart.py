@@ -170,7 +170,7 @@ async def _connect(config, api):
             transport.close()
             raise zigpy.exceptions.ControllerException(
                 f"Serial proxy port {path!r} has no tap to acknowledge NCP frames."
-                f" Configure zigbee_proxy_tap on that port."
+                f" Configure `ezsp_proxy_tap` on that port."
             )
 
         LOGGER.debug(
