@@ -3025,20 +3025,12 @@ async def test_multicast_group_subscription_xncp(app: ControllerApplication) -> 
     assert len(app._ezsp._protocol.setMulticastTableEntry.mock_calls) == 0
 
 
-def test_frame_handler_gp(app: ControllerApplication) -> None:
-    """Test that an incoming GP frame is parsed into a `ZigbeeGpPacket`."""
-    # EnOcean PTM-216Z button press
-    frame = bytes.fromhex("03da1b0043f4550143f45501d3020100001b000000696fd093d0ff0101")
-    args, rest = t.deserialize_dict(
-        frame, COMMANDS_v19["gpepIncomingMessageHandler"][2]
-    )
-    assert not rest
-
-    with patch.object(app, "gp_packet_received") as gp_packet_received:
-        app.ezsp_callback_handler("gpepIncomingMessageHandler", list(args.values()))
-
-    assert gp_packet_received.mock_calls == [
-        call(
+@pytest.mark.parametrize(
+    ("frame", "packet"),
+    [
+        # EnOcean PTM-216Z button press, protected but not processed by the NCP
+        (
+            "03da1b0043f4550143f45501d3020100001b000000696fd093d0ff0101",
             zigpy_t.ZigbeeGpPacket(
                 application_id=zgp_t.ApplicationID.SrcID,
                 src_id=zgp_t.SrcID(0x0155F443),
@@ -3048,15 +3040,63 @@ def test_frame_handler_gp(app: ControllerApplication) -> None:
                 payload=zigpy_t.SerializableBytes(b"\x01"),
                 frame_counter=27,
                 security_level=zgp_t.SecurityLevel.FullFrameCounterAndMIC,
-                # The NCP did no security processing so it has no key type to report:
-                # the `1` it sends is the on-air `SecurityKey` bit, not `NWKKey`
+                # The NCP did no security processing so it has no key type to
+                # report: the `1` it sends is the on-air `SecurityKey` bit, not
+                # `NWKKey`
                 security_key_type=None,
                 security_status=zgp_t.SecurityStatus.Unprocessed,
+                mic=0xD093D06F,
+                auto_commissioning=False,
+                rx_after_tx=False,
+                individual_key=True,
                 lqi=255,
                 rssi=-58,
-            )
-        )
-    ]
+            ),
+        ),
+        # Moes 3-gang switch commissioning, unprotected: the NCP reports 0xFFFFFFFF
+        # as the frame counter and the MAC sequence number takes its place
+        (
+            "06da700091e30d6d91e30d6dd300000000ffffffffe0ffffffffff2b0289f3b9acc88b1df3"
+            "fe4e503c0be422f6f3530a9c4ed0700600007165726837706f78404750303030318d",
+            zigpy_t.ZigbeeGpPacket(
+                application_id=zgp_t.ApplicationID.SrcID,
+                src_id=zgp_t.SrcID(0x6D0DE391),
+                ieee=None,
+                endpoint=None,
+                command_id=zgp_t.GPDCommandID.CommissioningRequest,
+                payload=zigpy_t.SerializableBytes(
+                    bytes.fromhex(
+                        "0289f3b9acc88b1df3fe4e503c0be422f6f3530a9c4ed07006000071657268"
+                        "37706f78404750303030318d"
+                    )
+                ),
+                frame_counter=0x70,
+                security_level=zgp_t.SecurityLevel.NoSecurity,
+                security_key_type=None,
+                security_status=zgp_t.SecurityStatus.NoSecurity,
+                mic=None,
+                auto_commissioning=False,
+                rx_after_tx=False,
+                individual_key=None,
+                lqi=255,
+                rssi=-58,
+            ),
+        ),
+    ],
+)
+def test_frame_handler_gp(
+    app: ControllerApplication, frame: str, packet: zigpy_t.ZigbeeGpPacket
+) -> None:
+    """Test that an incoming GP frame is parsed into a `ZigbeeGpPacket`."""
+    args, rest = t.deserialize_dict(
+        bytes.fromhex(frame), COMMANDS_v19["gpepIncomingMessageHandler"][2]
+    )
+    assert not rest
+
+    with patch.object(app, "gp_packet_received") as gp_packet_received:
+        app.ezsp_callback_handler("gpepIncomingMessageHandler", list(args.values()))
+
+    assert gp_packet_received.mock_calls == [call(packet)]
 
 
 def test_frame_handler_gp_security_failure(app: ControllerApplication) -> None:

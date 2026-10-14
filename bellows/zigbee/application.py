@@ -845,9 +845,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             )
             return
 
+        security_level = zgp_t.SecurityLevel(gpdf_security_level)
+        unprocessed = security_status is zgp_t.SecurityStatus.Unprocessed
+
         self.gp_packet_received(
             zigpy.types.ZigbeeGpPacket(
-                application_id=addr.applicationId,
+                application_id=zgp_t.ApplicationID(addr.applicationId),
                 src_id=(
                     addr.source_id
                     if addr.applicationId == zgp_t.ApplicationID.SrcID
@@ -866,8 +869,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 ),
                 command_id=zgp_t.GPDCommandID(gpd_command_id),
                 payload=zigpy.types.SerializableBytes(gpd_command_payload),
-                frame_counter=gpd_security_frame_counter,
-                security_level=zgp_t.SecurityLevel(gpdf_security_level),
+                # An unprotected GPDF has no security frame counter and the NCP reports
+                # 0xFFFFFFFF, its MAC sequence number takes the place (A.3.3.4.1)
+                frame_counter=(
+                    t.uint32_t(sequence_number)
+                    if security_level is zgp_t.SecurityLevel.NoSecurity
+                    else gpd_security_frame_counter
+                ),
+                security_level=security_level,
                 # The NCP only knows the key type if it performed the security
                 # processing itself (spec Table 5). Otherwise this field carries the
                 # 1-bit `SecurityKey` sub-field off the air, which is not a key type:
@@ -878,6 +887,14 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     else None
                 ),
                 security_status=security_status,
+                # A GPDF the NCP did not process is verified and decrypted by zigpy,
+                # which needs the MIC and the header fields it authenticates
+                mic=mic if unprocessed else None,
+                auto_commissioning=bool(auto_commissioning),
+                rx_after_tx=(
+                    t.EmberGpBidirectionalInfo.RX_AFTER_TX in bidirectional_info
+                ),
+                individual_key=bool(gpdf_security_key_type) if unprocessed else None,
                 # The NCP quantizes the LQI into the two-bit link quality of the GPP-GPD
                 # link field with the link cost thresholds of the stack (<48, <64, <80,
                 # and above), so only the band is known. Report its upper bound.
