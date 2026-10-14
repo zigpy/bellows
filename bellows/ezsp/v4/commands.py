@@ -1993,14 +1993,11 @@ COMMANDS = {
         0x00C5,
         {},
         {
+            # The NCP sends the legacy GP status codes, `EmberStatus` 0x78-0x7F
             "status": t.EmberStatus,
             "gpdLink": zgp_t.GPPGPDLink,
             "sequenceNumber": t.uint8_t,
-            "addrType": t.uint8_t,
-            "addr": t.uint32_t,
-            "applicationId": t.uint8_t,
-            "address": t.EUI64,  # TODO: `sourceId` if appId == 0 else `gpdIeeeAddress`
-            "endpoint": t.uint8_t,
+            "addr": t.EmberGpAddress,
             "gpdfSecurityLevel": t.EmberGpSecurityLevel,
             "gpdfSecurityKeyType": t.EmberGpKeyType,
             "autoCommissioning": t.Bool,
