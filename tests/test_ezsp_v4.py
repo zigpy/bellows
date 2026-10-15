@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 import zigpy.state
@@ -416,13 +416,11 @@ async def test_set_extended_timeout_no_entry(ezsp_f) -> None:
         t.Bool.false,
     )
 
-    with patch("bellows.ezsp.v4.random.randint") as mock_random:
-        mock_random.return_value = 0
-        await ezsp_f.set_extended_timeout(
-            nwk=0x1234,
-            ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
-            extended_timeout=True,
-        )
+    await ezsp_f.set_extended_timeout(
+        nwk=0x1234,
+        ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+        extended_timeout=True,
+    )
 
     assert ezsp_f.getExtendedTimeout.mock_calls == [
         call(remoteEui64=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"))
@@ -433,7 +431,6 @@ async def test_set_extended_timeout_no_entry(ezsp_f) -> None:
     assert ezsp_f.getConfigurationValue.mock_calls == [
         call(t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE)
     ]
-    assert mock_random.mock_calls == [call(0, 8 - 1)]
     assert ezsp_f.replaceAddressTableEntry.mock_calls == [
         call(
             addressTableIndex=0,
@@ -443,14 +440,12 @@ async def test_set_extended_timeout_no_entry(ezsp_f) -> None:
         )
     ]
 
-    # The address table size is cached
-    with patch("bellows.ezsp.v4.random.randint") as mock_random:
-        mock_random.return_value = 1
-        await ezsp_f.set_extended_timeout(
-            nwk=0x1234,
-            ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
-            extended_timeout=True,
-        )
+    # The address table size is cached and the next free slot is used
+    await ezsp_f.set_extended_timeout(
+        nwk=0x1234,
+        ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+        extended_timeout=True,
+    )
 
     # Still called only once
     assert ezsp_f.getConfigurationValue.mock_calls == [
@@ -515,19 +510,42 @@ async def test_set_extended_timeout_already_have_entry(ezsp_f) -> None:
     ]
 
 
+async def test_set_extended_timeout_table_wraps(ezsp_f) -> None:
+    # Once every slot has been used, replacement is round-robin
+    ezsp_f.getExtendedTimeout.return_value = (t.Bool.false,)
+    ezsp_f.lookupNodeIdByEui64.return_value = (0xFFFF,)
+    ezsp_f.getConfigurationValue.return_value = (t.EmberStatus.SUCCESS, 2)
+    ezsp_f.replaceAddressTableEntry.return_value = (
+        t.EmberStatus.SUCCESS,
+        t.EUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),
+        0xFFFF,
+        t.Bool.false,
+    )
+
+    for _ in range(3):
+        await ezsp_f.set_extended_timeout(
+            nwk=0x1234,
+            ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+            extended_timeout=True,
+        )
+
+    assert [
+        c.kwargs["addressTableIndex"]
+        for c in ezsp_f.replaceAddressTableEntry.mock_calls
+    ] == [0, 1, 0]
+
+
 async def test_set_extended_timeout_bad_table_size(ezsp_f) -> None:
     ezsp_f.setExtendedTimeout.return_value = ()
     ezsp_f.getExtendedTimeout.return_value = (t.Bool.false,)
     ezsp_f.lookupNodeIdByEui64.return_value = (0xFFFF,)
     ezsp_f.getConfigurationValue.return_value = (t.EmberStatus.ERR_FATAL, 0xFF)
 
-    with patch("bellows.ezsp.v4.random.randint") as mock_random:
-        mock_random.return_value = 0
-        await ezsp_f.set_extended_timeout(
-            nwk=0x1234,
-            ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
-            extended_timeout=True,
-        )
+    await ezsp_f.set_extended_timeout(
+        nwk=0x1234,
+        ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+        extended_timeout=True,
+    )
 
     assert ezsp_f.getExtendedTimeout.mock_calls == [
         call(remoteEui64=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"))

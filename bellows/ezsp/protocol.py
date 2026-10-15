@@ -49,6 +49,8 @@ class ProtocolHandler(abc.ABC):
 
         # Cached by `set_extended_timeout` so subsequent calls are a little faster
         self._address_table_size: int | None = None
+        # Next address table slot `set_extended_timeout` will write
+        self._address_table_cursor: int = 0
         self._fragment_manager = FragmentManager()
         self._fragment_ack_tasks: set[asyncio.Task] = set()
 

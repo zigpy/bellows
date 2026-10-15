@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Iterable
 import logging
-import random
 
 import voluptuous as vol
 import zigpy.state
@@ -251,8 +250,12 @@ class EZSPv4(protocol.ProtocolHandler):
             )
             return
 
-        # Replace a random entry in the address table
-        index = random.randint(0, self._address_table_size - 1)
+        # The stack only updates existing entries and never allocates application slots
+        # and bellows allocates them only here. Filling the table in order thus uses
+        # every free slot before replacing anything; once it wraps, replacement is
+        # round-robin.
+        index = self._address_table_cursor
+        self._address_table_cursor = (index + 1) % self._address_table_size
 
         await self.replaceAddressTableEntry(
             addressTableIndex=index,
