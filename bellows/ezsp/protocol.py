@@ -363,7 +363,10 @@ class ProtocolHandler(abc.ABC):
         non_member_radius: t.uint8_t,
         message_tag: t.uint8_t,
         data: bytes,
+        alias: t.NWK | None = None,
+        alias_seq: t.uint8_t | None = None,
     ) -> tuple[t.sl_Status, t.uint8_t]:
+        """Send a multicast, as `alias` with the NWK sequence `alias_seq` if given."""
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -375,7 +378,10 @@ class ProtocolHandler(abc.ABC):
         message_tag: t.uint8_t,
         aps_sequence: t.uint8_t,
         data: bytes,
+        alias: t.NWK | None = None,
+        alias_seq: t.uint8_t | None = None,
     ) -> tuple[t.sl_Status, t.uint8_t]:
+        """Send a broadcast, as `alias` with the NWK sequence `alias_seq` if given."""
         raise NotImplementedError
 
     @abc.abstractmethod

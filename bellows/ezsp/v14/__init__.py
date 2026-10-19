@@ -122,13 +122,16 @@ class EZSPv14(EZSPv13):
         non_member_radius: t.uint8_t,
         message_tag: t.uint8_t,
         data: bytes,
+        alias: t.NWK | None = None,
+        alias_seq: t.uint8_t | None = None,
     ) -> tuple[t.sl_Status, t.uint8_t]:
         status, sequence = await self.sendMulticast(
             aps_frame=aps_frame,
             hops=radius,
             broadcast_addr=t.BroadcastAddress.RX_ON_WHEN_IDLE,
-            alias=NULL_NODE_ID,
-            sequence=0x00,  # NWK sequence, only used with an alias
+            alias=NULL_NODE_ID if alias is None else alias,
+            # NWK sequence, only used with an alias
+            sequence=0x00 if alias_seq is None else alias_seq,
             message_tag=message_tag,
             message=data,
         )
@@ -143,13 +146,16 @@ class EZSPv14(EZSPv13):
         message_tag: t.uint8_t,
         aps_sequence: t.uint8_t,
         data: bytes,
+        alias: t.NWK | None = None,
+        alias_seq: t.uint8_t | None = None,
     ) -> tuple[t.sl_Status, t.uint8_t]:
         # `aps_sequence` is not used
 
         status, sequence = await self.sendBroadcast(
-            alias=NULL_NODE_ID,
+            alias=NULL_NODE_ID if alias is None else alias,
             destination=address,
-            sequence=0x00,  # NWK sequence, only used with an alias
+            # NWK sequence, only used with an alias
+            sequence=0x00 if alias_seq is None else alias_seq,
             aps_frame=aps_frame,
             radius=radius,
             message_tag=message_tag,

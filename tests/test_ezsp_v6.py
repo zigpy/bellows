@@ -38,3 +38,47 @@ async def test_initialize_network(ezsp_f) -> None:
     assert ezsp_f.networkInit.mock_calls == [
         call(networkInitBitmask=t.EmberNetworkInitBitmask.NETWORK_INIT_NO_OPTIONS)
     ]
+
+
+async def test_send_multicast_with_alias(ezsp_f) -> None:
+    ezsp_f.sendMulticastWithAlias.return_value = (t.EmberStatus.SUCCESS, 0x42)
+    status, message_tag = await ezsp_f.send_multicast(
+        aps_frame=t.EmberApsFrame(),
+        radius=12,
+        non_member_radius=34,
+        message_tag=0x42,
+        data=b"hello",
+        alias=t.NWK(0xABCD),
+        alias_seq=t.uint8_t(0x56),
+    )
+
+    assert status == t.sl_Status.OK
+    assert message_tag == 0x42
+    assert len(ezsp_f.sendMulticast.mock_calls) == 0
+    assert ezsp_f.sendMulticastWithAlias.mock_calls == [
+        call(
+            apsFrame=t.EmberApsFrame(),
+            hops=12,
+            nonmemberRadius=34,
+            alias=0xABCD,
+            nwkSequence=0x56,
+            messageTag=0x42,
+            messageContents=b"hello",
+        )
+    ]
+
+
+async def test_send_multicast_without_alias(ezsp_f) -> None:
+    ezsp_f.sendMulticast.return_value = (t.EmberStatus.SUCCESS, 0x42)
+    status, message_tag = await ezsp_f.send_multicast(
+        aps_frame=t.EmberApsFrame(),
+        radius=12,
+        non_member_radius=34,
+        message_tag=0x42,
+        data=b"hello",
+    )
+
+    assert status == t.sl_Status.OK
+    assert message_tag == 0x42
+    assert len(ezsp_f.sendMulticastWithAlias.mock_calls) == 0
+    assert len(ezsp_f.sendMulticast.mock_calls) == 1

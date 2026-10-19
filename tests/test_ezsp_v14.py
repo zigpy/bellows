@@ -571,6 +571,33 @@ async def test_send_multicast(ezsp_f) -> None:
     ]
 
 
+async def test_send_multicast_with_alias(ezsp_f) -> None:
+    ezsp_f.sendMulticast.return_value = (t.sl_Status.OK, 0x0042)
+    status, message_tag = await ezsp_f.send_multicast(
+        aps_frame=t.EmberApsFrame(sequence=0x34),
+        radius=12,
+        non_member_radius=34,
+        message_tag=0x42,
+        data=b"hello",
+        alias=t.NWK(0xABCD),
+        alias_seq=t.uint8_t(0x56),
+    )
+
+    assert status == t.sl_Status.OK
+    assert message_tag == 0x42
+    assert ezsp_f.sendMulticast.mock_calls == [
+        call(
+            aps_frame=t.EmberApsFrame(sequence=0x34),
+            hops=12,
+            broadcast_addr=t.BroadcastAddress.RX_ON_WHEN_IDLE,
+            alias=0xABCD,
+            sequence=0x56,
+            message_tag=0x0042,
+            message=b"hello",
+        )
+    ]
+
+
 async def test_send_broadcast(ezsp_f) -> None:
     ezsp_f.sendBroadcast.return_value = (t.sl_Status.OK, 0x0042)
     status, message_tag = await ezsp_f.send_broadcast(
@@ -747,3 +774,31 @@ async def test_set_extended_timeout_no_address_table(
         )
     ]
     assert ezsp_f.replaceAddressTableEntry.mock_calls == []
+
+
+async def test_send_broadcast_with_alias(ezsp_f) -> None:
+    ezsp_f.sendBroadcast.return_value = (t.sl_Status.OK, 0x0042)
+    status, message_tag = await ezsp_f.send_broadcast(
+        address=t.BroadcastAddress.RX_ON_WHEN_IDLE,
+        aps_frame=t.EmberApsFrame(),
+        radius=12,
+        message_tag=0x42,
+        aps_sequence=34,
+        data=b"hello",
+        alias=t.NWK(0xABCD),
+        alias_seq=t.uint8_t(0x56),
+    )
+
+    assert status == t.sl_Status.OK
+    assert message_tag == 0x42
+    assert ezsp_f.sendBroadcast.mock_calls == [
+        call(
+            alias=0xABCD,
+            destination=t.BroadcastAddress.RX_ON_WHEN_IDLE,
+            sequence=0x56,
+            aps_frame=t.EmberApsFrame(),
+            radius=12,
+            message_tag=0x42,
+            message=b"hello",
+        )
+    ]

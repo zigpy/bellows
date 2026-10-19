@@ -1160,6 +1160,18 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if zigpy.types.TransmitOptions.APS_Encryption in packet.tx_options:
             aps_frame.options |= t.EmberApsOption.APS_OPTION_ENCRYPTION
 
+        if packet.alias_src is not None:
+            if packet.dst.addr_mode not in (
+                zigpy.types.AddrMode.Group,
+                zigpy.types.AddrMode.Broadcast,
+            ):
+                raise ValueError(
+                    f"Only broadcasts and multicasts can be sent with an alias: {packet}"
+                )
+
+            # The alias NWK sequence number is also the APS counter
+            aps_frame.options |= t.EmberApsOption.APS_OPTION_USE_ALIAS_SEQUENCE_NUMBER
+
         extended_timeout = packet.extended_timeout
 
         # EmberZNet requires retrying to enable APS ACKs
@@ -1264,6 +1276,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             non_member_radius=packet.non_member_radius,
                             message_tag=message_tag,
                             data=data,
+                            alias=packet.alias_src,
+                            alias_seq=packet.alias_seq,
                         )
                     elif packet.dst.addr_mode == zigpy.types.AddrMode.Broadcast:
                         status, _ = await self._ezsp.send_broadcast(
@@ -1273,6 +1287,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             message_tag=message_tag,
                             aps_sequence=packet.tsn,
                             data=data,
+                            alias=packet.alias_src,
+                            alias_seq=packet.alias_seq,
                         )
 
                 if status != t.sl_Status.OK:

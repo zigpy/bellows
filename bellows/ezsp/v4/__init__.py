@@ -163,7 +163,13 @@ class EZSPv4(protocol.ProtocolHandler):
         non_member_radius: t.uint8_t,
         message_tag: t.uint8_t,
         data: bytes,
+        alias: t.NWK | None = None,
+        alias_seq: t.uint8_t | None = None,
     ) -> tuple[t.sl_Status, t.uint8_t]:
+        if alias is not None:
+            # TODO: `sendMulticastWithAlias`, from EZSPv6
+            raise NotImplementedError("Aliased multicasts are not supported")
+
         status, sequence = await self.sendMulticast(
             apsFrame=aps_frame,
             hops=radius,
@@ -182,8 +188,23 @@ class EZSPv4(protocol.ProtocolHandler):
         message_tag: t.uint8_t,
         aps_sequence: t.uint8_t,
         data: bytes,
+        alias: t.NWK | None = None,
+        alias_seq: t.uint8_t | None = None,
     ) -> tuple[t.sl_Status, t.uint8_t]:
         # `aps_sequence` is not used
+
+        if alias is not None:
+            status, sequence = await self.proxyBroadcast(
+                source=t.EmberNodeId(alias),
+                destination=address,
+                nwkSequence=t.uint8_t(0 if alias_seq is None else alias_seq),
+                apsFrame=aps_frame,
+                radius=radius,
+                messageTag=message_tag,
+                messageContents=data,
+            )
+
+            return t.sl_Status.from_ember_status(status), sequence
 
         status, sequence = await self.sendBroadcast(
             destination=address,

@@ -1358,6 +1358,8 @@ async def test_send_packet_broadcast(app, packet):
             message_tag=MSG_TAG,
             aps_sequence=packet.tsn,
             data=b"some data",
+            alias=None,
+            alias_seq=None,
         )
     ]
 
@@ -1406,6 +1408,8 @@ async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
             message_tag=MSG_TAG,
             aps_sequence=packet.tsn,
             data=b"some data",
+            alias=None,
+            alias_seq=None,
         )
     ]
 
@@ -1456,10 +1460,88 @@ async def test_send_packet_multicast(app, packet):
             non_member_radius=packet.non_member_radius,
             message_tag=MSG_TAG,
             data=b"some data",
+            alias=None,
+            alias_seq=None,
         )
     ]
 
     assert len(app._pending_requests) == 0
+
+
+@pytest.mark.parametrize(
+    ("dst", "send", "message_type", "aps_group"),
+    [
+        (
+            zigpy_t.AddrModeAddress(
+                addr_mode=zigpy_t.AddrMode.Broadcast, address=0xFFFD
+            ),
+            "send_broadcast",
+            t.EmberOutgoingMessageType.OUTGOING_BROADCAST_WITH_ALIAS,
+            0x0000,
+        ),
+        (
+            zigpy_t.AddrModeAddress(addr_mode=zigpy_t.AddrMode.Group, address=0x1234),
+            "send_multicast",
+            t.EmberOutgoingMessageType.OUTGOING_MULTICAST_WITH_ALIAS,
+            0x1234,
+        ),
+    ],
+)
+async def test_send_packet_with_alias(app, packet, dst, send, message_type, aps_group):
+    """An aliased send uses the alias sequence number as the APS counter too."""
+    packet.dst = dst
+    packet.tx_options = zigpy_t.TransmitOptions.NONE
+    packet.alias_src = zigpy_t.NWK(0xABCD)
+    packet.alias_seq = zigpy_t.uint8_t(0x00)
+
+    setattr(
+        app._ezsp._protocol,
+        send,
+        AsyncMock(return_value=(bellows.types.sl_Status.OK, 0x12)),
+    )
+    app.get_sequence = MagicMock(return_value=MSG_TAG)
+
+    asyncio.get_running_loop().call_soon(
+        app.ezsp_callback_handler,
+        "messageSentHandler",
+        list(
+            dict(
+                type=message_type,
+                indexOrDestination=dst.address,
+                apsFrame=sentinel.aps,
+                messageTag=MSG_TAG,
+                status=t.EmberStatus.SUCCESS,
+                message=b"",
+            ).values()
+        ),
+    )
+
+    await app.send_packet(packet)
+
+    [sent] = getattr(app._ezsp, send).mock_calls
+    assert sent.kwargs["alias"] == 0xABCD
+    assert sent.kwargs["alias_seq"] == 0x00
+    assert sent.kwargs["aps_frame"] == t.EmberApsFrame(
+        profileId=packet.profile_id,
+        clusterId=packet.cluster_id,
+        sourceEndpoint=packet.src_ep,
+        destinationEndpoint=packet.dst_ep,
+        options=(
+            t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+            | t.EmberApsOption.APS_OPTION_USE_ALIAS_SEQUENCE_NUMBER
+        ),
+        groupId=aps_group,
+        sequence=packet.tsn,
+    )
+
+
+async def test_send_packet_unicast_with_alias(app, packet):
+    """Only broadcasts and multicasts can be sent as an alias."""
+    packet.alias_src = zigpy_t.NWK(0xABCD)
+    packet.alias_seq = zigpy_t.uint8_t(0x00)
+
+    with pytest.raises(ValueError, match="alias"):
+        await app.send_packet(packet)
 
 
 def test_is_controller_running(app):

@@ -27,3 +27,34 @@ class EZSPv6(EZSPv5):
             networkInitBitmask=t.EmberNetworkInitBitmask.NETWORK_INIT_NO_OPTIONS
         )
         return t.sl_Status.from_ember_status(init_status)
+
+    async def send_multicast(
+        self,
+        aps_frame: t.EmberApsFrame,
+        radius: t.uint8_t,
+        non_member_radius: t.uint8_t,
+        message_tag: t.uint8_t,
+        data: bytes,
+        alias: t.NWK | None = None,
+        alias_seq: t.uint8_t | None = None,
+    ) -> tuple[t.sl_Status, t.uint8_t]:
+        if alias is None:
+            return await super().send_multicast(
+                aps_frame=aps_frame,
+                radius=radius,
+                non_member_radius=non_member_radius,
+                message_tag=message_tag,
+                data=data,
+            )
+
+        status, sequence = await self.sendMulticastWithAlias(
+            apsFrame=aps_frame,
+            hops=radius,
+            nonmemberRadius=non_member_radius,
+            alias=t.EmberNodeId(alias),
+            nwkSequence=t.uint8_t(0 if alias_seq is None else alias_seq),
+            messageTag=message_tag,
+            messageContents=data,
+        )
+
+        return t.sl_Status.from_ember_status(status), sequence
