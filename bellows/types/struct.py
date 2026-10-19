@@ -508,8 +508,6 @@ class EmberGpSinkListEntry(EzspStruct):
 class EmberGpProxyTableEntry(EzspStruct):
     """The internal representation of a proxy table entry."""
 
-    # The link key to be used to secure this pairing link.
-    securityLinkKey: named.KeyData
     # Internal status of the proxy table entry.
     status: named.EmberGpProxyTableEntryStatus
     # The tunneling options
