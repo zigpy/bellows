@@ -606,3 +606,8 @@ async def test_send_concurrency(ezsp_f, caplog) -> None:
     # All but the first queue up
     assert caplog.text.count("Send semaphore is locked, delaying before sending") == 3
     assert caplog.text.count("s delay") == 3
+
+
+async def test_clear_gp_tables(ezsp_f) -> None:
+    """There are no Green Power commands before EZSPv7."""
+    await ezsp_f.clear_gp_tables()

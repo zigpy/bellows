@@ -333,6 +333,11 @@ class ProtocolHandler(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    async def clear_gp_tables(self) -> None:
+        """Clear the Green Power proxy and sink tables of the NCP, where it has them."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def factory_reset(self) -> None:
         raise NotImplementedError
 

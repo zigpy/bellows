@@ -124,6 +124,10 @@ class EZSPv4(protocol.ProtocolHandler):
         )
         return t.sl_Status.from_ember_status(init_status)
 
+    async def clear_gp_tables(self) -> None:
+        # No Green Power commands before EZSPv7
+        pass
+
     async def factory_reset(self) -> None:
         await self.clearKeyTable()
 

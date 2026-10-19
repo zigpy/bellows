@@ -622,6 +622,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def reset_network_info(self):
         await self._ezsp.factory_reset()
 
+        # Green Power tables left by another stack would make the NCP forward and
+        # security process GPDFs on its own, zigpy keeps the Sink Table itself
+        await self._ezsp.clear_gp_tables()
+
         # Reset the custom EUI64
         await self._ezsp.reset_custom_eui64()
 

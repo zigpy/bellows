@@ -232,6 +232,7 @@ def _create_app_for_startup(
     )
 
     proto.factory_reset = AsyncMock(proto=proto.factory_reset)
+    proto.clear_gp_tables = AsyncMock(spec=proto.clear_gp_tables)
     proto.set_extended_timeout = AsyncMock(proto=proto.set_extended_timeout)
 
     proto.read_link_keys = MagicMock()
@@ -2543,6 +2544,7 @@ async def test_write_network_info(
     assert app._ezsp._protocol.write_aps_frame_counter.mock_calls == [
         call(zigpy_backup.network_info.tc_link_key.tx_counter)
     ]
+    assert app._ezsp._protocol.clear_gp_tables.mock_calls == [call()]
     assert app._ezsp._protocol.formNetwork.mock_calls == [
         call(
             parameters=t.EmberNetworkParameters(
