@@ -2,7 +2,6 @@ import asyncio
 from asyncio import timeout as asyncio_timeout
 import logging
 import pickle
-import socket
 import struct
 import threading
 from types import SimpleNamespace
@@ -124,19 +123,15 @@ async def in_process_worker(sock, path, baudrate, flow_control, log_levels):
 
 @pytest.fixture
 def workers():
-    """Runs workers on the test loop instead of in a subinterpreter, so mocks reach them."""
+    """Runs workers on the test loop instead of in a subprocess, so mocks reach them."""
     workers = SimpleNamespace(tasks=[], worker=in_process_worker)
 
-    def launch(loop, fd, *args):
-        task = asyncio.ensure_future(workers.worker(socket.socket(fileno=fd), *args))
+    def launch(loop, sock, *args):
+        task = asyncio.ensure_future(workers.worker(sock, *args))
         workers.tasks.append(task)
         return None, task
 
-    # The protocol does not need subinterpreters, so these tests run on every Python
-    with (
-        patch.object(uart, "_launch_worker", launch),
-        patch.object(uart, "interpreters", MagicMock()),
-    ):
+    with patch.object(uart, "_launch_worker", launch):
         yield workers
 
 
@@ -475,14 +470,9 @@ async def ncp():
     server.close()
 
 
-needs_interpreters = pytest.mark.skipif(
-    uart.interpreters is None, reason="Subinterpreters need Python 3.14"
-)
-
-
 @pytest.fixture
 async def real_gw(ncp, app, caplog):
-    """A gateway in a real subinterpreter, always disconnected, even when the test fails."""
+    """A gateway in a real subprocess, always disconnected, even when the test fails."""
     ncps, path = ncp
 
     # The worker copies this level when it starts
@@ -497,8 +487,7 @@ async def real_gw(ncp, app, caplog):
         await gw.disconnect()
 
 
-@needs_interpreters
-async def test_interpreter_roundtrip(real_gw, ncp, app, caplog):
+async def test_process_roundtrip(real_gw, ncp, app, caplog):
     gw = real_gw
     ncps, _ = ncp
     frames = []
@@ -543,8 +532,7 @@ async def test_interpreter_roundtrip(real_gw, ncp, app, caplog):
     ]
 
 
-@needs_interpreters
-async def test_interpreter_connect_failure(app):
+async def test_process_connect_failure(app):
     with pytest.raises(FileNotFoundError):
         await uart.connect(
             app, path="/nonexistent/serial/port", baudrate=115200, flow_control=None

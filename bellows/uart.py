@@ -9,26 +9,21 @@ import itertools
 import logging
 from logging import LogRecord
 from logging.handlers import QueueHandler
+import multiprocessing
 import pickle
 import socket
 import struct
-import sys
 
 import zigpy.serial
 import zigpy.types
 
 from bellows.ash import AshProtocol, NcpFailure, NcpResetCode
 
-try:
-    from concurrent import interpreters
-except ImportError:
-    interpreters = None
-
 LOGGER = logging.getLogger(__name__)
 RESET_TIMEOUT = 2.5
 
-# The worker interpreter copies these loggers' effective levels from the application
-# interpreter when it starts, and forwards every record that passes them
+# The worker process copies these loggers' effective levels from the application when it
+# starts, and forwards every record that passes them
 WORKER_LOGGERS = (
     "",
     "asyncio",
@@ -129,8 +124,8 @@ class Gateway(zigpy.serial.SerialProtocol):
             return await self._reset_future
 
 
-# Messages between the application interpreter and the worker interpreter. Every message
-# is a pickled dataclass behind a 32-bit length prefix.
+# Messages between the application and the worker process. Every message is a pickled
+# dataclass behind a 32-bit length prefix.
 
 
 # Application -> worker. Requests carry an id that their reply repeats.
@@ -245,9 +240,7 @@ class _Pickler(pickle.Pickler):
         cls = obj if isinstance(obj, type) else type(obj)
 
         if cls not in _ALLOWED_CLASSES:
-            raise pickle.PicklingError(
-                f"{cls!r} may not cross the interpreter boundary"
-            )
+            raise pickle.PicklingError(f"{cls!r} may not cross the process boundary")
 
         return NotImplemented
 
@@ -256,7 +249,7 @@ class _Unpickler(pickle.Unpickler):
     def find_class(self, module, name):
         if (module, name) not in _ALLOWED_GLOBALS:
             raise pickle.UnpicklingError(
-                f"{module}.{name} may not cross the interpreter boundary"
+                f"{module}.{name} may not cross the process boundary"
             )
 
         return _ALLOWED_GLOBALS[module, name]
@@ -298,7 +291,7 @@ async def _read(reader: asyncio.StreamReader):
 
 
 class _ForwardingHandler(QueueHandler):
-    """Ships the worker's log records to the application interpreter."""
+    """Ships the worker's log records to the application process."""
 
     def __init__(self, loop: asyncio.AbstractEventLoop, writer: asyncio.StreamWriter):
         super().__init__(queue=None)
@@ -318,7 +311,7 @@ class _ForwardingHandler(QueueHandler):
 
 
 class _Worker:
-    """The worker interpreter's side: owns the `Gateway` and serves requests for it."""
+    """The worker process's side: owns the `Gateway` and serves requests for it."""
 
     def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         self._reader = reader
@@ -423,34 +416,33 @@ async def _run_worker(
         await writer.wait_closed()
 
 
-def _worker_main(fd: int, *args) -> None:
-    """Entry point in the worker interpreter."""
-    asyncio.run(_run_worker(socket.socket(fileno=fd), *args))
+def _worker_main(sock: socket.socket, *args) -> None:
+    """Entry point in the worker process."""
+    asyncio.run(_run_worker(sock, *args))
 
 
-def _launch_worker(loop: asyncio.AbstractEventLoop, *args):
-    """Start the worker interpreter. Returns it and a future that resolves when it exits."""
-    interpreter = interpreters.create()
-
-    def call():
-        try:
-            interpreter.call(_worker_main, *args)
-        except interpreters.ExecutionFailed as exc:
-            LOGGER.error("Worker interpreter crashed:\n%s", exc.excinfo.errdisplay)
+def _launch_worker(loop: asyncio.AbstractEventLoop, sock: socket.socket, *args):
+    """Start the worker process. Returns it and a future that resolves when it exits."""
+    # `fork` would copy the application's threads and locks. The socket is duplicated
+    # into the child, nothing else is inherited.
+    process = multiprocessing.get_context("spawn").Process(
+        target=_worker_main, args=(sock, *args), name=__name__, daemon=True
+    )
+    process.start()
+    sock.close()
 
     executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=__name__)
-    # The thread only hosts the worker interpreter, which has its own GIL
-    future = loop.run_in_executor(executor, call)
+    future = loop.run_in_executor(executor, process.join)
     executor.shutdown(wait=False)
 
-    return interpreter, future
+    return process, future
 
 
 class IsolatedGateway:
-    """Runs a `Gateway` on an event loop in its own interpreter and bridges the two.
+    """Runs a `Gateway` on an event loop in its own process and bridges the two.
 
-    The application interpreter's garbage collector stops every thread sharing its GIL,
-    while ASH acknowledgements have a deadline. The worker interpreter has its own GIL.
+    The application's garbage collector stops every thread sharing its GIL, while ASH
+    acknowledgements have a deadline. The worker process has its own.
 
     The worker owns the gateway and exits only once the application closes its end of
     the socket, so every request that passed the `_closed` check reached it before the
@@ -460,7 +452,7 @@ class IsolatedGateway:
     def __init__(self, api):
         self._api = api
         self._loop = asyncio.get_running_loop()
-        self._interpreter = None
+        self._process = None
         self._worker_complete = None
         self._writer = None
         self._messages = None
@@ -479,8 +471,8 @@ class IsolatedGateway:
             for name in WORKER_LOGGERS
         )
 
-        self._interpreter, self._worker_complete = _launch_worker(
-            self._loop, theirs.detach(), path, baudrate, flow_control, log_levels
+        self._process, self._worker_complete = _launch_worker(
+            self._loop, theirs, path, baudrate, flow_control, log_levels
         )
 
         reader, self._writer = await asyncio.open_connection(sock=ours)
@@ -596,9 +588,12 @@ class IsolatedGateway:
         await self._messages
         self._writer.close()
 
-        if self._interpreter is not None:
-            self._interpreter.close()
-            self._interpreter = None
+        if self._process is not None:
+            if self._process.exitcode:
+                LOGGER.error("Worker process exited with %s", self._process.exitcode)
+
+            self._process.close()
+            self._process = None
 
 
 async def _connect(api, *, path: str, baudrate: int, flow_control: str | None):
@@ -640,13 +635,6 @@ async def connect(
     # Backwards compatibility
     if use_thread is not None:
         isolated = use_thread
-
-    if isolated and interpreters is None:
-        LOGGER.warning(
-            "Python %s has no subinterpreters, running ASH on the application loop",
-            sys.version.split()[0],
-        )
-        isolated = False
 
     if not isolated:
         return await _connect(
