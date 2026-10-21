@@ -609,5 +609,5 @@ async def test_send_concurrency(ezsp_f, caplog) -> None:
 
 
 async def test_clear_gp_tables(ezsp_f) -> None:
-    """There are no Green Power commands before EZSPv7."""
+    """There is no Green Power table clearing before EZSPv6."""
     await ezsp_f.clear_gp_tables()

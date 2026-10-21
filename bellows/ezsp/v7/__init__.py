@@ -27,7 +27,7 @@ class EZSPv7(EZSPv6):
     }
 
     async def clear_gp_tables(self) -> None:
-        # The proxy table has no bulk clear before EZSPv17
+        # `gpClearSinkTable` is renamed in EZSPv7
         try:
             await self.gpSinkTableClearAll()
         except InvalidCommandError:

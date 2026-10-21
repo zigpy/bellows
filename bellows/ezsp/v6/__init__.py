@@ -4,6 +4,7 @@ import logging
 import voluptuous
 
 import bellows.config
+from bellows.exception import InvalidCommandError
 import bellows.types as t
 
 from . import commands, config
@@ -27,6 +28,13 @@ class EZSPv6(EZSPv5):
             networkInitBitmask=t.EmberNetworkInitBitmask.NETWORK_INIT_NO_OPTIONS
         )
         return t.sl_Status.from_ember_status(init_status)
+
+    async def clear_gp_tables(self) -> None:
+        # The proxy table has no bulk clear before EZSPv17
+        try:
+            await self.gpClearSinkTable()
+        except InvalidCommandError:
+            LOGGER.debug("The NCP has no Green Power sink table")
 
     async def send_multicast(
         self,

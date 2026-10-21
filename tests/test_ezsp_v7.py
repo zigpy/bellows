@@ -65,7 +65,6 @@ async def test_read_child_data(ezsp_f):
 
 
 async def test_clear_gp_tables(ezsp_f) -> None:
-    """Only the sink table has a bulk clear before EZSPv17."""
     ezsp_f.gpSinkTableClearAll.return_value = []
 
     await ezsp_f.clear_gp_tables()
@@ -74,7 +73,6 @@ async def test_clear_gp_tables(ezsp_f) -> None:
 
 
 async def test_clear_gp_tables_unsupported(ezsp_f, caplog) -> None:
-    """An NCP built without Green Power rejects the command."""
     ezsp_f.gpSinkTableClearAll.side_effect = InvalidCommandError("No GP")
 
     await ezsp_f.clear_gp_tables()

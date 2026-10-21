@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, call
 import pytest
 import zigpy.state
 
+from bellows.exception import InvalidCommandError
 import bellows.ezsp.v6
 import bellows.types as t
 
@@ -82,3 +83,21 @@ async def test_send_multicast_without_alias(ezsp_f) -> None:
     assert message_tag == 0x42
     assert len(ezsp_f.sendMulticastWithAlias.mock_calls) == 0
     assert len(ezsp_f.sendMulticast.mock_calls) == 1
+
+
+async def test_clear_gp_tables(ezsp_f) -> None:
+    """Only the sink table has a bulk clear before EZSPv17."""
+    ezsp_f.gpClearSinkTable.return_value = []
+
+    await ezsp_f.clear_gp_tables()
+
+    assert ezsp_f.gpClearSinkTable.mock_calls == [call()]
+
+
+async def test_clear_gp_tables_unsupported(ezsp_f, caplog) -> None:
+    """An NCP built without Green Power rejects the command."""
+    ezsp_f.gpClearSinkTable.side_effect = InvalidCommandError("No GP")
+
+    await ezsp_f.clear_gp_tables()
+
+    assert "no Green Power sink table" in caplog.text
