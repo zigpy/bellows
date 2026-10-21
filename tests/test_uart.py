@@ -434,6 +434,23 @@ async def test_isolated_refuses_unlisted_class(workers, app):
             await gw.disconnect()
 
 
+def test_raise_priority():
+    with patch("bellows.uart.os.nice") as nice:
+        uart._raise_priority()
+
+    assert nice.mock_calls == [call(uart.WORKER_NICE)]
+
+
+def test_raise_priority_not_permitted(caplog):
+    with (
+        patch("bellows.uart.os.nice", side_effect=PermissionError),
+        caplog.at_level(logging.DEBUG, logger="bellows.uart"),
+    ):
+        uart._raise_priority()
+
+    assert "Not permitted" in caplog.text
+
+
 class FakeNcp(AshProtocol):
     """The NCP end of the link: ACKs data like the host side does, answers RST."""
 

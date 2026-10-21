@@ -10,6 +10,7 @@ import logging
 from logging import LogRecord
 from logging.handlers import QueueHandler
 import multiprocessing
+import os
 import pickle
 import socket
 import struct
@@ -21,6 +22,10 @@ from bellows.ash import AshProtocol, NcpFailure, NcpResetCode
 
 LOGGER = logging.getLogger(__name__)
 RESET_TIMEOUT = 2.5
+
+# Favors the worker when the application's collector or anything else saturates the
+# CPUs, so an ACK is not late for lack of a time slice. Needs `CAP_SYS_NICE` or root.
+WORKER_NICE = -10
 
 # The worker process copies these loggers' effective levels from the application when it
 # starts, and forwards every record that passes them
@@ -416,8 +421,17 @@ async def _run_worker(
         await writer.wait_closed()
 
 
+def _raise_priority() -> None:
+    try:
+        os.nice(WORKER_NICE)
+    except PermissionError:
+        # Unprivileged containers refuse it; the worker then runs at normal priority
+        LOGGER.debug("Not permitted to raise the worker's priority")
+
+
 def _worker_main(sock: socket.socket, *args) -> None:
     """Entry point in the worker process."""
+    _raise_priority()
     asyncio.run(_run_worker(sock, *args))
 
 
