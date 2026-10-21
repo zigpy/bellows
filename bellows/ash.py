@@ -4,7 +4,7 @@ import abc
 import asyncio
 from asyncio import timeout as asyncio_timeout
 import binascii
-from collections.abc import Coroutine
+from collections.abc import Coroutine, Sequence
 import contextlib
 import dataclasses
 import enum
@@ -13,10 +13,7 @@ import sys
 import time
 import typing
 
-from zigpy.types import BaseDataclassMixin
-
-import bellows.types as t
-from bellows.zigbee.util import run_length_debug
+from zigpy.types import BaseDataclassMixin, enum8
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,6 +58,48 @@ TX_K = 1  # TODO: investigate why this cannot be raised without causing a firmwa
 # going to the FAILED state. The value 0 prevents the NCP from entering the error state
 # due to timeouts.
 ACK_TIMEOUTS = 5
+
+
+class NcpResetCode(enum8):
+    # Reset and Error Codes for NCP
+    RESET_UNKNOWN_REASON = 0x00
+    RESET_EXTERNAL = 0x01
+    RESET_POWER_ON = 0x02
+    RESET_WATCHDOG = 0x03
+    RESET_ASSERT = 0x06
+    RESET_BOOTLOADER = 0x09
+    RESET_SOFTWARE = 0x0B
+    ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT = 0x51
+    ERROR_UNKNOWN_EM3XX_ERROR = 0x80
+
+
+def run_length_debug(
+    items: Sequence[str],
+    joiner: str,
+    prefix: str = "",
+    suffix: str = "",
+    default: str = "",
+) -> str:
+    """Create a run-length encoded debug string from a sequence of strings."""
+    counts = []
+    unique_items = []
+
+    for item in items:
+        if unique_items and unique_items[-1] == item:
+            counts[-1] += 1
+        else:
+            counts.append(1)
+            unique_items.append(item)
+
+    result = joiner.join(
+        f"{count}*{item}" if count > 1 else item
+        for item, count in zip(unique_items, counts)
+    )
+
+    if not result:
+        return default
+
+    return prefix + result + suffix
 
 
 def generate_random_sequence(length: int) -> bytes:
@@ -121,7 +160,8 @@ class NotAcked(AshException):
 
 
 class NcpFailure(AshException):
-    def __init__(self, code: t.NcpResetCode) -> None:
+    def __init__(self, code: NcpResetCode) -> None:
+        super().__init__(code)
         self.code = code
 
     def __repr__(self) -> str:
@@ -135,8 +175,8 @@ class NcpFailure(AshException):
 
 
 class AshFrame(abc.ABC, BaseDataclassMixin):
-    MASK: t.uint8_t
-    MASK_VALUE: t.uint8_t
+    MASK: int
+    MASK_VALUE: int
 
     @classmethod
     def from_bytes(cls, data: bytes) -> AshFrame:
@@ -292,8 +332,8 @@ class RStackFrame(AshFrame):
     MASK = 0b11111111
     MASK_VALUE = 0b11000001
 
-    version: t.uint8_t
-    reset_code: t.NcpResetCode
+    version: int
+    reset_code: NcpResetCode
 
     @classmethod
     def from_bytes(cls, data: bytes) -> RStackFrame:
@@ -307,7 +347,7 @@ class RStackFrame(AshFrame):
         if version != 0x02:
             raise ParsingError(f"Invalid version for RSTACK frame: {data!r}")
 
-        reset_code = t.NcpResetCode(data[1])
+        reset_code = NcpResetCode(data[1])
 
         return cls(
             version=version,
@@ -323,8 +363,8 @@ class ErrorFrame(AshFrame):
     MASK = 0b11111111
     MASK_VALUE = 0b11000010
 
-    version: t.uint8_t
-    reset_code: t.NcpResetCode
+    version: int
+    reset_code: NcpResetCode
 
     # We do not want to inherit from `RStackFrame`
     from_bytes = classmethod(RStackFrame.from_bytes.__func__)
@@ -364,7 +404,7 @@ class AshProtocol(asyncio.Protocol):
         self._rx_seq: int = 0
         self._t_rx_ack = T_RX_ACK_INIT
 
-        self._ncp_reset_code: t.NcpResetCode | None = None
+        self._ncp_reset_code: NcpResetCode | None = None
         self._ncp_state: NcpState = NcpState.CONNECTED
         self._in_reject_condition: bool = False
 
@@ -605,7 +645,7 @@ class AshProtocol(asyncio.Protocol):
         # Cancel all pending requests
         self._enter_failed_state(self._ncp_reset_code)
 
-    def _enter_failed_state(self, reset_code: t.NcpResetCode) -> None:
+    def _enter_failed_state(self, reset_code: NcpResetCode) -> None:
         self._ncp_state = NcpState.FAILED
         self._cancel_pending_data_frames(NcpFailure(code=reset_code))
         self._ezsp_protocol.error_received(reset_code)
@@ -658,7 +698,7 @@ class AshProtocol(asyncio.Protocol):
                             "NCP is in a failed state, not sending: %r", frame
                         )
                         raise NcpFailure(
-                            t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT
+                            NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT
                         )
 
                     if frm_num is None:
@@ -694,7 +734,7 @@ class AshProtocol(asyncio.Protocol):
 
                         if attempt >= ACK_TIMEOUTS - 1:
                             self._enter_failed_state(
-                                t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT
+                                NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT
                             )
                             raise
                     except NcpFailure:
@@ -715,7 +755,7 @@ class AshProtocol(asyncio.Protocol):
 
                         if attempt >= ACK_TIMEOUTS - 1:
                             self._enter_failed_state(
-                                t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT
+                                NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT
                             )
                             raise
                     else:

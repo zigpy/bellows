@@ -187,7 +187,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._ezsp = bellows.ezsp.EZSP(self.config[zigpy.config.CONF_DEVICE], self)
 
         try:
-            await self._ezsp.connect(use_thread=self.config[CONF_USE_THREAD])
+            await self._ezsp.connect(isolated=self.config[CONF_USE_THREAD])
 
             # Writing config is required here because network info can't be loaded
             await self._ezsp.write_config(self.config[CONF_EZSP_CONFIG])

@@ -21,6 +21,8 @@ from zigpy.config import (  # noqa: F401 pylint: disable=unused-import
 CONF_BELLOWS_CONFIG = "bellows_config"
 CONF_MANUAL_SOURCE_ROUTING = "manual_source_routing"
 
+# Runs ASH in its own interpreter. The key predates subinterpreters and is kept for
+# compatibility with existing configuration
 CONF_USE_THREAD = "use_thread"
 CONF_EZSP_CONFIG = "ezsp_config"
 CONF_EZSP_POLICIES = "ezsp_policies"

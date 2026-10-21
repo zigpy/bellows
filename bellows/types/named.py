@@ -5,6 +5,8 @@ import logging
 import zigpy.types as ztypes
 import zigpy.zdo.types as zdo_t
 
+from bellows.ash import NcpResetCode  # noqa: F401
+
 from . import basic
 
 LOGGER = logging.getLogger(__name__)
@@ -14,19 +16,6 @@ EmberEUI64 = ztypes.EUI64
 EUI64 = ztypes.EUI64
 NWK = ztypes.NWK
 BroadcastAddress = ztypes.BroadcastAddress
-
-
-class NcpResetCode(basic.enum8):
-    # Reset and Error Codes for NCP
-    RESET_UNKNOWN_REASON = 0x00
-    RESET_EXTERNAL = 0x01
-    RESET_POWER_ON = 0x02
-    RESET_WATCHDOG = 0x03
-    RESET_ASSERT = 0x06
-    RESET_BOOTLOADER = 0x09
-    RESET_SOFTWARE = 0x0B
-    ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT = 0x51
-    ERROR_UNKNOWN_EM3XX_ERROR = 0x80
 
 
 class ExtendedPanId(ztypes.ExtendedPanId):
