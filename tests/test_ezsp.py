@@ -24,6 +24,7 @@ import bellows.types as t
 DEVICE_CONFIG = {
     zigpy.config.CONF_DEVICE_PATH: "/dev/null",
     zigpy.config.CONF_DEVICE_BAUDRATE: 115200,
+    zigpy.config.CONF_DEVICE_FLOW_CONTROL: None,
 }
 
 

@@ -162,9 +162,21 @@ class EZSP:
                 await self.disconnect()
                 raise
 
-    async def connect(self, *, use_thread: bool = True) -> None:
+    async def connect(
+        self, *, isolated: bool = True, use_thread: bool | None = None
+    ) -> None:
+        # Backwards compatibility
+        if use_thread is not None:
+            isolated = use_thread
+
         assert self._gw is None
-        self._gw = await bellows.uart.connect(self._config, self, use_thread=use_thread)
+        self._gw = await bellows.uart.connect(
+            self,
+            path=self._config[conf.CONF_DEVICE_PATH],
+            baudrate=self._config[conf.CONF_DEVICE_BAUDRATE],
+            flow_control=self._config[zigpy.config.CONF_DEVICE_FLOW_CONTROL],
+            isolated=isolated,
+        )
         await self.startup_reset()
 
     async def reset(self):
