@@ -368,6 +368,50 @@ async def test_send_broadcast(ezsp_f) -> None:
     ]
 
 
+async def test_send_multicast_with_alias(ezsp_f) -> None:
+    with pytest.raises(NotImplementedError):
+        await ezsp_f.send_multicast(
+            aps_frame=t.EmberApsFrame(),
+            radius=12,
+            non_member_radius=34,
+            message_tag=0x42,
+            data=b"hello",
+            alias=t.NWK(0xABCD),
+            alias_seq=t.uint8_t(0x56),
+        )
+
+    assert len(ezsp_f.sendMulticast.mock_calls) == 0
+
+
+async def test_send_broadcast_with_alias(ezsp_f) -> None:
+    ezsp_f.proxyBroadcast.return_value = (t.EmberStatus.SUCCESS, 0x42)
+    status, message_tag = await ezsp_f.send_broadcast(
+        address=t.BroadcastAddress.RX_ON_WHEN_IDLE,
+        aps_frame=t.EmberApsFrame(),
+        radius=12,
+        message_tag=0x42,
+        aps_sequence=34,
+        data=b"hello",
+        alias=t.NWK(0xABCD),
+        alias_seq=t.uint8_t(0x56),
+    )
+
+    assert status == t.sl_Status.OK
+    assert message_tag == 0x42
+    assert len(ezsp_f.sendBroadcast.mock_calls) == 0
+    assert ezsp_f.proxyBroadcast.mock_calls == [
+        call(
+            source=0xABCD,
+            destination=t.BroadcastAddress.RX_ON_WHEN_IDLE,
+            nwkSequence=0x56,
+            apsFrame=t.EmberApsFrame(),
+            radius=12,
+            messageTag=0x42,
+            messageContents=b"hello",
+        )
+    ]
+
+
 async def test_source_route(ezsp_f) -> None:
     ezsp_f.setSourceRoute.return_value = (t.EmberStatus.SUCCESS,)
 
@@ -562,3 +606,8 @@ async def test_send_concurrency(ezsp_f, caplog) -> None:
     # All but the first queue up
     assert caplog.text.count("Send semaphore is locked, delaying before sending") == 3
     assert caplog.text.count("s delay") == 3
+
+
+async def test_clear_gp_tables(ezsp_f) -> None:
+    """There is no Green Power table clearing before EZSPv6."""
+    await ezsp_f.clear_gp_tables()

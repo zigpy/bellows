@@ -11,6 +11,7 @@ import zigpy.device
 import zigpy.exceptions
 import zigpy.types as zigpy_t
 import zigpy.zdo.types as zdo_t
+import zigpy.zgp.types as zgp_t
 
 from bellows.ash import NcpFailure
 import bellows.config as config
@@ -22,6 +23,8 @@ from bellows.exception import (
 )
 import bellows.ezsp as ezsp
 from bellows.ezsp.v9.commands import GetTokenDataRsp
+from bellows.ezsp.v13.commands import COMMANDS as COMMANDS_v13
+from bellows.ezsp.v19.commands import COMMANDS as COMMANDS_v19
 from bellows.ezsp.xncp import (
     MAX_XNCP_PAYLOAD_LENGTH,
     FirmwareFeatures,
@@ -230,6 +233,7 @@ def _create_app_for_startup(
     )
 
     proto.factory_reset = AsyncMock(proto=proto.factory_reset)
+    proto.clear_gp_tables = AsyncMock(spec=proto.clear_gp_tables)
     proto.set_extended_timeout = AsyncMock(proto=proto.set_extended_timeout)
 
     proto.read_link_keys = MagicMock()
@@ -1356,6 +1360,8 @@ async def test_send_packet_broadcast(app, packet):
             message_tag=MSG_TAG,
             aps_sequence=packet.tsn,
             data=b"some data",
+            alias=None,
+            alias_seq=None,
         )
     ]
 
@@ -1404,6 +1410,8 @@ async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
             message_tag=MSG_TAG,
             aps_sequence=packet.tsn,
             data=b"some data",
+            alias=None,
+            alias_seq=None,
         )
     ]
 
@@ -1454,10 +1462,88 @@ async def test_send_packet_multicast(app, packet):
             non_member_radius=packet.non_member_radius,
             message_tag=MSG_TAG,
             data=b"some data",
+            alias=None,
+            alias_seq=None,
         )
     ]
 
     assert len(app._pending_requests) == 0
+
+
+@pytest.mark.parametrize(
+    ("dst", "send", "message_type", "aps_group"),
+    [
+        (
+            zigpy_t.AddrModeAddress(
+                addr_mode=zigpy_t.AddrMode.Broadcast, address=0xFFFD
+            ),
+            "send_broadcast",
+            t.EmberOutgoingMessageType.OUTGOING_BROADCAST_WITH_ALIAS,
+            0x0000,
+        ),
+        (
+            zigpy_t.AddrModeAddress(addr_mode=zigpy_t.AddrMode.Group, address=0x1234),
+            "send_multicast",
+            t.EmberOutgoingMessageType.OUTGOING_MULTICAST_WITH_ALIAS,
+            0x1234,
+        ),
+    ],
+)
+async def test_send_packet_with_alias(app, packet, dst, send, message_type, aps_group):
+    """An aliased send uses the alias sequence number as the APS counter too."""
+    packet.dst = dst
+    packet.tx_options = zigpy_t.TransmitOptions.NONE
+    packet.alias_src = zigpy_t.NWK(0xABCD)
+    packet.alias_seq = zigpy_t.uint8_t(0x00)
+
+    setattr(
+        app._ezsp._protocol,
+        send,
+        AsyncMock(return_value=(bellows.types.sl_Status.OK, 0x12)),
+    )
+    app.get_sequence = MagicMock(return_value=MSG_TAG)
+
+    asyncio.get_running_loop().call_soon(
+        app.ezsp_callback_handler,
+        "messageSentHandler",
+        list(
+            dict(
+                type=message_type,
+                indexOrDestination=dst.address,
+                apsFrame=sentinel.aps,
+                messageTag=MSG_TAG,
+                status=t.EmberStatus.SUCCESS,
+                message=b"",
+            ).values()
+        ),
+    )
+
+    await app.send_packet(packet)
+
+    [sent] = getattr(app._ezsp, send).mock_calls
+    assert sent.kwargs["alias"] == 0xABCD
+    assert sent.kwargs["alias_seq"] == 0x00
+    assert sent.kwargs["aps_frame"] == t.EmberApsFrame(
+        profileId=packet.profile_id,
+        clusterId=packet.cluster_id,
+        sourceEndpoint=packet.src_ep,
+        destinationEndpoint=packet.dst_ep,
+        options=(
+            t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+            | t.EmberApsOption.APS_OPTION_USE_ALIAS_SEQUENCE_NUMBER
+        ),
+        groupId=aps_group,
+        sequence=packet.tsn,
+    )
+
+
+async def test_send_packet_unicast_with_alias(app, packet):
+    """Only broadcasts and multicasts can be sent as an alias."""
+    packet.alias_src = zigpy_t.NWK(0xABCD)
+    packet.alias_seq = zigpy_t.uint8_t(0x00)
+
+    with pytest.raises(ValueError, match="alias"):
+        await app.send_packet(packet)
 
 
 def test_is_controller_running(app):
@@ -2459,6 +2545,7 @@ async def test_write_network_info(
     assert app._ezsp._protocol.write_aps_frame_counter.mock_calls == [
         call(zigpy_backup.network_info.tc_link_key.tx_counter)
     ]
+    assert app._ezsp._protocol.clear_gp_tables.mock_calls == [call()]
     assert app._ezsp._protocol.formNetwork.mock_calls == [
         call(
             parameters=t.EmberNetworkParameters(
@@ -3021,3 +3108,152 @@ async def test_multicast_group_subscription_xncp(app: ControllerApplication) -> 
 
     # The multicast table was never touched
     assert len(app._ezsp._protocol.setMulticastTableEntry.mock_calls) == 0
+
+
+@pytest.mark.parametrize(
+    ("frame", "packet"),
+    [
+        # EnOcean PTM-216Z button press, protected but not processed by the NCP
+        (
+            "03da1b0043f4550143f45501d3020100001b000000696fd093d0ff0101",
+            zigpy_t.ZigbeeGpPacket(
+                application_id=zgp_t.ApplicationID.SrcID,
+                src_id=zgp_t.SrcID(0x0155F443),
+                ieee=None,
+                endpoint=None,
+                command_id=zgp_t.GPDCommandID.Press8BitVector,
+                payload=zigpy_t.SerializableBytes(b"\x01"),
+                frame_counter=27,
+                security_level=zgp_t.SecurityLevel.FullFrameCounterAndMIC,
+                # The NCP did no security processing so it has no key type to
+                # report: the `1` it sends is the on-air `SecurityKey` bit, not
+                # `NWKKey`
+                security_key_type=None,
+                security_status=zgp_t.SecurityStatus.Unprocessed,
+                mic=0xD093D06F,
+                auto_commissioning=False,
+                rx_after_tx=False,
+                individual_key=True,
+                lqi=255,
+                rssi=-58,
+            ),
+        ),
+        # Moes 3-gang switch commissioning, unprotected: the NCP reports 0xFFFFFFFF
+        # as the frame counter and the MAC sequence number takes its place
+        (
+            "06da700091e30d6d91e30d6dd300000000ffffffffe0ffffffffff2b0289f3b9acc88b1df3"
+            "fe4e503c0be422f6f3530a9c4ed0700600007165726837706f78404750303030318d",
+            zigpy_t.ZigbeeGpPacket(
+                application_id=zgp_t.ApplicationID.SrcID,
+                src_id=zgp_t.SrcID(0x6D0DE391),
+                ieee=None,
+                endpoint=None,
+                command_id=zgp_t.GPDCommandID.CommissioningRequest,
+                payload=zigpy_t.SerializableBytes(
+                    bytes.fromhex(
+                        "0289f3b9acc88b1df3fe4e503c0be422f6f3530a9c4ed07006000071657268"
+                        "37706f78404750303030318d"
+                    )
+                ),
+                frame_counter=0x70,
+                security_level=zgp_t.SecurityLevel.NoSecurity,
+                security_key_type=zgp_t.SecurityKeyType.NoKey,
+                security_status=zgp_t.SecurityStatus.NoSecurity,
+                mic=None,
+                auto_commissioning=False,
+                rx_after_tx=False,
+                individual_key=None,
+                lqi=255,
+                rssi=-58,
+            ),
+        ),
+    ],
+)
+def test_frame_handler_gp(
+    app: ControllerApplication, frame: str, packet: zigpy_t.ZigbeeGpPacket
+) -> None:
+    """Test that an incoming GP frame is parsed into a `ZigbeeGpPacket`."""
+    args, rest = t.deserialize_dict(
+        bytes.fromhex(frame), COMMANDS_v19["gpepIncomingMessageHandler"][2]
+    )
+    assert not rest
+
+    with patch.object(app, "gp_packet_received") as gp_packet_received:
+        app.ezsp_callback_handler("gpepIncomingMessageHandler", list(args.values()))
+
+    assert gp_packet_received.mock_calls == [call(packet)]
+
+
+def test_frame_handler_gp_legacy_success(app: ControllerApplication) -> None:
+    """A GPDF authenticated by a pre-EZSPv14 NCP is reported as `SUCCESS`."""
+    # A captured EnOcean PTM-216Z frame, as the NCP reports it with a keyed proxy table
+    # entry. Its status is changed from `UNPROCESSED` to `SUCCESS`.
+    args, rest = t.deserialize_dict(
+        bytes.fromhex("00d727004af455014af455010002010000270000006a9a5f2634ff0100"),
+        COMMANDS_v13["gpepIncomingMessageHandler"][2],
+    )
+    assert not rest
+    assert args["status"] == t.EmberStatus.SUCCESS
+
+    with patch.object(app, "gp_packet_received") as gp_packet_received:
+        app.ezsp_callback_handler("gpepIncomingMessageHandler", list(args.values()))
+
+    assert gp_packet_received.mock_calls == [
+        call(
+            zigpy_t.ZigbeeGpPacket(
+                application_id=zgp_t.ApplicationID.SrcID,
+                src_id=zgp_t.SrcID(0x0155F44A),
+                ieee=None,
+                endpoint=None,
+                command_id=zgp_t.GPDCommandID.Release8BitVector,
+                payload=zigpy_t.SerializableBytes(b"\x00"),
+                frame_counter=0x27,
+                security_level=zgp_t.SecurityLevel.FullFrameCounterAndMIC,
+                security_key_type=zgp_t.SecurityKeyType.NWKKey,
+                security_status=zgp_t.SecurityStatus.SecuritySuccess,
+                mic=None,
+                auto_commissioning=False,
+                rx_after_tx=False,
+                individual_key=None,
+                lqi=255,
+                rssi=-64,
+            )
+        )
+    ]
+
+
+def test_frame_handler_gp_unprotected_device(app: ControllerApplication) -> None:
+    """An unprotected GPDF reaches a GPD commissioned without security."""
+    device = zigpy.device.GreenPowerDevice(
+        app, application_id=zgp_t.ApplicationID.SrcID, src_id=zgp_t.SrcID(0x6D0DE391)
+    )
+    device.security_level = zgp_t.SecurityLevel.NoSecurity
+    device.security_key_type = zgp_t.SecurityKeyType.NoKey
+    app.devices[device.ieee] = device
+
+    # The Moes 3-gang switch, now sending a toggle instead of a commissioning request
+    args, rest = t.deserialize_dict(
+        bytes.fromhex("06da700091e30d6d91e30d6dd300000000ffffffff22ffffffffff00"),
+        COMMANDS_v19["gpepIncomingMessageHandler"][2],
+    )
+    assert not rest
+
+    app.ezsp_callback_handler("gpepIncomingMessageHandler", list(args.values()))
+
+    assert device.frame_counter == 0x70
+
+
+def test_frame_handler_gp_security_failure(app: ControllerApplication) -> None:
+    """A frame the NCP could not authenticate is dropped."""
+    # The same EnOcean PTM-216Z frame, reported as an authentication failure
+    frame = bytes.fromhex("07da1b0043f4550143f45501d3020100001b000000696fd093d0ff0101")
+    args, rest = t.deserialize_dict(
+        frame, COMMANDS_v19["gpepIncomingMessageHandler"][2]
+    )
+    assert not rest
+    assert args["status"] == t.sl_GpStatus.AUTH_FAILURE
+
+    with patch.object(app, "gp_packet_received") as gp_packet_received:
+        app.ezsp_callback_handler("gpepIncomingMessageHandler", list(args.values()))
+
+    assert len(gp_packet_received.mock_calls) == 0

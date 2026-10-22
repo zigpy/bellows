@@ -7,6 +7,7 @@ import logging
 import voluptuous
 
 import bellows.config
+from bellows.exception import InvalidCommandError
 import bellows.types as t
 
 from . import commands, config
@@ -24,6 +25,13 @@ class EZSPv7(EZSPv6):
         bellows.config.CONF_EZSP_CONFIG: voluptuous.Schema(config.EZSP_SCHEMA),
         bellows.config.CONF_EZSP_POLICIES: voluptuous.Schema(config.EZSP_POLICIES_SCH),
     }
+
+    async def clear_gp_tables(self) -> None:
+        # `gpClearSinkTable` is renamed in EZSPv7
+        try:
+            await self.gpSinkTableClearAll()
+        except InvalidCommandError:
+            LOGGER.debug("The NCP has no Green Power sink table")
 
     async def read_child_data(
         self,

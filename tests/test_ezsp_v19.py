@@ -48,3 +48,35 @@ def test_get_token_info(version: int) -> None:
     assert result["token_info"].isIdx == t.Bool.true
     assert result["token_info"].size == 300
     assert result["token_info"].arraySize == 5
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        # Moes 3-gang switch
+        "06da700091e30d6d91e30d6dd300000000ffffffffe0ffffffffff2b0289f3b9acc88b1df3fe4e503c0be422f6f3530a9c4ed0700600007165726837706f78404750303030318d",
+        "03dd790091e30d6d91e30d6dd3030100007906000052e6f26ed3ff00",
+        # EnOcean PTM-216Z (DB)
+        "03da1b0043f4550143f45501d3020100001b000000696fd093d0ff0101",
+        # EnOcean PTM-216Z, direct commissioning on channel 11 (long press B0):
+        # the commissioning telegram, DeviceID GenericSwitch with switch information
+        "06dd760043f4550143f45501d300000000ffffffffe0ffffffffff1f0785f26761efc264c893701987babda7238ce9102e934a7600000010020504",
+        # the AI+B0 radio channel confirmation, sent as ShortPress2of2 with no payload
+        "03dc770043f4550143f45501d302010000770000006875db8e85ff00",
+        # subsequent press/release pairs, one per rocker contact
+        "03db780043f4550143f45501d30201000078000000692a661d3eff0101",
+        "03da790043f4550143f45501d302010000790000006a3861bf27ff0100",
+        "03d67c0043f4550143f45501d3020100007c0000006977b4fb0bff0102",
+        "03d87e0043f4550143f45501d3020100007e0000006999877c4dff0106",
+    ],
+)
+def test_gpep_incoming_frame(payload: str, ezsp_f) -> None:
+    """Parse incoming GP frames."""
+
+    ezsp_frame = (
+        bytes([0x42, 0x00, 0x01])  # seq + control bytes
+        + t.uint16_t(0x00C5).serialize()  # frame_id LE
+        + bytes.fromhex(payload)
+    )
+
+    ezsp_f(ezsp_frame)

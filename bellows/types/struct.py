@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from zigpy.types import Struct as EzspStruct, StructField
+from zigpy.zgp.types import ApplicationID, SrcID
 
 from . import basic, named
 
@@ -371,14 +372,23 @@ class EmberTokTypeStackZllSecurity(EzspStruct):
 
 
 class EmberGpAddress(EzspStruct):
-    # A GP address structure.
-    # The GPD's EUI64.
-    gpdIeeeAddress: named.EUI64
-    # The GPD's source ID.
-    sourceId: basic.uint32_t
-    # The GPD Application ID.
+    """sl_zigbee_gp_address_t: GPD address used by the GP callbacks."""
+
     applicationId: basic.uint8_t
-    # The GPD endpoint.
+
+    # 8-byte union. When applicationId == 0 (SrcID), the first 4 bytes hold the 32-bit
+    # source ID (little-endian) and the rest is padding; when applicationId == 2
+    # (IEEE), the 8 bytes are the GPD EUI64.
+    source_id: SrcID = StructField(
+        requires=lambda a: a.applicationId == ApplicationID.SrcID
+    )
+    source_id_padding: basic.uint32_t = StructField(
+        requires=lambda a: a.applicationId == ApplicationID.SrcID
+    )
+    gpd_eui64: named.EUI64 = StructField(
+        requires=lambda a: a.applicationId == ApplicationID.IEEE
+    )
+
     endpoint: basic.uint8_t
 
 
@@ -498,8 +508,6 @@ class EmberGpSinkListEntry(EzspStruct):
 class EmberGpProxyTableEntry(EzspStruct):
     """The internal representation of a proxy table entry."""
 
-    # The link key to be used to secure this pairing link.
-    securityLinkKey: named.KeyData
     # Internal status of the proxy table entry.
     status: named.EmberGpProxyTableEntryStatus
     # The tunneling options
