@@ -23,6 +23,7 @@ from bellows.exception import (
 )
 import bellows.ezsp as ezsp
 from bellows.ezsp.v9.commands import GetTokenDataRsp
+from bellows.ezsp.v13.commands import COMMANDS as COMMANDS_v13
 from bellows.ezsp.v19.commands import COMMANDS as COMMANDS_v19
 from bellows.ezsp.xncp import (
     MAX_XNCP_PAYLOAD_LENGTH,
@@ -3156,7 +3157,7 @@ async def test_multicast_group_subscription_xncp(app: ControllerApplication) -> 
                 ),
                 frame_counter=0x70,
                 security_level=zgp_t.SecurityLevel.NoSecurity,
-                security_key_type=None,
+                security_key_type=zgp_t.SecurityKeyType.NoKey,
                 security_status=zgp_t.SecurityStatus.NoSecurity,
                 mic=None,
                 auto_commissioning=False,
@@ -3181,6 +3182,65 @@ def test_frame_handler_gp(
         app.ezsp_callback_handler("gpepIncomingMessageHandler", list(args.values()))
 
     assert gp_packet_received.mock_calls == [call(packet)]
+
+
+def test_frame_handler_gp_legacy_success(app: ControllerApplication) -> None:
+    """A GPDF authenticated by a pre-EZSPv14 NCP is reported as `SUCCESS`."""
+    # A captured EnOcean PTM-216Z frame, as the NCP reports it with a keyed proxy table
+    # entry. Its status is changed from `UNPROCESSED` to `SUCCESS`.
+    args, rest = t.deserialize_dict(
+        bytes.fromhex("00d727004af455014af455010002010000270000006a9a5f2634ff0100"),
+        COMMANDS_v13["gpepIncomingMessageHandler"][2],
+    )
+    assert not rest
+    assert args["status"] == t.EmberStatus.SUCCESS
+
+    with patch.object(app, "gp_packet_received") as gp_packet_received:
+        app.ezsp_callback_handler("gpepIncomingMessageHandler", list(args.values()))
+
+    assert gp_packet_received.mock_calls == [
+        call(
+            zigpy_t.ZigbeeGpPacket(
+                application_id=zgp_t.ApplicationID.SrcID,
+                src_id=zgp_t.SrcID(0x0155F44A),
+                ieee=None,
+                endpoint=None,
+                command_id=zgp_t.GPDCommandID.Release8BitVector,
+                payload=zigpy_t.SerializableBytes(b"\x00"),
+                frame_counter=0x27,
+                security_level=zgp_t.SecurityLevel.FullFrameCounterAndMIC,
+                security_key_type=zgp_t.SecurityKeyType.NWKKey,
+                security_status=zgp_t.SecurityStatus.SecuritySuccess,
+                mic=None,
+                auto_commissioning=False,
+                rx_after_tx=False,
+                individual_key=None,
+                lqi=255,
+                rssi=-64,
+            )
+        )
+    ]
+
+
+def test_frame_handler_gp_unprotected_device(app: ControllerApplication) -> None:
+    """An unprotected GPDF reaches a GPD commissioned without security."""
+    device = zigpy.device.GreenPowerDevice(
+        app, application_id=zgp_t.ApplicationID.SrcID, src_id=zgp_t.SrcID(0x6D0DE391)
+    )
+    device.security_level = zgp_t.SecurityLevel.NoSecurity
+    device.security_key_type = zgp_t.SecurityKeyType.NoKey
+    app.devices[device.ieee] = device
+
+    # The Moes 3-gang switch, now sending a toggle instead of a commissioning request
+    args, rest = t.deserialize_dict(
+        bytes.fromhex("06da700091e30d6d91e30d6dd300000000ffffffff22ffffffffff00"),
+        COMMANDS_v19["gpepIncomingMessageHandler"][2],
+    )
+    assert not rest
+
+    app.ezsp_callback_handler("gpepIncomingMessageHandler", list(args.values()))
+
+    assert device.frame_counter == 0x70
 
 
 def test_frame_handler_gp_security_failure(app: ControllerApplication) -> None:

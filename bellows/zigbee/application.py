@@ -82,6 +82,8 @@ LIB_VERSION = importlib.metadata.version("bellows")
 LOGGER = logging.getLogger(__name__)
 
 GP_SECURITY_STATUSES = {
+    # The NCP reports a GPDF it authenticated itself as `SUCCESS`, not `MATCH`
+    (t.EmberStatus, t.EmberStatus.SUCCESS): zgp_t.SecurityStatus.SecuritySuccess,
     (t.EmberStatus, t.EmberStatus.MATCH): zgp_t.SecurityStatus.SecuritySuccess,
     (t.EmberStatus, t.EmberStatus.PASS_UNPROCESSED): zgp_t.SecurityStatus.Unprocessed,
     (t.EmberStatus, t.EmberStatus.NO_SECURITY): zgp_t.SecurityStatus.NoSecurity,
@@ -884,11 +886,16 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 # The NCP only knows the key type if it performed the security
                 # processing itself (spec Table 5). Otherwise this field carries the
                 # 1-bit `SecurityKey` sub-field off the air, which is not a key type:
-                # an `IndividualKey` GPD shows up here as `NWKKey`
+                # an `IndividualKey` GPD shows up here as `NWKKey`. An unprotected GPDF
+                # has no key, which zigpy expects as `NoKey`.
                 security_key_type=(
                     zgp_t.SecurityKeyType(gpdf_security_key_type)
                     if security_status is zgp_t.SecurityStatus.SecuritySuccess
-                    else None
+                    else (
+                        zgp_t.SecurityKeyType.NoKey
+                        if security_status is zgp_t.SecurityStatus.NoSecurity
+                        else None
+                    )
                 ),
                 security_status=security_status,
                 # A GPDF the NCP did not process is verified and decrypted by zigpy,
