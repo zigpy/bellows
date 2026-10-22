@@ -150,6 +150,79 @@ async def test_connect_threaded_failure_cancellation_propagation(monkeypatch):
     assert len(threads) == 0
 
 
+@pytest.mark.parametrize(
+    ("path", "suppressed"),
+    [
+        ("esphome://example.com:6053/?port_name=Zigbee", True),
+        ("/dev/serial", False),
+        # A non-proxy transport is never asked to acknowledge for us
+        ("socket://example.com:1234", False),
+    ],
+)
+async def test_connect_suppress_acks(path, suppressed, monkeypatch):
+    """Suppression is decided before connecting: a frame can arrive mid-handshake."""
+    appmock = MagicMock()
+    transport = MagicMock()
+    protocols = []
+
+    async def mockconnect(loop, protocol_factory, **kwargs):
+        protocol = protocol_factory()
+        protocols.append(protocol)
+        assert protocol.suppress_acks is suppressed
+        loop.call_soon(protocol.connection_made, transport)
+        return transport, protocol
+
+    monkeypatch.setattr(zigpy.serial, "create_serial_connection", mockconnect)
+
+    gw = await uart.connect(
+        conf.SCHEMA_DEVICE(
+            {conf.CONF_DEVICE_PATH: path, conf.CONF_DEVICE_BAUDRATE: 115200}
+        ),
+        appmock,
+        use_thread=False,
+    )
+
+    assert len(protocols) == 1
+    assert protocols[0].suppress_acks is suppressed
+
+    gw.close()
+
+
+@pytest.mark.parametrize(
+    ("path", "requests_mode"),
+    [
+        ("esphome://example.com:6053/?port_name=Zigbee", True),
+        ("esphome-hass://example.com:6053/?port_name=Zigbee", True),
+        ("socket://example.com:1234", False),
+        ("/dev/serial", False),
+    ],
+)
+async def test_connect_requests_ackless_mode(path, requests_mode, monkeypatch):
+    """The mode is asked for by us, not carried in the stored path."""
+    kwargs_seen = {}
+    transport = MagicMock()
+
+    async def mockconnect(loop, protocol_factory, **kwargs):
+        kwargs_seen.update(kwargs)
+        protocol = protocol_factory()
+        loop.call_soon(protocol.connection_made, transport)
+        return transport, protocol
+
+    monkeypatch.setattr(zigpy.serial, "create_serial_connection", mockconnect)
+
+    gw = await uart.connect(
+        conf.SCHEMA_DEVICE(
+            {conf.CONF_DEVICE_PATH: path, conf.CONF_DEVICE_BAUDRATE: 115200}
+        ),
+        MagicMock(),
+        use_thread=False,
+    )
+
+    assert kwargs_seen.get("mode") == (uart.ACKLESS_MODE if requests_mode else None)
+
+    gw.close()
+
+
 @pytest.fixture
 async def gw():
     gw = uart.Gateway(MagicMock())
