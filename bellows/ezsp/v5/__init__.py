@@ -47,7 +47,7 @@ class EZSPv5(EZSPv4):
         tc_link_key = t.KeyData(b"ZigBeeAlliance09")
         await self.add_transient_link_key(wild_card_ieee, tc_link_key)
 
-    async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64], None]:
+    async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64]]:
         (status, addr_table_size) = await self.getConfigurationValue(
             t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
         )

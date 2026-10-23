@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 import zigpy.state
@@ -277,6 +277,28 @@ async def test_factory_reset(ezsp_f) -> None:
     assert ezsp_f.clearKeyTable.mock_calls == [call()]
 
 
+async def test_leave_network(ezsp_f) -> None:
+    ezsp_f.leaveNetwork.return_value = (t.EmberStatus.SUCCESS,)
+    assert await ezsp_f.leave_network() == t.sl_Status.OK
+    assert ezsp_f.leaveNetwork.mock_calls == [call()]
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        t.SlZigbeeLeaveNetworkOption.WITH_OPTION_REJOIN,
+        t.SlZigbeeLeaveNetworkOption.IS_REQUESTED,
+    ],
+)
+async def test_leave_network_options_unsupported(
+    ezsp_f, options: t.SlZigbeeLeaveNetworkOption
+) -> None:
+    with pytest.raises(ValueError):
+        await ezsp_f.leave_network(options=options)
+
+    assert ezsp_f.leaveNetwork.mock_calls == []
+
+
 async def test_send_unicast(ezsp_f) -> None:
     ezsp_f.sendUnicast.return_value = (t.EmberStatus.SUCCESS, 0x42)
     status, message_tag = await ezsp_f.send_unicast(
@@ -346,6 +368,50 @@ async def test_send_broadcast(ezsp_f) -> None:
     ]
 
 
+async def test_send_multicast_with_alias(ezsp_f) -> None:
+    with pytest.raises(NotImplementedError):
+        await ezsp_f.send_multicast(
+            aps_frame=t.EmberApsFrame(),
+            radius=12,
+            non_member_radius=34,
+            message_tag=0x42,
+            data=b"hello",
+            alias=t.NWK(0xABCD),
+            alias_seq=t.uint8_t(0x56),
+        )
+
+    assert len(ezsp_f.sendMulticast.mock_calls) == 0
+
+
+async def test_send_broadcast_with_alias(ezsp_f) -> None:
+    ezsp_f.proxyBroadcast.return_value = (t.EmberStatus.SUCCESS, 0x42)
+    status, message_tag = await ezsp_f.send_broadcast(
+        address=t.BroadcastAddress.RX_ON_WHEN_IDLE,
+        aps_frame=t.EmberApsFrame(),
+        radius=12,
+        message_tag=0x42,
+        aps_sequence=34,
+        data=b"hello",
+        alias=t.NWK(0xABCD),
+        alias_seq=t.uint8_t(0x56),
+    )
+
+    assert status == t.sl_Status.OK
+    assert message_tag == 0x42
+    assert len(ezsp_f.sendBroadcast.mock_calls) == 0
+    assert ezsp_f.proxyBroadcast.mock_calls == [
+        call(
+            source=0xABCD,
+            destination=t.BroadcastAddress.RX_ON_WHEN_IDLE,
+            nwkSequence=0x56,
+            apsFrame=t.EmberApsFrame(),
+            radius=12,
+            messageTag=0x42,
+            messageContents=b"hello",
+        )
+    ]
+
+
 async def test_source_route(ezsp_f) -> None:
     ezsp_f.setSourceRoute.return_value = (t.EmberStatus.SUCCESS,)
 
@@ -394,13 +460,11 @@ async def test_set_extended_timeout_no_entry(ezsp_f) -> None:
         t.Bool.false,
     )
 
-    with patch("bellows.ezsp.v4.random.randint") as mock_random:
-        mock_random.return_value = 0
-        await ezsp_f.set_extended_timeout(
-            nwk=0x1234,
-            ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
-            extended_timeout=True,
-        )
+    await ezsp_f.set_extended_timeout(
+        nwk=0x1234,
+        ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+        extended_timeout=True,
+    )
 
     assert ezsp_f.getExtendedTimeout.mock_calls == [
         call(remoteEui64=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"))
@@ -411,7 +475,6 @@ async def test_set_extended_timeout_no_entry(ezsp_f) -> None:
     assert ezsp_f.getConfigurationValue.mock_calls == [
         call(t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE)
     ]
-    assert mock_random.mock_calls == [call(0, 8 - 1)]
     assert ezsp_f.replaceAddressTableEntry.mock_calls == [
         call(
             addressTableIndex=0,
@@ -421,14 +484,12 @@ async def test_set_extended_timeout_no_entry(ezsp_f) -> None:
         )
     ]
 
-    # The address table size is cached
-    with patch("bellows.ezsp.v4.random.randint") as mock_random:
-        mock_random.return_value = 1
-        await ezsp_f.set_extended_timeout(
-            nwk=0x1234,
-            ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
-            extended_timeout=True,
-        )
+    # The address table size is cached and the next free slot is used
+    await ezsp_f.set_extended_timeout(
+        nwk=0x1234,
+        ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+        extended_timeout=True,
+    )
 
     # Still called only once
     assert ezsp_f.getConfigurationValue.mock_calls == [
@@ -493,19 +554,42 @@ async def test_set_extended_timeout_already_have_entry(ezsp_f) -> None:
     ]
 
 
+async def test_set_extended_timeout_table_wraps(ezsp_f) -> None:
+    # Once every slot has been used, replacement is round-robin
+    ezsp_f.getExtendedTimeout.return_value = (t.Bool.false,)
+    ezsp_f.lookupNodeIdByEui64.return_value = (0xFFFF,)
+    ezsp_f.getConfigurationValue.return_value = (t.EmberStatus.SUCCESS, 2)
+    ezsp_f.replaceAddressTableEntry.return_value = (
+        t.EmberStatus.SUCCESS,
+        t.EUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),
+        0xFFFF,
+        t.Bool.false,
+    )
+
+    for _ in range(3):
+        await ezsp_f.set_extended_timeout(
+            nwk=0x1234,
+            ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+            extended_timeout=True,
+        )
+
+    assert [
+        c.kwargs["addressTableIndex"]
+        for c in ezsp_f.replaceAddressTableEntry.mock_calls
+    ] == [0, 1, 0]
+
+
 async def test_set_extended_timeout_bad_table_size(ezsp_f) -> None:
     ezsp_f.setExtendedTimeout.return_value = ()
     ezsp_f.getExtendedTimeout.return_value = (t.Bool.false,)
     ezsp_f.lookupNodeIdByEui64.return_value = (0xFFFF,)
     ezsp_f.getConfigurationValue.return_value = (t.EmberStatus.ERR_FATAL, 0xFF)
 
-    with patch("bellows.ezsp.v4.random.randint") as mock_random:
-        mock_random.return_value = 0
-        await ezsp_f.set_extended_timeout(
-            nwk=0x1234,
-            ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
-            extended_timeout=True,
-        )
+    await ezsp_f.set_extended_timeout(
+        nwk=0x1234,
+        ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+        extended_timeout=True,
+    )
 
     assert ezsp_f.getExtendedTimeout.mock_calls == [
         call(remoteEui64=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"))
@@ -540,3 +624,8 @@ async def test_send_concurrency(ezsp_f, caplog) -> None:
     # All but the first queue up
     assert caplog.text.count("Send semaphore is locked, delaying before sending") == 3
     assert caplog.text.count("s delay") == 3
+
+
+async def test_clear_gp_tables(ezsp_f) -> None:
+    """There is no Green Power table clearing before EZSPv6."""
+    await ezsp_f.clear_gp_tables()

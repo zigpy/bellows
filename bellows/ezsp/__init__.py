@@ -17,10 +17,17 @@ import zigpy.config
 
 from bellows.ash import NcpFailure
 import bellows.config as conf
-from bellows.exception import EzspError, InvalidCommandError, InvalidCommandPayload
+from bellows.exception import (
+    EzspError,
+    InvalidCommandError,
+    InvalidCommandPayload,
+    InvalidTxPower,
+    PayloadTooLongError,
+)
 from bellows.ezsp import xncp
 from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig, ValueConfig
 from bellows.ezsp.xncp import (
+    MAX_XNCP_PAYLOAD_LENGTH,
     FirmwareFeatures,
     FlowControlType,
     GetRouteTableEntryRsp,
@@ -29,16 +36,16 @@ from bellows.ezsp.xncp import (
 import bellows.types as t
 import bellows.uart
 
-from . import v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v16, v17, v18
+from . import v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v16, v17, v18, v19
 
 RESET_ATTEMPTS = 3
 
-EZSP_LATEST = v18.EZSPv18.VERSION
+EZSP_LATEST = v19.EZSPv19.VERSION
 LOGGER = logging.getLogger(__name__)
-MTOR_MIN_INTERVAL = 60
-MTOR_MAX_INTERVAL = 3600
-MTOR_ROUTE_ERROR_THRESHOLD = 8
-MTOR_DELIVERY_FAIL_THRESHOLD = 8
+MTOR_MIN_INTERVAL = 10
+MTOR_MAX_INTERVAL = 60
+MTOR_ROUTE_ERROR_THRESHOLD = 3
+MTOR_DELIVERY_FAIL_THRESHOLD = 1
 
 UART_PROBE_TIMEOUT = 3
 NETWORK_PROBE_TIMEOUT = 7
@@ -62,6 +69,7 @@ class EZSP:
         v16.EZSPv16.VERSION: v16.EZSPv16,
         v17.EZSPv17.VERSION: v17.EZSPv17,
         v18.EZSPv18.VERSION: v18.EZSPv18,
+        v19.EZSPv19.VERSION: v19.EZSPv19,
     }
 
     def __init__(self, device_config: dict, application: Any | None = None):
@@ -309,12 +317,18 @@ class EZSP:
         0,
     )
 
-    async def leaveNetwork(self, timeout: float | int = NETWORK_OPS_TIMEOUT) -> None:
+    async def leaveNetwork(
+        self,
+        timeout: float | int = NETWORK_OPS_TIMEOUT,
+        options: t.SlZigbeeLeaveNetworkOption = (
+            t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION
+        ),
+    ) -> None:
         """Send leaveNetwork command and wait for stackStatusHandler frame."""
         stack_status = asyncio.Future()
 
         with self.wait_for_stack_status(t.sl_Status.NETWORK_DOWN) as stack_status:
-            (status,) = await self._command("leaveNetwork")
+            status = await self._protocol.leave_network(options=options)
             if status != t.sl_Status.OK:
                 raise EzspError(f"failed to leave network: {status.name}")
 
@@ -340,7 +354,12 @@ class EZSP:
         with self.wait_for_stack_status(t.sl_Status.NETWORK_UP) as stack_status:
             v = await self._command("formNetwork", parameters=parameters)
 
-            if t.sl_Status.from_ember_status(v[0]) != t.sl_Status.OK:
+            status = t.sl_Status.from_ember_status(v[0])
+
+            if status == t.sl_Status.TRANSMIT_INVALID_POWER:
+                raise InvalidTxPower(f"Failure forming network: {v}")
+
+            if status != t.sl_Status.OK:
                 raise zigpy.exceptions.FormationFailure(f"Failure forming network: {v}")
 
             async with asyncio_timeout(NETWORK_OPS_TIMEOUT):
@@ -763,7 +782,7 @@ class EZSP:
 
         LOGGER.debug("Received XNCP frame: %s", rsp_frame)
 
-        if t.sl_Status.from_ember_status(rsp_frame.status) != t.sl_Status.OK:
+        if rsp_frame.status != xncp.XncpStatus.OK:
             raise InvalidCommandError(f"XNCP response error: {rsp_frame.status}")
 
         return rsp_frame.payload
@@ -783,6 +802,46 @@ class EZSP:
                 source_route=route,
             )
         )
+
+    def xncp_prepare_unicast(
+        self,
+        destination: t.NWK,
+        aps_frame: t.EmberApsFrame,
+        message_tag: t.uint8_t,
+        data: bytes,
+        *,
+        source_route: list[t.NWK] | None = None,
+        extended_timeout: tuple[t.EUI64, bool] | None = None,
+    ) -> xncp.SendUnicastReq:
+        """Prepare a combined unicast command."""
+        flags = xncp.SendUnicastFlags.NONE
+        req = xncp.SendUnicastReq(
+            flags=flags,
+            destination=destination,
+            aps_frame=aps_frame,
+            message_tag=message_tag,
+            data=xncp.Bytes(data),
+        )
+
+        if extended_timeout is not None:
+            req.flags |= xncp.SendUnicastFlags.EXTENDED_TIMEOUT
+            req.ieee, req.extended_timeout = extended_timeout
+
+        if source_route is not None:
+            req.flags |= xncp.SendUnicastFlags.SOURCE_ROUTE
+            req.source_route = source_route
+
+        if len(req.serialize()) > MAX_XNCP_PAYLOAD_LENGTH:
+            raise PayloadTooLongError()
+
+        return req
+
+    async def xncp_send_unicast(
+        self, request: xncp.SendUnicastReq
+    ) -> tuple[t.sl_Status, t.uint8_t]:
+        """Send a combined unicast command."""
+        rsp = await self.send_xncp_frame(request)
+        return rsp.status, rsp.sequence
 
     async def xncp_get_mfg_token_override(self, token: t.EzspMfgTokenId) -> bytes:
         """Get manufacturing token override."""

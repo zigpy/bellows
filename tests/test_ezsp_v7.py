@@ -1,8 +1,9 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import pytest
 
 from bellows.ash import DataFrame
+from bellows.exception import InvalidCommandError
 import bellows.ezsp.v7
 import bellows.types as t
 
@@ -61,3 +62,19 @@ async def test_read_child_data(ezsp_f):
             t.EmberNodeType.SLEEPY_END_DEVICE,
         )
     ]
+
+
+async def test_clear_gp_tables(ezsp_f) -> None:
+    ezsp_f.gpSinkTableClearAll.return_value = []
+
+    await ezsp_f.clear_gp_tables()
+
+    assert ezsp_f.gpSinkTableClearAll.mock_calls == [call()]
+
+
+async def test_clear_gp_tables_unsupported(ezsp_f, caplog) -> None:
+    ezsp_f.gpSinkTableClearAll.side_effect = InvalidCommandError("No GP")
+
+    await ezsp_f.clear_gp_tables()
+
+    assert "no Green Power sink table" in caplog.text

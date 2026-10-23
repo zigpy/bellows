@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Iterable
 import logging
-import random
 
 import voluptuous as vol
 import zigpy.state
@@ -47,7 +46,7 @@ class EZSPv4(protocol.ProtocolHandler):
 
     async def read_child_data(
         self,
-    ) -> AsyncGenerator[tuple[t.NWK, t.EUI64, t.EmberNodeType], None]:
+    ) -> AsyncGenerator[tuple[t.NWK, t.EUI64, t.EmberNodeType]]:
         for idx in range(0, 255 + 1):
             (status, nwk, eui64, node_type) = await self.getChildData(index=idx)
             status = t.sl_Status.from_ember_status(status)
@@ -57,7 +56,7 @@ class EZSPv4(protocol.ProtocolHandler):
 
             yield nwk, eui64, node_type
 
-    async def read_link_keys(self) -> AsyncGenerator[zigpy.state.Key, None]:
+    async def read_link_keys(self) -> AsyncGenerator[zigpy.state.Key]:
         (status, key_table_size) = await self.getConfigurationValue(
             t.EzspConfigId.CONFIG_KEY_TABLE_SIZE
         )
@@ -74,7 +73,7 @@ class EZSPv4(protocol.ProtocolHandler):
             assert t.sl_Status.from_ember_status(status) == t.sl_Status.OK
             yield ezsp_key_to_zigpy_key(key)
 
-    async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64], None]:
+    async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64]]:
         # v4 can crash when getAddressTableRemoteNodeId(32) is received: undefined_0x8a
         # We need this function to be an async generator even if it does nothing
         if False:
@@ -124,8 +123,24 @@ class EZSPv4(protocol.ProtocolHandler):
         )
         return t.sl_Status.from_ember_status(init_status)
 
+    async def clear_gp_tables(self) -> None:
+        # No Green Power table clearing before EZSPv6
+        pass
+
     async def factory_reset(self) -> None:
         await self.clearKeyTable()
+
+    async def leave_network(
+        self,
+        options: t.SlZigbeeLeaveNetworkOption = (
+            t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION
+        ),
+    ) -> t.sl_Status:
+        if options != t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION:
+            raise ValueError(f"Leave options are not supported: {options!r}")
+
+        (status,) = await self.leaveNetwork()
+        return t.sl_Status.from_ember_status(status)
 
     async def send_unicast(
         self,
@@ -151,7 +166,13 @@ class EZSPv4(protocol.ProtocolHandler):
         non_member_radius: t.uint8_t,
         message_tag: t.uint8_t,
         data: bytes,
+        alias: t.NWK | None = None,
+        alias_seq: t.uint8_t | None = None,
     ) -> tuple[t.sl_Status, t.uint8_t]:
+        if alias is not None:
+            # TODO: `sendMulticastWithAlias`, from EZSPv6
+            raise NotImplementedError("Aliased multicasts are not supported")
+
         status, sequence = await self.sendMulticast(
             apsFrame=aps_frame,
             hops=radius,
@@ -170,8 +191,23 @@ class EZSPv4(protocol.ProtocolHandler):
         message_tag: t.uint8_t,
         aps_sequence: t.uint8_t,
         data: bytes,
+        alias: t.NWK | None = None,
+        alias_seq: t.uint8_t | None = None,
     ) -> tuple[t.sl_Status, t.uint8_t]:
         # `aps_sequence` is not used
+
+        if alias is not None:
+            status, sequence = await self.proxyBroadcast(
+                source=t.EmberNodeId(alias),
+                destination=address,
+                nwkSequence=t.uint8_t(0 if alias_seq is None else alias_seq),
+                apsFrame=aps_frame,
+                radius=radius,
+                messageTag=message_tag,
+                messageContents=data,
+            )
+
+            return t.sl_Status.from_ember_status(status), sequence
 
         status, sequence = await self.sendBroadcast(
             destination=address,
@@ -195,18 +231,30 @@ class EZSPv4(protocol.ProtocolHandler):
         (res,) = await self.readAndClearCounters()
         return dict(zip(t.EmberCounterType, res, strict=False))
 
+    async def _get_extended_timeout(self, ieee: t.EUI64) -> bool:
+        (extended_timeout,) = await self.getExtendedTimeout(remoteEui64=ieee)
+        return extended_timeout
+
+    async def _lookup_node_id_by_eui64(self, ieee: t.EUI64) -> t.NWK | None:
+        (node_id,) = await self.lookupNodeIdByEui64(eui64=ieee)
+
+        if node_id == 0xFFFF:
+            return None
+
+        return node_id
+
     async def set_extended_timeout(
         self, nwk: t.NWK, ieee: t.EUI64, extended_timeout: bool = True
     ) -> None:
-        (curr_extended_timeout,) = await self.getExtendedTimeout(remoteEui64=ieee)
+        curr_extended_timeout = await self._get_extended_timeout(ieee)
 
         if curr_extended_timeout == extended_timeout:
             return
 
-        (node_id,) = await self.lookupNodeIdByEui64(eui64=ieee)
+        node_id = await self._lookup_node_id_by_eui64(ieee)
 
-        # Check to see if we have an address table entry
-        if node_id != 0xFFFF:
+        # The stack already knows the node ID (child, neighbor, or address table)
+        if node_id is not None:
             await self.setExtendedTimeout(
                 remoteEui64=ieee, extendedTimeout=extended_timeout
             )
@@ -217,17 +265,22 @@ class EZSPv4(protocol.ProtocolHandler):
                 t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
             )
 
-            if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
-                # Last-ditch effort
-                await self.setExtendedTimeout(
-                    remoteEui64=ieee, extendedTimeout=extended_timeout
-                )
-                return
+            if t.sl_Status.from_ember_status(status) == t.sl_Status.OK:
+                self._address_table_size = addr_table_size
 
-            self._address_table_size = addr_table_size
+        if not self._address_table_size:
+            # Last-ditch effort, there is no address table to use
+            await self.setExtendedTimeout(
+                remoteEui64=ieee, extendedTimeout=extended_timeout
+            )
+            return
 
-        # Replace a random entry in the address table
-        index = random.randint(0, self._address_table_size - 1)
+        # The stack only updates existing entries and never allocates application slots
+        # and bellows allocates them only here. Filling the table in order thus uses
+        # every free slot before replacing anything; once it wraps, replacement is
+        # round-robin.
+        index = self._address_table_cursor
+        self._address_table_cursor = (index + 1) % self._address_table_size
 
         await self.replaceAddressTableEntry(
             addressTableIndex=index,

@@ -39,7 +39,7 @@ class EZSPv13(EZSPv12):
 
         return t.sl_Status.from_ember_status(status)
 
-    async def read_link_keys(self) -> AsyncGenerator[zigpy.state.Key, None]:
+    async def read_link_keys(self) -> AsyncGenerator[zigpy.state.Key]:
         (status, key_table_size) = await self.getConfigurationValue(
             configId=t.EzspConfigId.CONFIG_KEY_TABLE_SIZE
         )

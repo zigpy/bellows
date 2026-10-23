@@ -22,6 +22,7 @@ import zigpy.state
 import zigpy.types
 import zigpy.util
 import zigpy.zdo.types as zdo_t
+import zigpy.zgp.types as zgp_t
 
 import bellows
 from bellows.config import (
@@ -36,6 +37,8 @@ from bellows.exception import (
     ControllerError,
     EzspError,
     InvalidCommandError,
+    InvalidTxPower,
+    PayloadTooLongError,
     StackAlreadyRunning,
 )
 import bellows.ezsp
@@ -77,6 +80,23 @@ DEFAULT_TX_POWER = 8  # dBm
 
 LIB_VERSION = importlib.metadata.version("bellows")
 LOGGER = logging.getLogger(__name__)
+
+GP_SECURITY_STATUSES = {
+    # The NCP reports a GPDF it authenticated itself as `SUCCESS`, not `MATCH`
+    (t.EmberStatus, t.EmberStatus.SUCCESS): zgp_t.SecurityStatus.SecuritySuccess,
+    (t.EmberStatus, t.EmberStatus.MATCH): zgp_t.SecurityStatus.SecuritySuccess,
+    (t.EmberStatus, t.EmberStatus.PASS_UNPROCESSED): zgp_t.SecurityStatus.Unprocessed,
+    (t.EmberStatus, t.EmberStatus.NO_SECURITY): zgp_t.SecurityStatus.NoSecurity,
+    (t.EmberStatus, t.EmberStatus.COUNTER_FAILURE): zgp_t.SecurityStatus.CounterFailure,
+    (t.EmberStatus, t.EmberStatus.AUTH_FAILURE): zgp_t.SecurityStatus.AuthFailure,
+    (t.EmberStatus, t.EmberStatus.UNPROCESSED): zgp_t.SecurityStatus.Unprocessed,
+    (t.sl_GpStatus, t.sl_GpStatus.OK): zgp_t.SecurityStatus.SecuritySuccess,
+    (t.sl_GpStatus, t.sl_GpStatus.MATCH): zgp_t.SecurityStatus.SecuritySuccess,
+    (t.sl_GpStatus, t.sl_GpStatus.UNPROCESSED): zgp_t.SecurityStatus.Unprocessed,
+    (t.sl_GpStatus, t.sl_GpStatus.PASS_UNPROCESSED): zgp_t.SecurityStatus.Unprocessed,
+    (t.sl_GpStatus, t.sl_GpStatus.NO_SECURITY): zgp_t.SecurityStatus.NoSecurity,
+    (t.sl_GpStatus, t.sl_GpStatus.AUTH_FAILURE): zgp_t.SecurityStatus.AuthFailure,
+}
 
 
 class ControllerApplication(zigpy.application.ControllerApplication):
@@ -563,7 +583,23 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         parameters.nwkUpdateId = t.uint8_t(network_info.nwk_update_id)
         parameters.channels = t.Channels(network_info.channel_mask)
 
-        await ezsp.formNetwork(parameters=parameters)
+        try:
+            await ezsp.formNetwork(parameters=parameters)
+        except InvalidTxPower:
+            if parameters.radioTxPower == DEFAULT_TX_POWER:
+                raise
+
+            # The TX power in a backup comes from the radio that created it and older
+            # radios reject values they do not support. The TX power is adjusted again
+            # on startup so it is safe to form the network with the default.
+            LOGGER.warning(
+                "Radio does not support TX power %d dBm, using default of %d dBm",
+                parameters.radioTxPower,
+                DEFAULT_TX_POWER,
+            )
+            await ezsp.formNetwork(
+                parameters=parameters.replace(radioTxPower=t.uint8_t(DEFAULT_TX_POWER))
+            )
 
         # Write NWK update ID to NVRAM after network formation. This is needed because
         # formNetwork() appears to ignore or reset the nwkUpdateId field
@@ -587,6 +623,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def reset_network_info(self):
         await self._ezsp.factory_reset()
+
+        # Green Power tables left by another stack would make the NCP forward and
+        # security process GPDFs on its own, zigpy keeps the Sink Table itself
+        await self._ezsp.clear_gp_tables()
 
         # Reset the custom EUI64
         await self._ezsp.reset_custom_eui64()
@@ -656,6 +696,38 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 binding_index=binding_index,
                 address_index=address_index,
                 message=message,
+            )
+        elif frame_name == "gpepIncomingMessageHandler":
+            (
+                status,
+                gpdLink,
+                sequenceNumber,
+                addr,
+                gpdfSecurityLevel,
+                gpdfSecurityKeyType,
+                autoCommissioning,
+                bidirectionalInfo,
+                gpdSecurityFrameCounter,
+                gpdCommandId,
+                mic,
+                proxyTableIndex,
+                gpdCommandPayload,
+            ) = args
+
+            self._handle_gp_frame(
+                status,
+                gpdLink,
+                sequenceNumber,
+                addr,
+                gpdfSecurityLevel,
+                gpdfSecurityKeyType,
+                autoCommissioning,
+                bidirectionalInfo,
+                gpdSecurityFrameCounter,
+                gpdCommandId,
+                mic,
+                proxyTableIndex,
+                gpdCommandPayload,
             )
         elif frame_name == "messageSentHandler":
             if self._ezsp.ezsp_version >= 14:
@@ -728,6 +800,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             LOGGER.debug("Ignoring message type: %r", message_type)
             return
 
+        tx_options = zigpy.types.TransmitOptions.NONE
+
+        if t.EmberApsOption.APS_OPTION_ENCRYPTION in aps_frame.options:
+            tx_options |= zigpy.types.TransmitOptions.APS_Encryption
+
         self.packet_received(
             zigpy.types.ZigbeePacket(
                 src=zigpy.types.AddrModeAddress(
@@ -741,8 +818,99 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 profile_id=aps_frame.profileId,
                 cluster_id=aps_frame.clusterId,
                 data=zigpy.types.SerializableBytes(message),
+                tx_options=tx_options,
                 lqi=lqi,
                 rssi=rssi,
+            )
+        )
+
+    def _handle_gp_frame(
+        self,
+        status: t.sl_GpStatus,
+        gpd_link: zgp_t.GPPGPDLink,
+        sequence_number: t.uint8_t,
+        addr: t.EmberGpAddress,
+        gpdf_security_level: t.EmberGpSecurityLevel,
+        gpdf_security_key_type: t.EmberGpKeyType,
+        auto_commissioning: t.Bool,
+        bidirectional_info: t.EmberGpBidirectionalInfo,
+        gpd_security_frame_counter: t.uint32_t,
+        gpd_command_id: t.uint8_t,
+        mic: t.uint32_t,
+        proxy_table_index: t.uint8_t,
+        gpd_command_payload: t.LVBytes,
+    ) -> None:
+        security_status = GP_SECURITY_STATUSES[type(status), status]
+
+        if security_status in (
+            zgp_t.SecurityStatus.AuthFailure,
+            zgp_t.SecurityStatus.CounterFailure,
+        ):
+            LOGGER.debug(
+                "Dropping GP frame that failed security processing: %s", status
+            )
+            return
+
+        security_level = zgp_t.SecurityLevel(gpdf_security_level)
+        unprocessed = security_status is zgp_t.SecurityStatus.Unprocessed
+
+        self.gp_packet_received(
+            zigpy.types.ZigbeeGpPacket(
+                application_id=zgp_t.ApplicationID(addr.applicationId),
+                src_id=(
+                    addr.source_id
+                    if addr.applicationId == zgp_t.ApplicationID.SrcID
+                    else None
+                ),
+                ieee=(
+                    addr.gpd_eui64
+                    if addr.applicationId == zgp_t.ApplicationID.IEEE
+                    else None
+                ),
+                # The endpoint is only sent by the NCP for IEEE-addressed GPDs
+                endpoint=(
+                    addr.endpoint
+                    if addr.applicationId == zgp_t.ApplicationID.IEEE
+                    else None
+                ),
+                command_id=zgp_t.GPDCommandID(gpd_command_id),
+                payload=zigpy.types.SerializableBytes(gpd_command_payload),
+                # An unprotected GPDF has no security frame counter and the NCP reports
+                # 0xFFFFFFFF, its MAC sequence number takes the place (A.3.3.4.1)
+                frame_counter=(
+                    t.uint32_t(sequence_number)
+                    if security_level is zgp_t.SecurityLevel.NoSecurity
+                    else gpd_security_frame_counter
+                ),
+                security_level=security_level,
+                # The NCP only knows the key type if it performed the security
+                # processing itself (spec Table 5). Otherwise this field carries the
+                # 1-bit `SecurityKey` sub-field off the air, which is not a key type:
+                # an `IndividualKey` GPD shows up here as `NWKKey`. An unprotected GPDF
+                # has no key, which zigpy expects as `NoKey`.
+                security_key_type=(
+                    zgp_t.SecurityKeyType(gpdf_security_key_type)
+                    if security_status is zgp_t.SecurityStatus.SecuritySuccess
+                    else (
+                        zgp_t.SecurityKeyType.NoKey
+                        if security_status is zgp_t.SecurityStatus.NoSecurity
+                        else None
+                    )
+                ),
+                security_status=security_status,
+                # A GPDF the NCP did not process is verified and decrypted by zigpy,
+                # which needs the MIC and the header fields it authenticates
+                mic=mic if unprocessed else None,
+                auto_commissioning=bool(auto_commissioning),
+                rx_after_tx=(
+                    t.EmberGpBidirectionalInfo.RX_AFTER_TX in bidirectional_info
+                ),
+                individual_key=bool(gpdf_security_key_type) if unprocessed else None,
+                # The NCP quantizes the LQI into the two-bit link quality of the GPP-GPD
+                # link field with the link cost thresholds of the stack (<48, <64, <80,
+                # and above), so only the band is known. Report its upper bound.
+                lqi=[47, 63, 79, 255][gpd_link.link_quality],
+                rssi=gpd_link.rssi_dbm,
             )
         )
 
@@ -1007,6 +1175,21 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         else:
             aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
 
+        if zigpy.types.TransmitOptions.APS_Encryption in packet.tx_options:
+            aps_frame.options |= t.EmberApsOption.APS_OPTION_ENCRYPTION
+
+        if packet.alias_src is not None:
+            if packet.dst.addr_mode not in (
+                zigpy.types.AddrMode.Group,
+                zigpy.types.AddrMode.Broadcast,
+            ):
+                raise ValueError(
+                    f"Only broadcasts and multicasts can be sent with an alias: {packet}"
+                )
+
+            # The alias NWK sequence number is also the APS counter
+            aps_frame.options |= t.EmberApsOption.APS_OPTION_USE_ALIAS_SEQUENCE_NUMBER
+
         extended_timeout = packet.extended_timeout
 
         # EmberZNet requires retrying to enable APS ACKs
@@ -1032,45 +1215,87 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
             try:
                 async with self._req_lock:
-                    if packet.dst.addr_mode == zigpy.types.AddrMode.NWK:
-                        if device is not None:
-                            await self._ezsp.set_extended_timeout(
-                                nwk=device.nwk,
-                                ieee=device.ieee,
-                                extended_timeout=extended_timeout,
-                            )
+                    data = packet.data.serialize()
 
-                        if packet.source_route is not None:
-                            if (
+                    if packet.dst.addr_mode == zigpy.types.AddrMode.NWK:
+                        # Manual source routes are installed through XNCP; native
+                        # source routes cannot be folded into the combined command
+                        use_manual_source_route = (
+                            packet.source_route is not None
+                            and (
                                 FirmwareFeatures.MANUAL_SOURCE_ROUTE
                                 in self._ezsp._xncp_features
-                                and self.config[CONF_BELLOWS_CONFIG][
-                                    CONF_MANUAL_SOURCE_ROUTING
-                                ]
-                            ):
-                                await self._ezsp.xncp_set_manual_source_route(
-                                    nwk=packet.dst.address,
-                                    relays=packet.source_route,
+                            )
+                            and self.config[CONF_BELLOWS_CONFIG][
+                                CONF_MANUAL_SOURCE_ROUTING
+                            ]
+                        )
+
+                        # XNCP combined unicasts can fail in a few ways so it's simpler
+                        # to prepare the request in advance
+                        xncp_unicast = None
+
+                        if (
+                            FirmwareFeatures.COMBINED_SEND in self._ezsp._xncp_features
+                            and (packet.source_route is None or use_manual_source_route)
+                        ):
+                            try:
+                                xncp_unicast = self._ezsp.xncp_prepare_unicast(
+                                    destination=packet.dst.address,
+                                    aps_frame=aps_frame,
+                                    message_tag=message_tag,
+                                    data=data,
+                                    source_route=(
+                                        packet.source_route
+                                        if use_manual_source_route
+                                        else None
+                                    ),
+                                    extended_timeout=(
+                                        (device.ieee, extended_timeout)
+                                        if device is not None
+                                        else None
+                                    ),
                                 )
-                            else:
-                                await self._ezsp.set_source_route(
-                                    nwk=packet.dst.address,
-                                    relays=packet.source_route,
+                            except PayloadTooLongError:
+                                xncp_unicast = None
+
+                        if xncp_unicast is not None:
+                            status, _ = await self._ezsp.xncp_send_unicast(xncp_unicast)
+                        else:
+                            if device is not None:
+                                await self._ezsp.set_extended_timeout(
+                                    nwk=device.nwk,
+                                    ieee=device.ieee,
+                                    extended_timeout=extended_timeout,
                                 )
 
-                        status, _ = await self._ezsp.send_unicast(
-                            nwk=packet.dst.address,
-                            aps_frame=aps_frame,
-                            message_tag=message_tag,
-                            data=packet.data.serialize(),
-                        )
+                            if packet.source_route is not None:
+                                if use_manual_source_route:
+                                    await self._ezsp.xncp_set_manual_source_route(
+                                        destination=packet.dst.address,
+                                        route=packet.source_route,
+                                    )
+                                else:
+                                    await self._ezsp.set_source_route(
+                                        nwk=packet.dst.address,
+                                        relays=packet.source_route,
+                                    )
+
+                            status, _ = await self._ezsp.send_unicast(
+                                nwk=packet.dst.address,
+                                aps_frame=aps_frame,
+                                message_tag=message_tag,
+                                data=data,
+                            )
                     elif packet.dst.addr_mode == zigpy.types.AddrMode.Group:
                         status, _ = await self._ezsp.send_multicast(
                             aps_frame=aps_frame,
                             radius=packet.radius,
                             non_member_radius=packet.non_member_radius,
                             message_tag=message_tag,
-                            data=packet.data.serialize(),
+                            data=data,
+                            alias=packet.alias_src,
+                            alias_seq=packet.alias_seq,
                         )
                     elif packet.dst.addr_mode == zigpy.types.AddrMode.Broadcast:
                         status, _ = await self._ezsp.send_broadcast(
@@ -1079,7 +1304,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                             radius=packet.radius,
                             message_tag=message_tag,
                             aps_sequence=packet.tsn,
-                            data=packet.data.serialize(),
+                            data=data,
+                            alias=packet.alias_src,
+                            alias_seq=packet.alias_seq,
                         )
 
                 if status != t.sl_Status.OK:
@@ -1137,6 +1364,24 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             )
 
         return await super().permit(time_s)
+
+    async def _subscribe_to_multicast_group(
+        self, group_id: zigpy.types.Group, endpoint_id: int
+    ) -> None:
+        """Ask the coordinator firmware to subscribe to a group, if needed."""
+        if self._multicast is None:
+            return None
+
+        await self._multicast.subscribe(group_id=group_id, endpoint_id=endpoint_id)
+
+    async def _unsubscribe_from_multicast_group(
+        self, group_id: zigpy.types.Group, endpoint_id: int
+    ) -> None:
+        """Ask the coordinator firmware to unsubscribe from a group, if needed."""
+        if self._multicast is None:
+            return None
+
+        await self._multicast.unsubscribe(group_id=group_id, endpoint_id=endpoint_id)
 
     def _handle_id_conflict(self, nwk: t.EmberNodeId) -> None:
         LOGGER.warning("NWK conflict is reported for 0x%04x", nwk)

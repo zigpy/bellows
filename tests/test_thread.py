@@ -29,6 +29,37 @@ async def test_thread_start(monkeypatch):
     assert loopmock.close.call_count == 1
 
 
+async def test_thread_clears_loop_before_closing(monkeypatch):
+    """`self.loop` is cleared before the loop is closed, so it never names a closed loop."""
+    thread = EventLoopThread()
+    real_new_event_loop = asyncio.new_event_loop
+    loop_at_close = mock.sentinel.close_not_called
+
+    def new_event_loop():
+        loop = real_new_event_loop()
+        real_close = loop.close
+
+        def close():
+            nonlocal loop_at_close
+            loop_at_close = thread.loop
+            real_close()
+
+        loop.close = close
+        return loop
+
+    monkeypatch.setattr(asyncio, "new_event_loop", new_event_loop)
+
+    thread_complete = await thread.start()
+    thread.force_stop()
+    async with asyncio_timeout(1):
+        await thread_complete
+
+    assert loop_at_close is None
+    assert thread.loop is None
+
+    [t.join(1) for t in threading.enumerate() if "bellows" in t.name]
+
+
 class ExceptionCollector:
     def __init__(self):
         self.exceptions = []

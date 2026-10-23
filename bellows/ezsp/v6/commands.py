@@ -186,12 +186,12 @@ COMMANDS = {
     "sendMulticastWithAlias": (
         0x3A,
         {
-            "hops": t.EmberApsFrame,
+            "apsFrame": t.EmberApsFrame,
+            "hops": t.uint8_t,
             "nonmemberRadius": t.uint8_t,
-            "alias": t.uint8_t,
-            "nwkSequence": t.uint16_t,
+            "alias": t.EmberNodeId,
+            "nwkSequence": t.uint8_t,
             "messageTag": t.uint8_t,
-            "messageLength": t.uint8_t,
             "messageContents": t.LVBytes,
         },
         {

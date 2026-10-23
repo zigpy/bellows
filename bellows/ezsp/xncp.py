@@ -7,9 +7,12 @@ import logging
 
 import zigpy.types as t
 
-from bellows.types import EmberStatus, EzspMfgTokenId, RouteRecordStatus
+from bellows.types import EmberApsFrame, EzspMfgTokenId, RouteRecordStatus, sl_Status
 
 _LOGGER = logging.getLogger(__name__)
+
+MAX_XNCP_FRAME_LENGTH = 119
+MAX_XNCP_PAYLOAD_LENGTH = MAX_XNCP_FRAME_LENGTH - 3  # u16 + u8
 
 COMMANDS: dict[XncpCommandId, type[XncpCommandPayload]] = {}
 REV_COMMANDS: dict[type[XncpCommandPayload], XncpCommandId] = {}
@@ -43,6 +46,7 @@ class XncpCommandId(t.enum16):
     SET_ROUTE_TABLE_ENTRY_REQ = 0x0006
     GET_ROUTE_TABLE_ENTRY_REQ = 0x0007
     GET_TX_POWER_INFO_REQ = 0x0008
+    SEND_UNICAST_REQ = 0x0009
 
     GET_SUPPORTED_FEATURES_RSP = GET_SUPPORTED_FEATURES_REQ | 0x8000
     SET_SOURCE_ROUTE_RSP = SET_SOURCE_ROUTE_REQ | 0x8000
@@ -53,28 +57,50 @@ class XncpCommandId(t.enum16):
     SET_ROUTE_TABLE_ENTRY_RSP = SET_ROUTE_TABLE_ENTRY_REQ | 0x8000
     GET_ROUTE_TABLE_ENTRY_RSP = GET_ROUTE_TABLE_ENTRY_REQ | 0x8000
     GET_TX_POWER_INFO_RSP = GET_TX_POWER_INFO_REQ | 0x8000
+    SEND_UNICAST_RSP = SEND_UNICAST_REQ | 0x8000
 
     UNKNOWN = 0xFFFF
+
+
+class XncpStatus(t.enum8):
+    """Status byte of an XNCP frame.
+
+    The firmware types this byte as the SDK's native status type: an `EmberStatus` in
+    Gecko SDK 4.x builds, the low octet of an `sl_status_t` in Simplicity SDK builds.
+    The values current firmware emits happen not to overlap, so both encodings fit
+    into one enum, but only `OK` (zero under either) is relied upon: every other value
+    is treated as an opaque failure.
+    """
+
+    OK = 0x00
+
+    # Gecko SDK 4.x: `EmberStatus`
+    EMBER_BAD_ARGUMENT = 0x02
+    EMBER_NOT_FOUND = 0x03
+
+    # Simplicity SDK: low octet of an `sl_status_t`
+    SL_STATUS_INVALID_PARAMETER = 0x21
+    SL_STATUS_NOT_FOUND = 0x2D
 
 
 @dataclasses.dataclass
 class XncpCommand:
     command_id: XncpCommandId
-    status: EmberStatus
+    status: XncpStatus
     payload: XncpCommandPayload
 
     @classmethod
     def from_payload(cls, payload: XncpCommandPayload) -> XncpCommand:
         return cls(
             command_id=REV_COMMANDS[type(payload)],
-            status=EmberStatus.SUCCESS,
+            status=XncpStatus.OK,
             payload=payload,
         )
 
     @classmethod
     def from_bytes(cls, data: bytes) -> XncpCommand:
         command_id, data = XncpCommandId.deserialize(data)
-        status, data = EmberStatus.deserialize(data)
+        status, data = XncpStatus.deserialize(data)
 
         if command_id not in COMMANDS:
             raise ValueError(
@@ -122,6 +148,10 @@ class FirmwareFeatures(t.bitmap32):
 
     # Recommended and maximum TX power can be queried by country code
     TX_POWER_INFO = 1 << 7
+
+    # A unicast can be sent, its source route and extended timeout applied, in a
+    # single command
+    COMBINED_SEND = 1 << 8
 
 
 class XncpCommandPayload(t.Struct):
@@ -231,6 +261,43 @@ class GetTxPowerInfoReq(XncpCommandPayload):
 class GetTxPowerInfoRsp(XncpCommandPayload):
     recommended_power_dbm: t.int8s
     max_power_dbm: t.int8s
+
+
+class SendUnicastFlags(t.bitmap8):
+    NONE = 0
+
+    # The extended timeout for the destination should be set before sending
+    EXTENDED_TIMEOUT = 1 << 0
+
+    # A manual source route should be installed before sending
+    SOURCE_ROUTE = 1 << 1
+
+
+@register_command(XncpCommandId.SEND_UNICAST_REQ)
+class SendUnicastReq(XncpCommandPayload):
+    flags: SendUnicastFlags
+    destination: t.NWK
+    aps_frame: EmberApsFrame
+    message_tag: t.uint8_t
+
+    ieee: t.EUI64 = t.StructField(
+        requires=lambda s: SendUnicastFlags.EXTENDED_TIMEOUT in s.flags
+    )
+    extended_timeout: t.Bool = t.StructField(
+        requires=lambda s: SendUnicastFlags.EXTENDED_TIMEOUT in s.flags
+    )
+
+    source_route: t.LVList[t.NWK, t.uint8_t] = t.StructField(
+        requires=lambda s: SendUnicastFlags.SOURCE_ROUTE in s.flags
+    )
+
+    data: Bytes
+
+
+@register_command(XncpCommandId.SEND_UNICAST_RSP)
+class SendUnicastRsp(XncpCommandPayload):
+    status: sl_Status
+    sequence: t.uint8_t
 
 
 @register_command(XncpCommandId.UNKNOWN)
