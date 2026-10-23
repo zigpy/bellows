@@ -927,6 +927,7 @@ async def test_send_packet_unicast_source_route(make_app, packet):
         options=(
             t.EmberApsOption.APS_OPTION_RETRY
             | t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
         ),
     )
 
@@ -957,6 +958,7 @@ async def test_send_packet_unicast_manual_source_route(make_app, packet):
         options=(
             t.EmberApsOption.APS_OPTION_RETRY
             | t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
         ),
     )
 
@@ -1074,6 +1076,7 @@ async def test_send_packet_unicast_combined_manual_source_route(make_app, packet
         options=(
             t.EmberApsOption.APS_OPTION_RETRY
             | t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
         ),
     )
 
@@ -1096,6 +1099,7 @@ async def test_send_packet_unicast_combined_native_source_route_fallback(
         options=(
             t.EmberApsOption.APS_OPTION_RETRY
             | t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
         ),
     )
 
