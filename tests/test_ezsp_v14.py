@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, call
 
 import pytest
 import zigpy.exceptions
@@ -722,22 +722,19 @@ async def test_set_extended_timeout_no_entry(ezsp_f, lookup_rsp: tuple) -> None:
         t.Bool.false,
     )
 
-    with patch("bellows.ezsp.v4.random.randint") as mock_random:
-        mock_random.return_value = 3
-        await ezsp_f.set_extended_timeout(
-            nwk=0x1234,
-            ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
-            extended_timeout=True,
-        )
+    await ezsp_f.set_extended_timeout(
+        nwk=0x1234,
+        ieee=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
+        extended_timeout=True,
+    )
 
     assert ezsp_f.setExtendedTimeout.mock_calls == []
     assert ezsp_f.getConfigurationValue.mock_calls == [
         call(t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE)
     ]
-    assert mock_random.mock_calls == [call(0, 8 - 1)]
     assert ezsp_f.replaceAddressTableEntry.mock_calls == [
         call(
-            addressTableIndex=3,
+            addressTableIndex=0,
             newEui64=t.EUI64.convert("aa:bb:cc:dd:ee:ff:00:11"),
             newId=0x1234,
             newExtendedTimeout=True,
