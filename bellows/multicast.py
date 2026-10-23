@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from bellows import types as t
@@ -14,6 +15,9 @@ class Multicast:
             tuple[int, int], tuple[t.EmberMulticastTableEntry, int]
         ] = {}
         self._available = set()
+        # The cache is only updated after the firmware write completes, so concurrent
+        # calls for the same group would otherwise each claim a table slot
+        self._lock = asyncio.Lock()
 
     async def _initialize(self) -> None:
         self._multicast = {}
@@ -77,6 +81,10 @@ class Multicast:
         return status, entry
 
     async def subscribe(self, group_id: int, endpoint_id: int = 1) -> t.sl_Status:
+        async with self._lock:
+            return await self._subscribe(group_id, endpoint_id)
+
+    async def _subscribe(self, group_id: int, endpoint_id: int) -> t.sl_Status:
         if (group_id, endpoint_id) in self._multicast:
             LOGGER.debug("%s is already subscribed", t.EmberMulticastId(group_id))
             return t.sl_Status.OK
@@ -99,6 +107,10 @@ class Multicast:
         return status
 
     async def unsubscribe(self, group_id: int, endpoint_id: int = 1) -> t.sl_Status:
+        async with self._lock:
+            return await self._unsubscribe(group_id, endpoint_id)
+
+    async def _unsubscribe(self, group_id: int, endpoint_id: int) -> t.sl_Status:
         try:
             _entry, idx = self._multicast[group_id, endpoint_id]
         except KeyError:
