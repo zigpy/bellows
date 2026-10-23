@@ -28,7 +28,7 @@ def tone(ctx, channel, power):
         if start_time:
             duration = time.time() - start_time
             click.echo(
-                "\nStreamed on channel %d for %0.2fs" % (channel, duration), err=True
+                f"\nStreamed on channel {channel:d} for {duration:0.2f}s", err=True
             )
     finally:
         if "ezsp" in ctx.obj:

@@ -43,8 +43,9 @@ async def join(ctx, channels, pan_id, extended_pan_id):
         scan_type = t.EzspNetworkScanType.ACTIVE_SCAN
         channel_mask = util.channel_mask(channels)
         click.echo(
-            "PAN not provided, scanning channels %s..."
-            % (" ".join(map(str, channels)),)
+            "PAN not provided, scanning channels {}...".format(
+                " ".join(map(str, channels))
+            )
         )
         v = await s.startScan(scan_type, channel_mask, 3)
 
@@ -64,10 +65,7 @@ async def join(ctx, channels, pan_id, extended_pan_id):
 
         click.echo(f"Found network {pan_id} {extended_pan_id} on channel {channel}")
 
-    if pan_id is None:
-        pan_id = t.uint16_t(0)
-    else:
-        pan_id = t.uint16_t(pan_id)
+    pan_id = t.uint16_t(0) if pan_id is None else t.uint16_t(pan_id)
     if isinstance(extended_pan_id, str):
         extended_pan_id = util.parse_epan(extended_pan_id)
     if extended_pan_id is None:

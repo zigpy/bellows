@@ -8,6 +8,7 @@ from unittest.mock import ANY, AsyncMock, MagicMock, call, patch
 
 import pytest
 import zigpy.config
+import zigpy.exceptions
 
 from bellows import config, uart
 from bellows.ash import NcpFailure
@@ -142,11 +143,11 @@ async def test_list_command_initial_failure():
 
     async def mockcommand(name, *args, **kwargs):
         assert name == "startScan"
-        return [t.EmberStatus.FAILURE]
+        return [t.EmberStatus.ERR_FATAL]
 
     ezsp._command = mockcommand
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="ERR_FATAL"):
         await ezsp._list_command(
             "startScan",
             ["networkFoundHandler"],
@@ -168,7 +169,7 @@ async def test_list_command_later_failure():
 
     ezsp._command = mockcommand
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="ERR_FATAL"):
         await ezsp._list_command(
             "startScan",
             ["networkFoundHandler"],
@@ -197,8 +198,8 @@ async def test_form_network():
 async def test_form_network_fail():
     ezsp = await make_connected_ezsp(version=4)
 
-    with pytest.raises(Exception):
-        await _test_form_network(ezsp, [t.EmberStatus.FAILURE], b"\x90")
+    with pytest.raises(zigpy.exceptions.FormationFailure):
+        await _test_form_network(ezsp, [t.EmberStatus.ERR_FATAL], b"\x90")
 
 
 @pytest.mark.parametrize(
@@ -215,7 +216,7 @@ async def test_form_network_fail_invalid_tx_power(status):
 async def test_form_network_fail_stack_status():
     ezsp = await make_connected_ezsp(version=4)
 
-    with pytest.raises(Exception):
+    with pytest.raises(TimeoutError):
         await _test_form_network(ezsp, [t.EmberStatus.SUCCESS], b"\x00")
 
 
@@ -421,17 +422,20 @@ async def test_board_info(
     if not isinstance(xncp_build_string, InvalidCommandError):
         ezsp_f._xncp_features |= xncp.FirmwareFeatures.BUILD_STRING
 
-    with patch.object(
-        ezsp_f,
-        "_command",
-        new=cmd_mock(
-            {
-                ("getMfgToken", t.EzspMfgTokenId.MFG_BOARD_NAME): mfg_board_name,
-                ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): mfg_string,
-                ("getValue", t.EzspValueId.VALUE_VERSION_INFO): value_version_info,
-            }
+    with (
+        patch.object(
+            ezsp_f,
+            "_command",
+            new=cmd_mock(
+                {
+                    ("getMfgToken", t.EzspMfgTokenId.MFG_BOARD_NAME): mfg_board_name,
+                    ("getMfgToken", t.EzspMfgTokenId.MFG_STRING): mfg_string,
+                    ("getValue", t.EzspValueId.VALUE_VERSION_INFO): value_version_info,
+                }
+            ),
         ),
-    ), patch.object(ezsp_f, "xncp_get_build_string", side_effect=xncp_build_string):
+        patch.object(ezsp_f, "xncp_get_build_string", side_effect=xncp_build_string),
+    ):
         mfg, brd, ver = await ezsp_f.get_board_info()
 
     assert (mfg, brd, ver) == expected
@@ -534,7 +538,7 @@ async def test_xncp_token_override(ezsp_f):
 @pytest.mark.parametrize(
     "value, expected_result",
     [
-        (b"\xFF" * 8, True),
+        (b"\xff" * 8, True),
         (bytes.fromhex("0846b8a11c004b1200"), False),
         (b"", False),
     ],
@@ -555,12 +559,12 @@ async def test_can_burn_userdata_custom_eui64(ezsp_f, value, expected_result):
     [
         ({}, None, False),
         (
-            {t.NV3KeyId.CREATOR_STACK_RESTORED_EUI64: b"\xAA" * 8},
+            {t.NV3KeyId.CREATOR_STACK_RESTORED_EUI64: b"\xaa" * 8},
             t.NV3KeyId.CREATOR_STACK_RESTORED_EUI64,
             True,
         ),
         (
-            {t.NV3KeyId.NVM3KEY_STACK_RESTORED_EUI64: b"\xAA" * 8},
+            {t.NV3KeyId.NVM3KEY_STACK_RESTORED_EUI64: b"\xaa" * 8},
             t.NV3KeyId.NVM3KEY_STACK_RESTORED_EUI64,
             True,
         ),
@@ -617,11 +621,11 @@ async def test_write_custom_eui64(ezsp_f):
     await ezsp_f.write_custom_eui64(new_eui64, burn_into_userdata=True)
 
     ezsp_f.setMfgToken.assert_not_called()
-    ezsp_f.setTokenData.mock_calls == 2 * [
+    assert ezsp_f.setTokenData.mock_calls == 2 * [
         call(
-            t.NV3KeyId.NVM3KEY_STACK_RESTORED_EUI64,
-            0,
-            new_eui64.serialize(),
+            token=t.NV3KeyId.NVM3KEY_STACK_RESTORED_EUI64,
+            index=0,
+            token_data=new_eui64.serialize(),
         )
     ]
 
@@ -672,18 +676,24 @@ async def test_write_custom_eui64_rcp(ezsp_f):
 
     # RCP firmware does not support manufacturing tokens
     ezsp_f.getMfgToken = AsyncMock(return_value=[b""])
-    ezsp_f.getTokenData = AsyncMock(
-        return_value=GetTokenDataRsp(status=t.EmberStatus.SUCCESS, value=b"\xFF" * 8)
-    )
+
+    async def get_token_data(token, index):
+        # Only the RCP NV3 key exists, the NCP one does not
+        if token == t.NV3KeyId.NVM3KEY_STACK_RESTORED_EUI64:
+            return GetTokenDataRsp(status=t.EmberStatus.SUCCESS, value=b"\xff" * 8)
+
+        return GetTokenDataRsp(status=t.EmberStatus.NOT_FOUND, value=b"")
+
+    ezsp_f.getTokenData = AsyncMock(side_effect=get_token_data)
 
     await ezsp_f.write_custom_eui64(new_eui64)
 
     ezsp_f.setMfgToken.assert_not_called()
-    ezsp_f.setTokenData.mock_calls == [
+    assert ezsp_f.setTokenData.mock_calls == [
         call(
-            t.NV3KeyId.NVM3KEY_STACK_RESTORED_EUI64,
-            0,
-            new_eui64.serialize(),
+            token=t.NV3KeyId.NVM3KEY_STACK_RESTORED_EUI64,
+            index=0,
+            token_data=new_eui64.serialize(),
         )
     ]
 
@@ -822,11 +832,13 @@ async def test_wait_for_stack_status(ezsp_f):
     assert not ezsp_f._stack_status_listeners[t.sl_Status.NETWORK_DOWN]
 
     # Cancellation clears handlers
-    with ezsp_f.wait_for_stack_status(t.sl_Status.NETWORK_DOWN) as stack_status:
-        with pytest.raises(TimeoutError):
-            async with asyncio_timeout(0.1):
-                assert ezsp_f._stack_status_listeners[t.sl_Status.NETWORK_DOWN]
-                await stack_status
+    with (
+        ezsp_f.wait_for_stack_status(t.sl_Status.NETWORK_DOWN) as stack_status,
+        pytest.raises(TimeoutError),
+    ):
+        async with asyncio_timeout(0.1):
+            assert ezsp_f._stack_status_listeners[t.sl_Status.NETWORK_DOWN]
+            await stack_status
 
     assert not ezsp_f._stack_status_listeners[t.sl_Status.NETWORK_DOWN]
 
@@ -848,7 +860,7 @@ def test_ezsp_versions(ezsp_f):
             continue
         assert version in ezsp_f._BY_VERSION
         assert ezsp_f._BY_VERSION[version].__name__ == f"EZSPv{version}"
-        assert ezsp_f._BY_VERSION[version].VERSION == version
+        assert version == ezsp_f._BY_VERSION[version].VERSION
 
 
 async def test_config_initialize_husbzb1():
@@ -904,7 +916,7 @@ async def test_config_initialize(version: int, caplog):
     ezsp.networkState = AsyncMock(return_value=(t.EmberNetworkStatus.JOINED_NETWORK,))
 
     ezsp.setValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
-    ezsp.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\xFF"))
+    ezsp.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\xff"))
 
     await ezsp.write_config({})
 
@@ -925,7 +937,7 @@ async def test_config_initialize(version: int, caplog):
     await ezsp.write_config({})
     assert len(ezsp.setValue.mock_calls) == 1
 
-    ezsp.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\xFF"))
+    ezsp.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\xff"))
     caplog.clear()
 
     with caplog.at_level(logging.DEBUG):
@@ -998,7 +1010,7 @@ async def test_unsupported_ezsp_version_startup(caplog):
     ezsp.getConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, 0))
     ezsp.setConfigurationValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
     ezsp.setValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS,))
-    ezsp.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\xFF"))
+    ezsp.getValue = AsyncMock(return_value=(t.EzspStatus.SUCCESS, b"\xff"))
 
     # Startup should not fail
     await ezsp.write_config({})
@@ -1016,11 +1028,11 @@ async def test_reset_custom_eui64(ezsp_f):
 
     # With NV3 interface
     ezsp_f.getTokenData = AsyncMock(
-        return_value=GetTokenDataRsp(status=t.EmberStatus.SUCCESS, value=b"\xAB" * 8)
+        return_value=GetTokenDataRsp(status=t.EmberStatus.SUCCESS, value=b"\xab" * 8)
     )
     await ezsp_f.reset_custom_eui64()
     assert ezsp_f.setTokenData.mock_calls == [
-        call(t.NV3KeyId.CREATOR_STACK_RESTORED_EUI64, 0, t.LVBytes32(b"\xFF" * 8))
+        call(t.NV3KeyId.CREATOR_STACK_RESTORED_EUI64, 0, t.LVBytes32(b"\xff" * 8))
     ]
 
 

@@ -163,48 +163,48 @@ def test_ash_protocol_event_propagation() -> None:
 
 
 def test_stuffing():
-    assert ash.AshProtocol._stuff_bytes(b"\x7E") == b"\x7D\x5E"
-    assert ash.AshProtocol._stuff_bytes(b"\x11") == b"\x7D\x31"
-    assert ash.AshProtocol._stuff_bytes(b"\x13") == b"\x7D\x33"
-    assert ash.AshProtocol._stuff_bytes(b"\x18") == b"\x7D\x38"
-    assert ash.AshProtocol._stuff_bytes(b"\x1A") == b"\x7D\x3A"
-    assert ash.AshProtocol._stuff_bytes(b"\x7D") == b"\x7D\x5D"
+    assert ash.AshProtocol._stuff_bytes(b"\x7e") == b"\x7d\x5e"
+    assert ash.AshProtocol._stuff_bytes(b"\x11") == b"\x7d\x31"
+    assert ash.AshProtocol._stuff_bytes(b"\x13") == b"\x7d\x33"
+    assert ash.AshProtocol._stuff_bytes(b"\x18") == b"\x7d\x38"
+    assert ash.AshProtocol._stuff_bytes(b"\x1a") == b"\x7d\x3a"
+    assert ash.AshProtocol._stuff_bytes(b"\x7d") == b"\x7d\x5d"
 
-    assert ash.AshProtocol._unstuff_bytes(b"\x7D\x5E") == b"\x7E"
-    assert ash.AshProtocol._unstuff_bytes(b"\x7D\x31") == b"\x11"
-    assert ash.AshProtocol._unstuff_bytes(b"\x7D\x33") == b"\x13"
-    assert ash.AshProtocol._unstuff_bytes(b"\x7D\x38") == b"\x18"
-    assert ash.AshProtocol._unstuff_bytes(b"\x7D\x3A") == b"\x1A"
-    assert ash.AshProtocol._unstuff_bytes(b"\x7D\x5D") == b"\x7D"
+    assert ash.AshProtocol._unstuff_bytes(b"\x7d\x5e") == b"\x7e"
+    assert ash.AshProtocol._unstuff_bytes(b"\x7d\x31") == b"\x11"
+    assert ash.AshProtocol._unstuff_bytes(b"\x7d\x33") == b"\x13"
+    assert ash.AshProtocol._unstuff_bytes(b"\x7d\x38") == b"\x18"
+    assert ash.AshProtocol._unstuff_bytes(b"\x7d\x3a") == b"\x1a"
+    assert ash.AshProtocol._unstuff_bytes(b"\x7d\x5d") == b"\x7d"
 
-    assert ash.AshProtocol._stuff_bytes(b"\x7F") == b"\x7F"
-    assert ash.AshProtocol._unstuff_bytes(b"\x7F") == b"\x7F"
+    assert ash.AshProtocol._stuff_bytes(b"\x7f") == b"\x7f"
+    assert ash.AshProtocol._unstuff_bytes(b"\x7f") == b"\x7f"
 
     with pytest.raises(ash.ParsingError):
         # AB is not a sequence of bytes that can be unescaped
-        assert ash.AshProtocol._unstuff_bytes(b"\x7D\xAB")
+        assert ash.AshProtocol._unstuff_bytes(b"\x7d\xab")
 
 
 def test_pseudo_random_data_sequence():
-    assert ash.PSEUDO_RANDOM_DATA_SEQUENCE.startswith(b"\x42\x21\xA8\x54\x2A")
+    assert ash.PSEUDO_RANDOM_DATA_SEQUENCE.startswith(b"\x42\x21\xa8\x54\x2a")
 
 
 def test_frame_parsing_errors():
     with pytest.raises(ash.ParsingError, match=r"Frame is too short:"):
-        assert ash.RstFrame.from_bytes(b"\xC0\x38")
+        assert ash.RstFrame.from_bytes(b"\xc0\x38")
 
     with pytest.raises(ash.ParsingError, match=r"Invalid CRC bytes in frame"):
-        assert ash.RstFrame.from_bytes(b"\xC0\xAB\xCD")
+        assert ash.RstFrame.from_bytes(b"\xc0\xab\xcd")
 
 
 def test_rst_frame():
     assert ash.RstFrame() == ash.RstFrame()
-    assert ash.RstFrame().to_bytes() == b"\xC0\x38\xBC"
-    assert ash.RstFrame.from_bytes(b"\xC0\x38\xBC") == ash.RstFrame()
+    assert ash.RstFrame().to_bytes() == b"\xc0\x38\xbc"
+    assert ash.RstFrame.from_bytes(b"\xc0\x38\xbc") == ash.RstFrame()
     assert str(ash.RstFrame()) == "RstFrame()"
 
     with pytest.raises(ash.ParsingError, match=r"Invalid data for RST frame:"):
-        ash.RstFrame.from_bytes(ash.AshFrame.append_crc(b"\xC0\xAB"))
+        ash.RstFrame.from_bytes(ash.AshFrame.append_crc(b"\xc0\xab"))
 
 
 def test_rstack_frame():
@@ -315,8 +315,8 @@ def test_buffer_growth():
     protocol = ash.AshProtocol(ezsp)
 
     # Receive a lot of bogus data
-    for i in range(1000):
-        protocol.data_received(b"\xEE" * 100)
+    for _i in range(1000):
+        protocol.data_received(b"\xee" * 100)
 
     # Make sure our internal buffer doesn't blow up
     assert len(protocol._buffer) == ash.MAX_BUFFER_SIZE
@@ -391,7 +391,7 @@ async def test_frame_parsing_failure_recovery(caplog) -> None:
 
     with caplog.at_level(logging.DEBUG):
         protocol.data_received(
-            ash.AshFrame.append_crc(b"\xFESome unknown frame")
+            ash.AshFrame.append_crc(b"\xfeSome unknown frame")
             + bytes([ash.Reserved.FLAG])
         )
 
@@ -546,9 +546,8 @@ async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
 
     # Let's let a request fail due to a connectivity issue. The link stays down until
     # every retry has timed out, however long that takes on a loaded machine.
-    with patch.object(ncp_transport, "paused", True):
-        with pytest.raises(TimeoutError):
-            await host.send_data(b"host failure")
+    with patch.object(ncp_transport, "paused", True), pytest.raises(TimeoutError):
+        await host.send_data(b"host failure")
 
     ncp_ezsp.data_received.reset_mock()
     host_ezsp.data_received.reset_mock()
@@ -569,9 +568,8 @@ async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
     assert host._ncp_reset_code is None
     assert ncp._ncp_reset_code is None
 
-    with patch.object(host_transport, "paused", True):
-        with pytest.raises(TimeoutError):
-            await ncp.send_data(b"ncp failure")
+    with patch.object(host_transport, "paused", True), pytest.raises(TimeoutError):
+        await ncp.send_data(b"ncp failure")
 
     assert (
         host._ncp_reset_code is t.NcpResetCode.ERROR_EXCEEDED_MAXIMUM_ACK_TIMEOUT_COUNT
@@ -605,9 +603,9 @@ async def test_ash_end_to_end(transport_cls: type[FakeTransport]) -> None:
         patch("bellows.ash.T_RX_ACK_MAX", host._t_rx_ack),
         patch.object(FakeTransportRandomLoss, "loss_rate", 0.0),
         patch.object(ncp, "nak_state", True),
+        pytest.raises(ash.NotAcked),
     ):
-        with pytest.raises(ash.NotAcked):
-            await host.send_data(b"ncp NAKing until failure")
+        await host.send_data(b"ncp NAKing until failure")
 
 
 async def test_rstack_cancels_pending_frames() -> None:
@@ -661,7 +659,7 @@ async def test_reject_condition_prevents_nak_amplification(caplog) -> None:
     protocol._ncp_state = ash.NcpState.CONNECTED
 
     # Send first bad DATA frame with invalid CRC (control byte 0x00 = DATA frame)
-    bad_frame_1 = b"\x00Some bad data\xDE\xAD"  # Invalid CRC
+    bad_frame_1 = b"\x00Some bad data\xde\xad"  # Invalid CRC
     protocol.data_received(bad_frame_1 + bytes([ash.Reserved.FLAG]))
 
     # Should enter reject condition and send one NAK
@@ -677,7 +675,7 @@ async def test_reject_condition_prevents_nak_amplification(caplog) -> None:
     transport.write.reset_mock()
 
     # Send second bad DATA frame with invalid CRC
-    bad_frame_2 = b"\x00More bad data\xBE\xEF"  # Invalid CRC
+    bad_frame_2 = b"\x00More bad data\xbe\xef"  # Invalid CRC
     protocol.data_received(bad_frame_2 + bytes([ash.Reserved.FLAG]))
 
     # Should suppress NAK due to reject condition
@@ -687,7 +685,7 @@ async def test_reject_condition_prevents_nak_amplification(caplog) -> None:
     caplog.clear()
 
     # Send third bad DATA frame with invalid CRC
-    bad_frame_3 = b"\x00Even more bad data\xCA\xFE"  # Invalid CRC
+    bad_frame_3 = b"\x00Even more bad data\xca\xfe"  # Invalid CRC
     protocol.data_received(bad_frame_3 + bytes([ash.Reserved.FLAG]))
 
     # Still suppressing
@@ -709,7 +707,7 @@ async def test_reject_condition_prevents_nak_amplification(caplog) -> None:
     transport.write.reset_mock()
 
     # Now another bad frame should trigger reject condition again
-    bad_frame_4 = b"\x00Bad again\xFA\xDE"  # Invalid CRC
+    bad_frame_4 = b"\x00Bad again\xfa\xde"  # Invalid CRC
     protocol.data_received(bad_frame_4 + bytes([ash.Reserved.FLAG]))
 
     # Should enter reject condition again and send NAK

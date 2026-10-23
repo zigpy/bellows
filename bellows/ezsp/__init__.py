@@ -200,7 +200,7 @@ class EZSP:
             await self._command("version", desiredProtocolVersion=ver)
 
         LOGGER.debug(
-            ("EZSP Stack Type: %s" ", Stack Version: %04x" ", Protocol version: %s"),
+            "EZSP Stack Type: %s, Stack Version: %04x, Protocol version: %s",
             stack_type,
             stack_version,
             ver,
@@ -325,8 +325,6 @@ class EZSP:
         ),
     ) -> None:
         """Send leaveNetwork command and wait for stackStatusHandler frame."""
-        stack_status = asyncio.Future()
-
         with self.wait_for_stack_status(t.sl_Status.NETWORK_DOWN) as stack_status:
             status = await self._protocol.leave_network(options=options)
             if status != t.sl_Status.OK:
@@ -398,8 +396,8 @@ class EZSP:
 
             # Tokens are fixed-length and initially filled with \xFF but also can end
             # with \x00
-            while value.endswith((b"\xFF", b"\x00")):
-                value = value.rstrip(b"\xFF").rstrip(b"\x00")
+            while value.endswith((b"\xff", b"\x00")):
+                value = value.rstrip(b"\xff").rstrip(b"\x00")
 
             try:
                 result = value.decode("utf-8")
@@ -772,10 +770,10 @@ class EZSP:
 
         try:
             rsp_frame = xncp.XncpCommand.from_bytes(data)
-        except ValueError:
+        except ValueError as exc:
             raise InvalidCommandPayload(
                 f"Invalid XNCP response: {data!r}", raw_bytes=data
-            )
+            ) from exc
 
         if isinstance(rsp_frame.payload, xncp.Unknown):
             raise InvalidCommandError(f"XNCP firmware does not support {payload}")

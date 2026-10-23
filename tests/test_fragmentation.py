@@ -6,8 +6,7 @@ from bellows.ezsp.fragmentation import FragmentManager
 
 
 async def test_single_fragment_complete():
-    """
-    If we receive a single-fragment message (fragment_count=1, fragment_index=0),
+    """If we receive a single-fragment message (fragment_count=1, fragment_index=0),
     the manager should immediately report completion.
     """
     frag_manager = FragmentManager()
@@ -42,9 +41,7 @@ async def test_single_fragment_complete():
 
 
 async def test_two_fragments_in_order():
-    """
-    A two-fragment message should remain partial until we've received both pieces.
-    """
+    """A two-fragment message should remain partial until we've received both pieces."""
     frag_manager = FragmentManager()
 
     key = (0x1111, 0x01, 0x9999, 0x2222)
@@ -93,9 +90,7 @@ async def test_two_fragments_in_order():
 
 
 async def test_out_of_order_fragments():
-    """
-    Receiving fragments in reverse order should still produce the correct reassembly once all arrive.
-    """
+    """Receiving fragments in reverse order should still produce the correct reassembly once all arrive."""
     frag_manager = FragmentManager()
 
     key = (0x9999, 0xCD, 0x1234, 0xABCD)
@@ -139,9 +134,7 @@ async def test_out_of_order_fragments():
 
 
 async def test_repeated_fragments_ignored():
-    """
-    Ensure repeated arrivals of the same fragment index do not double-count or break the logic.
-    """
+    """Ensure repeated arrivals of the same fragment index do not double-count or break the logic."""
     frag_manager = FragmentManager()
 
     key = (0xAAA, 0xBB, 0xCCC, 0xDDD)

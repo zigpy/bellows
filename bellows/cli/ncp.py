@@ -39,18 +39,18 @@ async def config(ctx, config, all_):
             try:
                 config = t.EzspConfigId(int(config))
             except ValueError:
-                raise click.BadArgumentUsage(f"Invalid config ID: {config}")
+                raise click.BadArgumentUsage(f"Invalid config ID: {config}") from None
         else:
             try:
                 config = t.EzspConfigId[config]
             except KeyError:
-                raise click.BadArgumentUsage(f"Invalid config name: {config}")
+                raise click.BadArgumentUsage(f"Invalid config name: {config}") from None
         try:
             value = t.uint16_t(value)
             if not (0 <= value <= 65535):
                 raise ValueError(f"{value} out of allowed range 0..65535")
         except ValueError as e:
-            raise click.BadArgumentUsage(f"Invalid value: {e}")
+            raise click.BadArgumentUsage(f"Invalid value: {e}") from e
 
         v = await s.setConfigurationValue(config, value)
         click.echo(v)

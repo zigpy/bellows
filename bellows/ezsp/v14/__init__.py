@@ -1,4 +1,5 @@
-""""EZSP Protocol version 14 protocol handler."""
+"""EZSP Protocol version 14 protocol handler."""
+
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
@@ -10,8 +11,8 @@ import zigpy.state
 import bellows.config
 import bellows.types as t
 
-from . import commands, config
 from ..v13 import EZSPv13
+from . import commands, config
 
 NULL_NODE_ID = 0xFFFF
 

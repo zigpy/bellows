@@ -42,7 +42,7 @@ async def test_xncp_failure(ezsp_f: EZSP) -> None:
         b"\x02\x80\x03",
         # Simplicity SDK firmware replies with the low octet of an
         # `sl_status_t`: `SL_STATUS_NOT_FOUND`
-        b"\x02\x80\x2D",
+        b"\x02\x80\x2d",
     ],
 )
 async def test_xncp_missing_mfg_token_override(
@@ -52,13 +52,13 @@ async def test_xncp_missing_mfg_token_override(
     ezsp_f._mock_commands["customFrame"] = AsyncMock(
         return_value=[t.EmberStatus.SUCCESS, rsp]
     )
-    ezsp_f._mock_commands["getMfgToken"] = AsyncMock(return_value=[b"\xFF" * 8])
+    ezsp_f._mock_commands["getMfgToken"] = AsyncMock(return_value=[b"\xff" * 8])
     ezsp_f._xncp_features |= xncp.FirmwareFeatures.MFG_TOKEN_OVERRIDES
 
     with caplog.at_level(logging.WARNING, logger="bellows"):
         assert (
             await ezsp_f.get_mfg_token(t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
-        ) == b"\xFF" * 8
+        ) == b"\xff" * 8
 
     # An unsupported override is an expected condition, not a warning
     assert [
