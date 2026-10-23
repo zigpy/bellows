@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, sentinel
 
 import pytest
@@ -192,3 +193,44 @@ async def test_unsubscribe_fail(multicast):
     assert set_entry.call_count == 1
     assert (grp_id, 1) in multicast._multicast
     assert len(multicast._available) == 0
+
+
+async def test_subscribe_concurrent_same_group(multicast):
+    """Concurrent subscriptions to one group must consume a single table slot."""
+    grp_id = 0x0200
+    multicast._available.update({1, 2})
+
+    async def mock_set(*args):
+        await asyncio.sleep(0)
+        return [t.EmberStatus.SUCCESS]
+
+    multicast._ezsp.setMulticastTableEntry = MagicMock(side_effect=mock_set)
+
+    results = await asyncio.gather(
+        multicast.subscribe(grp_id), multicast.subscribe(grp_id)
+    )
+
+    assert results == [t.sl_Status.OK, t.sl_Status.OK]
+    assert multicast._ezsp.setMulticastTableEntry.call_count == 1
+    assert len(multicast._available) == 1
+
+    # The cached slot is the one in use, so unsubscribing frees it
+    await multicast.unsubscribe(grp_id)
+    assert len(multicast._available) == 2
+
+
+async def test_subscribe_unsubscribe_serialized(multicast):
+    """An unsubscribe issued while a subscribe is in flight waits for it."""
+    grp_id = 0x0200
+    multicast._available.add(1)
+
+    async def mock_set(*args):
+        await asyncio.sleep(0)
+        return [t.EmberStatus.SUCCESS]
+
+    multicast._ezsp.setMulticastTableEntry = MagicMock(side_effect=mock_set)
+
+    await asyncio.gather(multicast.subscribe(grp_id), multicast.unsubscribe(grp_id))
+
+    assert (grp_id, 1) not in multicast._multicast
+    assert multicast._available == {1}
