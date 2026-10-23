@@ -67,6 +67,11 @@ DEFAULT_CONFIG_COMMON = [
         minimum=True,
     ),
     RuntimeConfig(
+        config_id=t.EzspConfigId.CONFIG_BROADCAST_TABLE_SIZE,
+        value=15,
+        minimum=True,
+    ),
+    RuntimeConfig(
         config_id=t.EzspConfigId.CONFIG_APPLICATION_ZDO_FLAGS,
         value=(
             t.EmberZdoConfigurationFlags.APP_RECEIVES_SUPPORTED_ZDO_REQUESTS
