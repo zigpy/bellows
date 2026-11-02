@@ -524,6 +524,30 @@ async def test_allow_joins_link_key_failure(ezsp_f):
     assert proto.set_join_policy.mock_calls == [call(allow_joins=False)]
 
 
+@pytest.mark.parametrize(
+    "version, default",
+    [(v, t.EzspDecisionId.ALLOW_PRECONFIGURED_KEY_JOINS) for v in (4, 5, 6, 7)]
+    + [
+        (
+            v,
+            t.EzspDecisionBitmask.ALLOW_JOINS
+            | t.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS,
+        )
+        for v in EZSP._BY_VERSION
+        if v >= 8
+    ],
+)
+def test_trust_center_policy_default(version, default):
+    schema = EZSP._BY_VERSION[version].SCHEMAS[config.CONF_EZSP_POLICIES]
+
+    policies = schema({})
+    assert policies[t.EzspPolicyId.TRUST_CENTER_POLICY.name] == default
+
+    # The user's configuration takes precedence
+    policies = schema({t.EzspPolicyId.TRUST_CENTER_POLICY.name: 0x02})
+    assert policies[t.EzspPolicyId.TRUST_CENTER_POLICY.name] == 0x02
+
+
 async def test_leave_network_error(ezsp_f):
     """Test EZSP leaveNetwork command failure."""
 
