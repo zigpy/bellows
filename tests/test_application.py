@@ -732,25 +732,117 @@ async def test_permit_ncp(app):
     assert app._ezsp._protocol.permitJoining.mock_calls == [call(60)]
 
 
-async def test_permit_with_link_key(app, ieee):
-    with patch("zigpy.application.ControllerApplication.permit") as permit_mock:
-        await app.permit_with_link_key(
-            ieee,
-            zigpy_t.KeyData.convert("11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88"),
-            60,
-        )
+POLICY_OPEN = call(
+    policyId=t.EzspPolicyId.TRUST_CENTER_POLICY,
+    decisionId=(
+        t.EzspDecisionBitmask.ALLOW_JOINS
+        | t.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS
+    ),
+)
+POLICY_INSTALL_CODES_ONLY = call(
+    policyId=t.EzspPolicyId.TRUST_CENTER_POLICY,
+    decisionId=(
+        t.EzspDecisionBitmask.ALLOW_JOINS
+        | t.EzspDecisionBitmask.JOINS_USE_INSTALL_CODE_KEY
+    ),
+)
+POLICY_CLOSED = call(policyId=t.EzspPolicyId.TRUST_CENTER_POLICY, decisionId=0)
 
-    assert permit_mock.await_count == 1
-    assert app._ezsp._protocol.add_transient_link_key.mock_calls == [
-        call(
-            ieee,
-            zigpy_t.KeyData.convert("11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88"),
-        )
+
+async def test_permit(app):
+    proto = app._ezsp._protocol
+
+    def check_trust_center_ready(*args, **kwargs):
+        # The Trust Center must be ready before the network opens
+        assert proto.add_transient_link_key.mock_calls == [
+            call(ezsp.WILDCARD_EUI64, ezsp.WELL_KNOWN_LINK_KEY)
+        ]
+        assert proto.setPolicy.mock_calls == [POLICY_OPEN]
+
+    with patch(
+        "zigpy.application.ControllerApplication.permit",
+        side_effect=check_trust_center_ready,
+    ) as permit_mock:
+        await app.permit(10)
+
+    assert permit_mock.mock_calls == [call(10, None)]
+    assert len(proto.clearTransientLinkKeys.mock_calls) == 0
+
+    with patch("zigpy.application.ControllerApplication.permit") as permit_mock:
+        await app.permit(0)
+
+    assert permit_mock.mock_calls == [call(0, None)]
+    assert proto.clearTransientLinkKeys.mock_calls == [call()]
+    assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED]
+
+
+async def test_permit_window_expires(app):
+    proto = app._ezsp._protocol
+
+    async def expire_immediately(aw, timeout):
+        aw.close()
+        raise TimeoutError
+
+    with (
+        patch("zigpy.application.ControllerApplication.permit"),
+        patch(
+            "bellows.zigbee.application.asyncio.wait_for",
+            side_effect=expire_immediately,
+        ),
+    ):
+        await app.permit(10)
+        _, task = app._join_window
+        await asyncio.wait([task])
+
+    assert proto.clearTransientLinkKeys.mock_calls == [call()]
+    assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED]
+
+
+async def test_permit_overlapping(app):
+    proto = app._ezsp._protocol
+
+    with patch("zigpy.application.ControllerApplication.permit"):
+        await app.permit(60)
+        await app.permit(10)
+
+    # The first window is closed before the second one opens
+    assert proto.clearTransientLinkKeys.mock_calls == [call()]
+    assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED, POLICY_OPEN]
+
+    with patch("zigpy.application.ControllerApplication.permit"):
+        await app.permit(0)
+
+    assert proto.clearTransientLinkKeys.mock_calls == [call(), call()]
+    assert proto.setPolicy.mock_calls == [
+        POLICY_OPEN,
+        POLICY_CLOSED,
+        POLICY_OPEN,
+        POLICY_CLOSED,
     ]
 
 
+async def test_permit_with_link_key(app, ieee):
+    proto = app._ezsp._protocol
+    key = zigpy_t.KeyData.convert("11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88")
+
+    with patch("zigpy.application.ControllerApplication.permit") as permit_mock:
+        await app.permit_with_link_key(ieee, key, 60)
+
+    assert permit_mock.mock_calls == [call(60)]
+    assert proto.add_transient_link_key.mock_calls == [call(ieee, key)]
+    assert proto.setPolicy.mock_calls == [POLICY_INSTALL_CODES_ONLY]
+
+    # The policy is restored once the window closes
+    with patch("zigpy.application.ControllerApplication.permit"):
+        await app.permit(0)
+
+    assert proto.clearTransientLinkKeys.mock_calls == [call()]
+    assert proto.setPolicy.mock_calls == [POLICY_INSTALL_CODES_ONLY, POLICY_CLOSED]
+
+
 async def test_permit_with_link_key_failure(app, ieee):
-    app._ezsp._protocol.add_transient_link_key.return_value = t.EmberStatus.ERR_FATAL
+    proto = app._ezsp._protocol
+    proto.add_transient_link_key.return_value = t.sl_Status.FAIL
 
     with patch("zigpy.application.ControllerApplication.permit") as permit_mock:
         with pytest.raises(ControllerError):
@@ -762,8 +854,12 @@ async def test_permit_with_link_key_failure(app, ieee):
                 60,
             )
 
-    assert permit_mock.await_count == 0
-    assert app._ezsp._protocol.add_transient_link_key.await_count == 1
+    assert len(permit_mock.mock_calls) == 0
+    assert proto.add_transient_link_key.await_count == 1
+
+    # Joins were never allowed
+    assert proto.clearTransientLinkKeys.mock_calls == [call()]
+    assert proto.setPolicy.mock_calls == [POLICY_CLOSED]
 
 
 @pytest.fixture
@@ -1961,14 +2057,6 @@ async def test_cleanup_tc_link_key(app):
         call(address=sentinel.ieee2, linkKey=True)
     ]
     assert ezsp.eraseKeyTableEntry.mock_calls == [call(index=sentinel.index)]
-
-
-# @patch("zigpy.application.ControllerApplication.permit", new=AsyncMock())
-async def test_permit(app):
-    """Test permit method."""
-    await app.permit(10)
-    await asyncio.sleep(0.1)
-    assert app._ezsp._protocol.add_transient_link_key.await_count == 1
 
 
 @patch("bellows.zigbee.application.MFG_ID_RESET_DELAY", new=0.01)

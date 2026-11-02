@@ -32,26 +32,30 @@ def test_ezsp_frame_rx(ezsp_f):
     assert ezsp_f._handle_callback.call_args[0][1] == [0x01, 0x02, 0x1234]
 
 
-async def test_pre_permit(ezsp_f):
-    """Test pre permit."""
-    ezsp_f.addTransientLinkKey.return_value = (t.EmberStatus.SUCCESS,)
-
-    await ezsp_f.pre_permit(-1.9)
-    assert ezsp_f.setPolicy.mock_calls == [
-        call(
-            policyId=t.EzspPolicyId.TRUST_CENTER_POLICY,
-            decisionId=(
-                t.EzspDecisionBitmask.ALLOW_JOINS
-                | t.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS
-            ),
+@pytest.mark.parametrize(
+    "kwargs, decision",
+    [
+        (
+            {"allow_joins": True},
+            t.EzspDecisionBitmask.ALLOW_JOINS
+            | t.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS,
         ),
-        call(policyId=t.EzspPolicyId.TRUST_CENTER_POLICY, decisionId=0),
-    ]
-    assert ezsp_f.addTransientLinkKey.mock_calls == [
-        call(
-            partner=t.EUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),
-            transientKey=t.KeyData(b"ZigBeeAlliance09"),
-        )
+        (
+            {"allow_joins": True, "install_codes_only": True},
+            t.EzspDecisionBitmask.ALLOW_JOINS
+            | t.EzspDecisionBitmask.JOINS_USE_INSTALL_CODE_KEY,
+        ),
+        # Closing restores the configured policy
+        ({"allow_joins": False}, t.EzspDecisionBitmask.ALLOW_JOINS),
+    ],
+)
+async def test_set_join_policy(ezsp_f, kwargs, decision) -> None:
+    ezsp_f.tc_policy = t.EzspDecisionBitmask.ALLOW_JOINS
+
+    await ezsp_f.set_join_policy(**kwargs)
+
+    assert ezsp_f.setPolicy.mock_calls == [
+        call(policyId=t.EzspPolicyId.TRUST_CENTER_POLICY, decisionId=decision)
     ]
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from asyncio import timeout as asyncio_timeout
 from collections.abc import AsyncGenerator
+import contextlib
 from datetime import UTC, datetime
 import importlib.metadata
 import logging
@@ -116,6 +117,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._ezsp = None
         self._multicast = None
         self._mfg_id_task: asyncio.Task | None = None
+        self._join_window: tuple[asyncio.Event, asyncio.Task] | None = None
         self._pending_requests = {}
         self._watchdog_failures = 0
         self._watchdog_feed_counter = 0
@@ -1335,9 +1337,43 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             finally:
                 del self._pending_requests[pending_tag]
 
+    async def _close_join_window(self) -> None:
+        if self._join_window is None:
+            return
+
+        close_event, task = self._join_window
+        self._join_window = None
+
+        # The window task always runs to completion so cleanup is never interrupted
+        close_event.set()
+        await asyncio.wait([task])
+
+    async def _open_join_window(
+        self, time_s: int, link_keys: dict[t.EUI64, t.KeyData] | None = None
+    ) -> None:
+        await self._close_join_window()
+
+        stack = contextlib.AsyncExitStack()
+        await stack.enter_async_context(self._ezsp.allow_joins(link_keys=link_keys))
+        close_event = asyncio.Event()
+
+        async def join_window() -> None:
+            async with stack:
+                with contextlib.suppress(TimeoutError):
+                    await asyncio.wait_for(close_event.wait(), time_s + 2)
+
+        self._join_window = (
+            close_event,
+            self.create_task(join_window(), "join_window"),
+        )
+
     async def permit(self, time_s: int = 60, node: t.EmberNodeId = None) -> None:
         """Permit joining."""
-        self.create_task(self._ezsp.pre_permit(time_s), "pre_permit")
+        if time_s == 0:
+            await self._close_join_window()
+        else:
+            await self._open_join_window(time_s)
+
         await super().permit(time_s, node)
 
     def permit_ncp(self, time_s=60):
@@ -1348,22 +1384,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self, node: t.EUI64, link_key: t.KeyData, time_s: int = 60
     ) -> None:
         """Permits a new device to join with the given IEEE and link key."""
-
-        status = await self._ezsp.add_transient_link_key(node, link_key)
-
-        if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
-            raise ControllerError("Failed to set link key")
-
-        if self._ezsp.ezsp_version >= 8:
-            await self._ezsp.setPolicy(
-                policyId=t.EzspPolicyId.TRUST_CENTER_POLICY,
-                decisionId=(
-                    t.EzspDecisionBitmask.ALLOW_JOINS
-                    | t.EzspDecisionBitmask.JOINS_USE_INSTALL_CODE_KEY
-                ),
-            )
-
-        return await super().permit(time_s)
+        await self._open_join_window(time_s, link_keys={node: link_key})
+        await super().permit(time_s)
 
     async def _subscribe_to_multicast_group(
         self, group_id: zigpy.types.Group, endpoint_id: int

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from asyncio import timeout as asyncio_timeout
 import collections
-from collections.abc import Callable, Generator
+from collections.abc import AsyncIterator, Callable, Generator
 import contextlib
 import dataclasses
 import functools
@@ -18,6 +18,7 @@ import zigpy.config
 from bellows.ash import NcpFailure
 import bellows.config as conf
 from bellows.exception import (
+    ControllerError,
     EzspError,
     InvalidCommandError,
     InvalidCommandPayload,
@@ -51,6 +52,9 @@ UART_PROBE_TIMEOUT = 3
 NETWORK_PROBE_TIMEOUT = 7
 NETWORK_OPS_TIMEOUT = 10
 NETWORK_COORDINATOR_STARTUP_RESET_WAIT = 2
+
+WILDCARD_EUI64 = t.EUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF")
+WELL_KNOWN_LINK_KEY = t.KeyData(b"ZigBeeAlliance09")
 
 
 class EZSP:
@@ -627,6 +631,32 @@ class EZSP:
                     else t.SourceRouteDiscoveryMode.OFF
                 )
             )
+
+    @contextlib.asynccontextmanager
+    async def allow_joins(
+        self, *, link_keys: dict[t.EUI64, t.KeyData] | None = None
+    ) -> AsyncIterator[None]:
+        """Allow joins with the well-known key, or only with the given link keys."""
+        install_codes_only = link_keys is not None
+
+        if link_keys is None:
+            link_keys = {WILDCARD_EUI64: WELL_KNOWN_LINK_KEY}
+
+        try:
+            for ieee, key in link_keys.items():
+                status = await self._protocol.add_transient_link_key(ieee, key)
+
+                if status != t.sl_Status.OK:
+                    raise ControllerError(f"Failed to set link key for {ieee}")
+
+            await self._protocol.set_join_policy(
+                allow_joins=True, install_codes_only=install_codes_only
+            )
+
+            yield
+        finally:
+            await self._protocol.clear_transient_link_keys()
+            await self._protocol.set_join_policy(allow_joins=False)
 
     def start_ezsp(self):
         """Mark EZSP as running."""
