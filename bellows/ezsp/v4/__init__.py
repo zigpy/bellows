@@ -36,13 +36,18 @@ class EZSPv4(protocol.ProtocolHandler):
         """Handler for received data frame."""
         return data[0], data[2], data[3:]
 
-    async def pre_permit(self, time_s: int) -> None:
+    async def set_join_policy(
+        self, *, allow_joins: bool, install_codes_only: bool = False
+    ) -> None:
         pass
 
     async def add_transient_link_key(
         self, ieee: t.EUI64, key: t.KeyData
     ) -> t.sl_Status:
         return t.sl_Status.OK
+
+    async def clear_transient_link_keys(self) -> None:
+        pass
 
     async def read_child_data(
         self,
