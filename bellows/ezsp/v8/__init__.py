@@ -43,6 +43,7 @@ class EZSPv8(EZSPv7):
         elif install_codes_only:
             decision = (
                 t.EzspDecisionBitmask.ALLOW_JOINS
+                | t.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS
                 | t.EzspDecisionBitmask.JOINS_USE_INSTALL_CODE_KEY
             )
         else:

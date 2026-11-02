@@ -752,6 +752,7 @@ POLICY_INSTALL_CODES_ONLY = call(
     policyId=t.EzspPolicyId.TRUST_CENTER_POLICY,
     decisionId=(
         t.EzspDecisionBitmask.ALLOW_JOINS
+        | t.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS
         | t.EzspDecisionBitmask.JOINS_USE_INSTALL_CODE_KEY
     ),
 )
