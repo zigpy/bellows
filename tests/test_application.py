@@ -776,13 +776,13 @@ async def test_permit(app):
         await app.permit(10)
 
     assert permit_mock.mock_calls == [call(10, None)]
-    assert len(proto.clearTransientLinkKeys.mock_calls) == 0
+    assert proto.clearTransientLinkKeys.mock_calls == [call()]
 
     with patch("zigpy.application.ControllerApplication.permit") as permit_mock:
         await app.permit(0)
 
     assert permit_mock.mock_calls == [call(0, None)]
-    assert proto.clearTransientLinkKeys.mock_calls == [call()]
+    assert proto.clearTransientLinkKeys.mock_calls == [call(), call()]
     assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED]
 
 
@@ -804,7 +804,7 @@ async def test_permit_window_expires(app):
         _, task = app._join_window
         await asyncio.wait([task])
 
-    assert proto.clearTransientLinkKeys.mock_calls == [call()]
+    assert proto.clearTransientLinkKeys.mock_calls == [call(), call()]
     assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED]
 
 
@@ -816,13 +816,13 @@ async def test_permit_overlapping(app):
         await app.permit(10)
 
     # The first window is closed before the second one opens
-    assert proto.clearTransientLinkKeys.mock_calls == [call()]
+    assert proto.clearTransientLinkKeys.mock_calls == [call()] * 3
     assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED, POLICY_OPEN]
 
     with patch("zigpy.application.ControllerApplication.permit"):
         await app.permit(0)
 
-    assert proto.clearTransientLinkKeys.mock_calls == [call(), call()]
+    assert proto.clearTransientLinkKeys.mock_calls == [call()] * 4
     assert proto.setPolicy.mock_calls == [
         POLICY_OPEN,
         POLICY_CLOSED,
@@ -846,7 +846,7 @@ async def test_permit_with_link_key(app, ieee):
     with patch("zigpy.application.ControllerApplication.permit"):
         await app.permit(0)
 
-    assert proto.clearTransientLinkKeys.mock_calls == [call()]
+    assert proto.clearTransientLinkKeys.mock_calls == [call(), call()]
     assert proto.setPolicy.mock_calls == [POLICY_INSTALL_CODES_ONLY, POLICY_CLOSED]
 
 
@@ -868,7 +868,7 @@ async def test_permit_with_link_key_failure(app, ieee):
     assert proto.add_transient_link_key.await_count == 1
 
     # Joins were never allowed
-    assert proto.clearTransientLinkKeys.mock_calls == [call()]
+    assert proto.clearTransientLinkKeys.mock_calls == [call(), call()]
     assert proto.setPolicy.mock_calls == [POLICY_CLOSED]
 
 

@@ -496,11 +496,30 @@ async def test_allow_joins(ezsp_f, link_keys, expected_keys, install_codes_only)
         assert proto.set_join_policy.mock_calls == [
             call(allow_joins=True, install_codes_only=install_codes_only)
         ]
-        assert len(proto.clear_transient_link_keys.mock_calls) == 0
 
-    assert proto.clear_transient_link_keys.mock_calls == [call()]
+        # Leftover keys from a previous window are cleared before the new ones
+        assert proto.clear_transient_link_keys.mock_calls == [call()]
+
+    assert proto.clear_transient_link_keys.mock_calls == [call(), call()]
     assert proto.set_join_policy.mock_calls == [
         call(allow_joins=True, install_codes_only=install_codes_only),
+        call(allow_joins=False),
+    ]
+
+
+async def test_allow_joins_clear_keys_failure(ezsp_f):
+    proto = ezsp_f._protocol
+    proto.add_transient_link_key = AsyncMock(return_value=t.sl_Status.OK)
+    proto.set_join_policy = AsyncMock()
+    proto.clear_transient_link_keys = AsyncMock(side_effect=[None, TimeoutError()])
+
+    with pytest.raises(TimeoutError):
+        async with ezsp_f.allow_joins():
+            pass
+
+    # The policy is restored even though the keys could not be cleared
+    assert proto.set_join_policy.mock_calls == [
+        call(allow_joins=True, install_codes_only=False),
         call(allow_joins=False),
     ]
 
@@ -520,7 +539,7 @@ async def test_allow_joins_link_key_failure(ezsp_f):
             pytest.fail("Joins must not be allowed")  # pragma: no cover
 
     # Joins are never allowed but everything is still cleaned up
-    assert proto.clear_transient_link_keys.mock_calls == [call()]
+    assert proto.clear_transient_link_keys.mock_calls == [call(), call()]
     assert proto.set_join_policy.mock_calls == [call(allow_joins=False)]
 
 
