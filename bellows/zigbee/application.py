@@ -4,6 +4,7 @@ import asyncio
 from asyncio import timeout as asyncio_timeout
 from collections.abc import AsyncGenerator
 import contextlib
+import dataclasses
 from datetime import UTC, datetime
 import importlib.metadata
 import logging
@@ -72,6 +73,8 @@ MFG_ID_RESET_DELAY = 180
 RESET_ATTEMPT_BACKOFF_TIME = 5
 NETWORK_UP_TIMEOUT_S = 10
 MAX_WATCHDOG_FAILURES = 4
+# The Trust Center accepts joins slightly longer than the network is open
+JOIN_WINDOW_GRACE_S = 2
 IEEE_PREFIX_MFG_ID = {
     "04:CF:8C": 0x115F,  # Xiaomi
     "54:EF:44": 0x115F,  # Lumi
@@ -100,6 +103,14 @@ GP_SECURITY_STATUSES = {
 }
 
 
+@dataclasses.dataclass
+class JoinWindow:
+    link_keys: dict[t.EUI64, t.KeyData] | None
+    close_event: asyncio.Event
+    timer: asyncio.TimerHandle
+    task: asyncio.Task
+
+
 class ControllerApplication(zigpy.application.ControllerApplication):
     SCHEMA = CONFIG_SCHEMA
 
@@ -117,7 +128,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._ezsp = None
         self._multicast = None
         self._mfg_id_task: asyncio.Task | None = None
-        self._join_window: tuple[asyncio.Event, asyncio.Task] | None = None
+        self._join_window: JoinWindow | None = None
+        self._join_window_lock = asyncio.Lock()
         self._pending_requests = {}
         self._watchdog_failures = 0
         self._watchdog_feed_counter = 0
@@ -1346,16 +1358,33 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if self._join_window is None:
             return
 
-        close_event, task = self._join_window
+        window = self._join_window
         self._join_window = None
 
+        window.timer.cancel()
+        window.close_event.set()
+
         # The window task always runs to completion so cleanup is never interrupted
-        close_event.set()
-        await asyncio.wait([task])
+        await asyncio.wait([window.task])
 
     async def _open_join_window(
         self, time_s: int, link_keys: dict[t.EUI64, t.KeyData] | None = None
     ) -> None:
+        loop = asyncio.get_running_loop()
+        window = self._join_window
+
+        # Reopening the window would briefly reject joins, extend it instead
+        if (
+            window is not None
+            and not window.close_event.is_set()
+            and window.link_keys == link_keys
+        ):
+            window.timer.cancel()
+            window.timer = loop.call_later(
+                time_s + JOIN_WINDOW_GRACE_S, window.close_event.set
+            )
+            return
+
         await self._close_join_window()
 
         stack = contextlib.AsyncExitStack()
@@ -1364,22 +1393,24 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         async def join_window() -> None:
             async with stack:
-                with contextlib.suppress(TimeoutError):
-                    await asyncio.wait_for(close_event.wait(), time_s + 2)
+                await close_event.wait()
 
-        self._join_window = (
-            close_event,
-            self.create_task(join_window(), "join_window"),
+        self._join_window = JoinWindow(
+            link_keys=link_keys,
+            close_event=close_event,
+            timer=loop.call_later(time_s + JOIN_WINDOW_GRACE_S, close_event.set),
+            task=self.create_task(join_window(), "join_window"),
         )
 
     async def permit(self, time_s: int = 60, node: t.EmberNodeId = None) -> None:
         """Permit joining."""
-        if time_s == 0:
-            await self._close_join_window()
-        else:
-            await self._open_join_window(time_s)
+        async with self._join_window_lock:
+            if time_s == 0:
+                await self._close_join_window()
+            else:
+                await self._open_join_window(time_s)
 
-        await super().permit(time_s, node)
+            await super().permit(time_s, node)
 
     def permit_ncp(self, time_s=60):
         assert 0 <= time_s <= 254
@@ -1389,8 +1420,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self, node: t.EUI64, link_key: t.KeyData, time_s: int = 60
     ) -> None:
         """Permits a new device to join with the given IEEE and link key."""
-        await self._open_join_window(time_s, link_keys={node: link_key})
-        await super().permit(time_s)
+        async with self._join_window_lock:
+            await self._open_join_window(time_s, link_keys={node: link_key})
+            await super().permit(time_s)
 
     async def _subscribe_to_multicast_group(
         self, group_id: zigpy.types.Group, endpoint_id: int
