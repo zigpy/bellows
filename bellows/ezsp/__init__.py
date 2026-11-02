@@ -658,8 +658,10 @@ class EZSP:
 
             yield
         finally:
-            await self._protocol.clear_transient_link_keys()
-            await self._protocol.set_join_policy(allow_joins=False)
+            try:
+                await self._protocol.clear_transient_link_keys()
+            finally:
+                await self._protocol.set_join_policy(allow_joins=False)
 
     def start_ezsp(self):
         """Mark EZSP as running."""
