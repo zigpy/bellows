@@ -2493,6 +2493,9 @@ class EzspDecisionBitmask(basic.bitmap8):
     # Send the network key to all rejoining devices.
     # Note: from EmberZNet 6.9.0 (EZSPv8) onwards, unsecured rejoins are denied without
     # it.
+    # Note: these are Trust Center rejoins (spec name). The network key is APS
+    # encrypted with the device's link key, devices using the well-known key are
+    # rejected unless `TC_REJOINS_USING_WELL_KNOWN_KEY_POLICY` is enabled.
     ALLOW_UNSECURED_REJOINS = 0x0002
     # Send the network key in the clear.
     SEND_KEY_IN_CLEAR = 0x0004
