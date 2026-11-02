@@ -789,46 +789,97 @@ async def test_permit(app):
 async def test_permit_window_expires(app):
     proto = app._ezsp._protocol
 
-    async def expire_immediately(aw, timeout):
-        aw.close()
-        raise TimeoutError
-
     with (
         patch("zigpy.application.ControllerApplication.permit"),
-        patch(
-            "bellows.zigbee.application.asyncio.wait_for",
-            side_effect=expire_immediately,
-        ),
+        # The window expires 10ms after opening
+        patch("bellows.zigbee.application.JOIN_WINDOW_GRACE_S", -9.99),
     ):
         await app.permit(10)
-        _, task = app._join_window
-        await asyncio.wait([task])
+        await asyncio.wait([app._join_window.task])
+
+    assert proto.clearTransientLinkKeys.mock_calls == [call(), call()]
+    assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED]
+
+    # An expired window is reopened, not extended
+    with patch("zigpy.application.ControllerApplication.permit"):
+        await app.permit(10)
+
+    assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED, POLICY_OPEN]
+
+
+async def test_permit_extend(app):
+    proto = app._ezsp._protocol
+
+    with (
+        patch("zigpy.application.ControllerApplication.permit") as permit_mock,
+        patch("bellows.zigbee.application.JOIN_WINDOW_GRACE_S", -9.99),
+    ):
+        await app.permit(60)
+        window = app._join_window
+        await app.permit(10)
+
+    # The open window is extended, joins are never rejected in between
+    assert app._join_window is window
+    assert permit_mock.mock_calls == [call(60, None), call(10, None)]
+    assert proto.clearTransientLinkKeys.mock_calls == [call()]
+    assert proto.setPolicy.mock_calls == [POLICY_OPEN]
+
+    # The window now closes on the timer of the last call
+    await asyncio.wait([window.task])
 
     assert proto.clearTransientLinkKeys.mock_calls == [call(), call()]
     assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED]
 
 
-async def test_permit_overlapping(app):
+async def test_permit_switch_link_keys(app, ieee):
     proto = app._ezsp._protocol
+    key = zigpy_t.KeyData.convert("11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88")
 
     with patch("zigpy.application.ControllerApplication.permit"):
         await app.permit(60)
-        await app.permit(10)
+        await app.permit_with_link_key(ieee, key, 60)
+        await app.permit_with_link_key(ieee, key, 60)
 
-    # The first window is closed before the second one opens
-    assert proto.clearTransientLinkKeys.mock_calls == [call()] * 3
-    assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED, POLICY_OPEN]
+    # A window with other keys is replaced, one with the same keys is extended
+    assert proto.setPolicy.mock_calls == [
+        POLICY_OPEN,
+        POLICY_CLOSED,
+        POLICY_INSTALL_CODES_ONLY,
+    ]
+
+    with patch("zigpy.application.ControllerApplication.permit"):
+        await app.permit(60)
+
+    assert proto.setPolicy.mock_calls == [
+        POLICY_OPEN,
+        POLICY_CLOSED,
+        POLICY_INSTALL_CODES_ONLY,
+        POLICY_CLOSED,
+        POLICY_OPEN,
+    ]
+
+
+async def test_permit_concurrent(app):
+    proto = app._ezsp._protocol
+
+    async def add_transient_link_key(ieee, key):
+        # Let the other permit call run while this window is opening
+        await asyncio.sleep(0)
+        return t.sl_Status.OK
+
+    proto.add_transient_link_key.side_effect = add_transient_link_key
+
+    with patch("zigpy.application.ControllerApplication.permit") as permit_mock:
+        await asyncio.gather(app.permit(60), app.permit(10))
+
+    # The second call waits for the first window to open and then extends it
+    assert permit_mock.mock_calls == [call(60, None), call(10, None)]
+    assert proto.setPolicy.mock_calls == [POLICY_OPEN]
 
     with patch("zigpy.application.ControllerApplication.permit"):
         await app.permit(0)
 
-    assert proto.clearTransientLinkKeys.mock_calls == [call()] * 4
-    assert proto.setPolicy.mock_calls == [
-        POLICY_OPEN,
-        POLICY_CLOSED,
-        POLICY_OPEN,
-        POLICY_CLOSED,
-    ]
+    assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED]
 
 
 async def test_permit_with_link_key(app, ieee):
