@@ -996,19 +996,20 @@ class EzspNetworkScanType(basic.enum8):
 
 
 class EmberJoinDecision(basic.enum8):
-    # Decision made by the trust center when a node attempts to join.
+    # The decision made by the Trust Center when a node attempts to join.
 
-    # Allow the node to join. The joining node should have a pre-configured
-    # key. The security data sent to it will be encrypted with that key.
+    # Allow the node to join. The node has the key.
     USE_PRECONFIGURED_KEY = 0x00
-    # Allow the node to join. Send the necessary key (the Network Key in
-    # Standard Security mode, the Trust Center Master in High Security mode)
-    # in-the-clear to the joining device.
+    # Allow the node to join. Send the key to the node.
     SEND_KEY_IN_THE_CLEAR = 0x01
     # Deny join.
     DENY_JOIN = 0x02
     # Take no action.
     NO_ACTION = 0x03
+    # Allow rejoins only.
+    # Note: only used by the SDK host framework, the NCP never reports it in
+    # `trustCenterJoinHandler`.
+    ALLOW_REJOINS_ONLY = 0x04
 
 
 class EmberInitialSecurityBitmask(basic.bitmap16):
@@ -2449,7 +2450,10 @@ class EzspPolicyId(basic.enum8):
     ZLL_POLICY = 0x08
     # Controls whether Trust Center (insecure) rejoins for devices using the well-known
     # link key are accepted. If rejoining using the well-known key is allowed, it is
-    # disabled again after emAllowTcRejoinsUsingWellKnownKeyTimeoutSec seconds.
+    # disabled again after
+    # sli_zigbee_allow_tc_rejoins_using_well_known_key_timeout_sec seconds.
+    # Note: the timeout is set with `CONFIG_TC_REJOINS_USING_WELL_KNOWN_KEY_TIMEOUT_S`.
+    # A timeout of 0 never disables it.
     TC_REJOINS_USING_WELL_KNOWN_KEY_POLICY = 0x09
     # Controls whether the ZigBee RF4CE stack will use standard profile-dependent
     # behavior during the discovery and pairing process. The profiles supported at the
@@ -2470,14 +2474,28 @@ class EzspPolicyId(basic.enum8):
 class EzspDecisionBitmask(basic.bitmap8):
     """EZSP Decision bitmask."""
 
+    # This is the policy decision bitmask that controls the trust center decision
+    # strategies. The bitmask is modified and extracted from the
+    # sl_zigbee_ezsp_decision_id_t for supporting bitmask operations.
+    # Note: used for `TRUST_CENTER_POLICY` from EZSPv8 onwards, replacing the trust
+    # center decisions of `EzspDecisionId`. The NCP boots with `ALLOW_JOINS |
+    # ALLOW_UNSECURED_REJOINS`.
+
     # XXX: this is intentionally an 8-bit bitmap! The SDK source treats it as a 16-bit
     # value but it is always serialized to an 8-bit integer
 
     # Disallow joins and rejoins.
     DEFAULT_CONFIGURATION = 0x0000
     # Send the network key to all joining devices.
+    # Note: EmberZNet 6.7.x (EZSPv8) also accepts unsecured rejoins with only this bit
+    # set.
     ALLOW_JOINS = 0x0001
     # Send the network key to all rejoining devices.
+    # Note: from EmberZNet 6.9.0 (EZSPv8) onwards, unsecured rejoins are denied without
+    # it.
+    # Note: these are Trust Center rejoins (spec name). The network key is APS
+    # encrypted with the device's link key, devices using the well-known key are
+    # rejected unless `TC_REJOINS_USING_WELL_KNOWN_KEY_POLICY` is enabled.
     ALLOW_UNSECURED_REJOINS = 0x0002
     # Send the network key in the clear.
     SEND_KEY_IN_CLEAR = 0x0004
@@ -2491,6 +2509,9 @@ class EzspDecisionBitmask(basic.bitmap8):
 
 class EzspDecisionId(basic.enum8):
     # Identifies a policy decision.
+
+    # Note: `TRUST_CENTER_POLICY` decisions, EZSPv4 to EZSPv7 only. EZSPv8 and later
+    # use `EzspDecisionBitmask` instead and no longer define these values.
 
     # Send the network key in the clear to all joining and rejoining devices.
     ALLOW_JOINS = 0x00
@@ -2520,6 +2541,7 @@ class EzspDecisionId(basic.enum8):
     BDB_JOIN_USES_INSTALL_CODE_KEY = 0x06
     # Delay sending the network key to a new joining device.
     DEFER_JOINS_REJOINS_HAVE_LINK_KEY = 0x07
+
     # BINDING_MODIFICATION_POLICY default decision. Do not allow the local
     # binding table to be changed by remote nodes.
     DISALLOW_BINDING_MODIFICATION = 0x10
@@ -2552,8 +2574,11 @@ class EzspDecisionId(basic.enum8):
     # TC_KEY_REQUEST_POLICY decision. When the Trust Center receives a request for a
     # Trust Center link key, it will reply to it with the corresponding key.
     ALLOW_TC_KEY_REQUESTS_AND_SEND_CURRENT_KEY = 0x51
-    # TC_KEY_REQUEST_POLICY decision. When the Trust Center receives a request
-    # for a Trust Center link key, it will generate a key to send to the joiner.
+    # SL_ZIGBEE_EZSP_TC_KEY_REQUEST_POLICY decision. When the Trust Center
+    # receives a request for a Trust Center link key, it will generate a key to
+    # send to the joiner. After generation, the key will be added to the
+    # transient key table and After verification, this key will be added into the
+    # link key table
     ALLOW_TC_KEY_REQUEST_AND_GENERATE_NEW_KEY = 0x52
     # APP_KEY_REQUEST_POLICY decision. When the Trust Center receives a request
     # for an application link key, it will be ignored.
@@ -2590,11 +2615,22 @@ class EzspDecisionId(basic.enum8):
 
 
 class EmberDeviceUpdate(basic.enum8):
-    # The status of the device update.
+    # The Status of the Update Device message sent to the Trust Center.
+    # The device may have joined or rejoined insecurely, rejoined securely, or
+    # left.  MAC Security has been deprecated and therefore there is no secure
+    # join.
+    # These map to the actual values within the APS Command frame so they cannot
+    # be arbitrarily changed.
+    # Note: this is the Status field of the APS Update Device command, Zigbee R23.2
+    # 4.4.11.2.4 and Table 4-14. The spec reserves 0x04 to 0x07.
 
+    # Note: spec name "Standard Device Secured Rejoin".
     STANDARD_SECURITY_SECURED_REJOIN = 0x0
+    # Note: spec name "Standard Device Unsecured Join".
     STANDARD_SECURITY_UNSECURED_JOIN = 0x1
     DEVICE_LEFT = 0x2
+    # Note: spec name "Standard Device Trust Center Rejoin", a NWK rejoin without NWK
+    # security.
     STANDARD_SECURITY_UNSECURED_REJOIN = 0x3
 
     # Removed in EZSPv5

@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from asyncio import timeout as asyncio_timeout
 from collections.abc import AsyncGenerator
+import contextlib
+import dataclasses
 from datetime import UTC, datetime
 import importlib.metadata
 import logging
@@ -99,6 +101,14 @@ GP_SECURITY_STATUSES = {
 }
 
 
+@dataclasses.dataclass
+class JoinWindow:
+    link_keys: dict[t.EUI64, t.KeyData] | None
+    close_event: asyncio.Event
+    timer: asyncio.TimerHandle
+    task: asyncio.Task
+
+
 class ControllerApplication(zigpy.application.ControllerApplication):
     SCHEMA = CONFIG_SCHEMA
 
@@ -116,6 +126,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._ezsp = None
         self._multicast = None
         self._mfg_id_task: asyncio.Task | None = None
+        self._join_window: JoinWindow | None = None
+        self._join_window_lock = asyncio.Lock()
         self._pending_requests = {}
         self._watchdog_failures = 0
         self._watchdog_feed_counter = 0
@@ -1005,7 +1017,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             if self._mfg_id_task and not self._mfg_id_task.done():
                 self._mfg_id_task.cancel()
             self._mfg_id_task = asyncio.create_task(self._reset_mfg_id(mfg_id))
-        self.handle_join(nwk, ieee, parent_nwk)
+
+        # Unsecured joins and rejoins are unauthenticated: anyone can send one for any
+        # EUI64 and the device may never receive the network key. The device's own
+        # network-secured Device_annce reports the join once it has the key.
+        if device_update_status == t.EmberDeviceUpdate.STANDARD_SECURITY_SECURED_REJOIN:
+            self.handle_join(nwk, ieee, parent_nwk)
 
     async def _reset_mfg_id(self, mfg_id: int) -> None:
         """Resets manufacturer id if was temporary overridden by a joining device."""
@@ -1335,10 +1352,61 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             finally:
                 del self._pending_requests[pending_tag]
 
+    async def _close_join_window(self) -> None:
+        if self._join_window is None:
+            return
+
+        window = self._join_window
+        self._join_window = None
+
+        window.timer.cancel()
+        window.close_event.set()
+
+        # The window task always runs to completion so cleanup is never interrupted
+        await asyncio.wait([window.task])
+
+    async def _open_join_window(
+        self, time_s: int, link_keys: dict[t.EUI64, t.KeyData] | None = None
+    ) -> None:
+        loop = asyncio.get_running_loop()
+        window = self._join_window
+
+        # Reopening the window would briefly reject joins, extend it instead
+        if (
+            window is not None
+            and not window.close_event.is_set()
+            and window.link_keys == link_keys
+        ):
+            window.timer.cancel()
+            window.timer = loop.call_later(time_s, window.close_event.set)
+            return
+
+        await self._close_join_window()
+
+        stack = contextlib.AsyncExitStack()
+        await stack.enter_async_context(self._ezsp.allow_joins(link_keys=link_keys))
+        close_event = asyncio.Event()
+
+        async def join_window() -> None:
+            async with stack:
+                await close_event.wait()
+
+        self._join_window = JoinWindow(
+            link_keys=link_keys,
+            close_event=close_event,
+            timer=loop.call_later(time_s, close_event.set),
+            task=self.create_task(join_window(), "join_window"),
+        )
+
     async def permit(self, time_s: int = 60, node: t.EmberNodeId = None) -> None:
         """Permit joining."""
-        self.create_task(self._ezsp.pre_permit(time_s), "pre_permit")
-        await super().permit(time_s, node)
+        async with self._join_window_lock:
+            if time_s == 0:
+                await self._close_join_window()
+            else:
+                await self._open_join_window(time_s)
+
+            await super().permit(time_s, node)
 
     def permit_ncp(self, time_s=60):
         assert 0 <= time_s <= 254
@@ -1348,22 +1416,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self, node: t.EUI64, link_key: t.KeyData, time_s: int = 60
     ) -> None:
         """Permits a new device to join with the given IEEE and link key."""
-
-        status = await self._ezsp.add_transient_link_key(node, link_key)
-
-        if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
-            raise ControllerError("Failed to set link key")
-
-        if self._ezsp.ezsp_version >= 8:
-            await self._ezsp.setPolicy(
-                policyId=t.EzspPolicyId.TRUST_CENTER_POLICY,
-                decisionId=(
-                    t.EzspDecisionBitmask.ALLOW_JOINS
-                    | t.EzspDecisionBitmask.JOINS_USE_INSTALL_CODE_KEY
-                ),
-            )
-
-        return await super().permit(time_s)
+        async with self._join_window_lock:
+            await self._open_join_window(time_s, link_keys={node: link_key})
+            await super().permit(time_s)
 
     async def _subscribe_to_multicast_group(
         self, group_id: zigpy.types.Group, endpoint_id: int

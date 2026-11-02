@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import MagicMock, call
 
 import pytest
 import zigpy.exceptions
@@ -33,18 +33,22 @@ def test_ezsp_frame_rx(ezsp_f):
     assert ezsp_f._handle_callback.call_args[0][1] == [0x01, 0x02, 0x1234]
 
 
-async def test_pre_permit(ezsp_f):
-    """Test pre permit."""
-    p1 = patch.object(ezsp_f, "setPolicy", new=AsyncMock())
-    p2 = patch.object(
-        ezsp_f,
-        "importTransientKey",
-        new=AsyncMock(return_value=[t.sl_Status.OK]),
+async def test_add_transient_link_key(ezsp_f) -> None:
+    ezsp_f.importTransientKey.return_value = [t.sl_Status.OK]
+
+    status = await ezsp_f.add_transient_link_key(
+        ieee=t.EUI64.convert("00:11:22:33:44:55:66:77"),
+        key=t.KeyData(b"ZigBeeAlliance09"),
     )
-    with p1 as pre_permit_mock, p2 as tclk_mock:
-        await ezsp_f.pre_permit(-1.9)
-    assert pre_permit_mock.await_count == 2
-    assert tclk_mock.await_count == 1
+
+    assert status == t.sl_Status.OK
+    assert ezsp_f.importTransientKey.mock_calls == [
+        call(
+            eui64=t.EUI64.convert("00:11:22:33:44:55:66:77"),
+            plaintext_key=t.KeyData(b"ZigBeeAlliance09"),
+            flags=t.SecurityManagerContextFlags.NONE,
+        )
+    ]
 
 
 async def test_read_link_keys(ezsp_f):

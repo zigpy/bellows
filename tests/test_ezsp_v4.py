@@ -34,9 +34,24 @@ def test_ezsp_frame_rx(ezsp_f):
     assert ezsp_f._handle_callback.call_args[0][1] == [0x01, 0x02, 0x1234]
 
 
-async def test_pre_permit(ezsp_f):
-    """Test pre permit."""
-    await ezsp_f.pre_permit(1.9)
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"allow_joins": True},
+        {"allow_joins": True, "install_codes_only": True},
+        {"allow_joins": False},
+    ],
+)
+async def test_set_join_policy(ezsp_f, kwargs) -> None:
+    # It's a no-op
+    await ezsp_f.set_join_policy(**kwargs)
+    assert len(ezsp_f.setPolicy.mock_calls) == 0
+
+
+async def test_clear_transient_link_keys(ezsp_f) -> None:
+    # It's a no-op
+    await ezsp_f.clear_transient_link_keys()
+    assert len(ezsp_f.clearTransientLinkKeys.mock_calls) == 0
 
 
 async def test_read_child_data(ezsp_f):

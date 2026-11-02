@@ -12,12 +12,13 @@ import zigpy.config
 from bellows import config, uart
 from bellows.ash import NcpFailure
 from bellows.exception import (
+    ControllerError,
     EzspError,
     InvalidCommandError,
     InvalidCommandPayload,
     InvalidTxPower,
 )
-from bellows.ezsp import EZSP, EZSP_LATEST, xncp
+from bellows.ezsp import EZSP, EZSP_LATEST, WELL_KNOWN_LINK_KEY, WILDCARD_EUI64, xncp
 from bellows.ezsp.v9.commands import GetTokenDataRsp
 import bellows.types as t
 
@@ -461,6 +462,109 @@ async def test_set_disable_source_routing(ezsp_f):
         ezsp_f.setSourceRouteDiscoveryMode.mock_calls[0].kwargs["mode"]
         == t.SourceRouteDiscoveryMode.OFF
     )
+
+
+@pytest.mark.parametrize(
+    "link_keys, expected_keys, install_codes_only",
+    [
+        (None, {WILDCARD_EUI64: WELL_KNOWN_LINK_KEY}, False),
+        (
+            {
+                t.EUI64.convert("00:11:22:33:44:55:66:77"): t.KeyData(
+                    b"0123456789abcdef"
+                )
+            },
+            {
+                t.EUI64.convert("00:11:22:33:44:55:66:77"): t.KeyData(
+                    b"0123456789abcdef"
+                )
+            },
+            True,
+        ),
+    ],
+)
+async def test_allow_joins(ezsp_f, link_keys, expected_keys, install_codes_only):
+    proto = ezsp_f._protocol
+    proto.add_transient_link_key = AsyncMock(return_value=t.sl_Status.OK)
+    proto.set_join_policy = AsyncMock()
+    proto.clear_transient_link_keys = AsyncMock()
+
+    async with ezsp_f.allow_joins(link_keys=link_keys):
+        assert proto.add_transient_link_key.mock_calls == [
+            call(ieee, key) for ieee, key in expected_keys.items()
+        ]
+        assert proto.set_join_policy.mock_calls == [
+            call(allow_joins=True, install_codes_only=install_codes_only)
+        ]
+
+        # Leftover keys from a previous window are cleared before the new ones
+        assert proto.clear_transient_link_keys.mock_calls == [call()]
+
+    assert proto.clear_transient_link_keys.mock_calls == [call(), call()]
+    assert proto.set_join_policy.mock_calls == [
+        call(allow_joins=True, install_codes_only=install_codes_only),
+        call(allow_joins=False),
+    ]
+
+
+async def test_allow_joins_clear_keys_failure(ezsp_f):
+    proto = ezsp_f._protocol
+    proto.add_transient_link_key = AsyncMock(return_value=t.sl_Status.OK)
+    proto.set_join_policy = AsyncMock()
+    proto.clear_transient_link_keys = AsyncMock(side_effect=[None, TimeoutError()])
+
+    with pytest.raises(TimeoutError):
+        async with ezsp_f.allow_joins():
+            pass
+
+    # The policy is restored even though the keys could not be cleared
+    assert proto.set_join_policy.mock_calls == [
+        call(allow_joins=True, install_codes_only=False),
+        call(allow_joins=False),
+    ]
+
+
+async def test_allow_joins_link_key_failure(ezsp_f):
+    proto = ezsp_f._protocol
+    proto.add_transient_link_key = AsyncMock(return_value=t.sl_Status.FAIL)
+    proto.set_join_policy = AsyncMock()
+    proto.clear_transient_link_keys = AsyncMock()
+
+    link_keys = {
+        t.EUI64.convert("00:11:22:33:44:55:66:77"): t.KeyData(b"0123456789abcdef")
+    }
+
+    with pytest.raises(ControllerError):
+        async with ezsp_f.allow_joins(link_keys=link_keys):
+            pytest.fail("Joins must not be allowed")  # pragma: no cover
+
+    # Joins are never allowed but everything is still cleaned up
+    assert proto.clear_transient_link_keys.mock_calls == [call(), call()]
+    assert proto.set_join_policy.mock_calls == [call(allow_joins=False)]
+
+
+@pytest.mark.parametrize(
+    "version, default",
+    [(v, t.EzspDecisionId.ALLOW_PRECONFIGURED_KEY_JOINS) for v in (4, 5, 6, 7)]
+    + [
+        (
+            v,
+            t.EzspDecisionBitmask.ALLOW_JOINS
+            | t.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS,
+        )
+        for v in EZSP._BY_VERSION
+        if v >= 8
+    ],
+)
+def test_trust_center_policy_default(version, default):
+    schema = EZSP._BY_VERSION[version].SCHEMAS[config.CONF_EZSP_POLICIES]
+
+    policies = schema({})
+    assert policies[t.EzspPolicyId.TRUST_CENTER_POLICY.name] == default
+
+    # The user's configuration takes precedence
+    policies = schema({t.EzspPolicyId.TRUST_CENTER_POLICY.name: 0x02})
+    assert policies[t.EzspPolicyId.TRUST_CENTER_POLICY.name] == 0x02
 
 
 async def test_leave_network_error(ezsp_f):
