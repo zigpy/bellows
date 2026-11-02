@@ -42,13 +42,15 @@ class EZSPv8(EZSPv7):
             decision = self.tc_policy
         elif install_codes_only:
             decision = (
-                t.EzspDecisionBitmask.ALLOW_JOINS
+                self.tc_policy
+                | t.EzspDecisionBitmask.ALLOW_JOINS
                 | t.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS
                 | t.EzspDecisionBitmask.JOINS_USE_INSTALL_CODE_KEY
             )
         else:
             decision = (
-                t.EzspDecisionBitmask.ALLOW_JOINS
+                self.tc_policy
+                | t.EzspDecisionBitmask.ALLOW_JOINS
                 | t.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS
             )
 
