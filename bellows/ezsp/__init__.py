@@ -643,6 +643,9 @@ class EZSP:
             link_keys = {WILDCARD_EUI64: WELL_KNOWN_LINK_KEY}
 
         try:
+            # Keys from a previous window may remain if its cleanup failed
+            await self._protocol.clear_transient_link_keys()
+
             for ieee, key in link_keys.items():
                 status = await self._protocol.add_transient_link_key(ieee, key)
 
