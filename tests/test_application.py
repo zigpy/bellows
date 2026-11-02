@@ -661,46 +661,55 @@ def test_unexpected_send_success(app, aps, ieee):
     )
 
 
-async def test_join_handler(app, ieee):
+@pytest.mark.parametrize(
+    "status, decision, joins, cleans_up_tclk",
+    [
+        # Only a secured rejoin proves the device holds the network key
+        (
+            t.EmberDeviceUpdate.STANDARD_SECURITY_SECURED_REJOIN,
+            t.EmberJoinDecision.NO_ACTION,
+            True,
+            False,
+        ),
+        # Unsecured joins and rejoins are reported by the device's Device_annce
+        (
+            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            t.EmberJoinDecision.USE_PRECONFIGURED_KEY,
+            False,
+            True,
+        ),
+        (
+            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_REJOIN,
+            t.EmberJoinDecision.USE_PRECONFIGURED_KEY,
+            False,
+            False,
+        ),
+        (
+            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            t.EmberJoinDecision.DENY_JOIN,
+            False,
+            True,
+        ),
+        (
+            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_REJOIN,
+            t.EmberJoinDecision.DENY_JOIN,
+            False,
+            False,
+        ),
+    ],
+)
+async def test_join_handler(app, ieee, status, decision, joins, cleans_up_tclk):
     # Calls device.initialize, leaks a task
     app.handle_join = MagicMock()
     app.cleanup_tc_link_key = AsyncMock()
     app.ezsp_callback_handler(
-        "trustCenterJoinHandler",
-        [
-            1,
-            ieee,
-            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
-            t.EmberJoinDecision.NO_ACTION,
-            sentinel.parent,
-        ],
+        "trustCenterJoinHandler", [1, ieee, status, decision, sentinel.parent]
     )
     await asyncio.sleep(0)
-    assert ieee not in app.devices
-    assert app.handle_join.call_count == 1
-    assert app.handle_join.call_args[0][0] == 1
-    assert app.handle_join.call_args[0][1] == ieee
-    assert app.handle_join.call_args[0][2] is sentinel.parent
-    assert app.cleanup_tc_link_key.await_count == 1
-    assert app.cleanup_tc_link_key.call_args[0][0] is ieee
 
-    # cleanup TCLK, but no join handling
-    app.handle_join.reset_mock()
-    app.cleanup_tc_link_key.reset_mock()
-    app.ezsp_callback_handler(
-        "trustCenterJoinHandler",
-        [
-            1,
-            ieee,
-            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
-            t.EmberJoinDecision.DENY_JOIN,
-            sentinel.parent,
-        ],
-    )
-    await asyncio.sleep(0)
-    assert app.cleanup_tc_link_key.await_count == 1
-    assert app.cleanup_tc_link_key.call_args[0][0] is ieee
-    assert app.handle_join.call_count == 0
+    assert ieee not in app.devices
+    assert app.handle_join.mock_calls == [call(1, ieee, sentinel.parent)] * joins
+    assert app.cleanup_tc_link_key.mock_calls == [call(ieee)] * cleans_up_tclk
 
 
 def test_leave_handler(app, ieee):

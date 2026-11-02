@@ -1007,7 +1007,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             if self._mfg_id_task and not self._mfg_id_task.done():
                 self._mfg_id_task.cancel()
             self._mfg_id_task = asyncio.create_task(self._reset_mfg_id(mfg_id))
-        self.handle_join(nwk, ieee, parent_nwk)
+
+        # Unsecured joins and rejoins are unauthenticated: anyone can send one for any
+        # EUI64 and the device may never receive the network key. The device's own
+        # network-secured Device_annce reports the join once it has the key.
+        if device_update_status == t.EmberDeviceUpdate.STANDARD_SECURITY_SECURED_REJOIN:
+            self.handle_join(nwk, ieee, parent_nwk)
 
     async def _reset_mfg_id(self, mfg_id: int) -> None:
         """Resets manufacturer id if was temporary overridden by a joining device."""
