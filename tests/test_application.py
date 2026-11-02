@@ -789,12 +789,8 @@ async def test_permit(app):
 async def test_permit_window_expires(app):
     proto = app._ezsp._protocol
 
-    with (
-        patch("zigpy.application.ControllerApplication.permit"),
-        # The window expires 10ms after opening
-        patch("bellows.zigbee.application.JOIN_WINDOW_GRACE_S", -9.99),
-    ):
-        await app.permit(10)
+    with patch("zigpy.application.ControllerApplication.permit"):
+        await app.permit(0.01)
         await asyncio.wait([app._join_window.task])
 
     assert proto.clearTransientLinkKeys.mock_calls == [call(), call()]
@@ -810,17 +806,14 @@ async def test_permit_window_expires(app):
 async def test_permit_extend(app):
     proto = app._ezsp._protocol
 
-    with (
-        patch("zigpy.application.ControllerApplication.permit") as permit_mock,
-        patch("bellows.zigbee.application.JOIN_WINDOW_GRACE_S", -9.99),
-    ):
+    with patch("zigpy.application.ControllerApplication.permit") as permit_mock:
         await app.permit(60)
         window = app._join_window
-        await app.permit(10)
+        await app.permit(0.01)
 
     # The open window is extended, joins are never rejected in between
     assert app._join_window is window
-    assert permit_mock.mock_calls == [call(60, None), call(10, None)]
+    assert permit_mock.mock_calls == [call(60, None), call(0.01, None)]
     assert proto.clearTransientLinkKeys.mock_calls == [call()]
     assert proto.setPolicy.mock_calls == [POLICY_OPEN]
 
