@@ -1,6 +1,8 @@
 import asyncio
 from asyncio import timeout as asyncio_timeout
+import inspect
 import threading
+import time
 from unittest import mock
 
 import pytest
@@ -192,6 +194,94 @@ async def test_proxy_loop_closed():
     assert obj.test.call_count == 0
 
 
+async def test_proxy_loop_closed_async():
+    """An async call through a proxy to a closed loop is awaitable and resolves to None."""
+    loop = asyncio.new_event_loop()
+    obj = mock.MagicMock()
+    call_count = 0
+
+    async def magic():
+        nonlocal call_count
+        call_count += 1
+
+    obj.test = magic
+    proxy = ThreadsafeProxy(obj, loop)
+    loop.close()
+
+    assert await proxy.test() is None
+    assert call_count == 0
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+async def test_proxy_loop_closed_during_async_dispatch(caplog):
+    """The loop closing between the `is_closed()` check and dispatch is handled."""
+    loop = asyncio.new_event_loop()
+    try:
+        obj = mock.MagicMock()
+        call_count = 0
+
+        async def magic():
+            nonlocal call_count
+            call_count += 1
+
+        obj.test = magic
+        proxy = ThreadsafeProxy(obj, loop)
+        loop.call_soon_threadsafe = mock.Mock(
+            side_effect=RuntimeError("Event loop is closed")
+        )
+
+        assert await proxy.test() is None
+
+        assert call_count == 0
+        assert "Attempted to use a closed event loop" in caplog.text
+    finally:
+        loop.close()
+
+
+async def test_proxy_loop_closed_during_sync_dispatch(caplog):
+    """The loop closing between the `is_closed()` check and dispatch is handled."""
+    loop = asyncio.new_event_loop()
+    try:
+        obj = mock.MagicMock()
+        obj.test.return_value = None
+        proxy = ThreadsafeProxy(obj, loop)
+        loop.call_soon_threadsafe = mock.Mock(
+            side_effect=RuntimeError("Event loop is closed")
+        )
+
+        proxy.test()
+
+        assert obj.test.call_count == 0
+        assert "Attempted to use a closed event loop" in caplog.text
+    finally:
+        loop.close()
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+async def test_thread_run_coroutine_threadsafe_loop_not_running():
+    """A `RuntimeError` (not `AttributeError`) is raised when the loop is gone."""
+    thread = EventLoopThread()
+    assert thread.loop is None
+
+    with pytest.raises(RuntimeError):
+        # The coroutine is closed internally: no "never awaited" RuntimeWarning
+        thread.run_coroutine_threadsafe(asyncio.sleep(0))
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+async def test_thread_run_coroutine_threadsafe_loop_closed_mid_dispatch():
+    """The coroutine is closed when the loop closes between snapshot and dispatch."""
+    thread = EventLoopThread()
+    thread.loop = asyncio.new_event_loop()
+    thread.loop.close()
+
+    coro = asyncio.sleep(0)
+    with pytest.raises(RuntimeError):
+        thread.run_coroutine_threadsafe(coro)
+
+    assert inspect.getcoroutinestate(coro) == inspect.CORO_CLOSED
+
+
 async def test_thread_task_cancellation_after_stop(thread):
     loop = asyncio.get_event_loop()
     obj = mock.MagicMock()
@@ -211,3 +301,114 @@ async def test_thread_task_cancellation_after_stop(thread):
         # This will stall forever without the patch
         async with asyncio_timeout(1):
             await proxy.wait_forever()
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+async def test_proxy_loop_stopping_async(thread, caplog):
+    """An async call dispatched after `force_stop()` resolves instead of hanging."""
+    obj = mock.MagicMock()
+    call_count = 0
+    worker_loop = thread.loop
+
+    async def magic():
+        nonlocal call_count
+        call_count += 1
+        # Like a real `Gateway.disconnect()`, this cannot finish within the window: the
+        # loop stops with the task still pending, and closing drops it
+        await worker_loop.create_future()
+
+    obj.test = magic
+    proxy = ThreadsafeProxy(obj, worker_loop, thread)
+
+    # Wedge the worker thread so the stop cannot complete while we dispatch: the loop is
+    # then reliably in the window this pins, stopping but not yet closed
+    worker_loop.call_soon_threadsafe(lambda: time.sleep(0.5))
+    thread.force_stop()
+
+    async with asyncio_timeout(1):
+        # `run_coroutine_threadsafe()` accepts work for a stopping loop without raising,
+        # so without the patch this awaits a future that is never resolved
+        assert await proxy.test() is None
+
+    assert call_count == 0
+    assert "Attempted to use an event loop that is shutting down" in caplog.text
+
+
+async def test_proxy_loop_stopping_sync(caplog):
+    """A sync call dispatched to a stopping loop is dropped, not silently queued."""
+    loop = asyncio.new_event_loop()
+    try:
+        thread = EventLoopThread()
+        thread.loop = loop
+        thread.stopping = True
+
+        obj = mock.MagicMock()
+        obj.test.return_value = None
+        proxy = ThreadsafeProxy(obj, loop, thread)
+
+        proxy.test()
+
+        assert obj.test.call_count == 0
+        assert "Attempted to use an event loop that is shutting down" in caplog.text
+    finally:
+        loop.close()
+
+
+async def test_proxy_stopping_ignored_without_thread(thread):
+    """A proxy with no `EventLoopThread` behaves exactly as before."""
+    obj = mock.MagicMock()
+    obj.test.return_value = None
+    proxy = ThreadsafeProxy(obj, thread.loop)
+
+    # A proxy that was not given the thread has no way to see this, and must not guess
+    thread.stopping = True
+    proxy.test()
+    thread.stopping = False
+
+    await yield_other_thread(thread)
+
+    assert obj.test.call_count == 1
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+async def test_thread_run_coroutine_threadsafe_stopping():
+    """Handing a coroutine to a stopping loop raises instead of hanging."""
+    thread = EventLoopThread()
+    thread.loop = asyncio.new_event_loop()
+    try:
+        thread.force_stop()
+        assert thread.stopping
+        assert not thread.loop.is_closed()
+
+        coro = asyncio.sleep(0)
+        with pytest.raises(RuntimeError):
+            thread.run_coroutine_threadsafe(coro)
+
+        # The coroutine is closed internally: no "never awaited" RuntimeWarning
+        assert inspect.getcoroutinestate(coro) == inspect.CORO_CLOSED
+    finally:
+        thread.loop.close()
+
+
+async def test_thread_start_clears_stopping():
+    """A restarted thread is usable again: `start()` clears the stopping flag."""
+    thread = EventLoopThread()
+    thread_complete = await thread.start()
+    thread.force_stop()
+    assert thread.stopping
+
+    async with asyncio_timeout(1):
+        await thread_complete
+
+    await thread.start()
+    assert not thread.stopping
+    result = await thread.run_coroutine_threadsafe(
+        asyncio.sleep(0, mock.sentinel.result)
+    )
+    assert result is mock.sentinel.result
+
+    thread.force_stop()
+    async with asyncio_timeout(1):
+        await thread.thread_complete
+    [t.join(1) for t in threading.enumerate() if "bellows" in t.name]
+    assert [t for t in threading.enumerate() if "bellows" in t.name] == []
