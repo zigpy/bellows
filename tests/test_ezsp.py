@@ -18,6 +18,7 @@ from bellows.exception import (
     InvalidTxPower,
 )
 from bellows.ezsp import EZSP, EZSP_LATEST, xncp
+from bellows.ezsp.v4 import EZSPv4
 from bellows.ezsp.v9.commands import GetTokenDataRsp
 import bellows.types as t
 
@@ -338,6 +339,32 @@ async def test_ezsp_connect_retry_success(disconnect_mock, failures_before_succe
             await ezsp.connect()
 
     assert call_count == failures_before_success + 1
+    assert disconnect_mock.call_count == 0
+
+
+@patch.object(EZSP, "disconnect", new_callable=AsyncMock)
+async def test_ezsp_connect_retry_resets_protocol_version(disconnect_mock):
+    """A retry after a failure that already switched protocols starts from v4."""
+    call_count = 0
+    seen = []
+
+    async def startup_reset_mock():
+        nonlocal call_count
+        call_count += 1
+        seen.append((ezsp.ezsp_version, type(ezsp._protocol)))
+        if call_count == 1:
+            # The first attempt negotiates v12, then fails (e.g. a slow `zigbeed` reset)
+            ezsp._switch_protocol_version(12)
+            raise RuntimeError("Startup failed after the version switch")
+
+    with patch("bellows.uart.connect"):
+        ezsp = make_ezsp(version=4)
+
+        with patch.object(ezsp, "_startup_reset", side_effect=startup_reset_mock):
+            await ezsp.connect()
+
+    assert call_count == 2
+    assert seen[1] == (4, EZSPv4)
     assert disconnect_mock.call_count == 0
 
 
