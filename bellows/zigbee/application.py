@@ -1399,7 +1399,6 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         command_id: zgp_t.GPDCommandID,
         payload: bytes,
         channel: int,
-        key: zigpy.types.KeyData | None,
         lifetime: timedelta,
     ) -> None:
         """Send a GPDF from the NCP in its GPD's next receive window."""
@@ -1433,9 +1432,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                     endpoint=0,
                 )
 
-        # The NCP sends the GPDF unprotected, so `key` goes unused: a GPD that protects
-        # its GPDFs will not accept it. Neither does it ever expire a queued GPDF, which
-        # would block every other GPD, so the GPDF is removed once `lifetime` is up.
+        # The NCP never expires a queued GPDF, which would block every other GPD, so the
+        # GPDF is removed once `lifetime` is up
         async with self._gpdf_lock:
             self._gpdf_sent = asyncio.get_running_loop().create_future()
 
