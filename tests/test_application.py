@@ -3482,7 +3482,6 @@ async def send_gpdf(
         command_id=zgp_t.GPDCommandID(0xFE),
         payload=b"\x00",
         channel=channel,
-        key=zigpy_t.KeyData(range(16)),
         lifetime=lifetime,
     )
 
