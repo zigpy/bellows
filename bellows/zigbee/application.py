@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from asyncio import timeout as asyncio_timeout
 from collections.abc import AsyncGenerator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import importlib.metadata
 import logging
 import os
@@ -122,6 +122,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         self._req_lock = asyncio.Lock()
         self._packet_capture_channel: int | None = None
+
+        # The NCP queues a single GPDF for all GPDs
+        self._gpdf_lock = asyncio.Lock()
+        self._gpdf_sent: asyncio.Future[None] | None = None
 
     @property
     def controller_event(self):
@@ -729,6 +733,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 proxyTableIndex,
                 gpdCommandPayload,
             )
+        elif frame_name == "dGpSentHandler":
+            # The NCP reports neither the transmit status nor the GPEP handle: both are
+            # always zero. With one GPDF queued at a time, this is the queued one.
+            if self._gpdf_sent is not None and not self._gpdf_sent.done():
+                self._gpdf_sent.set_result(None)
         elif frame_name == "messageSentHandler":
             if self._ezsp.ezsp_version >= 14:
                 (
@@ -1382,6 +1391,91 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             return None
 
         await self._multicast.unsubscribe(group_id=group_id, endpoint_id=endpoint_id)
+
+    async def _send_gpdf(
+        self,
+        *,
+        target: zgp_t.SrcID | tuple[zigpy.types.EUI64, int] | None,
+        command_id: zgp_t.GPDCommandID,
+        payload: bytes,
+        channel: int,
+        key: zigpy.types.KeyData | None,
+        lifetime: timedelta,
+    ) -> None:
+        """Send a GPDF from the NCP in its GPD's next receive window."""
+        # The NCP only transmits on the operational channel, outside of a GP channel
+        # delivery scan
+        if channel != self.state.network_info.channel:
+            raise zigpy.exceptions.DeliveryError(
+                f"Cannot send a GPDF on channel {channel}"
+            )
+
+        # A Maintenance frame is queued for SrcID 0 (A.1.5.2.2)
+        match target:
+            case None:
+                addr = t.EmberGpAddress(
+                    applicationId=zgp_t.ApplicationID.SrcID,
+                    source_id=zgp_t.SrcID(0x00000000),
+                    source_id_padding=0,
+                    endpoint=0,
+                )
+            case (ieee, endpoint):
+                addr = t.EmberGpAddress(
+                    applicationId=zgp_t.ApplicationID.IEEE,
+                    gpd_eui64=ieee,
+                    endpoint=endpoint,
+                )
+            case _:
+                addr = t.EmberGpAddress(
+                    applicationId=zgp_t.ApplicationID.SrcID,
+                    source_id=target,
+                    source_id_padding=0,
+                    endpoint=0,
+                )
+
+        # The NCP sends the GPDF unprotected, so `key` goes unused: a GPD that protects
+        # its GPDFs will not accept it. Neither does it ever expire a queued GPDF, which
+        # would block every other GPD, so the GPDF is removed once `lifetime` is up.
+        async with self._gpdf_lock:
+            self._gpdf_sent = asyncio.get_running_loop().create_future()
+
+            try:
+                (status,) = await self._ezsp.dGpSend(
+                    action=True,
+                    useCca=False,
+                    addr=addr,
+                    gpdCommandId=command_id,
+                    gpdAsdu=payload,
+                    gpepHandle=0,
+                    gpTxQueueEntryLifetimeMs=lifetime // timedelta(milliseconds=1),
+                )
+
+                if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
+                    raise zigpy.exceptions.DeliveryError(
+                        f"Failed to queue GPDF: {status!r}"
+                    )
+
+                try:
+                    async with asyncio_timeout(lifetime.total_seconds()):
+                        await self._gpdf_sent
+                except TimeoutError:
+                    (status,) = await self._ezsp.dGpSend(
+                        action=False,
+                        useCca=False,
+                        addr=addr,
+                        gpdCommandId=command_id,
+                        gpdAsdu=b"",
+                        gpepHandle=0,
+                        gpTxQueueEntryLifetimeMs=0,
+                    )
+
+                    # Not finding it means the GPD took it meanwhile
+                    if t.sl_Status.from_ember_status(status) == t.sl_Status.OK:
+                        raise zigpy.exceptions.DeliveryError(
+                            "GPD did not listen before the GPDF expired"
+                        ) from None
+            finally:
+                self._gpdf_sent = None
 
     def _handle_id_conflict(self, nwk: t.EmberNodeId) -> None:
         LOGGER.warning("NWK conflict is reported for 0x%04x", nwk)

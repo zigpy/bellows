@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+from datetime import timedelta
 import importlib.metadata
 import logging
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, call, patch, sentinel
@@ -3261,3 +3262,152 @@ def test_frame_handler_gp_security_failure(app: ControllerApplication) -> None:
         app.ezsp_callback_handler("gpepIncomingMessageHandler", list(args.values()))
 
     assert len(gp_packet_received.mock_calls) == 0
+
+
+GPD_IEEE = zigpy_t.EUI64.convert("00:11:22:33:44:55:66:77")
+
+
+async def send_gpdf(
+    app: ControllerApplication,
+    target: zgp_t.SrcID | tuple[zigpy_t.EUI64, int] | None = zgp_t.SrcID(0x12345678),
+    *,
+    channel: int = 25,
+    lifetime: timedelta = timedelta(seconds=20),
+) -> None:
+    await app.send_gpdf(
+        target=target,
+        command_id=zgp_t.GPDCommandID(0xFE),
+        payload=b"\x00",
+        channel=channel,
+        key=zigpy_t.KeyData(range(16)),
+        lifetime=lifetime,
+    )
+
+
+@pytest.mark.parametrize(
+    ("target", "addr"),
+    [
+        (
+            zgp_t.SrcID(0x12345678),
+            t.EmberGpAddress(
+                applicationId=zgp_t.ApplicationID.SrcID,
+                source_id=zgp_t.SrcID(0x12345678),
+                source_id_padding=0,
+                endpoint=0,
+            ),
+        ),
+        (
+            (GPD_IEEE, 0x01),
+            t.EmberGpAddress(
+                applicationId=zgp_t.ApplicationID.IEEE,
+                gpd_eui64=GPD_IEEE,
+                endpoint=0x01,
+            ),
+        ),
+        # A Maintenance frame is queued for SrcID 0
+        (
+            None,
+            t.EmberGpAddress(
+                applicationId=zgp_t.ApplicationID.SrcID,
+                source_id=zgp_t.SrcID(0x00000000),
+                source_id_padding=0,
+                endpoint=0,
+            ),
+        ),
+    ],
+)
+async def test_send_gpdf(
+    app: ControllerApplication,
+    target: zgp_t.SrcID | tuple[zigpy_t.EUI64, int] | None,
+    addr: t.EmberGpAddress,
+) -> None:
+    """A GPDF is queued in the NCP and sent once the NCP reports it."""
+    app.state.network_info.channel = 25
+    app._ezsp.dGpSend = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+
+    task = asyncio.create_task(send_gpdf(app, target))
+    await asyncio.sleep(0.01)
+    assert not task.done()
+
+    # The NCP reports neither a status nor the handle
+    app.ezsp_callback_handler("dGpSentHandler", [t.EmberStatus.SUCCESS, 0])
+    await task
+
+    assert app._ezsp.dGpSend.mock_calls == [
+        call(
+            action=True,
+            useCca=False,
+            addr=addr,
+            gpdCommandId=zgp_t.GPDCommandID(0xFE),
+            gpdAsdu=b"\x00",
+            gpepHandle=0,
+            gpTxQueueEntryLifetimeMs=20_000,
+        )
+    ]
+
+
+async def test_send_gpdf_one_at_a_time(app: ControllerApplication) -> None:
+    """The NCP queues one GPDF for all GPDs, so a second one waits for the first."""
+    app.state.network_info.channel = 25
+    app._ezsp.dGpSend = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+
+    first = asyncio.create_task(send_gpdf(app, zgp_t.SrcID(0x00000001)))
+    second = asyncio.create_task(send_gpdf(app, zgp_t.SrcID(0x00000002)))
+    await asyncio.sleep(0.01)
+    assert len(app._ezsp.dGpSend.mock_calls) == 1
+
+    app.ezsp_callback_handler("dGpSentHandler", [t.EmberStatus.SUCCESS, 0])
+    await first
+    await asyncio.sleep(0.01)
+    assert len(app._ezsp.dGpSend.mock_calls) == 2
+    assert not second.done()
+
+    app.ezsp_callback_handler("dGpSentHandler", [t.EmberStatus.SUCCESS, 0])
+    await second
+
+
+async def test_send_gpdf_expired(app: ControllerApplication) -> None:
+    """The NCP never expires a GPDF, so it is removed once its lifetime is up."""
+    app.state.network_info.channel = 25
+    app._ezsp.dGpSend = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+
+    with pytest.raises(zigpy.exceptions.DeliveryError, match="expired"):
+        await send_gpdf(app, lifetime=timedelta(milliseconds=10))
+
+    [_, removal] = app._ezsp.dGpSend.mock_calls
+    assert removal.kwargs["action"] is False
+    assert removal.kwargs["addr"].source_id == 0x12345678
+
+
+async def test_send_gpdf_sent_while_expiring(app: ControllerApplication) -> None:
+    """A GPDF the NCP no longer holds when it expires was taken by its GPD."""
+    app.state.network_info.channel = 25
+    app._ezsp.dGpSend = AsyncMock(
+        side_effect=[[t.EmberStatus.SUCCESS], [t.EmberStatus.ERR_FATAL]]
+    )
+
+    await send_gpdf(app, lifetime=timedelta(milliseconds=10))
+
+
+async def test_send_gpdf_not_queued(app: ControllerApplication) -> None:
+    app.state.network_info.channel = 25
+    app._ezsp.dGpSend = AsyncMock(return_value=[t.EmberStatus.ERR_FATAL])
+
+    with pytest.raises(zigpy.exceptions.DeliveryError, match="Failed to queue"):
+        await send_gpdf(app)
+
+
+async def test_send_gpdf_other_channel(app: ControllerApplication) -> None:
+    """The NCP cannot send a GPDF off the operational channel."""
+    app.state.network_info.channel = 25
+    app._ezsp.dGpSend = AsyncMock()
+
+    with pytest.raises(zigpy.exceptions.DeliveryError, match="channel 15"):
+        await send_gpdf(app, channel=15)
+
+    assert len(app._ezsp.dGpSend.mock_calls) == 0
+
+
+def test_gpdf_sent_without_pending(app: ControllerApplication) -> None:
+    """A GPDF sent after it was given up on is ignored."""
+    app.ezsp_callback_handler("dGpSentHandler", [t.EmberStatus.SUCCESS, 0])
