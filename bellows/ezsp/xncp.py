@@ -154,6 +154,7 @@ class FirmwareFeatures(t.bitmap32):
     # A unicast can be sent, its source route and extended timeout applied, in a
     # single command
     COMBINED_SEND = 1 << 8
+
     # The firmware exposes adapter LED control
     LED_CONTROL = 1 << 31
 
