@@ -1,3 +1,5 @@
+import zigpy.zgp.types as zgp_t
+
 import bellows.types as t
 
 COMMANDS = {
@@ -1991,20 +1993,18 @@ COMMANDS = {
         0x00C5,
         {},
         {
+            # The NCP sends the legacy GP status codes, `EmberStatus` 0x78-0x7F, and
+            # `SUCCESS` for a GPDF it authenticated itself
             "status": t.EmberStatus,
-            "gpdLink": t.uint8_t,
+            "gpdLink": zgp_t.GPPGPDLink,
             "sequenceNumber": t.uint8_t,
-            "addrType": t.uint8_t,
-            "addr": t.uint32_t,
-            "applicationId": t.uint8_t,
-            "address": t.EUI64,  # TODO: `sourceId` if appId == 0 else `gpdIeeeAddress`
-            "endpoint": t.uint8_t,
+            "addr": t.EmberGpAddress,
             "gpdfSecurityLevel": t.EmberGpSecurityLevel,
             "gpdfSecurityKeyType": t.EmberGpKeyType,
             "autoCommissioning": t.Bool,
-            "bidirectionalInfo": t.Bool,
+            "bidirectionalInfo": t.EmberGpBidirectionalInfo,
             "gpdSecurityFrameCounter": t.uint32_t,
-            "gpdCommandId": t.uint8_t,
+            "gpdCommandId": zgp_t.GPDCommandID,
             "mic": t.uint32_t,
             "proxyTableIndex": t.uint8_t,
             "gpdCommandPayload": t.LVBytes,

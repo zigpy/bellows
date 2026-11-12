@@ -62,7 +62,10 @@ flow_control = click.option(
     default="software",
     type=click.Choice(["hardware", "software", "none"], case_sensitive=False),
     envvar="EZSP_FLOW_CONTROL",
-    help="use hardware flow control",
+    help=(
+        "serial port flow control: hardware (RTS/CTS) or software (XON/XOFF);"
+        " none currently behaves like software"
+    ),
 )
 
 pan = click.option("-P", "--pan-id", type=click.IntRange(0, 65535))

@@ -89,3 +89,40 @@ async def test_source_route(ezsp_f) -> None:
 
     # Nothing happens
     assert ezsp_f.setSourceRoute.mock_calls == []
+
+
+@pytest.mark.parametrize(
+    ("payload", "src_id"),
+    [
+        # EnOcean PTM 215Z: commissioning, then presses
+        (
+            "7cdf1b00e61c7701e61c77010000000000ffffffffe0ffffffffff2e02c5f210405e0513cb"
+            "556a00ee94019ee66218118edec91b03000004111011121314151617226062636465666768",
+            0x01771CE6,
+        ),
+        ("7fe11c00e61c7701e61c770100020100001c03000068e3ff0356ff00", 0x01771CE6),
+        ("7fe11d00e61c7701e61c770100020100001d03000012be6d0773ff00", 0x01771CE6),
+        ("7fe22500e61c7701e61c770100020100002503000064b4e65552ff00", 0x01771CE6),
+        # Moes 3-gang switch: commissioning, then encrypted presses
+        (
+            "7cdc7400425374f3425374f30000000000ffffffffe0ffffffffff2b0289f3a86f2ed35956"
+            "0f929469d868472c2639e1be6d66741a00007165726837706f78404750303030318e",
+            0xF3745342,
+        ),
+        ("7fe97d00425374f3425374f300030100007d1a000045dc3f907bff00", 0xF3745342),
+        ("7fe98600425374f3425374f30003010000861a000088f258ed78ff00", 0xF3745342),
+    ],
+)
+def test_gpep_incoming_frame(payload: str, src_id: int, ezsp_f) -> None:
+    """Parse incoming GP frames."""
+    ezsp_frame = (
+        bytes([0x42, 0x00, 0x01])  # seq + control bytes
+        + t.uint16_t(0x00C5).serialize()  # frame_id LE
+        + bytes.fromhex(payload)
+    )
+
+    ezsp_f(ezsp_frame)
+
+    [(name, args, *_)] = [c.args for c in ezsp_f._handle_callback.mock_calls]
+    assert name == "gpepIncomingMessageHandler"
+    assert args[3].source_id == src_id

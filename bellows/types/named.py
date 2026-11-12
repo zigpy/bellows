@@ -58,6 +58,16 @@ class EmberGpKeyType(basic.uint8_t):
     pass
 
 
+class EmberGpBidirectionalInfo(basic.bitmap8):
+    # Bidirectional information of a received GPDF.
+
+    # The incoming GPDF has its rxAfterTx bit set: the GPD briefly opens its receiver
+    # after the frame and can be sent a GPDF in response.
+    RX_AFTER_TX = 0x01
+    # The transmit queue of the green power stub is able to hold an outgoing GPDF.
+    TX_QUEUE_AVAILABLE = 0x02
+
+
 class Bool(basic.enum8):
     # Boolean type with values true and false.
 
@@ -118,6 +128,7 @@ class EzspMfgTokenId(basic.enum8):
     # Custom version (2 bytes).
     MFG_CUSTOM_VERSION = 0x00
     # Manufacturing string (16 bytes).
+    # Deprecated in EZSPv19 (SSDK 2026.6.0): removed on Series 3 platforms.
     MFG_STRING = 0x01
     # Board name (16 bytes).
     MFG_BOARD_NAME = 0x02
@@ -126,10 +137,12 @@ class EzspMfgTokenId(basic.enum8):
     # Radio configuration (2 bytes).
     MFG_PHY_CONFIG = 0x04
     # Bootload AES key (16 bytes).
+    # Deprecated in EZSPv19 (SSDK 2026.6.0): removed on Series 3 platforms.
     MFG_BOOTLOAD_AES_KEY = 0x05
     # ASH configuration (40 bytes).
     MFG_ASH_CONFIG = 0x06
     # EZSP storage (8 bytes).
+    # Deprecated in EZSPv19 (SSDK 2026.6.0): removed on Series 3 platforms.
     MFG_STORAGE = 0x07
     # Radio calibration data (64 bytes). 4 bytes are stored for each of the 16
     # channels. This token is not stored in the Flash Information Area. It is
@@ -1710,7 +1723,7 @@ SL_STATUS_MAP: dict[EzspStatus | EmberStatus, sl_Status] = {
         (EmberStatus.SOURCE_ROUTE_FAILURE, sl_Status.ZIGBEE_SOURCE_ROUTE_FAILURE),
         (EmberStatus.MANY_TO_ONE_ROUTE_FAILURE, sl_Status.ZIGBEE_MANY_TO_ONE_ROUTE_FAILURE),
         (EmberStatus.MAX_MESSAGE_LIMIT_REACHED, sl_Status.ZIGBEE_MAX_MESSAGE_LIMIT_REACHED),
-        (EmberStatus.NETWORK_BUSY, sl_Status.ZIGBEE_MAX_MESSAGE_LIMIT_REACHED),
+        (EmberStatus.NETWORK_BUSY, sl_Status.BUSY),
         (EmberStatus.DELIVERY_FAILED, sl_Status.ZIGBEE_DELIVERY_FAILED),
         (EmberStatus.APS_ENCRYPTION_ERROR, sl_Status.ZIGBEE_APS_ENCRYPTION_ERROR),
         (EmberStatus.RECEIVED_KEY_IN_THE_CLEAR, sl_Status.ZIGBEE_RECEIVED_KEY_IN_THE_CLEAR),
@@ -1731,6 +1744,7 @@ SL_STATUS_MAP: dict[EzspStatus | EmberStatus, sl_Status] = {
         (EmberStatus.MAC_SCANNING, sl_Status.MAC_SCANNING),
         (EmberStatus.MAC_INVALID_CHANNEL_MASK, sl_Status.INVALID_CHANNEL_MASK),
         (EmberStatus.PHY_INVALID_CHANNEL, sl_Status.TRANSMIT_INVALID_CHANNEL),
+        (EmberStatus.PHY_INVALID_POWER, sl_Status.TRANSMIT_INVALID_POWER),
         (EmberStatus.SERIAL_INVALID_PORT, sl_Status.INVALID_PARAMETER),
         (EmberStatus.SERIAL_RX_EMPTY, sl_Status.EMPTY),
         (EmberStatus.INSUFFICIENT_RANDOM_DATA, sl_Status.ZIGBEE_INSUFFICIENT_RANDOM_DATA),
@@ -2884,3 +2898,18 @@ class RouteRecordConcentratortype(basic.enum8):
     NOT_A_CONCENTRATOR = 0
     LOW_RAM = 1
     HIGH_RAM = 2
+
+
+class SlZigbeeLeaveNetworkOption(basic.bitmap8):
+    """Options for leaving the network (EZSP v14+)."""
+
+    WITH_NO_OPTION = 0x00
+    WITH_OPTION_REJOIN = 0x20
+    IS_REQUESTED = 0x40
+
+
+class SlZigbeeDhcPaAlgorithm(basic.enum8):
+    """Dynamic Hardware Configuration PA descriptor algorithm."""
+
+    CURVE = 0
+    TABLE = 1

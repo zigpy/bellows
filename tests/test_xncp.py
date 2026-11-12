@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from unittest.mock import AsyncMock, call, patch
 
 import pytest
@@ -17,7 +18,7 @@ async def test_xncp_failure(ezsp_f: EZSP) -> None:
     command = xncp.XncpCommand.from_payload(
         xncp.GetSupportedFeaturesRsp(features=xncp.FirmwareFeatures.MANUAL_SOURCE_ROUTE)
     )
-    command.status = t.EmberStatus.ERR_FATAL
+    command.status = xncp.XncpStatus.EMBER_BAD_ARGUMENT
 
     ezsp_f._mock_commands["customFrame"] = customFrame = AsyncMock(
         return_value=[
@@ -32,6 +33,39 @@ async def test_xncp_failure(ezsp_f: EZSP) -> None:
     assert customFrame.mock_calls == [
         call(xncp.XncpCommand.from_payload(xncp.GetSupportedFeaturesReq()).serialize())
     ]
+
+
+@pytest.mark.parametrize(
+    "rsp",
+    [
+        # Gecko SDK 4.x firmware replies with an `EmberStatus`: `EMBER_NOT_FOUND`
+        b"\x02\x80\x03",
+        # Simplicity SDK firmware replies with the low octet of an
+        # `sl_status_t`: `SL_STATUS_NOT_FOUND`
+        b"\x02\x80\x2D",
+    ],
+)
+async def test_xncp_missing_mfg_token_override(
+    ezsp_f: EZSP, rsp: bytes, caplog
+) -> None:
+    """Test that a token without an override fails quietly, regardless of the SDK."""
+    ezsp_f._mock_commands["customFrame"] = AsyncMock(
+        return_value=[t.EmberStatus.SUCCESS, rsp]
+    )
+    ezsp_f._mock_commands["getMfgToken"] = AsyncMock(return_value=[b"\xFF" * 8])
+    ezsp_f._xncp_features |= xncp.FirmwareFeatures.MFG_TOKEN_OVERRIDES
+
+    with caplog.at_level(logging.WARNING, logger="bellows"):
+        assert (
+            await ezsp_f.get_mfg_token(t.EzspMfgTokenId.MFG_CUSTOM_EUI_64)
+        ) == b"\xFF" * 8
+
+    # An unsupported override is an expected condition, not a warning
+    assert [
+        r.getMessage()
+        for r in caplog.records
+        if r.name.startswith("bellows.") and r.levelno >= logging.WARNING
+    ] == []
 
 
 async def test_xncp_failure_multiprotocol(ezsp_f: EZSP) -> None:

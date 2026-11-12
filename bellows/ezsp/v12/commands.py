@@ -50,11 +50,10 @@ COMMANDS = {
     "checkKeyContext": (
         0x0110,
         {
-            "config": t.uint8_t,
-            "minAcksNeeded": t.uint8_t,
+            "context": t.SecurityManagerContextV12,
         },
         {
-            "status": t.EmberStatus,
+            "status": t.sl_Status,
         },
     ),
     "childId": (

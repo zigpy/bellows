@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from zigpy.types import Struct as EzspStruct, StructField
+from zigpy.zgp.types import ApplicationID, SrcID
 
 from . import basic, named
 
@@ -326,6 +327,20 @@ class EmberTokenInfo(EzspStruct):
     arraySize: basic.uint8_t
 
 
+class SlZigbeeTokenInfo(EzspStruct):
+    # Information of a token in the token table
+    # NVM3 key of the token
+    nvm3Key: named.NV3KeyId
+    # Token is a counter type
+    isCnt: named.Bool
+    # Token is an indexed token
+    isIdx: named.Bool
+    # Size of the token, widened from `uint8_t` in Simplicity SDK 2025.12
+    size: basic.uint32_t
+    # Array size of the token
+    arraySize: basic.uint8_t
+
+
 class EmberTokTypeStackZllData(EzspStruct):
     # Public API for ZLL stack data token.
     # Token bitmask.
@@ -357,14 +372,23 @@ class EmberTokTypeStackZllSecurity(EzspStruct):
 
 
 class EmberGpAddress(EzspStruct):
-    # A GP address structure.
-    # The GPD's EUI64.
-    gpdIeeeAddress: named.EUI64
-    # The GPD's source ID.
-    sourceId: basic.uint32_t
-    # The GPD Application ID.
+    """sl_zigbee_gp_address_t: GPD address used by the GP callbacks."""
+
     applicationId: basic.uint8_t
-    # The GPD endpoint.
+
+    # 8-byte union. When applicationId == 0 (SrcID), the first 4 bytes hold the 32-bit
+    # source ID (little-endian) and the rest is padding; when applicationId == 2
+    # (IEEE), the 8 bytes are the GPD EUI64.
+    source_id: SrcID = StructField(
+        requires=lambda a: a.applicationId == ApplicationID.SrcID
+    )
+    source_id_padding: basic.uint32_t = StructField(
+        requires=lambda a: a.applicationId == ApplicationID.SrcID
+    )
+    gpd_eui64: named.EUI64 = StructField(
+        requires=lambda a: a.applicationId == ApplicationID.IEEE
+    )
+
     endpoint: basic.uint8_t
 
 
@@ -484,8 +508,6 @@ class EmberGpSinkListEntry(EzspStruct):
 class EmberGpProxyTableEntry(EzspStruct):
     """The internal representation of a proxy table entry."""
 
-    # The link key to be used to secure this pairing link.
-    securityLinkKey: named.KeyData
     # Internal status of the proxy table entry.
     status: named.EmberGpProxyTableEntryStatus
     # The tunneling options
@@ -769,3 +791,85 @@ class SlRxPacketInfo(EzspStruct):
     last_hop_rssi: basic.int8s
     # Timestamp of the moment when Start Frame Delimiter (SFD) was received
     last_hop_timestamp: basic.uint32_t
+
+
+class SlZigbeeDhcPaCurveSegment(EzspStruct):
+    """One PA curve segment (piecewise linear)."""
+
+    # Segment upper bound power level
+    maxPowerLevel: basic.uint8_t
+    # Signed slope coefficient
+    slope: basic.int32s
+    # Signed intercept coefficient
+    intercept: basic.int32s
+
+
+class SlZigbeeDhcPaCurve(EzspStruct):
+    """Full PA curve (fixed 9 segments)."""
+
+    # Curve min ddbm
+    curve_min_ddbm: basic.int16s
+    # Curve max ddbm
+    curve_max_ddbm: basic.int16s
+    # Curve segments
+    segments: basic.FixedList[SlZigbeeDhcPaCurveSegment, 9]
+
+
+class SlZigbeeDhcPaDescriptor(EzspStruct):
+    """Descriptor for either a curve (algorithm=0) or table (algorithm=1)."""
+
+    algorithm: named.SlZigbeeDhcPaAlgorithm
+    # 9 for curve, 16 for table
+    num_segments_or_entries: basic.uint8_t
+    # Minimum ddbm (may be negative)
+    min_ddbm: basic.int16s
+    # Maximum ddbm (may be negative)
+    max_ddbm: basic.int16s
+
+
+class SlZigbeeDhcPaTable(EzspStruct):
+    """Discrete PA table (16 entries)."""
+
+    # Signed ddbm table entries
+    ddbm_values: basic.FixedList[basic.int16s, 16]
+
+
+class SlZigbeeDhcPaMetadata(EzspStruct):
+    """Top-level PA calibration metadata."""
+
+    # Calibration metadata / dataset version
+    version: basic.uint8_t
+    # Number of PA descriptors present
+    num_descriptors: basic.uint8_t
+    # PA supply voltage (e.g. mV)
+    pa_voltage: basic.uint16_t
+    # Integrity signature / CRC for whole set
+    signature: basic.uint32_t
+
+
+class SlZigbeeMultiprotocolPriorities(EzspStruct):
+    """Priorities for Zigbee radio operations in multiprotocol (EZSP v14)."""
+
+    # The priority of a Zigbee RX operation while not receiving a packet
+    backgroundRx: basic.uint8_t
+    # The priority of a Zigbee TX operation
+    tx: basic.uint8_t
+    # The priority of a Zigbee RX operation while receiving a packet
+    activeRx: basic.uint8_t
+
+
+class Sl802154RadioPriorities(EzspStruct):
+    """Scheduler priorities for radio operations (EZSP v16+)."""
+
+    # The priority of a Zigbee RX operation while not receiving a packet
+    background_rx: basic.uint8_t
+    # Starting priority of a Zigbee TX operation. The first transmit of the
+    # packet, before retries, uses this priority
+    min_tx_priority: basic.uint8_t
+    # The increase in TX priority (which is a decrement in value) for each retry
+    tx_step: basic.uint8_t
+    # Maximum priority of a Zigbee TX operation. Retried messages have
+    # priorities bumped by tx_step, up to a maximum of max_tx_priority
+    max_tx_priority: basic.uint8_t
+    # The priority of a Zigbee RX operation while receiving a packet
+    active_rx: basic.uint8_t
