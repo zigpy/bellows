@@ -36,6 +36,7 @@ class ProtocolHandler(abc.ABC):
     def __init__(self, cb_handler: Callable, gateway: Gateway) -> None:
         self._handle_callback = cb_handler
         self._awaiting = {}
+        self._timed_out_commands: dict[int, int] = {}
         self._gw = gateway
         self._seq = 0
         self.COMMANDS_BY_ID = {
@@ -121,6 +122,7 @@ class ProtocolHandler(abc.ABC):
 
             future = asyncio.get_running_loop().create_future()
             sequence = self._seq
+            self._timed_out_commands.pop(sequence, None)
             self._awaiting[sequence] = (cmd_id, rx_schema, future)
             self._seq = (self._seq + 1) % 256
 
@@ -128,6 +130,10 @@ class ProtocolHandler(abc.ABC):
                 async with asyncio_timeout(EZSP_CMD_TIMEOUT):
                     await self._gw.send_data(data)
                     return await future
+            except TimeoutError:
+                # Keep only IDs, bounded by the 256 sequence values until reuse.
+                self._timed_out_commands[sequence] = cmd_id
+                raise
             finally:
                 self._awaiting.pop(sequence, None)
                 future.cancel()
@@ -252,6 +258,13 @@ class ProtocolHandler(abc.ABC):
                     sequence,
                     self.COMMANDS_BY_ID.get(expected_id, [expected_id])[0],
                 )
+        elif self._timed_out_commands.get(sequence) == frame_id:
+            self._timed_out_commands.pop(sequence)
+            LOGGER.debug(
+                "Error processing %s response. %s command timed out?",
+                sequence,
+                frame_name,
+            )
         else:
             self._handle_callback(frame_name, result)
 
