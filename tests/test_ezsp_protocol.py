@@ -47,6 +47,72 @@ async def test_command(prot_hndl):
     assert mock_send_data.mock_calls == [call(b"\x00\x00\x05")]
 
 
+async def test_command_timeout_includes_transport_send(prot_hndl):
+    """A stuck transport must release the command semaphore and pending reply."""
+    send_started = asyncio.Event()
+
+    async def blocked_send(data):
+        send_started.set()
+        await asyncio.Event().wait()
+
+    with (
+        patch.object(prot_hndl._gw, "send_data", side_effect=blocked_send),
+        patch("bellows.ezsp.protocol.EZSP_CMD_TIMEOUT", 0.01),
+    ):
+        # The outer bound makes the regression fail instead of hanging the suite.
+        async with asyncio.timeout(1):
+            task = asyncio.create_task(prot_hndl.command("nop"))
+            await send_started.wait()
+            with pytest.raises(TimeoutError):
+                await task
+    assert not prot_hndl._awaiting
+    assert not prot_hndl._send_semaphore.locked()
+
+    with patch.object(prot_hndl._gw, "send_data"):
+        asyncio.get_running_loop().call_soon(
+            lambda: prot_hndl._awaiting[prot_hndl._seq - 1][2].set_result(True)
+        )
+        assert await prot_hndl.command("nop") is True
+    assert not prot_hndl._awaiting
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+async def test_command_cleans_up_failed_transport(prot_hndl, cancel):
+    """Send failures and caller cancellation must not retain pending replies."""
+    send_started = asyncio.Event()
+
+    async def send(data):
+        send_started.set()
+        if not cancel:
+            raise RuntimeError("closed worker")
+        await asyncio.Event().wait()
+
+    with patch.object(prot_hndl._gw, "send_data", side_effect=send):
+        task = asyncio.create_task(prot_hndl.command("nop"))
+        await send_started.wait()
+        future = next(iter(prot_hndl._awaiting.values()))[2] if cancel else None
+        if cancel:
+            task.cancel()
+        with pytest.raises(asyncio.CancelledError if cancel else RuntimeError):
+            await task
+        if cancel:
+            assert future.cancelled()
+    assert not prot_hndl._awaiting
+    assert not prot_hndl._send_semaphore.locked()
+
+
+async def test_command_cleans_up_response_timeout(prot_hndl):
+    """A response timeout must remove its pending-reply entry."""
+    with (
+        patch.object(prot_hndl._gw, "send_data"),
+        patch("bellows.ezsp.protocol.EZSP_CMD_TIMEOUT", 0.01),
+        pytest.raises(TimeoutError),
+    ):
+        await prot_hndl.command("nop")
+    assert not prot_hndl._awaiting
+    assert not prot_hndl._send_semaphore.locked()
+
+
 def test_receive_reply(prot_hndl):
     callback_mock = MagicMock(spec_set=asyncio.Future)
     prot_hndl._awaiting[0] = (0, prot_hndl.COMMANDS["version"][2], callback_mock)

@@ -120,13 +120,17 @@ class ProtocolHandler(abc.ABC):
             cmd_id, _, rx_schema = self.COMMANDS[name]
 
             future = asyncio.get_running_loop().create_future()
-            self._awaiting[self._seq] = (cmd_id, rx_schema, future)
+            sequence = self._seq
+            self._awaiting[sequence] = (cmd_id, rx_schema, future)
             self._seq = (self._seq + 1) % 256
 
-            await self._gw.send_data(data)
-
-            async with asyncio_timeout(EZSP_CMD_TIMEOUT):
-                return await future
+            try:
+                async with asyncio_timeout(EZSP_CMD_TIMEOUT):
+                    await self._gw.send_data(data)
+                    return await future
+            finally:
+                self._awaiting.pop(sequence, None)
+                future.cancel()
 
     async def update_policies(self, policy_config: dict) -> None:
         """Set up the policies for what the NCP should do."""
