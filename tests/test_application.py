@@ -1204,6 +1204,22 @@ async def test_send_packet_unicast_force_route_discovery(app, packet):
     )
 
 
+async def test_send_packet_unicast_force_route_discovery_source_routing(
+    make_app, packet
+):
+    app = make_app({zigpy.config.CONF_SOURCE_ROUTING: True})
+
+    await _test_send_packet_unicast(
+        app,
+        packet.replace(tx_options=zigpy.types.TransmitOptions.FORCE_ROUTE_DISCOVERY),
+        options=(
+            t.EmberApsOption.APS_OPTION_RETRY
+            | t.EmberApsOption.APS_OPTION_FORCE_ROUTE_DISCOVERY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
+        ),
+    )
+
+
 async def test_send_packet_unicast_aps_encryption(app, packet):
     await _test_send_packet_unicast(
         app,
@@ -2300,6 +2316,39 @@ async def test_connect_failure(app: ControllerApplication) -> None:
     assert app._ezsp is None
 
     assert len(ezsp.disconnect.mock_calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("source_routing", "ezsp_config", "written_config"),
+    [
+        (False, {}, {"CONFIG_SOURCE_ROUTE_TABLE_SIZE": 0}),
+        (True, {}, {}),
+        (
+            False,
+            {"CONFIG_SOURCE_ROUTE_TABLE_SIZE": 16},
+            {"CONFIG_SOURCE_ROUTE_TABLE_SIZE": 16},
+        ),
+    ],
+)
+async def test_connect_source_route_table_size(
+    make_app, source_routing, ezsp_config, written_config
+) -> None:
+    """Without source routing, the NCP gets an empty source route table."""
+    app = make_app(
+        {
+            zigpy.config.CONF_SOURCE_ROUTING: source_routing,
+            config.CONF_EZSP_CONFIG: ezsp_config,
+        }
+    )
+    ezsp = app._ezsp
+    ezsp.write_config = AsyncMock()
+    ezsp.connect = AsyncMock()
+    app.register_endpoints = AsyncMock()
+
+    with patch("bellows.ezsp.EZSP", return_value=ezsp):
+        await app.connect()
+
+    assert ezsp.write_config.mock_calls == [call(written_config)]
 
 
 async def test_repair_tclk_partner_ieee(
