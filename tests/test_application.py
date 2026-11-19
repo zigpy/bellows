@@ -2318,6 +2318,39 @@ async def test_connect_failure(app: ControllerApplication) -> None:
     assert len(ezsp.disconnect.mock_calls) == 1
 
 
+@pytest.mark.parametrize(
+    ("source_routing", "ezsp_config", "written_config"),
+    [
+        (False, {}, {"CONFIG_SOURCE_ROUTE_TABLE_SIZE": 0}),
+        (True, {}, {}),
+        (
+            False,
+            {"CONFIG_SOURCE_ROUTE_TABLE_SIZE": 16},
+            {"CONFIG_SOURCE_ROUTE_TABLE_SIZE": 16},
+        ),
+    ],
+)
+async def test_connect_source_route_table_size(
+    make_app, source_routing, ezsp_config, written_config
+) -> None:
+    """Without source routing, the NCP gets an empty source route table."""
+    app = make_app(
+        {
+            zigpy.config.CONF_SOURCE_ROUTING: source_routing,
+            config.CONF_EZSP_CONFIG: ezsp_config,
+        }
+    )
+    ezsp = app._ezsp
+    ezsp.write_config = AsyncMock()
+    ezsp.connect = AsyncMock()
+    app.register_endpoints = AsyncMock()
+
+    with patch("bellows.ezsp.EZSP", return_value=ezsp):
+        await app.connect()
+
+    assert ezsp.write_config.mock_calls == [call(written_config)]
+
+
 async def test_repair_tclk_partner_ieee(
     app: ControllerApplication, ieee: zigpy_t.EUI64
 ) -> None:

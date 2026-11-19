@@ -208,7 +208,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             await self._ezsp.connect(use_thread=self.config[CONF_USE_THREAD])
 
             # Writing config is required here because network info can't be loaded
-            await self._ezsp.write_config(self.config[CONF_EZSP_CONFIG])
+            await self._ezsp.write_config(self._get_ezsp_config())
 
             self._created_device_endpoints.clear()
             await self.register_endpoints()
@@ -642,10 +642,25 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         else:
             await self._ezsp.leaveNetwork()
 
+    def _get_ezsp_config(self) -> dict[str, int | None]:
+        config = self.config[CONF_EZSP_CONFIG]
+        table_size = t.EzspConfigId.CONFIG_SOURCE_ROUTE_TABLE_SIZE.name
+
+        # The NCP source-routes with every route record it stores, even when it is not
+        # a concentrator, and never drops a stale route. Without source routing, an
+        # empty table makes it use ordinary routing only.
+        if (
+            not self.config[zigpy.config.CONF_SOURCE_ROUTING]
+            and table_size not in config
+        ):
+            config = {**config, table_size: 0}
+
+        return config
+
     async def _reset(self):
         self._ezsp.stop_ezsp()
         await self._ezsp.startup_reset()
-        await self._ezsp.write_config(self.config[CONF_EZSP_CONFIG])
+        await self._ezsp.write_config(self._get_ezsp_config())
 
     async def disconnect(self):
         # TODO: how do you shut down the stack?
