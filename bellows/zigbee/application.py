@@ -1158,22 +1158,21 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         else:
             aps_frame.groupId = t.uint16_t(0x0000)
 
-        if self.config[zigpy.config.CONF_SOURCE_ROUTING]:
-            # Concentrator/source-routing uses address discovery; also keep AODV
-            # route discovery as a fallback for destinations that aren't yet in
-            # the NCP's source-route table (e.g. immediately after startup,
-            # before the first MTORR has propagated). Mirrors what
-            # zigbee-herdsman's ember adapter does for the same reason.
-            aps_frame.options |= (
-                t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
-                | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
-            )
-        elif zigpy.types.TransmitOptions.FORCE_ROUTE_DISCOVERY in packet.tx_options:
-            # Forcing route discovery requires retrying
+        if zigpy.types.TransmitOptions.FORCE_ROUTE_DISCOVERY in packet.tx_options:
+            # Forcing route discovery requires retrying. EmberZNet still uses a stored
+            # source route if it has one, so this only helps destinations without one.
             aps_frame.options |= t.EmberApsOption.APS_OPTION_FORCE_ROUTE_DISCOVERY
             aps_frame.options |= t.EmberApsOption.APS_OPTION_RETRY
         else:
+            # With source routing, route discovery is the fallback for destinations
+            # not yet in the NCP's source route table (e.g. right after startup, before
+            # the first MTORR has propagated).
             aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+
+        if self.config[zigpy.config.CONF_SOURCE_ROUTING]:
+            # TODO: investigate whether this does anything. EmberZNet only reads it for
+            # sends through the address table or a binding, and we always send direct.
+            aps_frame.options |= t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
 
         if zigpy.types.TransmitOptions.APS_Encryption in packet.tx_options:
             aps_frame.options |= t.EmberApsOption.APS_OPTION_ENCRYPTION

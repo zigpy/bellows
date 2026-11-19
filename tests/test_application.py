@@ -1204,6 +1204,22 @@ async def test_send_packet_unicast_force_route_discovery(app, packet):
     )
 
 
+async def test_send_packet_unicast_force_route_discovery_source_routing(
+    make_app, packet
+):
+    app = make_app({zigpy.config.CONF_SOURCE_ROUTING: True})
+
+    await _test_send_packet_unicast(
+        app,
+        packet.replace(tx_options=zigpy.types.TransmitOptions.FORCE_ROUTE_DISCOVERY),
+        options=(
+            t.EmberApsOption.APS_OPTION_RETRY
+            | t.EmberApsOption.APS_OPTION_FORCE_ROUTE_DISCOVERY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
+        ),
+    )
+
+
 async def test_send_packet_unicast_aps_encryption(app, packet):
     await _test_send_packet_unicast(
         app,
