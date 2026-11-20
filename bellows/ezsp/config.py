@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 import dataclasses
 import typing
 
@@ -115,7 +116,8 @@ DEFAULT_CONFIG_NEW = [
 ] + DEFAULT_CONFIG_COMMON
 
 
-DEFAULT_CONFIG = {
+# Each list holds `RuntimeConfig` and `ValueConfig` entries
+DEFAULT_CONFIG: dict[int, Sequence[object]] = {
     4: DEFAULT_CONFIG_LEGACY,
     5: DEFAULT_CONFIG_LEGACY,
     6: DEFAULT_CONFIG_LEGACY,

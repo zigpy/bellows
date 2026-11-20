@@ -36,7 +36,7 @@ class ProtocolHandler(abc.ABC):
     SCHEMAS: dict[str, vol.Schema]
 
     def __init__(
-        self, cb_handler: Callable[[str, Any], None], gateway: Gateway
+        self, cb_handler: Callable[[str, Any], None], gateway: Gateway | None
     ) -> None:
         self._handle_callback = cb_handler
         self._awaiting: dict[int, tuple[int, Any, asyncio.Future[Any]]] = {}
@@ -126,6 +126,7 @@ class ProtocolHandler(abc.ABC):
             self._awaiting[self._seq] = (cmd_id, rx_schema, future)
             self._seq = (self._seq + 1) % 256
 
+            assert self._gw is not None
             await self._gw.send_data(data)
 
             async with asyncio_timeout(EZSP_CMD_TIMEOUT):

@@ -10,7 +10,7 @@ import contextlib
 import dataclasses
 import functools
 import logging
-from typing import Any
+from typing import Any, cast
 import urllib.parse
 
 import zigpy.config
@@ -26,6 +26,7 @@ from bellows.exception import (
 )
 from bellows.ezsp import xncp
 from bellows.ezsp.config import DEFAULT_CONFIG, RuntimeConfig, ValueConfig
+from bellows.ezsp.protocol import ProtocolHandler
 from bellows.ezsp.xncp import (
     MAX_XNCP_PAYLOAD_LENGTH,
     FirmwareFeatures,
@@ -72,18 +73,20 @@ class EZSP:
         v19.EZSPv19.VERSION: v19.EZSPv19,
     }
 
-    def __init__(self, device_config: dict, application: Any | None = None):
+    def __init__(
+        self, device_config: dict[str, Any], application: Any | None = None
+    ) -> None:
         self._config = device_config
-        self._callbacks = {}
+        self._callbacks: dict[int, Callable[..., Any]] = {}
         self._ezsp_event = asyncio.Event()
         self._ezsp_version = v4.EZSPv4.VERSION
         self._xncp_features = FirmwareFeatures.NONE
-        self._gw = None
-        self._protocol = None
+        self._gw: bellows.uart.Gateway | None = None
+        self._protocol: ProtocolHandler | None = None
         self._application = application
 
         self._stack_status_listeners: collections.defaultdict[
-            t.sl_Status, list[asyncio.Future]
+            t.sl_Status, list[asyncio.Future[t.sl_Status]]
         ] = collections.defaultdict(list)
 
         self.add_callback(self.stack_status_callback)
@@ -99,14 +102,16 @@ class EZSP:
             listener.set_result(status)
 
     @contextlib.contextmanager
-    def wait_for_stack_status(self, status: t.sl_Status) -> Generator[asyncio.Future]:
+    def wait_for_stack_status(
+        self, status: t.sl_Status
+    ) -> Generator[asyncio.Future[t.sl_Status]]:
         """Waits for a `stackStatusHandler` to come in with the provided status."""
         listeners = self._stack_status_listeners[status]
 
-        future = asyncio.get_running_loop().create_future()
+        future: asyncio.Future[t.sl_Status] = asyncio.get_running_loop().create_future()
 
         @future.add_done_callback
-        def maybe_remove(_):
+        def maybe_remove(_: asyncio.Future[t.sl_Status]) -> None:
             with contextlib.suppress(ValueError):
                 listeners.remove(future)
 
@@ -129,6 +134,7 @@ class EZSP:
         if self.is_tcp_serial_port:
             try:
                 async with asyncio_timeout(NETWORK_COORDINATOR_STARTUP_RESET_WAIT):
+                    assert self._gw is not None
                     await self._gw.wait_for_startup_reset()
             except TimeoutError:
                 pass
@@ -170,9 +176,10 @@ class EZSP:
         self._gw = await bellows.uart.connect(self._config, self, use_thread=use_thread)
         await self.startup_reset()
 
-    async def reset(self):
+    async def reset(self) -> None:
         LOGGER.debug("Resetting EZSP")
         self.stop_ezsp()
+        assert self._gw is not None
         await self._gw.reset()
 
         # Always switch back to protocol v4 after a reset
@@ -194,7 +201,7 @@ class EZSP:
 
         self._protocol = self._BY_VERSION[version](self.handle_callback, self._gw)
 
-    async def version(self):
+    async def version(self) -> None:
         ver, stack_type, stack_version = await self._command(
             "version", desiredProtocolVersion=self.ezsp_version
         )
@@ -229,7 +236,7 @@ class EZSP:
         LOGGER.debug("XNCP features: %s", self._xncp_features)
         return self._xncp_features
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         self.stop_ezsp()
         if self._gw:
             await self._gw.disconnect()
@@ -250,10 +257,16 @@ class EZSP:
         return await command(*args, **kwargs)
 
     async def _list_command(
-        self, name, item_frames, completion_frame, spos, *args, **kwargs
-    ):
+        self,
+        name: str,
+        item_frames: list[str],
+        completion_frame: str,
+        spos: int,
+        *args: Any,
+        **kwargs: Any,
+    ) -> list[Any]:
         """Run a command, returning result callbacks as a list"""
-        queue = asyncio.Queue()
+        queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
         results = []
 
         with self.callback_for_commands(
@@ -278,9 +291,9 @@ class EZSP:
 
     @contextlib.contextmanager
     def callback_for_commands(
-        self, commands: set[str], callback: Callable
+        self, commands: set[str], callback: Callable[[str, Any], None]
     ) -> Generator[None]:
-        def cb(frame_name, response):
+        def cb(frame_name: str, response: Any) -> None:
             if frame_name in commands:
                 callback(frame_name, response)
 
@@ -329,6 +342,7 @@ class EZSP:
     ) -> None:
         """Send leaveNetwork command and wait for stackStatusHandler frame."""
         with self.wait_for_stack_status(t.sl_Status.NETWORK_DOWN) as stack_status:
+            assert self._protocol is not None
             status = await self._protocol.leave_network(options=options)
             if status != t.sl_Status.OK:
                 raise EzspError(f"failed to leave network: {status.name}")
@@ -336,7 +350,7 @@ class EZSP:
             async with asyncio_timeout(timeout):
                 await stack_status
 
-    def connection_lost(self, exc):
+    def connection_lost(self, exc: BaseException | None) -> None:
         """Lost serial connection."""
         if self._application is not None:
             self._application.connection_lost(exc)
@@ -345,7 +359,10 @@ class EZSP:
         """UART received reset code."""
         self.connection_lost(NcpFailure(code=code))
 
-    def __getattr__(self, name: str) -> Callable:
+    def __getattr__(self, name: str) -> Callable[..., Any]:
+        if self._protocol is None:
+            raise AttributeError(name)
+
         if name not in self._protocol.COMMANDS:
             return getattr(self._protocol, name)
 
@@ -387,9 +404,7 @@ class EZSP:
         except Exception:
             LOGGER.warning("Failed to parse frame, ignoring")
 
-    async def get_board_info(
-        self,
-    ) -> tuple[str, str, str | None] | tuple[None, None, str | None]:
+    async def get_board_info(self) -> tuple[str | None, str | None, str | None]:
         """Return board info."""
 
         tokens: dict[t.EzspMfgTokenId, str | None] = {}
@@ -588,17 +603,17 @@ class EZSP:
 
         LOGGER.debug("Updated NWK update ID to %d in NVRAM", nwk_update_id)
 
-    def add_callback(self, cb):
+    def add_callback(self, cb: Callable[..., Any]) -> int:
         id_ = hash(cb)
         while id_ in self._callbacks:
             id_ += 1
         self._callbacks[id_] = cb
         return id_
 
-    def remove_callback(self, id_):
+    def remove_callback(self, id_: int) -> Callable[..., Any]:
         return self._callbacks.pop(id_)
 
-    def handle_callback(self, *args):
+    def handle_callback(self, *args: Any) -> None:
         for _callback_id, handler in self._callbacks.items():
             try:
                 handler(*args)
@@ -629,21 +644,21 @@ class EZSP:
                 )
             )
 
-    def start_ezsp(self):
+    def start_ezsp(self) -> None:
         """Mark EZSP as running."""
         self._ezsp_event.set()
 
-    def stop_ezsp(self):
+    def stop_ezsp(self) -> None:
         """Mark EZSP stopped."""
         self._ezsp_event.clear()
 
     @property
-    def is_ezsp_running(self):
+    def is_ezsp_running(self) -> bool:
         """Return True if EZSP is running."""
         return self._ezsp_event.is_set()
 
     @property
-    def ezsp_version(self):
+    def ezsp_version(self) -> int:
         """Return protocol version."""
         return self._ezsp_version
 
@@ -652,8 +667,9 @@ class EZSP:
         """Return EZSP types for this specific version."""
         return self._protocol.types
 
-    async def write_config(self, config: dict) -> None:
+    async def write_config(self, config: dict[str, Any]) -> None:
         """Initialize EmberZNet Stack."""
+        assert self._protocol is not None
         config = self._protocol.SCHEMAS[conf.CONF_EZSP_CONFIG](config)
 
         # Not all config will be present in every EZSP version so only use valid keys
@@ -763,7 +779,11 @@ class EZSP:
     async def send_xncp_frame(
         self, payload: xncp.XncpCommandPayload
     ) -> xncp.XncpCommandPayload:
-        """Send an XNCP frame."""
+        """Send an XNCP frame.
+
+        The response payload is the response type of the request's command, which
+        callers cast to.
+        """
         req_frame = xncp.XncpCommand.from_payload(payload)
         LOGGER.debug("Sending XNCP frame: %s", req_frame)
         status, data = await self.customFrame(req_frame.serialize())
@@ -790,7 +810,10 @@ class EZSP:
 
     async def xncp_get_supported_firmware_features(self) -> xncp.FirmwareFeatures:
         """Get supported firmware extensions."""
-        rsp = await self.send_xncp_frame(xncp.GetSupportedFeaturesReq())
+        rsp = cast(
+            xncp.GetSupportedFeaturesRsp,
+            await self.send_xncp_frame(xncp.GetSupportedFeaturesReq()),
+        )
         return rsp.features
 
     async def xncp_set_manual_source_route(
@@ -841,29 +864,41 @@ class EZSP:
         self, request: xncp.SendUnicastReq
     ) -> tuple[t.sl_Status, t.uint8_t]:
         """Send a combined unicast command."""
-        rsp = await self.send_xncp_frame(request)
+        rsp = cast(xncp.SendUnicastRsp, await self.send_xncp_frame(request))
         return rsp.status, rsp.sequence
 
     async def xncp_get_mfg_token_override(self, token: t.EzspMfgTokenId) -> bytes:
         """Get manufacturing token override."""
-        rsp = await self.send_xncp_frame(xncp.GetMfgTokenOverrideReq(token=token))
+        rsp = cast(
+            xncp.GetMfgTokenOverrideRsp,
+            await self.send_xncp_frame(xncp.GetMfgTokenOverrideReq(token=token)),
+        )
         return rsp.value
 
     async def xncp_get_build_string(self) -> str:
         """Get build string."""
-        rsp = await self.send_xncp_frame(xncp.GetBuildStringReq())
+        rsp = cast(
+            xncp.GetBuildStringRsp,
+            await self.send_xncp_frame(xncp.GetBuildStringReq()),
+        )
         return rsp.build_string.decode("utf-8")
 
     async def xncp_get_flow_control_type(self) -> FlowControlType:
         """Get flow control type."""
-        rsp = await self.send_xncp_frame(xncp.GetFlowControlTypeReq())
+        rsp = cast(
+            xncp.GetFlowControlTypeRsp,
+            await self.send_xncp_frame(xncp.GetFlowControlTypeReq()),
+        )
         return rsp.flow_control_type
 
     async def xncp_get_chip_info(self) -> xncp.GetChipInfoRsp:
         """Get the part number."""
 
         try:
-            return await self.send_xncp_frame(xncp.GetChipInfoReq())
+            return cast(
+                xncp.GetChipInfoRsp,
+                await self.send_xncp_frame(xncp.GetChipInfoReq()),
+            )
         except InvalidCommandPayload:
             # Beta firmwares had a bug with this command
             return xncp.GetChipInfoRsp(
@@ -889,7 +924,10 @@ class EZSP:
         self, index: t.uint8_t
     ) -> GetRouteTableEntryRsp:
         """Get a route table entry."""
-        return await self.send_xncp_frame(xncp.GetRouteTableEntryReq(index=index))
+        return cast(
+            GetRouteTableEntryRsp,
+            await self.send_xncp_frame(xncp.GetRouteTableEntryReq(index=index)),
+        )
 
     async def xncp_set_route_table_entry(
         self,
@@ -913,4 +951,7 @@ class EZSP:
     async def xncp_get_tx_power_info(self, country_code: str) -> GetTxPowerInfoRsp:
         """Get maximum and recommended TX power for a country (ISO 3166-1 alpha-2)."""
         code = country_code.upper().encode("ascii")
-        return await self.send_xncp_frame(xncp.GetTxPowerInfoReq(country_code=code))
+        return cast(
+            GetTxPowerInfoRsp,
+            await self.send_xncp_frame(xncp.GetTxPowerInfoReq(country_code=code)),
+        )
