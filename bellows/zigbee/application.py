@@ -113,8 +113,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         super().__init__(config)
         self._ctrl_event = asyncio.Event()
         self._created_device_endpoints: list[zdo_t.SimpleDescriptor] = []
-        self._ezsp = None
-        self._multicast = None
+        self._ezsp: bellows.ezsp.EZSP | None = None
+        self._multicast: bellows.multicast.Multicast | None = None
         self._mfg_id_task: asyncio.Task | None = None
         self._pending_requests = {}
         self._watchdog_failures = 0
@@ -131,7 +131,11 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     @property
     def is_controller_running(self):
         """Return True if controller was successfully initialized."""
-        return self.controller_event.is_set() and self._ezsp.is_ezsp_running
+        if not self.controller_event.is_set():
+            return False
+
+        assert self._ezsp is not None
+        return self._ezsp.is_ezsp_running
 
     @property
     def multicast(self):
@@ -140,6 +144,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def add_endpoint(self, descriptor: zdo_t.SimpleDescriptor) -> None:
         """Add endpoint."""
+        assert self._ezsp is not None
         (status,) = await self._ezsp.addEndpoint(
             endpoint=descriptor.endpoint,
             profileId=descriptor.profile,
@@ -158,15 +163,17 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def cleanup_tc_link_key(self, ieee: t.EUI64) -> None:
         """Remove tc link_key for the given device."""
+        assert self._ezsp is not None
         (index,) = await self._ezsp.findKeyTableEntry(address=ieee, linkKey=True)
         if index != 0xFF:
             # found a key
             status = await self._ezsp.eraseKeyTableEntry(index=index)
             LOGGER.debug("Cleaned up TC link key for %s device: %s", ieee, status)
 
-    async def _get_board_info(self) -> tuple[str, str, str] | tuple[None, None, None]:
+    async def _get_board_info(self) -> tuple[str | None, str | None, str | None]:
         """Get the board info, handling errors when `getMfgToken` is not supported."""
         try:
+            assert self._ezsp is not None
             return await self._ezsp.get_board_info()
         except EzspError as exc:
             LOGGER.info("EZSP Radio does not support getMfgToken command: %r", exc)
@@ -175,6 +182,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def _get_recommended_tx_power(self, country: str) -> float:
         """Get firmware recommended TX power for the given country."""
+        assert self._ezsp is not None
         if FirmwareFeatures.TX_POWER_INFO not in self._ezsp._xncp_features:
             return await super()._get_recommended_tx_power(country)
 
@@ -183,6 +191,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def _get_maximum_tx_power(self, country: str) -> float:
         """Get firmware maximum TX power for the given country."""
+        assert self._ezsp is not None
         if FirmwareFeatures.TX_POWER_INFO not in self._ezsp._xncp_features:
             return await super()._get_maximum_tx_power(country)
 
@@ -192,6 +201,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def _set_tx_power(self, tx_power: float) -> float | None:
         """Set TX power (if supported by the radio), returning the actual TX power."""
         actual_power = int(tx_power)
+        assert self._ezsp is not None
         await self._ezsp.setRadioPower(power=actual_power)
 
         # We intentionally do not reset after changing the TX power. Instead, we just
@@ -222,6 +232,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         """Ensures the network is currently running and returns whether or not the network
         was started.
         """
+        assert self._ezsp is not None
         (state,) = await self._ezsp.networkState()
 
         if state == t.EmberNetworkStatus.JOINED_NETWORK:
@@ -242,6 +253,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def start_network(self):
         ezsp = self._ezsp
+        assert ezsp is not None
 
         await self._ensure_network_running()
 
@@ -254,6 +266,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         else:
             await ezsp.set_source_routing(enabled=False)
 
+        assert ezsp._protocol is not None
         await ezsp._protocol.update_policies(self.config[CONF_EZSP_POLICIES])
         await self.load_network_info(load_devices=False)
 
@@ -265,6 +278,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         group_membership = {}
 
+        assert self._ezsp is not None
         if FirmwareFeatures.MEMBER_OF_ALL_GROUPS in self._ezsp._xncp_features:
             # If the firmware passes through all incoming group messages, do nothing
             endpoint_cls = EZSPEndpoint
@@ -319,6 +333,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             await self._restore_route_table(backup.network_info.route_table)
 
     async def _restore_route_table(self, route_table: dict[t.NWK, t.NWK]) -> None:
+        assert self._ezsp is not None
         if FirmwareFeatures.RESTORE_ROUTE_TABLE not in self._ezsp._xncp_features:
             LOGGER.debug(
                 "Firmware does not support writing route table, cannot restore"
@@ -339,6 +354,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def load_network_info(self, *, load_devices=False) -> None:
         ezsp = self._ezsp
+        assert ezsp is not None
 
         await self._ensure_network_running()
 
@@ -484,6 +500,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             return True
 
         ezsp = self._ezsp
+        assert ezsp is not None
         stack_specific = network_info.stack_specific.get("ezsp", {})
         (current_eui64,) = await ezsp.getEui64()
 
@@ -521,6 +538,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self, *, network_info: zigpy.state.NetworkInfo, node_info: zigpy.state.NodeInfo
     ) -> None:
         ezsp = self._ezsp
+        assert ezsp is not None
 
         # Throw an error early if we can't actually restore
         await self.can_write_network_settings(
@@ -548,6 +566,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             node_info.ieee = current_eui64
             network_info.tc_link_key.partner_ieee = current_eui64
 
+        assert self._ezsp is not None
         await self._ezsp.write_nwk_frame_counter(network_info.network_key.tx_counter)
         await self._ezsp.write_aps_frame_counter(network_info.tc_link_key.tx_counter)
 
@@ -622,6 +641,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         await self._restore_route_table(network_info.route_table)
 
     async def reset_network_info(self):
+        assert self._ezsp is not None
         await self._ezsp.factory_reset()
 
         # Green Power tables left by another stack would make the NCP forward and
@@ -643,6 +663,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             await self._ezsp.leaveNetwork()
 
     async def _reset(self):
+        assert self._ezsp is not None
         self._ezsp.stop_ezsp()
         await self._ezsp.startup_reset()
         await self._ezsp.write_config(self.config[CONF_EZSP_CONFIG])
@@ -657,11 +678,13 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def force_remove(self, dev):
         # This should probably be delivered to the parent device instead
         # of the device itself.
+        assert self._ezsp is not None
         await self._ezsp.removeDevice(dev.nwk, dev.ieee, dev.ieee)
 
     def ezsp_callback_handler(self, frame_name, args):
         LOGGER.debug("Received %s frame with %s", frame_name, args)
         if frame_name == "incomingMessageHandler":
+            assert self._ezsp is not None
             if self._ezsp.ezsp_version >= 14:
                 (
                     message_type,
@@ -730,6 +753,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 gpdCommandPayload,
             )
         elif frame_name == "messageSentHandler":
+            assert self._ezsp is not None
             if self._ezsp.ezsp_version >= 14:
                 (
                     status,
@@ -916,7 +940,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     def _handle_frame_sent(
         self,
-        message_type: t.EmberIncomingMessageType,
+        message_type: t.EmberOutgoingMessageType,
         destination: t.EmberNodeId,
         aps_frame: t.EmberApsFrame,
         message_tag: int,
@@ -967,6 +991,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def _handle_no_such_device(self, sender: int) -> None:
         """Try to match unknown device by its EUI64 address."""
+        assert self._ezsp is not None
         status, ieee = await self._ezsp.lookupEui64ByNodeId(nodeId=sender)
         status = t.sl_Status.from_ember_status(status)
 
@@ -1006,6 +1031,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def _reset_mfg_id(self, mfg_id: int) -> None:
         """Resets manufacturer id if was temporary overridden by a joining device."""
+        assert self._ezsp is not None
         await self._ezsp.setManufacturerCode(code=mfg_id)
         await asyncio.sleep(MFG_ID_RESET_DELAY)
         await self._ezsp.setManufacturerCode(code=DEFAULT_MFG_ID)
@@ -1021,6 +1047,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             # XXX: RCP firmware sometimes performs a partial scan and returns early
             # XXX: NCP firmware sometimes returns scan results twice
             while channels_to_scan:
+                assert self._ezsp is not None
                 results = await self._ezsp.startScan(
                     scanType=t.EzspNetworkScanType.ENERGY_SCAN,
                     channelMask=t.Channels.from_channel_list(channels_to_scan),
@@ -1043,6 +1070,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         """Scans for networks and yields network beacons."""
         queue = asyncio.Queue()
 
+        assert self._ezsp is not None
         with self._ezsp.callback_for_commands(
             {"networkFoundHandler", "scanCompleteHandler"},
             callback=lambda command, response: queue.put_nowait((command, response)),
@@ -1082,6 +1110,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             raise ControllerError(f"Command failed: {status!r}")
 
     async def _packet_capture(self, channel: int):
+        assert self._ezsp is not None
         (status,) = await self._ezsp.mfglibStart(rxCallback=True)
         self._check_status(status)
 
@@ -1115,6 +1144,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._check_status(status)
 
     async def _packet_capture_change_channel(self, channel: int):
+        assert self._ezsp is not None
         (status,) = await self._ezsp.mfglibSetChannel(channel=channel)
         self._check_status(status)
         self._packet_capture_channel = channel
@@ -1130,6 +1160,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         except (KeyError, ValueError):
             device = None
 
+        assert self._ezsp is not None
+        assert packet.dst is not None
         if packet.dst.addr_mode == zigpy.types.AddrMode.IEEE:
             LOGGER.warning("IEEE addressing is not supported, falling back to NWK")
 
@@ -1150,6 +1182,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         aps_frame.destinationEndpoint = t.uint8_t(packet.dst_ep or 0)
         aps_frame.options = t.EmberApsOption.APS_OPTION_NONE
 
+        assert packet.dst is not None
         if packet.dst.addr_mode == zigpy.types.AddrMode.Group:
             aps_frame.groupId = t.uint16_t(packet.dst.address)
         else:
@@ -1332,13 +1365,15 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             finally:
                 del self._pending_requests[pending_tag]
 
-    async def permit(self, time_s: int = 60, node: t.EmberNodeId = None) -> None:
+    async def permit(self, time_s: int = 60, node: t.EUI64 | str | None = None) -> None:
         """Permit joining."""
+        assert self._ezsp is not None
         self.create_task(self._ezsp.pre_permit(time_s), "pre_permit")
         await super().permit(time_s, node)
 
     def permit_ncp(self, time_s=60):
         assert 0 <= time_s <= 254
+        assert self._ezsp is not None
         return self._ezsp.permitJoining(time_s)
 
     async def permit_with_link_key(
@@ -1346,6 +1381,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     ) -> None:
         """Permits a new device to join with the given IEEE and link key."""
 
+        assert self._ezsp is not None
         status = await self._ezsp.add_transient_link_key(node, link_key)
 
         if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
@@ -1402,6 +1438,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
     async def _watchdog_feed(self):
         try:
+            assert self._ezsp is not None
             if self._ezsp.ezsp_version == 4:
                 await self._ezsp.nop()
             else:
@@ -1442,6 +1479,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._watchdog_failures = 0
 
     async def _get_free_buffers(self) -> int | None:
+        assert self._ezsp is not None
         status, value = await self._ezsp.getValue(
             valueId=t.EzspValueId.VALUE_FREE_BUFFERS
         )
