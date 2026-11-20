@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import asyncio
 from asyncio import timeout as asyncio_timeout
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Coroutine
 from datetime import UTC, datetime
 import importlib.metadata
 import logging
 import os
 import statistics
+from typing import Any, cast
 
 import zigpy.application
 import zigpy.config
@@ -109,14 +110,16 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         {zigpy.config.CONF_DEVICE_BAUDRATE: 57600},
     ]
 
-    def __init__(self, config: dict) -> None:
+    def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
         self._ctrl_event = asyncio.Event()
         self._created_device_endpoints: list[zdo_t.SimpleDescriptor] = []
         self._ezsp: bellows.ezsp.EZSP | None = None
         self._multicast: bellows.multicast.Multicast | None = None
-        self._mfg_id_task: asyncio.Task | None = None
-        self._pending_requests = {}
+        self._mfg_id_task: asyncio.Task[None] | None = None
+        self._pending_requests: dict[
+            tuple[int, int], asyncio.Future[tuple[t.sl_Status, str]]
+        ] = {}
         self._watchdog_failures = 0
         self._watchdog_feed_counter = 0
 
@@ -124,12 +127,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._packet_capture_channel: int | None = None
 
     @property
-    def controller_event(self):
+    def controller_event(self) -> asyncio.Event:
         """Return asyncio.Event for controller app."""
         return self._ctrl_event
 
     @property
-    def is_controller_running(self):
+    def is_controller_running(self) -> bool:
         """Return True if controller was successfully initialized."""
         if not self.controller_event.is_set():
             return False
@@ -138,7 +141,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         return self._ezsp.is_ezsp_running
 
     @property
-    def multicast(self):
+    def multicast(self) -> bellows.multicast.Multicast | None:
         """Return EZSP MulticastController."""
         return self._multicast
 
@@ -251,7 +254,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         return True
 
-    async def start_network(self):
+    async def start_network(self) -> None:
         ezsp = self._ezsp
         assert ezsp is not None
 
@@ -352,7 +355,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 cost=0,  # unused
             )
 
-    async def load_network_info(self, *, load_devices=False) -> None:
+    async def load_network_info(self, *, load_devices: bool = False) -> None:
         ezsp = self._ezsp
         assert ezsp is not None
 
@@ -640,7 +643,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         await self._restore_route_table(network_info.route_table)
 
-    async def reset_network_info(self):
+    async def reset_network_info(self) -> None:
         assert self._ezsp is not None
         await self._ezsp.factory_reset()
 
@@ -662,26 +665,26 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         else:
             await self._ezsp.leaveNetwork()
 
-    async def _reset(self):
+    async def _reset(self) -> None:
         assert self._ezsp is not None
         self._ezsp.stop_ezsp()
         await self._ezsp.startup_reset()
         await self._ezsp.write_config(self.config[CONF_EZSP_CONFIG])
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         # TODO: how do you shut down the stack?
         self.controller_event.clear()
         if self._ezsp is not None:
             await self._ezsp.disconnect()
             self._ezsp = None
 
-    async def force_remove(self, dev):
+    async def force_remove(self, dev: zigpy.device.Device) -> None:
         # This should probably be delivered to the parent device instead
         # of the device itself.
         assert self._ezsp is not None
         await self._ezsp.removeDevice(dev.nwk, dev.ieee, dev.ieee)
 
-    def ezsp_callback_handler(self, frame_name, args):
+    def ezsp_callback_handler(self, frame_name: str, args: list[Any]) -> None:
         LOGGER.debug("Received %s frame with %s", frame_name, args)
         if frame_name == "incomingMessageHandler":
             assert self._ezsp is not None
@@ -946,7 +949,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         message_tag: int,
         status: t.sl_Status,
         message: bytes,
-    ):
+    ) -> None:
         msg = "success" if status == t.sl_Status.OK else "failure"
 
         if message_type in (
@@ -1039,7 +1042,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
     async def energy_scan(
         self, channels: t.Channels, duration_exp: int, count: int
     ) -> dict[int, float]:
-        all_results = {}
+        all_results: dict[int, list[int]] = {}
 
         for _ in range(count):
             channels_to_scan = set(channels)
@@ -1068,7 +1071,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self, channels: t.Channels, duration_exp: int
     ) -> AsyncGenerator[zigpy.types.NetworkBeacon]:
         """Scans for networks and yields network beacons."""
-        queue = asyncio.Queue()
+        queue: asyncio.Queue[tuple[str, list[Any]]] = asyncio.Queue()
 
         assert self._ezsp is not None
         with self._ezsp.callback_for_commands(
@@ -1109,7 +1112,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
             raise ControllerError(f"Command failed: {status!r}")
 
-    async def _packet_capture(self, channel: int):
+    async def _packet_capture(
+        self, channel: int
+    ) -> AsyncGenerator[zigpy.types.CapturedPacket]:
         assert self._ezsp is not None
         (status,) = await self._ezsp.mfglibStart(rxCallback=True)
         self._check_status(status)
@@ -1118,7 +1123,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             await self._packet_capture_change_channel(channel=channel)
             assert self._packet_capture_channel is not None
 
-            queue = asyncio.Queue()
+            queue: asyncio.Queue[tuple[datetime, list[Any]]] = asyncio.Queue()
 
             with self._ezsp.callback_for_commands(
                 {"mfglibRxHandler"},
@@ -1143,7 +1148,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             (status,) = await self._ezsp.mfglibEnd()
             self._check_status(status)
 
-    async def _packet_capture_change_channel(self, channel: int):
+    async def _packet_capture_change_channel(self, channel: int) -> None:
         assert self._ezsp is not None
         (status,) = await self._ezsp.mfglibSetChannel(channel=channel)
         self._check_status(status)
@@ -1234,7 +1239,8 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
         async with self._limit_concurrency(priority=packet.priority):
             message_tag = self.get_sequence()
-            pending_tag = (packet.dst.address, message_tag)
+            # An IEEE destination was replaced by its NWK above, so this is an int
+            pending_tag = (cast(int, packet.dst.address), message_tag)
 
             if pending_tag in self._pending_requests:
                 raise zigpy.exceptions.DeliveryError(
@@ -1371,7 +1377,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self.create_task(self._ezsp.pre_permit(time_s), "pre_permit")
         await super().permit(time_s, node)
 
-    def permit_ncp(self, time_s=60):
+    def permit_ncp(self, time_s: int = 60) -> Coroutine[Any, Any, Any]:
         assert 0 <= time_s <= 254
         assert self._ezsp is not None
         return self._ezsp.permitJoining(time_s)
@@ -1431,12 +1437,12 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             )
             self.handle_leave(nwk, device.ieee)
 
-    async def _watchdog_loop(self):
+    async def _watchdog_loop(self) -> None:
         self._watchdog_failures = 0
         self._watchdog_feed_counter = 0
         await super()._watchdog_loop()
 
-    async def _watchdog_feed(self):
+    async def _watchdog_feed(self) -> None:
         try:
             assert self._ezsp is not None
             if self._ezsp.ezsp_version == 4:
