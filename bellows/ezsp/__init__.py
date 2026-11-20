@@ -144,7 +144,10 @@ class EZSP:
 
     async def startup_reset(self) -> None:
         for attempt in range(RESET_ATTEMPTS):
-            self._protocol = v4.EZSPv4(self.handle_callback, self._gw)
+            # Start every attempt from a consistent v4 state. A failed attempt may
+            # already have switched to the stick's protocol version; keeping that
+            # version with a v4 protocol object makes `version()` skip the switch.
+            self._switch_protocol_version(v4.EZSPv4.VERSION)
 
             try:
                 await self._startup_reset()

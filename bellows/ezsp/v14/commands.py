@@ -1,4 +1,5 @@
 from zigpy.types import EUI64, NWK, BroadcastAddress, Struct, StructField
+import zigpy.zgp.types as zgp_t
 
 import bellows.types as t
 
@@ -375,6 +376,26 @@ COMMANDS = {
         {
             # XXX: One of the few commands that does *not* migrate to `sl_Status`!
             "status": t.EmberStatus,
+        },
+    ),
+    "gpepIncomingMessageHandler": (
+        0x00C5,
+        {},
+        {
+            # The GP status codes migrate to their own enum, not to `sl_Status`
+            "status": t.sl_GpStatus,
+            "gpdLink": zgp_t.GPPGPDLink,
+            "sequenceNumber": t.uint8_t,
+            "addr": t.EmberGpAddress,
+            "gpdfSecurityLevel": t.EmberGpSecurityLevel,
+            "gpdfSecurityKeyType": t.EmberGpKeyType,
+            "autoCommissioning": t.Bool,
+            "bidirectionalInfo": t.EmberGpBidirectionalInfo,
+            "gpdSecurityFrameCounter": t.uint32_t,
+            "gpdCommandId": zgp_t.GPDCommandID,
+            "mic": t.uint32_t,
+            "proxyTableIndex": t.uint8_t,
+            "gpdCommandPayload": t.LVBytes,
         },
     ),
     # Gained an `options` argument, which the NCP reads even if we don't send it

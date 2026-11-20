@@ -58,6 +58,16 @@ class EmberGpKeyType(basic.uint8_t):
     pass
 
 
+class EmberGpBidirectionalInfo(basic.bitmap8):
+    # Bidirectional information of a received GPDF.
+
+    # The incoming GPDF has its rxAfterTx bit set: the GPD briefly opens its receiver
+    # after the frame and can be sent a GPDF in response.
+    RX_AFTER_TX = 0x01
+    # The transmit queue of the green power stub is able to hold an outgoing GPDF.
+    TX_QUEUE_AVAILABLE = 0x02
+
+
 class Bool(basic.enum8):
     # Boolean type with values true and false.
 

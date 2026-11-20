@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Iterable
 import logging
-import random
 
 import voluptuous as vol
 import zigpy.state
@@ -125,6 +124,10 @@ class EZSPv4(protocol.ProtocolHandler):
         )
         return t.sl_Status.from_ember_status(init_status)
 
+    async def clear_gp_tables(self) -> None:
+        # No Green Power table clearing before EZSPv6
+        pass
+
     async def factory_reset(self) -> None:
         await self.clearKeyTable()
 
@@ -164,7 +167,13 @@ class EZSPv4(protocol.ProtocolHandler):
         non_member_radius: t.uint8_t,
         message_tag: t.uint8_t,
         data: bytes,
+        alias: t.NWK | None = None,
+        alias_seq: t.uint8_t | None = None,
     ) -> tuple[t.sl_Status, t.uint8_t]:
+        if alias is not None:
+            # TODO: `sendMulticastWithAlias`, from EZSPv6
+            raise NotImplementedError("Aliased multicasts are not supported")
+
         status, sequence = await self.sendMulticast(
             apsFrame=aps_frame,
             hops=radius,
@@ -183,8 +192,23 @@ class EZSPv4(protocol.ProtocolHandler):
         message_tag: t.uint8_t,
         aps_sequence: t.uint8_t,
         data: bytes,
+        alias: t.NWK | None = None,
+        alias_seq: t.uint8_t | None = None,
     ) -> tuple[t.sl_Status, t.uint8_t]:
         # `aps_sequence` is not used
+
+        if alias is not None:
+            status, sequence = await self.proxyBroadcast(
+                source=t.EmberNodeId(alias),
+                destination=address,
+                nwkSequence=t.uint8_t(0 if alias_seq is None else alias_seq),
+                apsFrame=aps_frame,
+                radius=radius,
+                messageTag=message_tag,
+                messageContents=data,
+            )
+
+            return t.sl_Status.from_ember_status(status), sequence
 
         status, sequence = await self.sendBroadcast(
             destination=address,
@@ -252,8 +276,12 @@ class EZSPv4(protocol.ProtocolHandler):
             )
             return
 
-        # Replace a random entry in the address table
-        index = random.randint(0, self._address_table_size - 1)
+        # The stack only updates existing entries and never allocates application slots
+        # and bellows allocates them only here. Filling the table in order thus uses
+        # every free slot before replacing anything; once it wraps, replacement is
+        # round-robin.
+        index = self._address_table_cursor
+        self._address_table_cursor = (index + 1) % self._address_table_size
 
         await self.replaceAddressTableEntry(
             addressTableIndex=index,

@@ -249,3 +249,34 @@ def test_check_key_context(ezsp_f) -> None:
         {"status": t.sl_Status.OK},
         b"",
     )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        # BJ6716U
+        "7ccdec0086f8710186f871010000000000ffffffffe0ffffffffff2e02c5f21ce9ae2f9e4f85f15de37c1ccbd943870013911aec1d000004111011121314151617226062636465666768",
+        # Moes 3-gang switch
+        "7cd83100c79b05aac79b05aa0000000000ffffffffe0ffffffffff2b0289f35cb8146efae86ac759171d7401c62fd5b7743df6310600007165726837706f7840475030303031d7",
+        "7fde3a00c79b05aac79b05aa00030100003a060000c7883a7806ff00",
+        "7fdf4300c79b05aac79b05aa00030100004306000009ac1475c6ff00",
+        "7fdf4c00c79b05aac79b05aa00030100004c060000a0a8597872ff00",
+        # EnOcean PTM-216Z (DB)
+        "7fda22004af455014af45501000201000022000000695b9b778fff0110",
+        "7fdb23004af455014af455010002010000230000006a47aa5aadff0100",
+        "7fd924004af455014af45501000201000024000000697daf2c79ff0101",
+        "7fd725004af455014af455010002010000250000006a7ccc5856ff0100",
+        "7fd826004af455014af4550100020100002600000069f51855c0ff0104",
+        "7fd727004af455014af455010002010000270000006a9a5f2634ff0100",
+    ],
+)
+def test_gpep_incoming_frame(payload: str, ezsp_f) -> None:
+    """Parse incoming GP frames."""
+
+    ezsp_frame = (
+        bytes([0x42, 0x00, 0x01])  # seq + control bytes
+        + t.uint16_t(0x00C5).serialize()  # frame_id LE
+        + bytes.fromhex(payload)
+    )
+
+    ezsp_f(ezsp_frame)

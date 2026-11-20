@@ -1,6 +1,7 @@
 import asyncio
 from asyncio import timeout as asyncio_timeout
 import logging
+import urllib.parse
 
 import zigpy.config
 import zigpy.serial
@@ -11,6 +12,19 @@ import bellows.types as t
 
 LOGGER = logging.getLogger(__name__)
 RESET_TIMEOUT = 2.5
+
+# An ESPHome port in this mode engages its tap, which ACKs frames on our behalf. The
+# mode does not name a protocol: which one the tap speaks is the device's configuration.
+ACKLESS_MODE = "protocol"
+
+# URL schemes served by an ESPHome serial proxy, which is the only transport that can take
+# the acknowledging off our hands
+ESPHOME_SCHEMES = frozenset({"esphome", "esphome-hass"})
+
+
+def is_esphome_url(path: str) -> bool:
+    """Whether the path is served by an ESPHome serial proxy."""
+    return urllib.parse.urlparse(path).scheme in ESPHOME_SCHEMES
 
 
 class Gateway(zigpy.serial.SerialProtocol):
@@ -110,19 +124,34 @@ async def _connect(config, api):
 
     connection_done_future = loop.create_future()
 
+    path = config[zigpy.config.CONF_DEVICE_PATH]
+
     gateway = Gateway(api, connection_done_future)
-    protocol = AshProtocol(gateway)
+    # serialx opens an ESPHome port in the mode we ask for or raises, so whether the tap
+    # acknowledges for us is known before the first frame arrives
+    protocol = AshProtocol(gateway, suppress_acks=is_esphome_url(path))
 
     flow_control = config[zigpy.config.CONF_DEVICE_FLOW_CONTROL]
+
+    extra_kwargs = {}
+
+    if is_esphome_url(path):
+        extra_kwargs["mode"] = ACKLESS_MODE
 
     transport, _ = await zigpy.serial.create_serial_connection(
         loop,
         lambda: protocol,
-        url=config[zigpy.config.CONF_DEVICE_PATH],
+        url=path,
         baudrate=config[zigpy.config.CONF_DEVICE_BAUDRATE],
         xonxoff=flow_control in (None, "software"),
         rtscts=flow_control == "hardware",
+        **extra_kwargs,
     )
+
+    if is_esphome_url(path):
+        LOGGER.debug(
+            "Port acknowledges NCP frames on our behalf, suppressing our own ACKs"
+        )
 
     await gateway.wait_until_connected()
 
