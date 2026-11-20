@@ -15,10 +15,10 @@ async def config(ctx, config, all_):
     """Get/set configuration on the NCP"""
     click.secho("NOTE: Configuration changes do not persist across resets", fg="red")
     if config and all_:
-        raise click.BadOptionUsage("Specify a config or --all, not both")
+        raise click.BadOptionUsage("--all", "Specify a config or --all, not both")
 
     if not (config or all_):
-        raise click.BadOptionUsage("One of config or --all must be specified")
+        raise click.BadOptionUsage("--all", "One of config or --all must be specified")
 
     s = await util.setup(
         ctx.obj["device"], ctx.obj["baudrate"], util.print_cb, configure=False

@@ -82,7 +82,7 @@ def channel_mask(channels):
     mask = 0
     for channel in channels:
         if not (11 <= channel <= 26):
-            raise click.BadOptionUsage("channels must be from 11 to 26")
+            raise click.BadOptionUsage("--channels", "channels must be from 11 to 26")
         mask |= 1 << channel
     return mask
 
