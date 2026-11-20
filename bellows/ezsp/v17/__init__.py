@@ -1,4 +1,5 @@
-""""EZSP Protocol version 17 protocol handler."""
+"""EZSP Protocol version 17 protocol handler."""
+
 from __future__ import annotations
 
 import logging
@@ -8,8 +9,8 @@ import voluptuous as vol
 import bellows.config
 from bellows.exception import InvalidCommandError
 
-from . import commands, config
 from ..v16 import EZSPv16
+from . import commands, config
 
 LOGGER = logging.getLogger(__name__)
 

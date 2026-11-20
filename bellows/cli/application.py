@@ -123,8 +123,7 @@ def devices(ctx, database):
                 click.echo("    %s: Uninitialized")
             else:
                 click.echo(
-                    "    %s: profile=0x%02x, device_type=%s"
-                    % (epid, ep.profile_id, ep.device_type)
+                    f"    {epid}: profile=0x{ep.profile_id:02x}, device_type={ep.device_type!s}"
                 )
                 print_clusters("Input Clusters", ep.in_clusters)
                 print_clusters("Output Clusters", ep.out_clusters)
@@ -278,9 +277,7 @@ async def read_attribute(ctx, attribute, manufacturer):
             click.echo("Received empty response")
         elif attribute not in v[0]:
             click.echo(
-                "Attribute {} not successful. Status={}".format(
-                    attribute, v[1][attribute]
-                )
+                f"Attribute {attribute} not successful. Status={v[1][attribute]}"
             )
         else:
             click.echo(f"{attribute}={v[0][attribute]}")

@@ -1,10 +1,11 @@
-""""EZSP Protocol version 11 protocol handler."""
+"""EZSP Protocol version 11 protocol handler."""
+
 import voluptuous as vol
 
 import bellows.config
 
-from . import commands, config
 from ..v10 import EZSPv10
+from . import commands, config
 
 
 class EZSPv11(EZSPv10):

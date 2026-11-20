@@ -41,10 +41,7 @@ async def test_pre_permit(ezsp_f):
 
 async def test_read_child_data(ezsp_f):
     def get_child_data(index):
-        if index == 0:
-            status = t.EmberStatus.SUCCESS
-        else:
-            status = t.EmberStatus.NOT_JOINED
+        status = t.EmberStatus.SUCCESS if index == 0 else t.EmberStatus.NOT_JOINED
 
         return (
             status,
@@ -203,7 +200,7 @@ async def test_write_child_data(ezsp_f) -> None:
 
 async def test_read_address_table(ezsp_f) -> None:
     # It's a no-op but still an async generator
-    async for nwk, eui64 in ezsp_f.read_address_table():
+    async for _nwk, _eui64 in ezsp_f.read_address_table():
         pass
 
 
