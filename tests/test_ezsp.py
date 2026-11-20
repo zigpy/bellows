@@ -1222,3 +1222,14 @@ async def test_get_default_adapter_concurrency(
         result = await ezsp_f.get_default_adapter_concurrency()
 
     assert result == expected_concurrency
+
+
+def test_getattr_without_protocol() -> None:
+    """Before connecting, `EZSP` has no protocol to look commands up in."""
+    ezsp = EZSP(DEVICE_CONFIG)
+    assert ezsp._protocol is None
+
+    with pytest.raises(AttributeError):
+        ezsp.getValue  # noqa: B018
+
+    assert not hasattr(ezsp, "__bool__")
