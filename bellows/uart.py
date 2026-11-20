@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 from asyncio import timeout as asyncio_timeout
+from collections.abc import Awaitable
 import logging
-from typing import Any, cast
+from typing import Any, Protocol, cast
 import urllib.parse
 
 import zigpy.config
@@ -28,6 +29,26 @@ ESPHOME_SCHEMES = frozenset({"esphome", "esphome-hass"})
 def is_esphome_url(path: str) -> bool:
     """Whether the path is served by an ESPHome serial proxy."""
     return urllib.parse.urlparse(path).scheme in ESPHOME_SCHEMES
+
+
+class GatewayProxy(Protocol):
+    """The gateway as callers see it, through its `ThreadsafeProxy`.
+
+    The proxy forwards method calls only. Called from another event loop, a coroutine
+    method returns a future instead of a coroutine.
+    """
+
+    def send_data(self, data: bytes) -> Awaitable[None]:
+        """Send an EZSP frame."""
+
+    def reset(self) -> Awaitable[bool]:
+        """Reset the NCP."""
+
+    def wait_for_startup_reset(self) -> Awaitable[None]:
+        """Wait for the first reset frame on startup."""
+
+    def disconnect(self) -> Awaitable[None]:
+        """Close the serial connection."""
 
 
 class Gateway(zigpy.serial.SerialProtocol):
@@ -133,7 +154,7 @@ class Gateway(zigpy.serial.SerialProtocol):
 
 async def _connect(
     config: dict[str, Any], api: Any
-) -> tuple[Gateway, asyncio.Future[BaseException | None]]:
+) -> tuple[GatewayProxy, asyncio.Future[BaseException | None]]:
     loop = asyncio.get_event_loop()
 
     connection_done_future: asyncio.Future[BaseException | None] = loop.create_future()
@@ -169,12 +190,13 @@ async def _connect(
 
     await gateway.wait_until_connected()
 
-    # The proxy forwards every method call to the gateway
-    thread_safe_protocol = cast(Gateway, ThreadsafeProxy(gateway, loop))
+    thread_safe_protocol = ThreadsafeProxy(gateway, loop)
     return thread_safe_protocol, connection_done_future
 
 
-async def connect(config: dict[str, Any], api: Any, use_thread: bool = True) -> Gateway:
+async def connect(
+    config: dict[str, Any], api: Any, use_thread: bool = True
+) -> GatewayProxy:
     if use_thread:
         api = ThreadsafeProxy(api, asyncio.get_event_loop())
         thread = EventLoopThread()

@@ -81,7 +81,7 @@ class EZSP:
         self._ezsp_event = asyncio.Event()
         self._ezsp_version = v4.EZSPv4.VERSION
         self._xncp_features = FirmwareFeatures.NONE
-        self._gw: bellows.uart.Gateway | None = None
+        self._gw: bellows.uart.GatewayProxy | None = None
         self._protocol: ProtocolHandler | None = None
         self._application = application
 

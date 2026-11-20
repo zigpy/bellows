@@ -20,7 +20,7 @@ from bellows.ezsp.fragmentation import FragmentManager
 import bellows.types as t
 
 if TYPE_CHECKING:
-    from bellows.uart import Gateway
+    from bellows.uart import GatewayProxy
 
 LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class ProtocolHandler(abc.ABC):
     SCHEMAS: dict[str, vol.Schema]
 
     def __init__(
-        self, cb_handler: Callable[[str, Any], None], gateway: Gateway | None
+        self, cb_handler: Callable[[str, Any], None], gateway: GatewayProxy | None
     ) -> None:
         self._handle_callback = cb_handler
         self._awaiting: dict[int, tuple[int, Any, asyncio.Future[Any]]] = {}
