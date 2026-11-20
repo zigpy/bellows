@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import asyncio
 from asyncio import timeout as asyncio_timeout
 import logging
+from typing import Any, cast
 import urllib.parse
 
 import zigpy.config
@@ -28,18 +31,27 @@ def is_esphome_url(path: str) -> bool:
 
 
 class Gateway(zigpy.serial.SerialProtocol):
-    def __init__(self, api, connection_done_future=None):
+    def __init__(
+        self,
+        api: Any,
+        connection_done_future: asyncio.Future[BaseException | None] | None = None,
+    ) -> None:
         super().__init__()
         self._api = api
 
-        self._reset_future = None
-        self._startup_reset_future = None
+        self._reset_future: asyncio.Future[bool] | None = None
+        self._startup_reset_future: asyncio.Future[bool] | None = None
         self._connection_done_future = connection_done_future
 
-    async def send_data(self, data: bytes) -> None:
-        await self._transport.send_data(data)
+    @property
+    def _ash(self) -> AshProtocol:
+        # The ASH protocol, not a serial port, is this gateway's transport
+        return cast(AshProtocol, self._transport)
 
-    def data_received(self, data):
+    async def send_data(self, data: bytes) -> None:
+        await self._ash.send_data(data)
+
+    def data_received(self, data: bytes) -> None:
         """Callback when there is data received from the uart"""
 
         # We intentionally do not call `SerialProtocol.data_received`
@@ -74,11 +86,11 @@ class Gateway(zigpy.serial.SerialProtocol):
         finally:
             self._startup_reset_future = None
 
-    def _reset_cleanup(self, future):
+    def _reset_cleanup(self, future: asyncio.Future[bool]) -> None:
         """Delete reset future."""
         self._reset_future = None
 
-    def connection_lost(self, exc):
+    def connection_lost(self, exc: BaseException | None) -> None:
         """Port was closed unexpectedly."""
         super().connection_lost(exc)
 
@@ -102,7 +114,7 @@ class Gateway(zigpy.serial.SerialProtocol):
 
         self._api.connection_lost(exc)
 
-    async def reset(self):
+    async def reset(self) -> bool:
         """Send a reset frame and init internal state."""
         LOGGER.debug("Resetting ASH")
         if self._reset_future is not None:
@@ -111,7 +123,7 @@ class Gateway(zigpy.serial.SerialProtocol):
             )
             return await self._reset_future
 
-        self._transport.send_reset()
+        self._ash.send_reset()
         self._reset_future = asyncio.get_event_loop().create_future()
         self._reset_future.add_done_callback(self._reset_cleanup)
 
@@ -119,10 +131,12 @@ class Gateway(zigpy.serial.SerialProtocol):
             return await self._reset_future
 
 
-async def _connect(config, api):
+async def _connect(
+    config: dict[str, Any], api: Any
+) -> tuple[Gateway, asyncio.Future[BaseException | None]]:
     loop = asyncio.get_event_loop()
 
-    connection_done_future = loop.create_future()
+    connection_done_future: asyncio.Future[BaseException | None] = loop.create_future()
 
     path = config[zigpy.config.CONF_DEVICE_PATH]
 
@@ -133,7 +147,7 @@ async def _connect(config, api):
 
     flow_control = config[zigpy.config.CONF_DEVICE_FLOW_CONTROL]
 
-    extra_kwargs = {}
+    extra_kwargs: dict[str, Any] = {}
 
     if is_esphome_url(path):
         extra_kwargs["mode"] = ACKLESS_MODE
@@ -155,11 +169,12 @@ async def _connect(config, api):
 
     await gateway.wait_until_connected()
 
-    thread_safe_protocol = ThreadsafeProxy(gateway, loop)
+    # The proxy forwards every method call to the gateway
+    thread_safe_protocol = cast(Gateway, ThreadsafeProxy(gateway, loop))
     return thread_safe_protocol, connection_done_future
 
 
-async def connect(config, api, use_thread=True):
+async def connect(config: dict[str, Any], api: Any, use_thread: bool = True) -> Gateway:
     if use_thread:
         api = ThreadsafeProxy(api, asyncio.get_event_loop())
         thread = EventLoopThread()

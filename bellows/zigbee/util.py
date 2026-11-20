@@ -57,7 +57,7 @@ def zha_security(
     return isc
 
 
-def ezsp_key_to_zigpy_key(key) -> zigpy.state.Key:
+def ezsp_key_to_zigpy_key(key: t.EmberKeyStruct) -> zigpy.state.Key:
     """Convert an `EmberKeyStruct` into a zigpy `Key`."""
     zigpy_key = zigpy.state.Key()
     zigpy_key.key = zigpy_t.KeyData(key.key)
@@ -77,7 +77,7 @@ def ezsp_key_to_zigpy_key(key) -> zigpy.state.Key:
     return zigpy_key
 
 
-def zigpy_key_to_ezsp_key(zigpy_key: zigpy.state.Key):
+def zigpy_key_to_ezsp_key(zigpy_key: zigpy.state.Key) -> t.EmberKeyStruct:
     """Convert a zigpy `Key` into a `EmberKeyStruct`."""
     key = t.EmberKeyStruct()
     key.key = t.KeyData(zigpy_key.key)
@@ -140,8 +140,8 @@ def run_length_debug(
     default: str = "",
 ) -> str:
     """Create a run-length encoded debug string from a sequence of strings."""
-    counts = []
-    unique_items = []
+    counts: list[int] = []
+    unique_items: list[str] = []
 
     for item in items:
         if unique_items and unique_items[-1] == item:

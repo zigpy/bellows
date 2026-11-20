@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING, cast
 
 import zigpy.device
 import zigpy.endpoint
@@ -10,6 +11,9 @@ import zigpy.profiles.zll
 import zigpy.zdo.types as zdo_t
 
 import bellows.types as t
+
+if TYPE_CHECKING:
+    from bellows.zigbee.application import ControllerApplication
 
 LOGGER = logging.getLogger(__name__)
 
@@ -27,7 +31,7 @@ class EZSPEndpoint(zigpy.endpoint.Endpoint):
         device: zigpy.device.Device,
         endpoint_id: int,
         descriptor: zdo_t.SimpleDescriptor,
-    ) -> None:
+    ) -> EZSPEndpoint:
         ep = cls(device, endpoint_id)
         ep.profile_id = descriptor.profile
 
@@ -60,11 +64,12 @@ class EZSPEndpoint(zigpy.endpoint.Endpoint):
 
 
 class EZSPGroupEndpoint(EZSPEndpoint):
-    async def add_to_group(self, grp_id: int, name: str = None) -> None:
+    async def add_to_group(self, grp_id: int, name: str | None = None) -> None:
         if grp_id in self.member_of:
             return
 
-        app = self.device.application
+        # Only bellows' own application creates this endpoint
+        app = cast("ControllerApplication", self.device.application)
         status = await app.multicast.subscribe(grp_id)
         if status != t.sl_Status.OK:
             raise ValueError(f"Couldn't subscribe to 0x{grp_id:04x} group")
@@ -76,7 +81,8 @@ class EZSPGroupEndpoint(EZSPEndpoint):
         if grp_id not in self.member_of:
             return
 
-        app = self.device.application
+        # Only bellows' own application creates this endpoint
+        app = cast("ControllerApplication", self.device.application)
         status = await app.multicast.unsubscribe(grp_id)
         if status != t.sl_Status.OK:
             raise ValueError(f"Couldnt't unsubscribe from 0x{grp_id:04x} group")

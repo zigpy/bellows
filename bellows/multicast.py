@@ -1,7 +1,15 @@
+from __future__ import annotations
+
 import asyncio
 import logging
+from typing import TYPE_CHECKING
 
 from bellows import types as t
+
+if TYPE_CHECKING:
+    import zigpy.device
+
+    from bellows.ezsp import EZSP
 
 LOGGER = logging.getLogger(__name__)
 
@@ -9,12 +17,12 @@ LOGGER = logging.getLogger(__name__)
 class Multicast:
     """Multicast table controller for EZSP."""
 
-    def __init__(self, ezsp):
+    def __init__(self, ezsp: EZSP) -> None:
         self._ezsp = ezsp
         self._multicast: dict[
             tuple[int, int], tuple[t.EmberMulticastTableEntry, int]
         ] = {}
-        self._available = set()
+        self._available: set[int] = set()
         # The cache is only updated after the firmware write completes, so concurrent
         # calls for the same group would otherwise each claim a table slot
         self._lock = asyncio.Lock()
@@ -40,7 +48,7 @@ class Multicast:
             else:
                 self._available.add(i)
 
-    async def startup(self, coordinator) -> None:
+    async def startup(self, coordinator: zigpy.device.Device) -> None:
         await self._initialize()
         for ep_id, ep in coordinator.endpoints.items():
             if ep_id == 0:

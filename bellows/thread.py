@@ -1,8 +1,14 @@
+from __future__ import annotations
+
 import asyncio
+from collections.abc import Callable, Coroutine
 from concurrent.futures import ThreadPoolExecutor
 import contextlib
 import functools
 import logging
+from typing import Any, TypeVar
+
+_T = TypeVar("_T")
 
 LOGGER = logging.getLogger(__name__)
 
@@ -10,16 +16,19 @@ LOGGER = logging.getLogger(__name__)
 class EventLoopThread:
     """Run a parallel event loop in a separate thread."""
 
-    def __init__(self):
-        self.loop = None
-        self.thread_complete = None
+    def __init__(self) -> None:
+        self.loop: asyncio.AbstractEventLoop | None = None
+        self.thread_complete: asyncio.Future[None] | None = None
 
-    def run_coroutine_threadsafe(self, coroutine):
+    def run_coroutine_threadsafe(
+        self, coroutine: Coroutine[Any, Any, _T]
+    ) -> asyncio.Future[_T]:
         current_loop = asyncio.get_event_loop()
+        assert self.loop is not None
         future = asyncio.run_coroutine_threadsafe(coroutine, self.loop)
         return asyncio.wrap_future(future, loop=current_loop)
 
-    def _thread_main(self, init_task):
+    def _thread_main(self, init_task: Coroutine[Any, Any, None]) -> None:
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
 
@@ -33,16 +42,16 @@ class EventLoopThread:
             loop, self.loop = self.loop, None
             loop.close()
 
-    async def start(self):
+    async def start(self) -> asyncio.Future[None] | None:
         current_loop = asyncio.get_event_loop()
         if self.loop is not None and not self.loop.is_closed():
-            return
+            return None
 
         executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=__name__)
 
         thread_started_future = current_loop.create_future()
 
-        async def init_task():
+        async def init_task() -> None:
             current_loop.call_soon_threadsafe(thread_started_future.set_result, None)
 
         # Use current loop so current loop has a reference to the long-running thread
@@ -55,12 +64,12 @@ class EventLoopThread:
         await thread_started_future
         return thread_complete
 
-    def force_stop(self):
+    def force_stop(self) -> None:
         loop = self.loop
         if loop is None or loop.is_closed():
             return
 
-        def cancel_tasks_and_stop_loop():
+        def cancel_tasks_and_stop_loop() -> None:
             tasks = asyncio.all_tasks(loop=loop)
 
             for task in tasks:
@@ -80,18 +89,18 @@ class ThreadsafeProxy:
     using that object's methods are done on a particular event loop
     """
 
-    def __init__(self, obj, obj_loop):
+    def __init__(self, obj: Any, obj_loop: asyncio.AbstractEventLoop) -> None:
         self._obj = obj
         self._obj_loop = obj_loop
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Callable[..., Any]:
         func = getattr(self._obj, name)
         if not callable(func):
             raise TypeError(
                 f"Can only use ThreadsafeProxy with callable attributes: {self._obj.__class__.__name__}.{name}"
             )
 
-        def func_wrapper(*args, **kwargs):
+        def func_wrapper(*args: Any, **kwargs: Any) -> Any:
             loop = self._obj_loop
             curr_loop = asyncio.get_running_loop()
             call = functools.partial(func, *args, **kwargs)
@@ -106,7 +115,7 @@ class ThreadsafeProxy:
                 return asyncio.wrap_future(future, loop=curr_loop)
             else:
 
-                def check_result_wrapper():
+                def check_result_wrapper() -> None:
                     result = call()
                     if result is not None:
                         raise TypeError(

@@ -1,22 +1,24 @@
 from __future__ import annotations
 
+from typing import Any
+
 import voluptuous as vol
-from zigpy.config import (  # noqa: F401 pylint: disable=unused-import
-    CONF_DEVICE,
-    CONF_DEVICE_BAUDRATE,
-    CONF_DEVICE_PATH,
-    CONF_NWK,
-    CONF_NWK_CHANNEL,
-    CONF_NWK_CHANNELS,
-    CONF_NWK_EXTENDED_PAN_ID,
-    CONF_NWK_KEY,
-    CONF_NWK_PAN_ID,
-    CONF_NWK_TC_ADDRESS,
-    CONF_NWK_TC_LINK_KEY,
-    CONF_NWK_UPDATE_ID,
-    CONFIG_SCHEMA,
-    cv_boolean,
+from zigpy.config import (
+    CONF_DEVICE as CONF_DEVICE,
+    CONF_DEVICE_BAUDRATE as CONF_DEVICE_BAUDRATE,
+    CONF_DEVICE_PATH as CONF_DEVICE_PATH,
+    CONF_NWK as CONF_NWK,
+    CONF_NWK_CHANNEL as CONF_NWK_CHANNEL,
+    CONF_NWK_CHANNELS as CONF_NWK_CHANNELS,
+    CONF_NWK_EXTENDED_PAN_ID as CONF_NWK_EXTENDED_PAN_ID,
+    CONF_NWK_KEY as CONF_NWK_KEY,
+    CONF_NWK_PAN_ID as CONF_NWK_PAN_ID,
+    CONF_NWK_TC_ADDRESS as CONF_NWK_TC_ADDRESS,
+    CONF_NWK_TC_LINK_KEY as CONF_NWK_TC_LINK_KEY,
+    CONF_NWK_UPDATE_ID as CONF_NWK_UPDATE_ID,
+    CONFIG_SCHEMA as CONFIG_SCHEMA,
 )
+from zigpy.config.validators import cv_boolean as cv_boolean
 
 CONF_BELLOWS_CONFIG = "bellows_config"
 CONF_MANUAL_SOURCE_ROUTING = "manual_source_routing"
@@ -52,7 +54,7 @@ def cv_optional_int(min: int | None = None, max: int | None = None) -> vol.All:
     return vol.Maybe(vol.All(int, vol.Range(min=min, max=max)))
 
 
-def extend_vol_schema(base: dict, changes: dict) -> dict:
+def extend_vol_schema(base: dict[Any, Any], changes: dict[Any, Any]) -> dict[Any, Any]:
     """Extend a Voluptuous schema. Simply overriding keys does not work."""
 
     return {**{k: v for k, v in base.items() if k not in changes}, **changes}
