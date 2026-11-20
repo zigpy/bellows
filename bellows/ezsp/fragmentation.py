@@ -18,10 +18,10 @@ FragmentKey = tuple[int, int, int, int]
 
 
 class _FragmentEntry:
-    def __init__(self, fragment_count: int):
+    def __init__(self, fragment_count: int) -> None:
         self.fragment_count = fragment_count
         self.fragments_received = 0
-        self.fragment_data = {}
+        self.fragment_data: dict[int, bytes] = {}
 
     def add_fragment(self, index: int, data: bytes) -> None:
         if index not in self.fragment_data:
@@ -38,7 +38,7 @@ class _FragmentEntry:
 
 
 class FragmentManager:
-    def __init__(self):
+    def __init__(self) -> None:
         self._partial: dict[FragmentKey, _FragmentEntry] = {}
         self._cleanup_timers: dict[FragmentKey, asyncio.TimerHandle] = {}
 
@@ -106,7 +106,7 @@ class FragmentManager:
         else:
             return (False, None, fragment_count, fragment_index)
 
-    def cleanup_partial(self, key: FragmentKey):
+    def cleanup_partial(self, key: FragmentKey) -> None:
         # Called when FRAGMENT_TIMEOUT passes with no new fragments for that key.
         LOGGER.debug(
             "Timeout for partial reassembly of fragmented message, discarding key=%s",

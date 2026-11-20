@@ -78,7 +78,7 @@ class EZSPv4(protocol.ProtocolHandler):
         # v4 can crash when getAddressTableRemoteNodeId(32) is received: undefined_0x8a
         # We need this function to be an async generator even if it does nothing
         if False:
-            yield
+            yield  # type: ignore[unreachable]
 
     async def get_network_key(self) -> zigpy.state.Key:
         (status, ezsp_network_key) = await self.getKey(
@@ -224,11 +224,11 @@ class EZSPv4(protocol.ProtocolHandler):
         (res,) = await self.setSourceRoute(destination=nwk, relayList=relays)
         return t.sl_Status.from_ember_status(res)
 
-    async def read_counters(self) -> dict[t.EmberCounterType, t.uint16_t]:
+    async def read_counters(self) -> dict[t.EmberCounterType, int]:
         (res,) = await self.readCounters()
         return dict(zip(t.EmberCounterType, res, strict=False))
 
-    async def read_and_clear_counters(self) -> dict[t.EmberCounterType, t.uint16_t]:
+    async def read_and_clear_counters(self) -> dict[t.EmberCounterType, int]:
         (res,) = await self.readAndClearCounters()
         return dict(zip(t.EmberCounterType, res, strict=False))
 

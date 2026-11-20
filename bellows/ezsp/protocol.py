@@ -10,6 +10,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
+import voluptuous as vol
 from zigpy.datastructures import PriorityDynamicBoundedSemaphore
 import zigpy.state
 
@@ -30,12 +31,15 @@ MAX_COMMAND_CONCURRENCY = 1
 class ProtocolHandler(abc.ABC):
     """EZSP protocol specific handler."""
 
-    COMMANDS = {}
-    VERSION = None
+    COMMANDS: dict[str, tuple[int, Any, Any]] = {}
+    VERSION: int | None = None
+    SCHEMAS: dict[str, vol.Schema]
 
-    def __init__(self, cb_handler: Callable, gateway: Gateway) -> None:
+    def __init__(
+        self, cb_handler: Callable[[str, Any], None], gateway: Gateway
+    ) -> None:
         self._handle_callback = cb_handler
-        self._awaiting = {}
+        self._awaiting: dict[int, tuple[int, Any, asyncio.Future[Any]]] = {}
         self._gw = gateway
         self._seq = 0
         self.COMMANDS_BY_ID = {
@@ -52,13 +56,14 @@ class ProtocolHandler(abc.ABC):
         # Next address table slot `set_extended_timeout` will write
         self._address_table_cursor: int = 0
         self._fragment_manager = FragmentManager()
-        self._fragment_ack_tasks: set[asyncio.Task] = set()
+        self._fragment_ack_tasks: set[asyncio.Task[t.EmberStatus]] = set()
 
     def _ezsp_frame(self, name: str, *args: Any, **kwargs: Any) -> bytes:
         """Serialize the named frame and data."""
         c, tx_schema, rx_schema = self.COMMANDS[name]
         frame = self._ezsp_frame_tx(name)
 
+        data: bytes
         if isinstance(tx_schema, dict):
             data = t.serialize_dict(args, kwargs, tx_schema)
         else:
@@ -88,13 +93,11 @@ class ProtocolHandler(abc.ABC):
             "getValue": 999,
         }.get(name, 0)
 
-    async def command(self, name, *args, **kwargs) -> Any:
+    async def command(self, name: str, *args: Any, **kwargs: Any) -> Any:
         """Serialize command and send it."""
-        delayed = False
-        send_time = None
+        send_time: float | None = None
 
         if self._send_semaphore.locked():
-            delayed = True
             send_time = time.monotonic()
 
             LOGGER.debug(
@@ -105,7 +108,7 @@ class ProtocolHandler(abc.ABC):
             )
 
         async with self._send_semaphore(priority=self._get_command_priority(name)):
-            if delayed:
+            if send_time is not None:
                 LOGGER.debug(
                     "Sending command  %s: %s %s after %0.2fs delay",
                     name,
@@ -128,7 +131,7 @@ class ProtocolHandler(abc.ABC):
             async with asyncio_timeout(EZSP_CMD_TIMEOUT):
                 return await future
 
-    async def update_policies(self, policy_config: dict) -> None:
+    async def update_policies(self, policy_config: dict[str, Any]) -> None:
         """Set up the policies for what the NCP should do."""
 
         policies = self.SCHEMAS[CONF_EZSP_POLICIES](policy_config)
@@ -161,6 +164,7 @@ class ProtocolHandler(abc.ABC):
             )
             return
 
+        result: Any
         try:
             if isinstance(rx_schema, dict):
                 result, data = t.deserialize_dict(data, rx_schema)
@@ -277,7 +281,7 @@ class ProtocolHandler(abc.ABC):
         status = await self.sendReply(sender, ackFrame, b"")
         return status[0]
 
-    def __getattr__(self, name: str) -> Callable:
+    def __getattr__(self, name: str) -> Callable[..., Any]:
         if name not in self.COMMANDS:
             raise AttributeError(f"{name} not found in COMMANDS")
 
@@ -293,17 +297,17 @@ class ProtocolHandler(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def read_child_data(
+    def read_child_data(
         self,
     ) -> AsyncGenerator[tuple[t.NWK, t.EUI64, t.EmberNodeType]]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def read_link_keys(self) -> AsyncGenerator[zigpy.state.Key]:
+    def read_link_keys(self) -> AsyncGenerator[zigpy.state.Key]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64]]:
+    def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64]]:
         raise NotImplementedError
 
     @abc.abstractmethod

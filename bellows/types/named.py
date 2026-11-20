@@ -1659,7 +1659,7 @@ class sl_Status(basic.enum32):
 
     @classmethod
     def from_ember_status(
-        cls: type[sl_Status], status: EmberStatus | EzspStatus
+        cls: type[sl_Status], status: sl_Status | EmberStatus | EzspStatus
     ) -> sl_Status:
         if isinstance(status, cls):
             return status
@@ -1680,7 +1680,7 @@ class sl_Status(basic.enum32):
 
 # Generic mapping that standardizes status codes
 # fmt: off
-SL_STATUS_MAP: dict[EzspStatus | EmberStatus, sl_Status] = {
+SL_STATUS_MAP: dict[tuple[type[basic.enum8], basic.enum8], sl_Status] = {
     (type(k), k): v for k, v in [
         # EZSP status
         (EzspStatus.SUCCESS, sl_Status.OK),
