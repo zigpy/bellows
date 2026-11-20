@@ -15,9 +15,12 @@ repos:
           - --skip="./.*"
           - --quiet-level=2
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v2.3.1
+  - repo: local
     hooks:
       - id: mypy
-        additional_dependencies:
-          - zigpy
+        name: mypy
+        entry: script/run-in-env.sh mypy
+        language: script
+        types_or: [python, pyi]
+        exclude: ^tests/
+        require_serial: true
