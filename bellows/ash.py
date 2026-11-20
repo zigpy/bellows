@@ -12,11 +12,15 @@ import logging
 import sys
 import time
 import typing
+from typing import TYPE_CHECKING, cast
 
 from zigpy.types import BaseDataclassMixin
 
 import bellows.types as t
 from bellows.zigbee.util import run_length_debug
+
+if TYPE_CHECKING:
+    from bellows.uart import Gateway
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,7 +67,7 @@ TX_K = 1  # TODO: investigate why this cannot be raised without causing a firmwa
 ACK_TIMEOUTS = 5
 
 
-def generate_random_sequence(length: int) -> bytes:
+def generate_random_sequence(length: int) -> bytearray:
     output = bytearray()
     rand = 0x42
 
@@ -118,13 +122,13 @@ class NotAcked(AshException):
 
 
 class NcpFailure(AshException):
-    def __init__(self, code: t.NcpResetCode) -> None:
+    def __init__(self, code: t.NcpResetCode | str) -> None:
         self.code = code
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}(code={self.code})>"
 
-    def __eq__(self, other: object) -> bool | NotImplemented:
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, NcpFailure):
             return NotImplemented
 
@@ -132,8 +136,8 @@ class NcpFailure(AshException):
 
 
 class AshFrame(abc.ABC, BaseDataclassMixin):
-    MASK: t.uint8_t
-    MASK_VALUE: t.uint8_t
+    MASK: int
+    MASK_VALUE: int
 
     @classmethod
     def from_bytes(cls, data: bytes) -> AshFrame:
@@ -250,7 +254,7 @@ class NakFrame(AshFrame):
     ack_num: int
 
     @classmethod
-    def from_bytes(cls, data: bytes) -> AckFrame:
+    def from_bytes(cls, data: bytes) -> NakFrame:
         control, data = cls._unwrap(data)
 
         return cls(
@@ -295,7 +299,7 @@ class RStackFrame(AshFrame):
     MASK = 0b11111111
     MASK_VALUE = 0b11000001
 
-    version: t.uint8_t
+    version: int
     reset_code: t.NcpResetCode
 
     @classmethod
@@ -326,7 +330,7 @@ class ErrorFrame(AshFrame):
     MASK = 0b11111111
     MASK_VALUE = 0b11000010
 
-    version: t.uint8_t
+    version: int
     reset_code: t.NcpResetCode
 
     # We do not want to inherit from `RStackFrame`
@@ -356,12 +360,12 @@ def parse_frame(
 
 
 class AshProtocol(asyncio.Protocol):
-    def __init__(self, ezsp_protocol, *, suppress_acks: bool = False) -> None:
+    def __init__(self, ezsp_protocol: Gateway, *, suppress_acks: bool = False) -> None:
         self._ezsp_protocol = ezsp_protocol
-        self._transport = None
+        self._transport: asyncio.Transport | None = None
         self._buffer = bytearray()
         self._discarding_until_next_flag: bool = False
-        self._pending_data_frames: dict[int, asyncio.Future] = {}
+        self._pending_data_frames: dict[int, asyncio.Future[bool]] = {}
         self._send_data_frame_semaphore = asyncio.Semaphore(TX_K)
         self._tx_seq: int = 0
         self._rx_seq: int = 0
@@ -377,19 +381,20 @@ class AshProtocol(asyncio.Protocol):
         """Whether something upstream acknowledges the NCP's frames on our behalf."""
         return self._suppress_acks
 
-    def connection_made(self, transport):
-        self._transport = transport
-        self._ezsp_protocol.connection_made(self)
+    def connection_made(self, transport: asyncio.BaseTransport) -> None:
+        self._transport = cast(asyncio.Transport, transport)
+        # This protocol is the gateway's transport
+        self._ezsp_protocol.connection_made(cast(asyncio.BaseTransport, self))
 
     def connection_lost(self, exc: Exception | None) -> None:
         self._transport = None
         self._cancel_pending_data_frames()
         self._ezsp_protocol.connection_lost(exc)
 
-    def eof_received(self):
+    def eof_received(self) -> None:
         self._ezsp_protocol.eof_received()
 
-    def _cancel_pending_data_frames(self, exc: BaseException | None = None):
+    def _cancel_pending_data_frames(self, exc: BaseException | None = None) -> None:
         if exc is None:
             exc = RuntimeError("Connection has been closed")
 
@@ -397,7 +402,7 @@ class AshProtocol(asyncio.Protocol):
             if not fut.done():
                 fut.set_exception(exc)
 
-    def close(self):
+    def close(self) -> None:
         self._cancel_pending_data_frames()
 
         if self._transport is not None:
@@ -421,7 +426,7 @@ class AshProtocol(asyncio.Protocol):
             self._in_reject_condition = False
 
     @staticmethod
-    def _stuff_bytes(data: bytes) -> bytes:
+    def _stuff_bytes(data: bytes) -> bytearray:
         """Stuff bytes for transmission"""
         out = bytearray()
 
@@ -434,7 +439,7 @@ class AshProtocol(asyncio.Protocol):
         return out
 
     @staticmethod
-    def _unstuff_bytes(data: bytes) -> bytes:
+    def _unstuff_bytes(data: bytes | bytearray) -> bytearray:
         """Unstuff bytes after receipt"""
         out = bytearray()
         escaped = False
@@ -632,8 +637,8 @@ class AshProtocol(asyncio.Protocol):
         self,
         frame: AshFrame,
         *,
-        prefix: tuple[Reserved] = (),
-        suffix: tuple[Reserved] = (Reserved.FLAG,),
+        prefix: tuple[Reserved, ...] = (),
+        suffix: tuple[Reserved, ...] = (Reserved.FLAG,),
     ) -> None:
         if self._transport is None or self._transport.is_closing():
             raise NcpFailure("Transport is closed, cannot send frame")
