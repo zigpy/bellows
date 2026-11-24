@@ -1378,6 +1378,16 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             and window.link_keys == link_keys
         ):
             window.timer.cancel()
+
+            # The NCP drops transient keys a fixed time after they are added
+            # (`CONFIG_TRANSIENT_KEY_TIMEOUT_S`), re-add them to cover the extension
+            try:
+                await self._ezsp.refresh_join_link_keys(link_keys=link_keys)
+            except BaseException:
+                # The window has no timer anymore, close it instead of leaking it
+                await self._close_join_window()
+                raise
+
             window.timer = loop.call_later(time_s, window.close_event.set)
             return
 

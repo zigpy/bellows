@@ -534,6 +534,67 @@ async def test_allow_joins(ezsp_f, link_keys, expected_keys, install_codes_only)
     ]
 
 
+@pytest.mark.parametrize(
+    "link_keys, expected_keys",
+    [
+        (None, {WILDCARD_EUI64: WELL_KNOWN_LINK_KEY}),
+        (
+            {
+                t.EUI64.convert("00:11:22:33:44:55:66:77"): t.KeyData(
+                    b"0123456789abcdef"
+                )
+            },
+            {
+                t.EUI64.convert("00:11:22:33:44:55:66:77"): t.KeyData(
+                    b"0123456789abcdef"
+                )
+            },
+        ),
+    ],
+)
+async def test_refresh_join_link_keys(ezsp_f, link_keys, expected_keys):
+    proto = ezsp_f._protocol
+    proto.add_transient_link_key = AsyncMock(return_value=t.sl_Status.OK)
+    proto.clear_transient_link_keys = AsyncMock()
+
+    await ezsp_f.refresh_join_link_keys(link_keys=link_keys)
+
+    # The keys are imported again in place, the table is never empty
+    assert proto.add_transient_link_key.mock_calls == [
+        call(ieee, key) for ieee, key in expected_keys.items()
+    ]
+    assert proto.clear_transient_link_keys.mock_calls == []
+
+
+async def test_refresh_join_link_keys_fallback(ezsp_f):
+    proto = ezsp_f._protocol
+    proto.add_transient_link_key = AsyncMock(
+        side_effect=[t.sl_Status.FAIL, t.sl_Status.OK]
+    )
+    proto.clear_transient_link_keys = AsyncMock()
+
+    await ezsp_f.refresh_join_link_keys()
+
+    # A failed import in place falls back to clearing the table and adding again
+    assert proto.add_transient_link_key.mock_calls == [
+        call(WILDCARD_EUI64, WELL_KNOWN_LINK_KEY),
+        call(WILDCARD_EUI64, WELL_KNOWN_LINK_KEY),
+    ]
+    assert proto.clear_transient_link_keys.mock_calls == [call()]
+
+
+async def test_refresh_join_link_keys_failure(ezsp_f):
+    proto = ezsp_f._protocol
+    proto.add_transient_link_key = AsyncMock(return_value=t.sl_Status.FAIL)
+    proto.clear_transient_link_keys = AsyncMock()
+
+    with pytest.raises(ControllerError):
+        await ezsp_f.refresh_join_link_keys()
+
+    assert proto.add_transient_link_key.await_count == 2
+    assert proto.clear_transient_link_keys.mock_calls == [call()]
+
+
 async def test_allow_joins_clear_keys_failure(ezsp_f):
     proto = ezsp_f._protocol
     proto.add_transient_link_key = AsyncMock(return_value=t.sl_Status.OK)

@@ -814,13 +814,40 @@ async def test_permit_extend(app):
     # The open window is extended, joins are never rejected in between
     assert app._join_window is window
     assert permit_mock.mock_calls == [call(60, None), call(0.01, None)]
-    assert proto.clearTransientLinkKeys.mock_calls == [call()]
     assert proto.setPolicy.mock_calls == [POLICY_OPEN]
+
+    # The NCP times out transient keys, so the extension imports them again in place
+    assert proto.clearTransientLinkKeys.mock_calls == [call()]
+    assert proto.add_transient_link_key.mock_calls == [
+        call(ezsp.WILDCARD_EUI64, ezsp.WELL_KNOWN_LINK_KEY),
+        call(ezsp.WILDCARD_EUI64, ezsp.WELL_KNOWN_LINK_KEY),
+    ]
 
     # The window now closes on the timer of the last call
     await asyncio.wait([window.task])
 
     assert proto.clearTransientLinkKeys.mock_calls == [call(), call()]
+    assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED]
+
+
+async def test_permit_extend_failure(app):
+    proto = app._ezsp._protocol
+
+    with patch("zigpy.application.ControllerApplication.permit") as permit_mock:
+        await app.permit(60)
+        window = app._join_window
+
+        proto.add_transient_link_key.return_value = t.sl_Status.FAIL
+
+        with pytest.raises(ControllerError):
+            await app.permit(60)
+
+    # The window is closed rather than left open without its keys or a timer
+    assert app._join_window is None
+    assert window.task.done()
+    assert permit_mock.mock_calls == [call(60, None)]
+    assert proto.add_transient_link_key.await_count == 3
+    assert proto.clearTransientLinkKeys.mock_calls == [call(), call(), call()]
     assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED]
 
 
@@ -838,6 +865,13 @@ async def test_permit_switch_link_keys(app, ieee):
         POLICY_OPEN,
         POLICY_CLOSED,
         POLICY_INSTALL_CODES_ONLY,
+    ]
+
+    # The extension adds the install code key again
+    assert proto.add_transient_link_key.mock_calls == [
+        call(ezsp.WILDCARD_EUI64, ezsp.WELL_KNOWN_LINK_KEY),
+        call(ieee, key),
+        call(ieee, key),
     ]
 
     with patch("zigpy.application.ControllerApplication.permit"):
