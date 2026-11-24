@@ -13,6 +13,8 @@ import bellows.types as t
 from . import commands, config
 from ..v13 import EZSPv13
 
+NULL_NODE_ID = 0xFFFF
+
 
 class EZSPv14(EZSPv13):
     """EZSP Version 14 Protocol version handler."""
@@ -24,7 +26,7 @@ class EZSPv14(EZSPv13):
         bellows.config.CONF_EZSP_POLICIES: vol.Schema(config.EZSP_POLICIES_SCH),
     }
 
-    async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64], None]:
+    async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64]]:
         (status, addr_table_size) = await self.getConfigurationValue(
             configId=t.EzspConfigId.CONFIG_ADDRESS_TABLE_SIZE
         )
@@ -87,6 +89,15 @@ class EZSPv14(EZSPv13):
 
         return zigpy.state.Key(key=tc_link_key_data)
 
+    async def leave_network(
+        self,
+        options: t.SlZigbeeLeaveNetworkOption = (
+            t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION
+        ),
+    ) -> t.sl_Status:
+        (status,) = await self.leaveNetwork(options=options)
+        return status
+
     async def send_unicast(
         self,
         nwk: t.NWK,
@@ -111,13 +122,16 @@ class EZSPv14(EZSPv13):
         non_member_radius: t.uint8_t,
         message_tag: t.uint8_t,
         data: bytes,
+        alias: t.NWK | None = None,
+        alias_seq: t.uint8_t | None = None,
     ) -> tuple[t.sl_Status, t.uint8_t]:
         status, sequence = await self.sendMulticast(
             aps_frame=aps_frame,
             hops=radius,
             broadcast_addr=t.BroadcastAddress.RX_ON_WHEN_IDLE,
-            alias=0x0000,
-            sequence=aps_frame.sequence,
+            alias=NULL_NODE_ID if alias is None else alias,
+            # NWK sequence, only used with an alias
+            sequence=0x00 if alias_seq is None else alias_seq,
             message_tag=message_tag,
             message=data,
         )
@@ -132,11 +146,16 @@ class EZSPv14(EZSPv13):
         message_tag: t.uint8_t,
         aps_sequence: t.uint8_t,
         data: bytes,
+        alias: t.NWK | None = None,
+        alias_seq: t.uint8_t | None = None,
     ) -> tuple[t.sl_Status, t.uint8_t]:
+        # `aps_sequence` is not used
+
         status, sequence = await self.sendBroadcast(
-            alias=0x0000,
+            alias=NULL_NODE_ID if alias is None else alias,
             destination=address,
-            sequence=aps_sequence,
+            # NWK sequence, only used with an alias
+            sequence=0x00 if alias_seq is None else alias_seq,
             aps_frame=aps_frame,
             radius=radius,
             message_tag=message_tag,
@@ -144,3 +163,17 @@ class EZSPv14(EZSPv13):
         )
 
         return status, sequence
+
+    async def _get_extended_timeout(self, ieee: t.EUI64) -> bool:
+        (status,) = await self.getExtendedTimeout(remoteEui64=ieee)
+
+        # `FAIL` means that the normal retry interval is used
+        return status == t.sl_Status.OK
+
+    async def _lookup_node_id_by_eui64(self, ieee: t.EUI64) -> t.NWK | None:
+        (status, node_id) = await self.lookupNodeIdByEui64(eui64=ieee)
+
+        if status != t.sl_Status.OK or node_id == 0xFFFF:
+            return None
+
+        return node_id

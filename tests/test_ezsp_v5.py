@@ -32,17 +32,26 @@ def test_ezsp_frame_rx(ezsp_f):
     assert ezsp_f._handle_callback.call_args[0][1] == [0x01, 0x02, 0x1234]
 
 
-async def test_pre_permit(ezsp_f):
-    """Test pre permit."""
+async def test_add_transient_link_key(ezsp_f) -> None:
     ezsp_f.addTransientLinkKey.return_value = [t.EmberStatus.SUCCESS]
-    await ezsp_f.pre_permit(1)
 
+    status = await ezsp_f.add_transient_link_key(
+        ieee=t.EUI64.convert("00:11:22:33:44:55:66:77"),
+        key=t.KeyData(b"ZigBeeAlliance09"),
+    )
+
+    assert status == t.sl_Status.OK
     assert ezsp_f.addTransientLinkKey.mock_calls == [
         call(
-            partner=t.EUI64.convert("ff:ff:ff:ff:ff:ff:ff:ff"),
+            partner=t.EUI64.convert("00:11:22:33:44:55:66:77"),
             transientKey=t.KeyData(b"ZigBeeAlliance09"),
         )
     ]
+
+
+async def test_clear_transient_link_keys(ezsp_f) -> None:
+    await ezsp_f.clear_transient_link_keys()
+    assert ezsp_f.clearTransientLinkKeys.mock_calls == [call()]
 
 
 async def test_read_address_table(ezsp_f):

@@ -12,8 +12,15 @@ import zigpy.config
 
 from bellows import config, uart
 from bellows.ash import NcpFailure
-from bellows.exception import EzspError, InvalidCommandError, InvalidCommandPayload
-from bellows.ezsp import EZSP, EZSP_LATEST, xncp
+from bellows.exception import (
+    ControllerError,
+    EzspError,
+    InvalidCommandError,
+    InvalidCommandPayload,
+    InvalidTxPower,
+)
+from bellows.ezsp import EZSP, EZSP_LATEST, WELL_KNOWN_LINK_KEY, WILDCARD_EUI64, xncp
+from bellows.ezsp.v4 import EZSPv4
 from bellows.ezsp.v9.commands import GetTokenDataRsp
 import bellows.types as t
 
@@ -243,6 +250,16 @@ async def test_form_network_fail():
 
     with pytest.raises(Exception):
         await _test_form_network(ezsp, [t.EmberStatus.FAILURE], b"\x90")
+
+
+@pytest.mark.parametrize(
+    "status", [t.EmberStatus.PHY_INVALID_POWER, t.sl_Status.TRANSMIT_INVALID_POWER]
+)
+async def test_form_network_fail_invalid_tx_power(status):
+    ezsp = await make_connected_ezsp(version=4)
+
+    with pytest.raises(InvalidTxPower):
+        await _test_form_network(ezsp, [status], b"\x90")
 
 
 @patch("bellows.ezsp.NETWORK_OPS_TIMEOUT", 0.1)
@@ -596,6 +613,32 @@ async def test_ezsp_connect_transport_closed_during_startup_reset():
     assert [t for t in threading.enumerate() if "bellows" in t.name] == []
 
 
+@patch.object(EZSP, "disconnect", new_callable=AsyncMock)
+async def test_ezsp_connect_retry_resets_protocol_version(disconnect_mock):
+    """A retry after a failure that already switched protocols starts from v4."""
+    call_count = 0
+    seen = []
+
+    async def startup_reset_mock():
+        nonlocal call_count
+        call_count += 1
+        seen.append((ezsp.ezsp_version, type(ezsp._protocol)))
+        if call_count == 1:
+            # The first attempt negotiates v12, then fails (e.g. a slow `zigbeed` reset)
+            ezsp._switch_protocol_version(12)
+            raise RuntimeError("Startup failed after the version switch")
+
+    with patch("bellows.uart.connect"):
+        ezsp = make_ezsp(version=4)
+
+        with patch.object(ezsp, "_startup_reset", side_effect=startup_reset_mock):
+            await ezsp.connect()
+
+    assert call_count == 2
+    assert seen[1] == (4, EZSPv4)
+    assert disconnect_mock.call_count == 0
+
+
 async def test_ezsp_newer_version(ezsp_f):
     """Test newer version of ezsp."""
     with patch.object(
@@ -718,11 +761,114 @@ async def test_set_disable_source_routing(ezsp_f):
     )
 
 
+@pytest.mark.parametrize(
+    "link_keys, expected_keys, install_codes_only",
+    [
+        (None, {WILDCARD_EUI64: WELL_KNOWN_LINK_KEY}, False),
+        (
+            {
+                t.EUI64.convert("00:11:22:33:44:55:66:77"): t.KeyData(
+                    b"0123456789abcdef"
+                )
+            },
+            {
+                t.EUI64.convert("00:11:22:33:44:55:66:77"): t.KeyData(
+                    b"0123456789abcdef"
+                )
+            },
+            True,
+        ),
+    ],
+)
+async def test_allow_joins(ezsp_f, link_keys, expected_keys, install_codes_only):
+    proto = ezsp_f._protocol
+    proto.add_transient_link_key = AsyncMock(return_value=t.sl_Status.OK)
+    proto.set_join_policy = AsyncMock()
+    proto.clear_transient_link_keys = AsyncMock()
+
+    async with ezsp_f.allow_joins(link_keys=link_keys):
+        assert proto.add_transient_link_key.mock_calls == [
+            call(ieee, key) for ieee, key in expected_keys.items()
+        ]
+        assert proto.set_join_policy.mock_calls == [
+            call(allow_joins=True, install_codes_only=install_codes_only)
+        ]
+
+        # Leftover keys from a previous window are cleared before the new ones
+        assert proto.clear_transient_link_keys.mock_calls == [call()]
+
+    assert proto.clear_transient_link_keys.mock_calls == [call(), call()]
+    assert proto.set_join_policy.mock_calls == [
+        call(allow_joins=True, install_codes_only=install_codes_only),
+        call(allow_joins=False),
+    ]
+
+
+async def test_allow_joins_clear_keys_failure(ezsp_f):
+    proto = ezsp_f._protocol
+    proto.add_transient_link_key = AsyncMock(return_value=t.sl_Status.OK)
+    proto.set_join_policy = AsyncMock()
+    proto.clear_transient_link_keys = AsyncMock(side_effect=[None, TimeoutError()])
+
+    with pytest.raises(TimeoutError):
+        async with ezsp_f.allow_joins():
+            pass
+
+    # The policy is restored even though the keys could not be cleared
+    assert proto.set_join_policy.mock_calls == [
+        call(allow_joins=True, install_codes_only=False),
+        call(allow_joins=False),
+    ]
+
+
+async def test_allow_joins_link_key_failure(ezsp_f):
+    proto = ezsp_f._protocol
+    proto.add_transient_link_key = AsyncMock(return_value=t.sl_Status.FAIL)
+    proto.set_join_policy = AsyncMock()
+    proto.clear_transient_link_keys = AsyncMock()
+
+    link_keys = {
+        t.EUI64.convert("00:11:22:33:44:55:66:77"): t.KeyData(b"0123456789abcdef")
+    }
+
+    with pytest.raises(ControllerError):
+        async with ezsp_f.allow_joins(link_keys=link_keys):
+            pytest.fail("Joins must not be allowed")  # pragma: no cover
+
+    # Joins are never allowed but everything is still cleaned up
+    assert proto.clear_transient_link_keys.mock_calls == [call(), call()]
+    assert proto.set_join_policy.mock_calls == [call(allow_joins=False)]
+
+
+@pytest.mark.parametrize(
+    "version, default",
+    [(v, t.EzspDecisionId.ALLOW_PRECONFIGURED_KEY_JOINS) for v in (4, 5, 6, 7)]
+    + [
+        (
+            v,
+            t.EzspDecisionBitmask.ALLOW_JOINS
+            | t.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS,
+        )
+        for v in EZSP._BY_VERSION
+        if v >= 8
+    ],
+)
+def test_trust_center_policy_default(version, default):
+    schema = EZSP._BY_VERSION[version].SCHEMAS[config.CONF_EZSP_POLICIES]
+
+    policies = schema({})
+    assert policies[t.EzspPolicyId.TRUST_CENTER_POLICY.name] == default
+
+    # The user's configuration takes precedence
+    policies = schema({t.EzspPolicyId.TRUST_CENTER_POLICY.name: 0x02})
+    assert policies[t.EzspPolicyId.TRUST_CENTER_POLICY.name] == 0x02
+
+
 async def test_leave_network_error(ezsp_f):
     """Test EZSP leaveNetwork command failure."""
 
-    with patch.object(ezsp_f, "_command", new_callable=AsyncMock) as cmd_mock:
-        cmd_mock.return_value = [t.EmberStatus.ERR_FATAL]
+    with patch.object(ezsp_f._protocol, "leave_network", new_callable=AsyncMock) as m:
+        m.return_value = t.sl_Status.FAIL
         with pytest.raises(EzspError):
             await ezsp_f.leaveNetwork(timeout=0.01)
 
@@ -730,24 +876,38 @@ async def test_leave_network_error(ezsp_f):
 async def test_leave_network_no_stack_status(ezsp_f):
     """Test EZSP leaveNetwork command, no stackStatusHandler callback."""
 
-    with patch.object(ezsp_f, "_command", new_callable=AsyncMock) as cmd_mock:
-        cmd_mock.return_value = [t.EmberStatus.SUCCESS]
+    with patch.object(ezsp_f._protocol, "leave_network", new_callable=AsyncMock) as m:
+        m.return_value = t.sl_Status.OK
         with pytest.raises(TimeoutError):
             await ezsp_f.leaveNetwork(timeout=0.01)
 
 
-async def test_leave_network(ezsp_f):
+@pytest.mark.parametrize(
+    ("kwargs", "options"),
+    [
+        ({}, t.SlZigbeeLeaveNetworkOption.WITH_NO_OPTION),
+        (
+            {"options": t.SlZigbeeLeaveNetworkOption.WITH_OPTION_REJOIN},
+            t.SlZigbeeLeaveNetworkOption.WITH_OPTION_REJOIN,
+        ),
+    ],
+)
+async def test_leave_network(
+    ezsp_f, kwargs: dict, options: t.SlZigbeeLeaveNetworkOption
+) -> None:
     """Test EZSP leaveNetwork command."""
 
-    async def _mock_cmd(*args, **kwargs):
+    async def _mock_leave(*args, **kwargs):
         ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_UP])
         ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_UP])
         ezsp_f.handle_callback("stackStatusHandler", [t.EmberStatus.NETWORK_DOWN])
-        return [t.EmberStatus.SUCCESS]
+        return t.sl_Status.OK
 
-    with patch.object(ezsp_f, "_command", new_callable=AsyncMock) as cmd_mock:
-        cmd_mock.side_effect = _mock_cmd
-        await ezsp_f.leaveNetwork(timeout=0.01)
+    with patch.object(ezsp_f._protocol, "leave_network", new_callable=AsyncMock) as m:
+        m.side_effect = _mock_leave
+        await ezsp_f.leaveNetwork(timeout=0.01, **kwargs)
+
+    assert m.mock_calls == [call(options=options)]
 
 
 async def test_xncp_token_override(ezsp_f):

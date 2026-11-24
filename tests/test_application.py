@@ -11,12 +11,20 @@ import zigpy.device
 import zigpy.exceptions
 import zigpy.types as zigpy_t
 import zigpy.zdo.types as zdo_t
+import zigpy.zgp.types as zgp_t
 
 from bellows.ash import NcpFailure
 import bellows.config as config
-from bellows.exception import ControllerError, EzspError, InvalidCommandError
+from bellows.exception import (
+    ControllerError,
+    EzspError,
+    InvalidCommandError,
+    InvalidTxPower,
+)
 import bellows.ezsp as ezsp
 from bellows.ezsp.v9.commands import GetTokenDataRsp
+from bellows.ezsp.v13.commands import COMMANDS as COMMANDS_v13
+from bellows.ezsp.v19.commands import COMMANDS as COMMANDS_v19
 from bellows.ezsp.xncp import (
     MAX_XNCP_PAYLOAD_LENGTH,
     FirmwareFeatures,
@@ -225,6 +233,7 @@ def _create_app_for_startup(
     )
 
     proto.factory_reset = AsyncMock(proto=proto.factory_reset)
+    proto.clear_gp_tables = AsyncMock(spec=proto.clear_gp_tables)
     proto.set_extended_timeout = AsyncMock(proto=proto.set_extended_timeout)
 
     proto.read_link_keys = MagicMock()
@@ -474,7 +483,19 @@ def _handle_incoming_aps_frame(app, aps_frame, type):
     )
 
 
-def test_frame_handler_unicast(app, aps_frame):
+@pytest.mark.parametrize(
+    ("aps_options", "tx_options"),
+    [
+        (t.EmberApsOption.APS_OPTION_NONE, zigpy_t.TransmitOptions.NONE),
+        (
+            t.EmberApsOption.APS_OPTION_ENCRYPTION,
+            zigpy_t.TransmitOptions.APS_Encryption,
+        ),
+    ],
+)
+def test_frame_handler_unicast(app, aps_frame, aps_options, tx_options):
+    aps_frame.options = aps_options
+
     _handle_incoming_aps_frame(
         app, aps_frame, type=t.EmberIncomingMessageType.INCOMING_UNICAST
     )
@@ -491,6 +512,7 @@ def test_frame_handler_unicast(app, aps_frame):
     assert packet.dst.addr_mode == zigpy_t.AddrMode.NWK
     assert packet.dst.address == app.state.node_info.nwk
     assert packet.data.serialize() == b"test message"
+    assert packet.tx_options == tx_options
     assert packet.lqi == 123
     assert packet.rssi == -45
 
@@ -639,46 +661,55 @@ def test_unexpected_send_success(app, aps, ieee):
     )
 
 
-async def test_join_handler(app, ieee):
+@pytest.mark.parametrize(
+    "status, decision, joins, cleans_up_tclk",
+    [
+        # Only a secured rejoin proves the device holds the network key
+        (
+            t.EmberDeviceUpdate.STANDARD_SECURITY_SECURED_REJOIN,
+            t.EmberJoinDecision.NO_ACTION,
+            True,
+            False,
+        ),
+        # Unsecured joins and rejoins are reported by the device's Device_annce
+        (
+            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            t.EmberJoinDecision.USE_PRECONFIGURED_KEY,
+            False,
+            True,
+        ),
+        (
+            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_REJOIN,
+            t.EmberJoinDecision.USE_PRECONFIGURED_KEY,
+            False,
+            False,
+        ),
+        (
+            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
+            t.EmberJoinDecision.DENY_JOIN,
+            False,
+            True,
+        ),
+        (
+            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_REJOIN,
+            t.EmberJoinDecision.DENY_JOIN,
+            False,
+            False,
+        ),
+    ],
+)
+async def test_join_handler(app, ieee, status, decision, joins, cleans_up_tclk):
     # Calls device.initialize, leaks a task
     app.handle_join = MagicMock()
     app.cleanup_tc_link_key = AsyncMock()
     app.ezsp_callback_handler(
-        "trustCenterJoinHandler",
-        [
-            1,
-            ieee,
-            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
-            t.EmberJoinDecision.NO_ACTION,
-            sentinel.parent,
-        ],
+        "trustCenterJoinHandler", [1, ieee, status, decision, sentinel.parent]
     )
     await asyncio.sleep(0)
-    assert ieee not in app.devices
-    assert app.handle_join.call_count == 1
-    assert app.handle_join.call_args[0][0] == 1
-    assert app.handle_join.call_args[0][1] == ieee
-    assert app.handle_join.call_args[0][2] is sentinel.parent
-    assert app.cleanup_tc_link_key.await_count == 1
-    assert app.cleanup_tc_link_key.call_args[0][0] is ieee
 
-    # cleanup TCLK, but no join handling
-    app.handle_join.reset_mock()
-    app.cleanup_tc_link_key.reset_mock()
-    app.ezsp_callback_handler(
-        "trustCenterJoinHandler",
-        [
-            1,
-            ieee,
-            t.EmberDeviceUpdate.STANDARD_SECURITY_UNSECURED_JOIN,
-            t.EmberJoinDecision.DENY_JOIN,
-            sentinel.parent,
-        ],
-    )
-    await asyncio.sleep(0)
-    assert app.cleanup_tc_link_key.await_count == 1
-    assert app.cleanup_tc_link_key.call_args[0][0] is ieee
-    assert app.handle_join.call_count == 0
+    assert ieee not in app.devices
+    assert app.handle_join.mock_calls == [call(1, ieee, sentinel.parent)] * joins
+    assert app.cleanup_tc_link_key.mock_calls == [call(ieee)] * cleans_up_tclk
 
 
 def test_leave_handler(app, ieee):
@@ -710,25 +741,162 @@ async def test_permit_ncp(app):
     assert app._ezsp._protocol.permitJoining.mock_calls == [call(60)]
 
 
-async def test_permit_with_link_key(app, ieee):
-    with patch("zigpy.application.ControllerApplication.permit") as permit_mock:
-        await app.permit_with_link_key(
-            ieee,
-            zigpy_t.KeyData.convert("11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88"),
-            60,
-        )
+POLICY_OPEN = call(
+    policyId=t.EzspPolicyId.TRUST_CENTER_POLICY,
+    decisionId=(
+        t.EzspDecisionBitmask.ALLOW_JOINS
+        | t.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS
+    ),
+)
+POLICY_INSTALL_CODES_ONLY = call(
+    policyId=t.EzspPolicyId.TRUST_CENTER_POLICY,
+    decisionId=(
+        t.EzspDecisionBitmask.ALLOW_JOINS
+        | t.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS
+        | t.EzspDecisionBitmask.JOINS_USE_INSTALL_CODE_KEY
+    ),
+)
+POLICY_CLOSED = call(policyId=t.EzspPolicyId.TRUST_CENTER_POLICY, decisionId=0)
 
-    assert permit_mock.await_count == 1
-    assert app._ezsp._protocol.add_transient_link_key.mock_calls == [
-        call(
-            ieee,
-            zigpy_t.KeyData.convert("11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88"),
-        )
+
+async def test_permit(app):
+    proto = app._ezsp._protocol
+
+    def check_trust_center_ready(*args, **kwargs):
+        # The Trust Center must be ready before the network opens
+        assert proto.add_transient_link_key.mock_calls == [
+            call(ezsp.WILDCARD_EUI64, ezsp.WELL_KNOWN_LINK_KEY)
+        ]
+        assert proto.setPolicy.mock_calls == [POLICY_OPEN]
+
+    with patch(
+        "zigpy.application.ControllerApplication.permit",
+        side_effect=check_trust_center_ready,
+    ) as permit_mock:
+        await app.permit(10)
+
+    assert permit_mock.mock_calls == [call(10, None)]
+    assert proto.clearTransientLinkKeys.mock_calls == [call()]
+
+    with patch("zigpy.application.ControllerApplication.permit") as permit_mock:
+        await app.permit(0)
+
+    assert permit_mock.mock_calls == [call(0, None)]
+    assert proto.clearTransientLinkKeys.mock_calls == [call(), call()]
+    assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED]
+
+
+async def test_permit_window_expires(app):
+    proto = app._ezsp._protocol
+
+    with patch("zigpy.application.ControllerApplication.permit"):
+        await app.permit(0.01)
+        await asyncio.wait([app._join_window.task])
+
+    assert proto.clearTransientLinkKeys.mock_calls == [call(), call()]
+    assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED]
+
+    # An expired window is reopened, not extended
+    with patch("zigpy.application.ControllerApplication.permit"):
+        await app.permit(10)
+
+    assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED, POLICY_OPEN]
+
+
+async def test_permit_extend(app):
+    proto = app._ezsp._protocol
+
+    with patch("zigpy.application.ControllerApplication.permit") as permit_mock:
+        await app.permit(60)
+        window = app._join_window
+        await app.permit(0.01)
+
+    # The open window is extended, joins are never rejected in between
+    assert app._join_window is window
+    assert permit_mock.mock_calls == [call(60, None), call(0.01, None)]
+    assert proto.clearTransientLinkKeys.mock_calls == [call()]
+    assert proto.setPolicy.mock_calls == [POLICY_OPEN]
+
+    # The window now closes on the timer of the last call
+    await asyncio.wait([window.task])
+
+    assert proto.clearTransientLinkKeys.mock_calls == [call(), call()]
+    assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED]
+
+
+async def test_permit_switch_link_keys(app, ieee):
+    proto = app._ezsp._protocol
+    key = zigpy_t.KeyData.convert("11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88")
+
+    with patch("zigpy.application.ControllerApplication.permit"):
+        await app.permit(60)
+        await app.permit_with_link_key(ieee, key, 60)
+        await app.permit_with_link_key(ieee, key, 60)
+
+    # A window with other keys is replaced, one with the same keys is extended
+    assert proto.setPolicy.mock_calls == [
+        POLICY_OPEN,
+        POLICY_CLOSED,
+        POLICY_INSTALL_CODES_ONLY,
+    ]
+
+    with patch("zigpy.application.ControllerApplication.permit"):
+        await app.permit(60)
+
+    assert proto.setPolicy.mock_calls == [
+        POLICY_OPEN,
+        POLICY_CLOSED,
+        POLICY_INSTALL_CODES_ONLY,
+        POLICY_CLOSED,
+        POLICY_OPEN,
     ]
 
 
+async def test_permit_concurrent(app):
+    proto = app._ezsp._protocol
+
+    async def add_transient_link_key(ieee, key):
+        # Let the other permit call run while this window is opening
+        await asyncio.sleep(0)
+        return t.sl_Status.OK
+
+    proto.add_transient_link_key.side_effect = add_transient_link_key
+
+    with patch("zigpy.application.ControllerApplication.permit") as permit_mock:
+        await asyncio.gather(app.permit(60), app.permit(10))
+
+    # The second call waits for the first window to open and then extends it
+    assert permit_mock.mock_calls == [call(60, None), call(10, None)]
+    assert proto.setPolicy.mock_calls == [POLICY_OPEN]
+
+    with patch("zigpy.application.ControllerApplication.permit"):
+        await app.permit(0)
+
+    assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED]
+
+
+async def test_permit_with_link_key(app, ieee):
+    proto = app._ezsp._protocol
+    key = zigpy_t.KeyData.convert("11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88")
+
+    with patch("zigpy.application.ControllerApplication.permit") as permit_mock:
+        await app.permit_with_link_key(ieee, key, 60)
+
+    assert permit_mock.mock_calls == [call(60)]
+    assert proto.add_transient_link_key.mock_calls == [call(ieee, key)]
+    assert proto.setPolicy.mock_calls == [POLICY_INSTALL_CODES_ONLY]
+
+    # The policy is restored once the window closes
+    with patch("zigpy.application.ControllerApplication.permit"):
+        await app.permit(0)
+
+    assert proto.clearTransientLinkKeys.mock_calls == [call(), call()]
+    assert proto.setPolicy.mock_calls == [POLICY_INSTALL_CODES_ONLY, POLICY_CLOSED]
+
+
 async def test_permit_with_link_key_failure(app, ieee):
-    app._ezsp._protocol.add_transient_link_key.return_value = t.EmberStatus.ERR_FATAL
+    proto = app._ezsp._protocol
+    proto.add_transient_link_key.return_value = t.sl_Status.FAIL
 
     with patch("zigpy.application.ControllerApplication.permit") as permit_mock:
         with pytest.raises(ControllerError):
@@ -740,8 +908,12 @@ async def test_permit_with_link_key_failure(app, ieee):
                 60,
             )
 
-    assert permit_mock.await_count == 0
-    assert app._ezsp._protocol.add_transient_link_key.await_count == 1
+    assert len(permit_mock.mock_calls) == 0
+    assert proto.add_transient_link_key.await_count == 1
+
+    # Joins were never allowed
+    assert proto.clearTransientLinkKeys.mock_calls == [call(), call()]
+    assert proto.setPolicy.mock_calls == [POLICY_CLOSED]
 
 
 @pytest.fixture
@@ -905,6 +1077,7 @@ async def test_send_packet_unicast_source_route(make_app, packet):
         options=(
             t.EmberApsOption.APS_OPTION_RETRY
             | t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
         ),
     )
 
@@ -935,6 +1108,7 @@ async def test_send_packet_unicast_manual_source_route(make_app, packet):
         options=(
             t.EmberApsOption.APS_OPTION_RETRY
             | t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
         ),
     )
 
@@ -1052,6 +1226,7 @@ async def test_send_packet_unicast_combined_manual_source_route(make_app, packet
         options=(
             t.EmberApsOption.APS_OPTION_RETRY
             | t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
         ),
     )
 
@@ -1074,6 +1249,7 @@ async def test_send_packet_unicast_combined_native_source_route_fallback(
         options=(
             t.EmberApsOption.APS_OPTION_RETRY
             | t.EmberApsOption.APS_OPTION_ENABLE_ADDRESS_DISCOVERY
+            | t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
         ),
     )
 
@@ -1338,6 +1514,8 @@ async def test_send_packet_broadcast(app, packet):
             message_tag=MSG_TAG,
             aps_sequence=packet.tsn,
             data=b"some data",
+            alias=None,
+            alias_seq=None,
         )
     ]
 
@@ -1386,6 +1564,8 @@ async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
             message_tag=MSG_TAG,
             aps_sequence=packet.tsn,
             data=b"some data",
+            alias=None,
+            alias_seq=None,
         )
     ]
 
@@ -1436,10 +1616,88 @@ async def test_send_packet_multicast(app, packet):
             non_member_radius=packet.non_member_radius,
             message_tag=MSG_TAG,
             data=b"some data",
+            alias=None,
+            alias_seq=None,
         )
     ]
 
     assert len(app._pending_requests) == 0
+
+
+@pytest.mark.parametrize(
+    ("dst", "send", "message_type", "aps_group"),
+    [
+        (
+            zigpy_t.AddrModeAddress(
+                addr_mode=zigpy_t.AddrMode.Broadcast, address=0xFFFD
+            ),
+            "send_broadcast",
+            t.EmberOutgoingMessageType.OUTGOING_BROADCAST_WITH_ALIAS,
+            0x0000,
+        ),
+        (
+            zigpy_t.AddrModeAddress(addr_mode=zigpy_t.AddrMode.Group, address=0x1234),
+            "send_multicast",
+            t.EmberOutgoingMessageType.OUTGOING_MULTICAST_WITH_ALIAS,
+            0x1234,
+        ),
+    ],
+)
+async def test_send_packet_with_alias(app, packet, dst, send, message_type, aps_group):
+    """An aliased send uses the alias sequence number as the APS counter too."""
+    packet.dst = dst
+    packet.tx_options = zigpy_t.TransmitOptions.NONE
+    packet.alias_src = zigpy_t.NWK(0xABCD)
+    packet.alias_seq = zigpy_t.uint8_t(0x00)
+
+    setattr(
+        app._ezsp._protocol,
+        send,
+        AsyncMock(return_value=(bellows.types.sl_Status.OK, 0x12)),
+    )
+    app.get_sequence = MagicMock(return_value=MSG_TAG)
+
+    asyncio.get_running_loop().call_soon(
+        app.ezsp_callback_handler,
+        "messageSentHandler",
+        list(
+            dict(
+                type=message_type,
+                indexOrDestination=dst.address,
+                apsFrame=sentinel.aps,
+                messageTag=MSG_TAG,
+                status=t.EmberStatus.SUCCESS,
+                message=b"",
+            ).values()
+        ),
+    )
+
+    await app.send_packet(packet)
+
+    [sent] = getattr(app._ezsp, send).mock_calls
+    assert sent.kwargs["alias"] == 0xABCD
+    assert sent.kwargs["alias_seq"] == 0x00
+    assert sent.kwargs["aps_frame"] == t.EmberApsFrame(
+        profileId=packet.profile_id,
+        clusterId=packet.cluster_id,
+        sourceEndpoint=packet.src_ep,
+        destinationEndpoint=packet.dst_ep,
+        options=(
+            t.EmberApsOption.APS_OPTION_ENABLE_ROUTE_DISCOVERY
+            | t.EmberApsOption.APS_OPTION_USE_ALIAS_SEQUENCE_NUMBER
+        ),
+        groupId=aps_group,
+        sequence=packet.tsn,
+    )
+
+
+async def test_send_packet_unicast_with_alias(app, packet):
+    """Only broadcasts and multicasts can be sent as an alias."""
+    packet.alias_src = zigpy_t.NWK(0xABCD)
+    packet.alias_seq = zigpy_t.uint8_t(0x00)
+
+    with pytest.raises(ValueError, match="alias"):
+        await app.send_packet(packet)
 
 
 def test_is_controller_running(app):
@@ -1853,14 +2111,6 @@ async def test_cleanup_tc_link_key(app):
         call(address=sentinel.ieee2, linkKey=True)
     ]
     assert ezsp.eraseKeyTableEntry.mock_calls == [call(index=sentinel.index)]
-
-
-# @patch("zigpy.application.ControllerApplication.permit", new=AsyncMock())
-async def test_permit(app):
-    """Test permit method."""
-    await app.permit(10)
-    await asyncio.sleep(0.1)
-    assert app._ezsp._protocol.add_transient_link_key.await_count == 1
 
 
 @patch("bellows.zigbee.application.MFG_ID_RESET_DELAY", new=0.01)
@@ -2469,6 +2719,7 @@ async def test_write_network_info(
     assert app._ezsp._protocol.write_aps_frame_counter.mock_calls == [
         call(zigpy_backup.network_info.tc_link_key.tx_counter)
     ]
+    assert app._ezsp._protocol.clear_gp_tables.mock_calls == [call()]
     assert app._ezsp._protocol.formNetwork.mock_calls == [
         call(
             parameters=t.EmberNetworkParameters(
@@ -2483,6 +2734,78 @@ async def test_write_network_info(
             )
         )
     ]
+
+
+async def test_write_network_info_unsupported_tx_power(
+    app: ControllerApplication,
+    ieee: zigpy_t.EUI64,
+    zigpy_backup: zigpy.backups.NetworkBackup,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that write_network_info falls back to DEFAULT_TX_POWER when rejected."""
+    network_info = zigpy_backup.network_info.replace(tx_power=10)
+
+    app._ezsp._protocol.formNetwork.side_effect = [
+        [t.EmberStatus.PHY_INVALID_POWER],
+        [t.EmberStatus.SUCCESS],
+    ]
+
+    with patch.object(app, "_reset"), caplog.at_level(logging.WARNING):
+        await app.write_network_info(
+            node_info=zigpy_backup.node_info,
+            network_info=network_info,
+        )
+
+    assert "does not support TX power 10 dBm" in caplog.text
+    assert "Unknown status" not in caplog.text
+
+    assert [
+        c.kwargs["parameters"].radioTxPower
+        for c in app._ezsp._protocol.formNetwork.mock_calls
+    ] == [10, DEFAULT_TX_POWER]
+
+
+@pytest.mark.parametrize("tx_power", [DEFAULT_TX_POWER, None])
+async def test_write_network_info_unsupported_default_tx_power(
+    app: ControllerApplication,
+    ieee: zigpy_t.EUI64,
+    zigpy_backup: zigpy.backups.NetworkBackup,
+    tx_power: int | None,
+) -> None:
+    """Test that write_network_info does not retry if the default is rejected."""
+    network_info = zigpy_backup.network_info.replace(tx_power=tx_power)
+
+    app._ezsp._protocol.formNetwork.return_value = [t.EmberStatus.PHY_INVALID_POWER]
+
+    with patch.object(app, "_reset"), pytest.raises(InvalidTxPower):
+        await app.write_network_info(
+            node_info=zigpy_backup.node_info,
+            network_info=network_info,
+        )
+
+    assert len(app._ezsp._protocol.formNetwork.mock_calls) == 1
+
+
+async def test_write_network_info_formation_failure_no_retry(
+    app: ControllerApplication,
+    ieee: zigpy_t.EUI64,
+    zigpy_backup: zigpy.backups.NetworkBackup,
+) -> None:
+    """Test that write_network_info only retries when the TX power is rejected."""
+    network_info = zigpy_backup.network_info.replace(tx_power=10)
+
+    app._ezsp._protocol.formNetwork.return_value = [t.EmberStatus.ERR_FATAL]
+
+    with patch.object(app, "_reset"), pytest.raises(
+        zigpy.exceptions.FormationFailure
+    ) as exc_info:
+        await app.write_network_info(
+            node_info=zigpy_backup.node_info,
+            network_info=network_info,
+        )
+
+    assert not isinstance(exc_info.value, InvalidTxPower)
+    assert len(app._ezsp._protocol.formNetwork.mock_calls) == 1
 
 
 async def test_write_network_info_with_none_tx_power(
@@ -2959,3 +3282,152 @@ async def test_multicast_group_subscription_xncp(app: ControllerApplication) -> 
 
     # The multicast table was never touched
     assert len(app._ezsp._protocol.setMulticastTableEntry.mock_calls) == 0
+
+
+@pytest.mark.parametrize(
+    ("frame", "packet"),
+    [
+        # EnOcean PTM-216Z button press, protected but not processed by the NCP
+        (
+            "03da1b0043f4550143f45501d3020100001b000000696fd093d0ff0101",
+            zigpy_t.ZigbeeGpPacket(
+                application_id=zgp_t.ApplicationID.SrcID,
+                src_id=zgp_t.SrcID(0x0155F443),
+                ieee=None,
+                endpoint=None,
+                command_id=zgp_t.GPDCommandID.Press8BitVector,
+                payload=zigpy_t.SerializableBytes(b"\x01"),
+                frame_counter=27,
+                security_level=zgp_t.SecurityLevel.FullFrameCounterAndMIC,
+                # The NCP did no security processing so it has no key type to
+                # report: the `1` it sends is the on-air `SecurityKey` bit, not
+                # `NWKKey`
+                security_key_type=None,
+                security_status=zgp_t.SecurityStatus.Unprocessed,
+                mic=0xD093D06F,
+                auto_commissioning=False,
+                rx_after_tx=False,
+                individual_key=True,
+                lqi=255,
+                rssi=-58,
+            ),
+        ),
+        # Moes 3-gang switch commissioning, unprotected: the NCP reports 0xFFFFFFFF
+        # as the frame counter and the MAC sequence number takes its place
+        (
+            "06da700091e30d6d91e30d6dd300000000ffffffffe0ffffffffff2b0289f3b9acc88b1df3"
+            "fe4e503c0be422f6f3530a9c4ed0700600007165726837706f78404750303030318d",
+            zigpy_t.ZigbeeGpPacket(
+                application_id=zgp_t.ApplicationID.SrcID,
+                src_id=zgp_t.SrcID(0x6D0DE391),
+                ieee=None,
+                endpoint=None,
+                command_id=zgp_t.GPDCommandID.CommissioningRequest,
+                payload=zigpy_t.SerializableBytes(
+                    bytes.fromhex(
+                        "0289f3b9acc88b1df3fe4e503c0be422f6f3530a9c4ed07006000071657268"
+                        "37706f78404750303030318d"
+                    )
+                ),
+                frame_counter=0x70,
+                security_level=zgp_t.SecurityLevel.NoSecurity,
+                security_key_type=zgp_t.SecurityKeyType.NoKey,
+                security_status=zgp_t.SecurityStatus.NoSecurity,
+                mic=None,
+                auto_commissioning=False,
+                rx_after_tx=False,
+                individual_key=None,
+                lqi=255,
+                rssi=-58,
+            ),
+        ),
+    ],
+)
+def test_frame_handler_gp(
+    app: ControllerApplication, frame: str, packet: zigpy_t.ZigbeeGpPacket
+) -> None:
+    """Test that an incoming GP frame is parsed into a `ZigbeeGpPacket`."""
+    args, rest = t.deserialize_dict(
+        bytes.fromhex(frame), COMMANDS_v19["gpepIncomingMessageHandler"][2]
+    )
+    assert not rest
+
+    with patch.object(app, "gp_packet_received") as gp_packet_received:
+        app.ezsp_callback_handler("gpepIncomingMessageHandler", list(args.values()))
+
+    assert gp_packet_received.mock_calls == [call(packet)]
+
+
+def test_frame_handler_gp_legacy_success(app: ControllerApplication) -> None:
+    """A GPDF authenticated by a pre-EZSPv14 NCP is reported as `SUCCESS`."""
+    # A captured EnOcean PTM-216Z frame, as the NCP reports it with a keyed proxy table
+    # entry. Its status is changed from `UNPROCESSED` to `SUCCESS`.
+    args, rest = t.deserialize_dict(
+        bytes.fromhex("00d727004af455014af455010002010000270000006a9a5f2634ff0100"),
+        COMMANDS_v13["gpepIncomingMessageHandler"][2],
+    )
+    assert not rest
+    assert args["status"] == t.EmberStatus.SUCCESS
+
+    with patch.object(app, "gp_packet_received") as gp_packet_received:
+        app.ezsp_callback_handler("gpepIncomingMessageHandler", list(args.values()))
+
+    assert gp_packet_received.mock_calls == [
+        call(
+            zigpy_t.ZigbeeGpPacket(
+                application_id=zgp_t.ApplicationID.SrcID,
+                src_id=zgp_t.SrcID(0x0155F44A),
+                ieee=None,
+                endpoint=None,
+                command_id=zgp_t.GPDCommandID.Release8BitVector,
+                payload=zigpy_t.SerializableBytes(b"\x00"),
+                frame_counter=0x27,
+                security_level=zgp_t.SecurityLevel.FullFrameCounterAndMIC,
+                security_key_type=zgp_t.SecurityKeyType.NWKKey,
+                security_status=zgp_t.SecurityStatus.SecuritySuccess,
+                mic=None,
+                auto_commissioning=False,
+                rx_after_tx=False,
+                individual_key=None,
+                lqi=255,
+                rssi=-64,
+            )
+        )
+    ]
+
+
+def test_frame_handler_gp_unprotected_device(app: ControllerApplication) -> None:
+    """An unprotected GPDF reaches a GPD commissioned without security."""
+    device = zigpy.device.GreenPowerDevice(
+        app, application_id=zgp_t.ApplicationID.SrcID, src_id=zgp_t.SrcID(0x6D0DE391)
+    )
+    device.security_level = zgp_t.SecurityLevel.NoSecurity
+    device.security_key_type = zgp_t.SecurityKeyType.NoKey
+    app.devices[device.ieee] = device
+
+    # The Moes 3-gang switch, now sending a toggle instead of a commissioning request
+    args, rest = t.deserialize_dict(
+        bytes.fromhex("06da700091e30d6d91e30d6dd300000000ffffffff22ffffffffff00"),
+        COMMANDS_v19["gpepIncomingMessageHandler"][2],
+    )
+    assert not rest
+
+    app.ezsp_callback_handler("gpepIncomingMessageHandler", list(args.values()))
+
+    assert device.frame_counter == 0x70
+
+
+def test_frame_handler_gp_security_failure(app: ControllerApplication) -> None:
+    """A frame the NCP could not authenticate is dropped."""
+    # The same EnOcean PTM-216Z frame, reported as an authentication failure
+    frame = bytes.fromhex("07da1b0043f4550143f45501d3020100001b000000696fd093d0ff0101")
+    args, rest = t.deserialize_dict(
+        frame, COMMANDS_v19["gpepIncomingMessageHandler"][2]
+    )
+    assert not rest
+    assert args["status"] == t.sl_GpStatus.AUTH_FAILURE
+
+    with patch.object(app, "gp_packet_received") as gp_packet_received:
+        app.ezsp_callback_handler("gpepIncomingMessageHandler", list(args.values()))
+
+    assert len(gp_packet_received.mock_calls) == 0
