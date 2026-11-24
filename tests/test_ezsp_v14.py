@@ -220,9 +220,7 @@ EUI64 = t.EUI64.convert("01:02:03:04:05:06:07:08")
 EUI64_BYTES = bytes.fromhex("0807060504030201")
 
 # `sl_zigbee_rx_packet_info_t`
-PACKET_INFO_BYTES = bytes.fromhex(
-    "3412" "0807060504030201" "ff" "03" "aa" "c4" "04030201"
-)
+PACKET_INFO_BYTES = bytes.fromhex("34120807060504030201ff03aac404030201")
 PACKET_INFO = t.SlRxPacketInfo(
     sender_short_id=0x1234,
     sender_long_id=EUI64,
@@ -234,7 +232,7 @@ PACKET_INFO = t.SlRxPacketInfo(
 )
 
 # `sl_zigbee_sec_man_context_t`
-CONTEXT_BYTES = bytes.fromhex("04" "00" "0000" "0807060504030201" "00" "02" "00000000")
+CONTEXT_BYTES = bytes.fromhex("040000000807060504030201000200000000")
 CONTEXT = t.SecurityManagerContextV13(
     core_key_type=t.SecurityManagerKeyType.APP_LINK,
     key_index=0,
@@ -249,7 +247,7 @@ KEY_BYTES = bytes.fromhex("000102030405060708090a0b0c0d0e0f")
 KEY = t.KeyData.convert("000102030405060708090a0b0c0d0e0f")
 
 # `sl_zigbee_sec_man_aps_key_metadata_t`
-KEY_METADATA_BYTES = bytes.fromhex("1200" "01000000" "02000000" "b400")
+KEY_METADATA_BYTES = bytes.fromhex("12000100000002000000b400")
 KEY_METADATA = t.SecurityManagerAPSKeyMetadata(
     bitmask=(
         t.EmberKeyStructBitmask.KEY_HAS_OUTGOING_FRAME_COUNTER
@@ -266,13 +264,13 @@ STATUS_OK_BYTES = bytes.fromhex("00000000")
 def zll_network_found_handler_data() -> tuple[bytes, dict]:
     data = (
         # `sl_zigbee_zll_network_t`
-        bytes.fromhex("0b" "3412" "0807060504030201" "01" "02" "00")
-        + bytes.fromhex("78563412" "21436587" "0100")
-        + bytes.fromhex("0807060504030201" "cdab" "0000" "02" "01" "00" "00")
+        bytes.fromhex("0b34120807060504030201010200")
+        + bytes.fromhex("78563412214365870100")
+        + bytes.fromhex("0807060504030201cdab000002010000")
         # `isDeviceInfoNull`
         + bytes.fromhex("00")
         # `sl_zigbee_zll_device_info_record_t`
-        + bytes.fromhex("0807060504030201" "01" "5ec0" "0001" "02" "00")
+        + bytes.fromhex("0807060504030201015ec000010200")
         + PACKET_INFO_BYTES
     )
 
@@ -391,8 +389,7 @@ RESPONSE_LAYOUTS = [
     ),
     (
         "zllAddressAssignmentHandler",
-        bytes.fromhex("0100" "0200" "fff7" "0100" "ff00" "0001" "fffe")
-        + PACKET_INFO_BYTES,
+        bytes.fromhex("01000200fff70100ff000001fffe") + PACKET_INFO_BYTES,
         {
             "addressInfo": t.EmberZllAddressAssignment(
                 nodeId=0x0001,
@@ -458,7 +455,7 @@ REQUEST_LAYOUTS = [
             "reason": 0x03,
             "nodeType": t.EmberNodeType.ROUTER,
         },
-        bytes.fromhex("01" "00f8ff07" "03" "02"),
+        bytes.fromhex("0100f8ff070302"),
     ),
     (
         "setAddressTableInfo",

@@ -152,7 +152,7 @@ def run_length_debug(
 
     result = joiner.join(
         f"{count}*{item}" if count > 1 else item
-        for item, count in zip(unique_items, counts)
+        for item, count in zip(unique_items, counts, strict=True)
     )
 
     if not result:

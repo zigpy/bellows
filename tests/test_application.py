@@ -344,8 +344,9 @@ def mock_for_startup(
         app, nwk_type, ieee, auto_form, init, ezsp_version, board_info, network_state
     )
 
-    with patch("bellows.ezsp.EZSP", return_value=ezsp_mock), patch(
-        "zigpy.device.Device._initialize", new=AsyncMock()
+    with (
+        patch("bellows.ezsp.EZSP", return_value=ezsp_mock),
+        patch("zigpy.device.Device._initialize", new=AsyncMock()),
     ):
         yield ezsp_mock
 
@@ -469,16 +470,16 @@ def _handle_incoming_aps_frame(app, aps_frame, type):
     app.ezsp_callback_handler(
         "incomingMessageHandler",
         list(
-            dict(
-                type=type,
-                apsFrame=aps_frame,
-                lastHopLqi=123,
-                lastHopRssi=-45,
-                sender=0xABCD,
-                bindingIndex=56,
-                addressIndex=78,
-                message=b"test message",
-            ).values()
+            {
+                "type": type,
+                "apsFrame": aps_frame,
+                "lastHopLqi": 123,
+                "lastHopRssi": -45,
+                "sender": 0xABCD,
+                "bindingIndex": 56,
+                "addressIndex": 78,
+                "message": b"test message",
+            }.values()
         ),
     )
 
@@ -729,7 +730,7 @@ async def test_force_remove(app, ieee):
 
 
 def test_sequence(app):
-    for i in range(1000):
+    for _i in range(1000):
         seq = app.get_sequence()
         assert seq >= 0
         assert seq < 256
@@ -898,15 +899,15 @@ async def test_permit_with_link_key_failure(app, ieee):
     proto = app._ezsp._protocol
     proto.add_transient_link_key.return_value = t.sl_Status.FAIL
 
-    with patch("zigpy.application.ControllerApplication.permit") as permit_mock:
-        with pytest.raises(ControllerError):
-            await app.permit_with_link_key(
-                ieee,
-                zigpy_t.KeyData.convert(
-                    "11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88"
-                ),
-                60,
-            )
+    with (
+        patch("zigpy.application.ControllerApplication.permit") as permit_mock,
+        pytest.raises(ControllerError),
+    ):
+        await app.permit_with_link_key(
+            ieee,
+            zigpy_t.KeyData.convert("11:22:33:44:55:66:77:88:11:22:33:44:55:66:77:88"),
+            60,
+        )
 
     assert len(permit_mock.mock_calls) == 0
     assert proto.add_transient_link_key.await_count == 1
@@ -940,14 +941,14 @@ async def test_request_concurrency_duplicate_failure(
             app.ezsp_callback_handler,
             "messageSentHandler",
             list(
-                dict(
-                    type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
-                    indexOrDestination=0x1234,
-                    apsFrame=aps_frame,
-                    messageTag=message_tag,
-                    status=bellows.types.sl_Status.OK,
-                    message=b"",
-                ).values()
+                {
+                    "type": t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+                    "indexOrDestination": 0x1234,
+                    "apsFrame": aps_frame,
+                    "messageTag": message_tag,
+                    "status": bellows.types.sl_Status.OK,
+                    "message": b"",
+                }.values()
             ),
         )
 
@@ -992,14 +993,14 @@ async def _test_send_packet_unicast(
             app.ezsp_callback_handler,
             "messageSentHandler",
             list(
-                dict(
-                    type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
-                    indexOrDestination=0x1234,
-                    apsFrame=sentinel.aps,
-                    messageTag=MSG_TAG,
-                    status=sent_handler_status,
-                    message=b"",
-                ).values()
+                {
+                    "type": t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+                    "indexOrDestination": 0x1234,
+                    "apsFrame": sentinel.aps,
+                    "messageTag": MSG_TAG,
+                    "status": sent_handler_status,
+                    "message": b"",
+                }.values()
             ),
         )
 
@@ -1136,14 +1137,14 @@ async def _test_send_packet_unicast_combined(
             app.ezsp_callback_handler,
             "messageSentHandler",
             list(
-                dict(
-                    type=t.EmberOutgoingMessageType.OUTGOING_DIRECT,
-                    indexOrDestination=0x1234,
-                    apsFrame=sentinel.aps,
-                    messageTag=MSG_TAG,
-                    status=bellows.types.sl_Status.OK,
-                    message=b"",
-                ).values()
+                {
+                    "type": t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+                    "indexOrDestination": 0x1234,
+                    "apsFrame": sentinel.aps,
+                    "messageTag": MSG_TAG,
+                    "status": bellows.types.sl_Status.OK,
+                    "message": b"",
+                }.values()
             ),
         )
 
@@ -1415,6 +1416,7 @@ async def test_send_packet_unicast_concurrency(app, packet, monkeypatch):
 
     max_concurrency = 0
     in_flight_requests = 0
+    reply_tasks = []
 
     async def send_message_sent_reply(
         type, indexOrDestination, apsFrame, messageTag, message
@@ -1429,14 +1431,14 @@ async def test_send_packet_unicast_concurrency(app, packet, monkeypatch):
         app.ezsp_callback_handler(
             "messageSentHandler",
             list(
-                dict(
-                    type=type,
-                    indexOrDestination=indexOrDestination,
-                    apsFrame=apsFrame,
-                    messageTag=messageTag,
-                    status=t.EmberStatus.SUCCESS,
-                    message=b"",
-                ).values()
+                {
+                    "type": type,
+                    "indexOrDestination": indexOrDestination,
+                    "apsFrame": apsFrame,
+                    "messageTag": messageTag,
+                    "status": t.EmberStatus.SUCCESS,
+                    "message": b"",
+                }.values()
             ),
         )
 
@@ -1446,13 +1448,15 @@ async def test_send_packet_unicast_concurrency(app, packet, monkeypatch):
         in_flight_requests += 1
         max_concurrency = max(max_concurrency, in_flight_requests)
 
-        asyncio.create_task(
-            send_message_sent_reply(
-                t.EmberOutgoingMessageType.OUTGOING_DIRECT,
-                nwk,
-                aps_frame,
-                message_tag,
-                data,
+        reply_tasks.append(
+            asyncio.create_task(
+                send_message_sent_reply(
+                    t.EmberOutgoingMessageType.OUTGOING_DIRECT,
+                    nwk,
+                    aps_frame,
+                    message_tag,
+                    data,
+                )
             )
         )
 
@@ -1486,14 +1490,14 @@ async def test_send_packet_broadcast(app, packet):
         app.ezsp_callback_handler,
         "messageSentHandler",
         list(
-            dict(
-                type=t.EmberOutgoingMessageType.OUTGOING_BROADCAST,
-                indexOrDestination=0xFFFE,
-                apsFrame=sentinel.aps,
-                messageTag=MSG_TAG,
-                status=t.EmberStatus.SUCCESS,
-                message=b"",
-            ).values()
+            {
+                "type": t.EmberOutgoingMessageType.OUTGOING_BROADCAST,
+                "indexOrDestination": 0xFFFE,
+                "apsFrame": sentinel.aps,
+                "messageTag": MSG_TAG,
+                "status": t.EmberStatus.SUCCESS,
+                "message": b"",
+            }.values()
         ),
     )
 
@@ -1534,14 +1538,14 @@ async def test_send_packet_broadcast_ignored_delivery_failure(app, packet):
         app.ezsp_callback_handler,
         "messageSentHandler",
         list(
-            dict(
-                type=t.EmberOutgoingMessageType.OUTGOING_BROADCAST,
-                indexOrDestination=0xFFFE,
-                apsFrame=sentinel.aps,
-                messageTag=MSG_TAG,
-                status=t.EmberStatus.DELIVERY_FAILED,
-                message=b"",
-            ).values()
+            {
+                "type": t.EmberOutgoingMessageType.OUTGOING_BROADCAST,
+                "indexOrDestination": 0xFFFE,
+                "apsFrame": sentinel.aps,
+                "messageTag": MSG_TAG,
+                "status": t.EmberStatus.DELIVERY_FAILED,
+                "message": b"",
+            }.values()
         ),
     )
 
@@ -1589,14 +1593,14 @@ async def test_send_packet_multicast(app, packet):
         app.ezsp_callback_handler,
         "messageSentHandler",
         list(
-            dict(
-                type=t.EmberOutgoingMessageType.OUTGOING_MULTICAST,
-                indexOrDestination=0x1234,
-                apsFrame=sentinel.aps,
-                messageTag=MSG_TAG,
-                status=t.EmberStatus.SUCCESS,
-                message=b"",
-            ).values()
+            {
+                "type": t.EmberOutgoingMessageType.OUTGOING_MULTICAST,
+                "indexOrDestination": 0x1234,
+                "apsFrame": sentinel.aps,
+                "messageTag": MSG_TAG,
+                "status": t.EmberStatus.SUCCESS,
+                "message": b"",
+            }.values()
         ),
     )
 
@@ -1661,14 +1665,14 @@ async def test_send_packet_with_alias(app, packet, dst, send, message_type, aps_
         app.ezsp_callback_handler,
         "messageSentHandler",
         list(
-            dict(
-                type=message_type,
-                indexOrDestination=dst.address,
-                apsFrame=sentinel.aps,
-                messageTag=MSG_TAG,
-                status=t.EmberStatus.SUCCESS,
-                message=b"",
-            ).values()
+            {
+                "type": message_type,
+                "indexOrDestination": dst.address,
+                "apsFrame": sentinel.aps,
+                "messageTag": MSG_TAG,
+                "status": t.EmberStatus.SUCCESS,
+                "message": b"",
+            }.values()
         ),
     )
 
@@ -1738,14 +1742,14 @@ async def test_watchdog(make_app, monkeypatch, ezsp_version):
                 return ([0] * 10,)
         raise TimeoutError
 
-    app._ezsp._protocol.getValue.return_value = [t.EmberStatus.SUCCESS, b"\xFE"]
+    app._ezsp._protocol.getValue.return_value = [t.EmberStatus.SUCCESS, b"\xfe"]
     app._ezsp._protocol.nop.side_effect = nop_mock
     app._ezsp._protocol.readCounters.side_effect = nop_mock
     app._ezsp._protocol.readAndClearCounters.side_effect = nop_mock
     app._ctrl_event.set()
     app.connection_lost = MagicMock()
 
-    for i in range(nop_success):
+    for _i in range(nop_success):
         await app._watchdog_feed()
 
     # Fail four times in a row to exhaust the watchdog buffer
@@ -1781,7 +1785,7 @@ async def test_watchdog_counters(app, monkeypatch, caplog):
         raise TimeoutError
 
     app._ezsp._protocol.getValue = AsyncMock(
-        return_value=[t.EmberStatus.SUCCESS, b"\xFE"]
+        return_value=[t.EmberStatus.SUCCESS, b"\xfe"]
     )
     app._ezsp._protocol.readCounters = AsyncMock(side_effect=counters_mock)
     app._ezsp._protocol.nop = AsyncMock(side_effect=EzspError)
@@ -2435,9 +2439,8 @@ async def test_connect_failure(app: ControllerApplication) -> None:
     app._ezsp.connect = AsyncMock()
     app._ezsp = None
 
-    with patch("bellows.ezsp.EZSP", return_value=ezsp):
-        with pytest.raises(OSError):
-            await app.connect()
+    with patch("bellows.ezsp.EZSP", return_value=ezsp), pytest.raises(OSError):
+        await app.connect()
 
     assert app._ezsp is None
 
@@ -2450,9 +2453,12 @@ async def test_repair_tclk_partner_ieee(
     """Test that EZSP is reset after repairing TCLK."""
     app._reset = AsyncMock()
 
-    with mock_for_startup(app, ieee), patch(
-        "bellows.zigbee.repairs.fix_invalid_tclk_partner_ieee",
-        AsyncMock(return_value=False),
+    with (
+        mock_for_startup(app, ieee),
+        patch(
+            "bellows.zigbee.repairs.fix_invalid_tclk_partner_ieee",
+            AsyncMock(return_value=False),
+        ),
     ):
         await app.connect()
         await app.start_network()
@@ -2460,9 +2466,12 @@ async def test_repair_tclk_partner_ieee(
     assert len(app._reset.mock_calls) == 0
     app._reset.reset_mock()
 
-    with mock_for_startup(app, ieee), patch(
-        "bellows.zigbee.repairs.fix_invalid_tclk_partner_ieee",
-        AsyncMock(return_value=True),
+    with (
+        mock_for_startup(app, ieee),
+        patch(
+            "bellows.zigbee.repairs.fix_invalid_tclk_partner_ieee",
+            AsyncMock(return_value=True),
+        ),
     ):
         await app.start_network()
 
@@ -2768,9 +2777,10 @@ async def test_write_network_info_formation_failure_no_retry(
 
     app._ezsp._protocol.formNetwork.return_value = [t.EmberStatus.ERR_FATAL]
 
-    with patch.object(app, "_reset"), pytest.raises(
-        zigpy.exceptions.FormationFailure
-    ) as exc_info:
+    with (
+        patch.object(app, "_reset"),
+        pytest.raises(zigpy.exceptions.FormationFailure) as exc_info,
+    ):
         await app.write_network_info(
             node_info=zigpy_backup.node_info,
             network_info=network_info,
@@ -3017,7 +3027,7 @@ async def test_network_scan_failure(app: ControllerApplication) -> None:
     app._ezsp._protocol.startScan.return_value = [t.sl_Status.FAIL]
 
     with pytest.raises(zigpy.exceptions.ControllerException):
-        async for beacon in app.network_scan(
+        async for _beacon in app.network_scan(
             channels=t.Channels.from_channel_list([11, 15, 26]), duration_exp=4
         ):
             pass
@@ -3035,7 +3045,7 @@ async def test_packet_capture(app: ControllerApplication) -> None:
                 {
                     "linkQuality": 150,
                     "rssi": -70,
-                    "packetContents": b"packet 1\xAB\xCD",
+                    "packetContents": b"packet 1\xab\xcd",
                 }.values()
             ),
         )
@@ -3048,7 +3058,7 @@ async def test_packet_capture(app: ControllerApplication) -> None:
                 {
                     "linkQuality": 200,
                     "rssi": -50,
-                    "packetContents": b"packet 2\xAB\xCD",
+                    "packetContents": b"packet 2\xab\xcd",
                 }.values()
             ),
         )
@@ -3091,7 +3101,7 @@ async def test_packet_capture_failure(app: ControllerApplication) -> None:
     app._ezsp._protocol.mfglibStart.return_value = [t.sl_Status.FAIL]
 
     with pytest.raises(zigpy.exceptions.ControllerException):
-        async for packet in app.packet_capture(channel=15):
+        async for _packet in app.packet_capture(channel=15):
             pass
 
 
@@ -3103,26 +3113,32 @@ async def test_migration_failure_eui64_overwrite_confirmation(
 
     # Migration explicitly fails if we need to write the EUI64 but the adapter treats it
     # as a write-once operation
-    with pytest.raises(
-        zigpy.exceptions.DestructiveWriteNetworkSettings,
-        match=(
-            "Please upgrade your adapter firmware. The adapter IEEE address needs to be"
-            " replaced and firmware 'Mock version' does not support writing it multiple"
-            " times."
+    with (
+        pytest.raises(
+            zigpy.exceptions.DestructiveWriteNetworkSettings,
+            match=(
+                "Please upgrade your adapter firmware. The adapter IEEE address needs to be"
+                " replaced and firmware 'Mock version' does not support writing it multiple"
+                " times."
+            ),
         ),
+        patch.object(app, "_reset"),
     ):
-        with patch.object(app, "_reset"):
-            await app.write_network_info(
-                node_info=zigpy_backup.node_info.replace(
-                    ieee=t.EUI64.convert("aa:aa:aa:aa:aa:aa:aa:aa")
-                ),
-                network_info=zigpy_backup.network_info,
-            )
+        await app.write_network_info(
+            node_info=zigpy_backup.node_info.replace(
+                ieee=t.EUI64.convert("aa:aa:aa:aa:aa:aa:aa:aa")
+            ),
+            network_info=zigpy_backup.network_info,
+        )
 
     # Even if we opt in, if the adapter doesn't support it, we can't do anything
-    with patch.object(app, "_reset"), patch.object(
-        app._ezsp, "write_custom_eui64", wraps=app._ezsp.write_custom_eui64
-    ), patch.object(app._ezsp, "can_burn_userdata_custom_eui64", return_value=False):
+    with (
+        patch.object(app, "_reset"),
+        patch.object(
+            app._ezsp, "write_custom_eui64", wraps=app._ezsp.write_custom_eui64
+        ),
+        patch.object(app._ezsp, "can_burn_userdata_custom_eui64", return_value=False),
+    ):
         with pytest.raises(
             zigpy.exceptions.CannotWriteNetworkSettings,
             match=(
@@ -3148,9 +3164,11 @@ async def test_migration_failure_eui64_overwrite_confirmation(
         assert app._ezsp.write_custom_eui64.mock_calls == []
 
     # It works if everything is correct
-    with patch.object(app, "_reset"), patch.object(
-        app._ezsp, "write_custom_eui64"
-    ), patch.object(app._ezsp, "can_burn_userdata_custom_eui64", return_value=True):
+    with (
+        patch.object(app, "_reset"),
+        patch.object(app._ezsp, "write_custom_eui64"),
+        patch.object(app._ezsp, "can_burn_userdata_custom_eui64", return_value=True),
+    ):
         await app.write_network_info(
             node_info=zigpy_backup.node_info.replace(
                 ieee=t.EUI64.convert("aa:aa:aa:aa:aa:aa:aa:aa")

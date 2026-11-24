@@ -70,10 +70,7 @@ def generate_random_sequence(length: int) -> bytes:
     for _i in range(length):
         output.append(rand)
 
-        if rand & 0b00000001 == 0:
-            rand = rand >> 1
-        else:
-            rand = (rand >> 1) ^ 0xB8
+        rand = rand >> 1 if rand & 0b00000001 == 0 else (rand >> 1) ^ 0xB8
 
     return output
 
@@ -182,7 +179,9 @@ class DataFrame(AshFrame):
                 f"Frame payload is too long: {len(data)} >"
                 f" {len(PSEUDO_RANDOM_DATA_SEQUENCE)} bytes"
             )
-        return bytes([a ^ b for a, b in zip(data, PSEUDO_RANDOM_DATA_SEQUENCE)])
+        return bytes(
+            [a ^ b for a, b in zip(data, PSEUDO_RANDOM_DATA_SEQUENCE, strict=False)]
+        )
 
     @classmethod
     def from_bytes(cls, data: bytes) -> DataFrame:
@@ -390,9 +389,10 @@ class AshProtocol(asyncio.Protocol):
     def eof_received(self):
         self._ezsp_protocol.eof_received()
 
-    def _cancel_pending_data_frames(
-        self, exc: BaseException = RuntimeError("Connection has been closed")
-    ):
+    def _cancel_pending_data_frames(self, exc: BaseException | None = None):
+        if exc is None:
+            exc = RuntimeError("Connection has been closed")
+
         for fut in self._pending_data_frames.values():
             if not fut.done():
                 fut.set_exception(exc)
