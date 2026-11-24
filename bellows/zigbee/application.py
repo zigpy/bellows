@@ -73,6 +73,9 @@ MFG_ID_RESET_DELAY = 180
 RESET_ATTEMPT_BACKOFF_TIME = 5
 NETWORK_UP_TIMEOUT_S = 10
 MAX_WATCHDOG_FAILURES = 4
+# The NCP and routers open their permit windows after the join window's timer starts,
+# keep the join keys a little longer so joins at the end of those windows still work
+JOIN_WINDOW_GRACE_S = 2
 IEEE_PREFIX_MFG_ID = {
     "04:CF:8C": 0x115F,  # Xiaomi
     "54:EF:44": 0x115F,  # Lumi
@@ -1388,7 +1391,9 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 await self._close_join_window()
                 raise
 
-            window.timer = loop.call_later(time_s, window.close_event.set)
+            window.timer = loop.call_later(
+                time_s + JOIN_WINDOW_GRACE_S, window.close_event.set
+            )
             return
 
         await self._close_join_window()
@@ -1404,7 +1409,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
         self._join_window = JoinWindow(
             link_keys=link_keys,
             close_event=close_event,
-            timer=loop.call_later(time_s, close_event.set),
+            timer=loop.call_later(time_s + JOIN_WINDOW_GRACE_S, close_event.set),
             task=self.create_task(join_window(), "join_window"),
         )
 

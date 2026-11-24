@@ -786,6 +786,32 @@ async def test_permit(app):
     assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED]
 
 
+async def test_permit_window_grace(app):
+    loop = asyncio.get_running_loop()
+
+    with patch("zigpy.application.ControllerApplication.permit"):
+        start = loop.time()
+        await app.permit(60)
+        first_close = app._join_window.timer.when() - start
+
+        start = loop.time()
+        await app.permit(30)
+        extended_close = app._join_window.timer.when() - start
+
+    # The window stays open a little longer than the network
+    grace = bellows.zigbee.application.JOIN_WINDOW_GRACE_S
+    assert grace > 0
+    assert 60 + grace <= first_close < 60 + grace + 1
+    assert 30 + grace <= extended_close < 30 + grace + 1
+
+    # An explicit close has no grace
+    with patch("zigpy.application.ControllerApplication.permit"):
+        await app.permit(0)
+
+    assert app._join_window is None
+
+
+@patch("bellows.zigbee.application.JOIN_WINDOW_GRACE_S", 0)
 async def test_permit_window_expires(app):
     proto = app._ezsp._protocol
 
@@ -803,6 +829,7 @@ async def test_permit_window_expires(app):
     assert proto.setPolicy.mock_calls == [POLICY_OPEN, POLICY_CLOSED, POLICY_OPEN]
 
 
+@patch("bellows.zigbee.application.JOIN_WINDOW_GRACE_S", 0)
 async def test_permit_extend(app):
     proto = app._ezsp._protocol
 
