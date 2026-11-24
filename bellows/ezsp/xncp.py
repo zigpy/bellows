@@ -48,6 +48,7 @@ class XncpCommandId(t.enum16):
     GET_ROUTE_TABLE_ENTRY_REQ = 0x0007
     GET_TX_POWER_INFO_REQ = 0x0008
     SEND_UNICAST_REQ = 0x0009
+    SET_LED_STATE_REQ = 0x0F00
 
     GET_SUPPORTED_FEATURES_RSP = GET_SUPPORTED_FEATURES_REQ | 0x8000
     SET_SOURCE_ROUTE_RSP = SET_SOURCE_ROUTE_REQ | 0x8000
@@ -59,6 +60,7 @@ class XncpCommandId(t.enum16):
     GET_ROUTE_TABLE_ENTRY_RSP = GET_ROUTE_TABLE_ENTRY_REQ | 0x8000
     GET_TX_POWER_INFO_RSP = GET_TX_POWER_INFO_REQ | 0x8000
     SEND_UNICAST_RSP = SEND_UNICAST_REQ | 0x8000
+    SET_LED_STATE_RSP = SET_LED_STATE_REQ | 0x8000
 
     UNKNOWN = 0xFFFF
 
@@ -153,6 +155,9 @@ class FirmwareFeatures(t.bitmap32):
     # A unicast can be sent, its source route and extended timeout applied, in a
     # single command
     COMBINED_SEND = 1 << 8
+
+    # The firmware exposes adapter LED control
+    LED_CONTROL = 1 << 31
 
 
 class XncpCommandPayload(t.Struct):
@@ -299,6 +304,18 @@ class SendUnicastReq(XncpCommandPayload):
 class SendUnicastRsp(XncpCommandPayload):
     status: sl_Status
     sequence: t.uint8_t
+
+
+@register_command(XncpCommandId.SET_LED_STATE_REQ)
+class SetLedStateReq(XncpCommandPayload):
+    red: t.uint8_t
+    green: t.uint8_t
+    blue: t.uint8_t
+
+
+@register_command(XncpCommandId.SET_LED_STATE_RSP)
+class SetLedStateRsp(XncpCommandPayload):
+    pass
 
 
 @register_command(XncpCommandId.UNKNOWN)
