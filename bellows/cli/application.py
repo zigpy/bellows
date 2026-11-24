@@ -120,7 +120,7 @@ def devices(ctx, database):
             if epid == 0:
                 continue
             if ep.status == zigpy.endpoint.Status.NEW:
-                click.echo("    %s: Uninitialized")
+                click.echo(f"    {epid}: Uninitialized")
             else:
                 click.echo(
                     f"    {epid}: profile=0x{ep.profile_id:02x}, device_type={ep.device_type!s}"
