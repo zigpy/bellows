@@ -392,6 +392,31 @@ async def test_ezsp_connect_retry_success(disconnect_mock, failures_before_succe
     assert disconnect_mock.call_count == 0
 
 
+async def test_ezsp_connect_failure_keeps_error_when_disconnect_closes_transport():
+    """Closing a healthy transport after the last attempt keeps the attempt's error.
+
+    The gateway reports the transport closed while we disconnect it ourselves: that
+    is not a lost connection, so a timeout must not be reported as one.
+    """
+    with patch("bellows.uart.connect") as conn_mock:
+        ezsp = make_ezsp(version=4)
+
+        async def gw_disconnect():
+            ezsp.connection_lost(None)
+
+        conn_mock.return_value.disconnect = AsyncMock(side_effect=gw_disconnect)
+
+        with patch.object(
+            ezsp, "_startup_reset", side_effect=TimeoutError()
+        ) as startup_reset:
+            with pytest.raises(TimeoutError):
+                await ezsp.connect()
+
+    assert startup_reset.await_count == 3
+    assert conn_mock.return_value.disconnect.await_count == 1
+    assert ezsp._gw is None
+
+
 async def test_ezsp_connect_no_retry_after_transport_closed():
     """A startup reset that failed because the transport closed is not retried."""
     exc = ConnectionResetError("Remote server closed connection")

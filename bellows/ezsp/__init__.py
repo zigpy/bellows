@@ -199,9 +199,12 @@ class EZSP:
                     )
                     continue
 
+                # Read before disconnecting: closing a healthy transport ourselves
+                # reports it closed as well, and that is not why the attempt failed
+                transport_closed = self._transport_closed
                 await self.disconnect()
 
-                if self._transport_closed and not isinstance(exc, ConnectionError):
+                if transport_closed and not isinstance(exc, ConnectionError):
                     # What failed is incidental to the transport closing
                     raise ConnectionResetError(
                         "Connection was lost during startup"
