@@ -283,13 +283,20 @@ class ProtocolHandler(abc.ABC):
 
         return functools.partial(self.command, name)
 
-    async def pre_permit(self, time_s: int) -> None:
-        """Schedule task before allowing new joins."""
+    @abc.abstractmethod
+    async def set_join_policy(
+        self, *, allow_joins: bool, install_codes_only: bool = False
+    ) -> None:
+        raise NotImplementedError
 
     @abc.abstractmethod
     async def add_transient_link_key(
         self, ieee: t.EUI64, key: t.KeyData
     ) -> t.sl_Status:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def clear_transient_link_keys(self) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod

@@ -1,5 +1,4 @@
 """"EZSP Protocol version 8 protocol handler."""
-import asyncio
 import logging
 
 import voluptuous
@@ -36,18 +35,25 @@ class EZSPv8(EZSPv7):
 
         return seq, frame_id, data
 
-    async def pre_permit(self, time_s: int) -> None:
-        """Temporarily change TC policy while allowing new joins."""
-        await super().pre_permit(time_s)
-        await self.setPolicy(
-            policyId=t.EzspPolicyId.TRUST_CENTER_POLICY,
-            decisionId=(
-                t.EzspDecisionBitmask.ALLOW_JOINS
+    async def set_join_policy(
+        self, *, allow_joins: bool, install_codes_only: bool = False
+    ) -> None:
+        if not allow_joins:
+            decision = self.tc_policy
+        elif install_codes_only:
+            decision = (
+                self.tc_policy
+                | t.EzspDecisionBitmask.ALLOW_JOINS
                 | t.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS
-            ),
-        )
-        await asyncio.sleep(time_s + 2)
+                | t.EzspDecisionBitmask.JOINS_USE_INSTALL_CODE_KEY
+            )
+        else:
+            decision = (
+                self.tc_policy
+                | t.EzspDecisionBitmask.ALLOW_JOINS
+                | t.EzspDecisionBitmask.ALLOW_UNSECURED_REJOINS
+            )
+
         await self.setPolicy(
-            policyId=t.EzspPolicyId.TRUST_CENTER_POLICY,
-            decisionId=self.tc_policy,
+            policyId=t.EzspPolicyId.TRUST_CENTER_POLICY, decisionId=decision
         )

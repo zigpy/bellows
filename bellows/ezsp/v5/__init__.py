@@ -41,11 +41,8 @@ class EZSPv5(EZSPv4):
         (status,) = await self.addTransientLinkKey(partner=ieee, transientKey=key)
         return t.sl_Status.from_ember_status(status)
 
-    async def pre_permit(self, time_s: int) -> None:
-        """Add pre-shared TC Link key."""
-        wild_card_ieee = t.EUI64.convert("FF:FF:FF:FF:FF:FF:FF:FF")
-        tc_link_key = t.KeyData(b"ZigBeeAlliance09")
-        await self.add_transient_link_key(wild_card_ieee, tc_link_key)
+    async def clear_transient_link_keys(self) -> None:
+        await self.clearTransientLinkKeys()
 
     async def read_address_table(self) -> AsyncGenerator[tuple[t.NWK, t.EUI64]]:
         (status, addr_table_size) = await self.getConfigurationValue(

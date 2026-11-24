@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import MagicMock, call
 
 import pytest
 
@@ -29,20 +29,6 @@ def test_ezsp_frame_rx(ezsp_f):
     assert ezsp_f._handle_callback.call_count == 1
     assert ezsp_f._handle_callback.call_args[0][0] == "version"
     assert ezsp_f._handle_callback.call_args[0][1] == [0x01, 0x02, 0x1234]
-
-
-async def test_pre_permit(ezsp_f):
-    """Test pre permit."""
-    p1 = patch.object(ezsp_f, "setPolicy", new=AsyncMock())
-    p2 = patch.object(
-        ezsp_f,
-        "addTransientLinkKey",
-        new=AsyncMock(return_value=[t.EmberStatus.SUCCESS]),
-    )
-    with p1 as pre_permit_mock, p2 as tclk_mock:
-        await ezsp_f.pre_permit(-1.9)
-    assert pre_permit_mock.await_count == 2
-    assert tclk_mock.await_count == 1
 
 
 async def test_write_child_data(ezsp_f) -> None:
