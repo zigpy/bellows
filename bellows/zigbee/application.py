@@ -76,6 +76,9 @@ MAX_WATCHDOG_FAILURES = 4
 # The NCP and routers open their permit windows after the join window's timer starts,
 # keep the join keys a little longer so joins at the end of those windows still work
 JOIN_WINDOW_GRACE_S = 2
+# The NCP transmits a GPDF about 20ms after taking it from its queue, but drops some
+# without reporting them
+GPDF_SENT_GRACE_S = 1
 IEEE_PREFIX_MFG_ID = {
     "04:CF:8C": 0x115F,  # Xiaomi
     "54:EF:44": 0x115F,  # Lumi
@@ -1526,12 +1529,21 @@ class ControllerApplication(zigpy.application.ControllerApplication):
 
                     try:
                         async with asyncio_timeout(lifetime.total_seconds()):
-                            await self._gpdf_sent
+                            await asyncio.shield(self._gpdf_sent)
                     except TimeoutError:
-                        # Not finding it means the GPD took it meanwhile
                         if await self._remove_gpdf(addr):
                             raise zigpy.exceptions.DeliveryError(
                                 "GPD did not listen before the GPDF expired"
+                            ) from None
+
+                        # Not finding it means the GPD took it meanwhile. Its report
+                        # must not complete the next GPDF.
+                        try:
+                            async with asyncio_timeout(GPDF_SENT_GRACE_S):
+                                await self._gpdf_sent
+                        except TimeoutError:
+                            raise zigpy.exceptions.DeliveryError(
+                                "NCP dropped the GPDF"
                             ) from None
                 except asyncio.CancelledError:
                     # A GPDF left behind blocks every other GPD
