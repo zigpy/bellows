@@ -36,6 +36,7 @@ class ProtocolHandler(abc.ABC):
     def __init__(self, cb_handler: Callable, gateway: Gateway) -> None:
         self._handle_callback = cb_handler
         self._awaiting = {}
+        self._timed_out_commands: dict[int, int] = {}
         self._gw = gateway
         self._seq = 0
         self.COMMANDS_BY_ID = {
@@ -120,13 +121,22 @@ class ProtocolHandler(abc.ABC):
             cmd_id, _, rx_schema = self.COMMANDS[name]
 
             future = asyncio.get_running_loop().create_future()
-            self._awaiting[self._seq] = (cmd_id, rx_schema, future)
+            sequence = self._seq
+            self._timed_out_commands.pop(sequence, None)
+            self._awaiting[sequence] = (cmd_id, rx_schema, future)
             self._seq = (self._seq + 1) % 256
 
-            await self._gw.send_data(data)
-
-            async with asyncio_timeout(EZSP_CMD_TIMEOUT):
-                return await future
+            try:
+                async with asyncio_timeout(EZSP_CMD_TIMEOUT):
+                    await self._gw.send_data(data)
+                    return await future
+            finally:
+                self._awaiting.pop(sequence, None)
+                # No reply consumed (timeout, cancellation or a failed send): keep
+                # only IDs, bounded by the 256 sequence values until reuse.
+                if not future.done() or future.cancelled():
+                    self._timed_out_commands[sequence] = cmd_id
+                future.cancel()
 
     async def update_policies(self, policy_config: dict) -> None:
         """Set up the policies for what the NCP should do."""
@@ -248,6 +258,16 @@ class ProtocolHandler(abc.ABC):
                     sequence,
                     self.COMMANDS_BY_ID.get(expected_id, [expected_id])[0],
                 )
+        elif sequence in self._timed_out_commands and frame_id in (
+            self._timed_out_commands[sequence],
+            self.COMMANDS["invalidCommand"][0],
+        ):
+            expected_id = self._timed_out_commands.pop(sequence)
+            LOGGER.debug(
+                "Error processing %s response. %s command timed out?",
+                sequence,
+                self.COMMANDS_BY_ID.get(expected_id, [expected_id])[0],
+            )
         else:
             self._handle_callback(frame_name, result)
 
