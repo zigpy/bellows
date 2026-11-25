@@ -1511,47 +1511,42 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._gpdf_sent = asyncio.get_running_loop().create_future()
 
             try:
-                try:
-                    (status,) = await self._ezsp.dGpSend(
-                        action=True,
-                        useCca=False,
-                        addr=addr,
-                        gpdCommandId=command_id,
-                        gpdAsdu=payload,
-                        gpepHandle=0,
-                        # The NCP ignores this, the lifetime is enforced here
-                        gpTxQueueEntryLifetimeMs=min(
-                            lifetime // timedelta(milliseconds=1), 0xFFFF
-                        ),
+                (status,) = await self._ezsp.dGpSend(
+                    action=True,
+                    useCca=False,
+                    addr=addr,
+                    gpdCommandId=command_id,
+                    gpdAsdu=payload,
+                    gpepHandle=0,
+                    # The NCP ignores this, the lifetime is enforced here
+                    gpTxQueueEntryLifetimeMs=min(
+                        lifetime // timedelta(milliseconds=1), 0xFFFF
+                    ),
+                )
+
+                if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
+                    raise zigpy.exceptions.DeliveryError(
+                        f"Failed to queue GPDF: {status!r}"
                     )
 
-                    if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
+                try:
+                    async with asyncio_timeout(lifetime.total_seconds()):
+                        await asyncio.shield(self._gpdf_sent)
+                except TimeoutError:
+                    if await self._remove_gpdf(addr):
                         raise zigpy.exceptions.DeliveryError(
-                            f"Failed to queue GPDF: {status!r}"
-                        )
+                            "GPD did not listen before the GPDF expired"
+                        ) from None
 
+                    # Not finding it means the GPD took it meanwhile. Its report must
+                    # not complete the next GPDF.
                     try:
-                        async with asyncio_timeout(lifetime.total_seconds()):
-                            await asyncio.shield(self._gpdf_sent)
+                        async with asyncio_timeout(GPDF_SENT_GRACE_S):
+                            await self._gpdf_sent
                     except TimeoutError:
-                        if await self._remove_gpdf(addr):
-                            raise zigpy.exceptions.DeliveryError(
-                                "GPD did not listen before the GPDF expired"
-                            ) from None
-
-                        # Not finding it means the GPD took it meanwhile. Its report
-                        # must not complete the next GPDF.
-                        try:
-                            async with asyncio_timeout(GPDF_SENT_GRACE_S):
-                                await self._gpdf_sent
-                        except TimeoutError:
-                            raise zigpy.exceptions.DeliveryError(
-                                "NCP dropped the GPDF"
-                            ) from None
-                except asyncio.CancelledError:
-                    # A GPDF left behind blocks every other GPD
-                    await asyncio.shield(self._remove_gpdf(addr))
-                    raise
+                        raise zigpy.exceptions.DeliveryError(
+                            "NCP dropped the GPDF"
+                        ) from None
             finally:
                 self._gpdf_sent = None
 

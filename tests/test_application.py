@@ -3596,23 +3596,6 @@ async def test_send_gpdf_expired(app: ControllerApplication) -> None:
     assert removal.kwargs["addr"].source_id == 0x12345678
 
 
-async def test_send_gpdf_cancelled(app: ControllerApplication) -> None:
-    """A cancelled GPDF is removed so that it does not block other GPDs."""
-    app.state.network_info.channel = 25
-    app._ezsp.dGpSend = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
-
-    task = asyncio.create_task(send_gpdf(app))
-    await asyncio.sleep(0.01)
-    task.cancel()
-
-    with pytest.raises(asyncio.CancelledError):
-        await task
-
-    [_, removal] = app._ezsp.dGpSend.mock_calls
-    assert removal.kwargs["action"] is False
-    assert removal.kwargs["addr"].source_id == 0x12345678
-
-
 async def test_send_gpdf_sent_while_expiring(app: ControllerApplication) -> None:
     """A GPDF the NCP no longer holds when it expires is sent shortly after."""
     app.state.network_info.channel = 25
@@ -3620,7 +3603,6 @@ async def test_send_gpdf_sent_while_expiring(app: ControllerApplication) -> None
         side_effect=[
             [t.EmberStatus.SUCCESS],
             [t.EmberStatus.ERR_FATAL],
-            [t.EmberStatus.SUCCESS],
             [t.EmberStatus.SUCCESS],
         ]
     )
