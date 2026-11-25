@@ -130,12 +130,12 @@ class ProtocolHandler(abc.ABC):
                 async with asyncio_timeout(EZSP_CMD_TIMEOUT):
                     await self._gw.send_data(data)
                     return await future
-            except TimeoutError:
-                # Keep only IDs, bounded by the 256 sequence values until reuse.
-                self._timed_out_commands[sequence] = cmd_id
-                raise
             finally:
                 self._awaiting.pop(sequence, None)
+                # No reply consumed (timeout, cancellation or a failed send): keep
+                # only IDs, bounded by the 256 sequence values until reuse.
+                if not future.done() or future.cancelled():
+                    self._timed_out_commands[sequence] = cmd_id
                 future.cancel()
 
     async def update_policies(self, policy_config: dict) -> None:
@@ -258,12 +258,15 @@ class ProtocolHandler(abc.ABC):
                     sequence,
                     self.COMMANDS_BY_ID.get(expected_id, [expected_id])[0],
                 )
-        elif self._timed_out_commands.get(sequence) == frame_id:
-            self._timed_out_commands.pop(sequence)
+        elif sequence in self._timed_out_commands and frame_id in (
+            self._timed_out_commands[sequence],
+            self.COMMANDS["invalidCommand"][0],
+        ):
+            expected_id = self._timed_out_commands.pop(sequence)
             LOGGER.debug(
                 "Error processing %s response. %s command timed out?",
                 sequence,
-                frame_name,
+                self.COMMANDS_BY_ID.get(expected_id, [expected_id])[0],
             )
         else:
             self._handle_callback(frame_name, result)

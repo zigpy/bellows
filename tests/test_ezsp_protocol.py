@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
+from bellows.exception import InvalidCommandError
 from bellows.ezsp import EZSP
 import bellows.ezsp.v4
 import bellows.ezsp.v9
@@ -160,6 +161,69 @@ async def test_receive_late_reply_after_command_timeout(prot_hndl, caplog, block
     prot_hndl._handle_callback.assert_not_called()
     assert "Error processing 0 response. version command timed out?" in caplog.text
     assert not prot_hndl._timed_out_commands
+
+
+@pytest.mark.parametrize("block_send", [False, True])
+async def test_receive_late_reply_after_command_cancel(prot_hndl, caplog, block_send):
+    """Late replies are dropped after the caller cancels during send or response."""
+    sent = asyncio.Event()
+
+    async def send(data):
+        sent.set()
+        if block_send:
+            await asyncio.Event().wait()
+
+    with patch.object(prot_hndl._gw, "send_data", side_effect=send):
+        task = asyncio.create_task(prot_hndl.command("version", 4))
+        await sent.wait()
+        await asyncio.sleep(0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    assert not prot_hndl._awaiting
+    with caplog.at_level(logging.DEBUG):
+        prot_hndl(b"\x00\xff\x00\x04\x05\x06\x00")
+
+    prot_hndl._handle_callback.assert_not_called()
+    assert "Error processing 0 response. version command timed out?" in caplog.text
+    assert not prot_hndl._timed_out_commands
+
+
+async def test_receive_late_invalid_command_after_timeout(prot_hndl, caplog):
+    """A late invalidCommand for a timed-out sequence is dropped, too."""
+    with (
+        patch.object(prot_hndl._gw, "send_data"),
+        patch("bellows.ezsp.protocol.EZSP_CMD_TIMEOUT", 0.01),
+        pytest.raises(TimeoutError),
+    ):
+        await prot_hndl.command("version", 4)
+
+    with caplog.at_level(logging.DEBUG):
+        prot_hndl(b"\x00\xff\x58\x31")
+
+    prot_hndl._handle_callback.assert_not_called()
+    assert "Error processing 0 response. version command timed out?" in caplog.text
+    assert not prot_hndl._timed_out_commands
+
+
+@pytest.mark.parametrize("invalid", [False, True])
+async def test_command_answered_in_time_leaves_no_marker(prot_hndl, invalid):
+    """A reply or invalidCommand consumed in time leaves no timeout marker."""
+
+    async def send(data):
+        prot_hndl(b"\x00\xff\x58\x31" if invalid else b"\x00\xff\x00\x04\x05\x06\x00")
+
+    with patch.object(prot_hndl._gw, "send_data", side_effect=send):
+        if invalid:
+            with pytest.raises(InvalidCommandError):
+                await prot_hndl.command("version", 4)
+        else:
+            assert await prot_hndl.command("version", 4) == [4, 5, 6]
+
+    assert not prot_hndl._awaiting
+    assert not prot_hndl._timed_out_commands
+    prot_hndl._handle_callback.assert_not_called()
 
 
 async def test_timed_out_command_does_not_hide_unrelated_callbacks(prot_hndl):
