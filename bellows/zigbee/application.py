@@ -1519,7 +1519,10 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                         gpdCommandId=command_id,
                         gpdAsdu=payload,
                         gpepHandle=0,
-                        gpTxQueueEntryLifetimeMs=lifetime // timedelta(milliseconds=1),
+                        # The NCP ignores this, the lifetime is enforced here
+                        gpTxQueueEntryLifetimeMs=min(
+                            lifetime // timedelta(milliseconds=1), 0xFFFF
+                        ),
                     )
 
                     if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:

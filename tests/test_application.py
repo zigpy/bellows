@@ -3549,6 +3549,20 @@ async def test_send_gpdf(
     ]
 
 
+async def test_send_gpdf_long_lifetime(app: ControllerApplication) -> None:
+    """A lifetime longer than the NCP's field is clamped."""
+    app.state.network_info.channel = 25
+    app._ezsp.dGpSend = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+
+    task = asyncio.create_task(send_gpdf(app, lifetime=timedelta(minutes=5)))
+    await asyncio.sleep(0.01)
+    app.ezsp_callback_handler("dGpSentHandler", [t.EmberStatus.SUCCESS, 0])
+    await task
+
+    [queue] = app._ezsp.dGpSend.mock_calls
+    assert queue.kwargs["gpTxQueueEntryLifetimeMs"] == 0xFFFF
+
+
 async def test_send_gpdf_one_at_a_time(app: ControllerApplication) -> None:
     """The NCP queues one GPDF for all GPDs, so a second one waits for the first."""
     app.state.network_info.channel = 25
