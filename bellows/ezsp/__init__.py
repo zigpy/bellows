@@ -627,12 +627,16 @@ class EZSP:
             LOGGER.warning("Couldn't set concentrator type %s: %s", True, res)
 
         if self._ezsp_version >= 8:
-            await self.setSourceRouteDiscoveryMode(
+            (remaining_ms,) = await self.setSourceRouteDiscoveryMode(
                 mode=(
                     t.SourceRouteDiscoveryMode.ON
                     if enabled
                     else t.SourceRouteDiscoveryMode.OFF
                 )
+            )
+            LOGGER.debug(
+                "Source route discovery: %d ms until next MTORR broadcast",
+                remaining_ms,
             )
 
     async def _add_join_link_keys(self, link_keys: dict[t.EUI64, t.KeyData]) -> None:
