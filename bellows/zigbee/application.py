@@ -1508,42 +1508,51 @@ class ControllerApplication(zigpy.application.ControllerApplication):
             self._gpdf_sent = asyncio.get_running_loop().create_future()
 
             try:
-                (status,) = await self._ezsp.dGpSend(
-                    action=True,
-                    useCca=False,
-                    addr=addr,
-                    gpdCommandId=command_id,
-                    gpdAsdu=payload,
-                    gpepHandle=0,
-                    gpTxQueueEntryLifetimeMs=lifetime // timedelta(milliseconds=1),
-                )
-
-                if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
-                    raise zigpy.exceptions.DeliveryError(
-                        f"Failed to queue GPDF: {status!r}"
-                    )
-
                 try:
-                    async with asyncio_timeout(lifetime.total_seconds()):
-                        await self._gpdf_sent
-                except TimeoutError:
                     (status,) = await self._ezsp.dGpSend(
-                        action=False,
+                        action=True,
                         useCca=False,
                         addr=addr,
                         gpdCommandId=command_id,
-                        gpdAsdu=b"",
+                        gpdAsdu=payload,
                         gpepHandle=0,
-                        gpTxQueueEntryLifetimeMs=0,
+                        gpTxQueueEntryLifetimeMs=lifetime // timedelta(milliseconds=1),
                     )
 
-                    # Not finding it means the GPD took it meanwhile
-                    if t.sl_Status.from_ember_status(status) == t.sl_Status.OK:
+                    if t.sl_Status.from_ember_status(status) != t.sl_Status.OK:
                         raise zigpy.exceptions.DeliveryError(
-                            "GPD did not listen before the GPDF expired"
-                        ) from None
+                            f"Failed to queue GPDF: {status!r}"
+                        )
+
+                    try:
+                        async with asyncio_timeout(lifetime.total_seconds()):
+                            await self._gpdf_sent
+                    except TimeoutError:
+                        # Not finding it means the GPD took it meanwhile
+                        if await self._remove_gpdf(addr):
+                            raise zigpy.exceptions.DeliveryError(
+                                "GPD did not listen before the GPDF expired"
+                            ) from None
+                except asyncio.CancelledError:
+                    # A GPDF left behind blocks every other GPD
+                    await asyncio.shield(self._remove_gpdf(addr))
+                    raise
             finally:
                 self._gpdf_sent = None
+
+    async def _remove_gpdf(self, addr: t.EmberGpAddress) -> bool:
+        """Remove the GPDF queued for a GPD, returning whether the NCP still held it."""
+        (status,) = await self._ezsp.dGpSend(
+            action=False,
+            useCca=False,
+            addr=addr,
+            gpdCommandId=0x00,
+            gpdAsdu=b"",
+            gpepHandle=0,
+            gpTxQueueEntryLifetimeMs=0,
+        )
+
+        return t.sl_Status.from_ember_status(status) == t.sl_Status.OK
 
     def _handle_id_conflict(self, nwk: t.EmberNodeId) -> None:
         LOGGER.warning("NWK conflict is reported for 0x%04x", nwk)
