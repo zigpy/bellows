@@ -376,8 +376,8 @@ class EmberGpAddress(EzspStruct):
 
     applicationId: basic.uint8_t
 
-    # 8-byte union. When applicationId == 0 (SrcID), the first 4 bytes hold the 32-bit
-    # source ID (little-endian) and the rest is padding; when applicationId == 2
+    # 8-byte union. When applicationId == 0 (SrcID), the 32-bit source ID is written
+    # twice (little-endian) and the NCP reads the second copy; when applicationId == 2
     # (IEEE), the 8 bytes are the GPD EUI64.
     source_id: SrcID = StructField(
         requires=lambda a: a.applicationId == ApplicationID.SrcID

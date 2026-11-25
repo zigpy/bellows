@@ -3489,12 +3489,13 @@ async def send_gpdf(
 @pytest.mark.parametrize(
     ("target", "addr"),
     [
+        # The NCP reads the second copy of the SrcID
         (
             zgp_t.SrcID(0x12345678),
             t.EmberGpAddress(
                 applicationId=zgp_t.ApplicationID.SrcID,
                 source_id=zgp_t.SrcID(0x12345678),
-                source_id_padding=0,
+                source_id_padding=0x12345678,
                 endpoint=0,
             ),
         ),
@@ -3548,6 +3549,20 @@ async def test_send_gpdf(
     ]
 
 
+async def test_send_gpdf_long_lifetime(app: ControllerApplication) -> None:
+    """A lifetime longer than the NCP's field is clamped."""
+    app.state.network_info.channel = 25
+    app._ezsp.dGpSend = AsyncMock(return_value=[t.EmberStatus.SUCCESS])
+
+    task = asyncio.create_task(send_gpdf(app, lifetime=timedelta(minutes=5)))
+    await asyncio.sleep(0.01)
+    app.ezsp_callback_handler("dGpSentHandler", [t.EmberStatus.SUCCESS, 0])
+    await task
+
+    [queue] = app._ezsp.dGpSend.mock_calls
+    assert queue.kwargs["gpTxQueueEntryLifetimeMs"] == 0xFFFF
+
+
 async def test_send_gpdf_one_at_a_time(app: ControllerApplication) -> None:
     """The NCP queues one GPDF for all GPDs, so a second one waits for the first."""
     app.state.network_info.channel = 25
@@ -3582,13 +3597,43 @@ async def test_send_gpdf_expired(app: ControllerApplication) -> None:
 
 
 async def test_send_gpdf_sent_while_expiring(app: ControllerApplication) -> None:
-    """A GPDF the NCP no longer holds when it expires was taken by its GPD."""
+    """A GPDF the NCP no longer holds when it expires is sent shortly after."""
+    app.state.network_info.channel = 25
+    app._ezsp.dGpSend = AsyncMock(
+        side_effect=[
+            [t.EmberStatus.SUCCESS],
+            [t.EmberStatus.ERR_FATAL],
+            [t.EmberStatus.SUCCESS],
+        ]
+    )
+
+    asyncio.get_running_loop().call_later(
+        0.05, app.ezsp_callback_handler, "dGpSentHandler", [t.EmberStatus.SUCCESS, 0]
+    )
+    await send_gpdf(app, lifetime=timedelta(milliseconds=10))
+
+    # The report did not complete the next GPDF
+    task = asyncio.create_task(send_gpdf(app))
+    await asyncio.sleep(0.1)
+    assert not task.done()
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+
+async def test_send_gpdf_dropped_while_expiring(app: ControllerApplication) -> None:
+    """A GPDF the NCP took from its queue but never reported was dropped."""
     app.state.network_info.channel = 25
     app._ezsp.dGpSend = AsyncMock(
         side_effect=[[t.EmberStatus.SUCCESS], [t.EmberStatus.ERR_FATAL]]
     )
 
-    await send_gpdf(app, lifetime=timedelta(milliseconds=10))
+    with (
+        patch("bellows.zigbee.application.GPDF_SENT_GRACE_S", 0.01),
+        pytest.raises(zigpy.exceptions.DeliveryError, match="dropped"),
+    ):
+        await send_gpdf(app, lifetime=timedelta(milliseconds=10))
 
 
 async def test_send_gpdf_not_queued(app: ControllerApplication) -> None:
