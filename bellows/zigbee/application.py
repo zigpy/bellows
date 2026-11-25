@@ -1498,7 +1498,7 @@ class ControllerApplication(zigpy.application.ControllerApplication):
                 addr = t.EmberGpAddress(
                     applicationId=zgp_t.ApplicationID.SrcID,
                     source_id=target,
-                    source_id_padding=0,
+                    source_id_padding=target,
                     endpoint=0,
                 )
 

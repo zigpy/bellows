@@ -3489,12 +3489,13 @@ async def send_gpdf(
 @pytest.mark.parametrize(
     ("target", "addr"),
     [
+        # The NCP reads the second copy of the SrcID
         (
             zgp_t.SrcID(0x12345678),
             t.EmberGpAddress(
                 applicationId=zgp_t.ApplicationID.SrcID,
                 source_id=zgp_t.SrcID(0x12345678),
-                source_id_padding=0,
+                source_id_padding=0x12345678,
                 endpoint=0,
             ),
         ),
