@@ -635,6 +635,29 @@ class EZSP:
                 )
             )
 
+    async def _add_join_link_keys(self, link_keys: dict[t.EUI64, t.KeyData]) -> None:
+        for ieee, key in link_keys.items():
+            status = await self._protocol.add_transient_link_key(ieee, key)
+
+            if status != t.sl_Status.OK:
+                raise ControllerError(f"Failed to set link key for {ieee}")
+
+    async def refresh_join_link_keys(
+        self, *, link_keys: dict[t.EUI64, t.KeyData] | None = None
+    ) -> None:
+        """Import the transient link keys of an open join window again."""
+        if link_keys is None:
+            link_keys = {WILDCARD_EUI64: WELL_KNOWN_LINK_KEY}
+
+        # The NCP drops transient keys a fixed time after they are imported. The SDK's
+        # network-creator-security imports its key again, without clearing the table,
+        # when an open network is reopened, so joins still find their key meanwhile.
+        try:
+            await self._add_join_link_keys(link_keys)
+        except ControllerError:
+            await self._protocol.clear_transient_link_keys()
+            await self._add_join_link_keys(link_keys)
+
     @contextlib.asynccontextmanager
     async def allow_joins(
         self, *, link_keys: dict[t.EUI64, t.KeyData] | None = None
@@ -648,13 +671,7 @@ class EZSP:
         try:
             # Keys from a previous window may remain if its cleanup failed
             await self._protocol.clear_transient_link_keys()
-
-            for ieee, key in link_keys.items():
-                status = await self._protocol.add_transient_link_key(ieee, key)
-
-                if status != t.sl_Status.OK:
-                    raise ControllerError(f"Failed to set link key for {ieee}")
-
+            await self._add_join_link_keys(link_keys)
             await self._protocol.set_join_policy(
                 allow_joins=True, install_codes_only=install_codes_only
             )
